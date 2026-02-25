@@ -12,6 +12,8 @@ const BRIDGE_PATH_PREFIX =
 
 const STORAGE_KEY = 'orina_supabase_auth_claim_bridge_session';
 const SESSION_EVENT = 'orina:supabase-auth-claim-bridge';
+let lastExchangeFailureAt = 0;
+const EXCHANGE_FAILURE_COOLDOWN_MS = 30_000;
 
 export interface SupabaseAuthClaimBridgeSession {
   accessToken: string;
@@ -43,7 +45,6 @@ function getBridgeBaseUrl(): string {
 function bridgeHeaders(extra?: Record<string, string>): Record<string, string> {
   return {
     Authorization: `Bearer ${publicAnonKey}`,
-    apikey: publicAnonKey,
     'Content-Type': 'application/json',
     ...extra,
   };
@@ -139,6 +140,10 @@ export async function exchangeWalletAuthForSupabaseClaimSession(
     return existing;
   }
 
+  if (lastExchangeFailureAt && Date.now() - lastExchangeFailureAt < EXCHANGE_FAILURE_COOLDOWN_MS) {
+    return null;
+  }
+
   const res = await fetch(`${getBridgeBaseUrl()}/exchange`, {
     method: 'POST',
     headers: bridgeHeaders(),
@@ -148,6 +153,7 @@ export async function exchangeWalletAuthForSupabaseClaimSession(
         address: walletSession.address,
         signedAt: walletSession.signedAt,
         signature: walletSession.signature,
+        message: (walletSession as any).message || undefined,
       },
       client: {
         app: 'ATP2',
@@ -166,6 +172,7 @@ export async function exchangeWalletAuthForSupabaseClaimSession(
   }
 
   if (!res.ok) {
+    lastExchangeFailureAt = Date.now();
     const message =
       payload?.error ||
       payload?.message ||
@@ -190,6 +197,7 @@ export async function exchangeWalletAuthForSupabaseClaimSession(
     source: 'wallet-auth-claim-bridge',
   };
 
+  lastExchangeFailureAt = 0;
   writeStoredSession(session);
   return session;
 }

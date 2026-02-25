@@ -1,5 +1,9 @@
 import { publicAnonKey, supabaseUrl } from '/utils/supabase/info';
-import { getSupabaseBridgeAccessToken } from '@/utils/supabaseAuthClaimBridge';
+import {
+  exchangeWalletAuthForSupabaseClaimSession,
+  getSupabaseBridgeAccessToken,
+  isSupabaseAuthClaimBridgeEnabled,
+} from '@/utils/supabaseAuthClaimBridge';
 
 type Json = Record<string, any> | any[];
 
@@ -45,6 +49,15 @@ function buildUrl(path: string): string {
 async function requestJson<T = any>(path: string, init: RequestInit = {}): Promise<T> {
   if (!isSupabaseRestEnabled()) {
     throw new SupabaseRestError('Supabase REST is not configured');
+  }
+
+  if (isSupabaseAuthClaimBridgeEnabled() && !getSupabaseBridgeAccessToken()) {
+    try {
+      await exchangeWalletAuthForSupabaseClaimSession();
+    } catch (error) {
+      // Fall back to anon key path until bridge is fully deployed/available.
+      console.debug('[SupabaseRest] Claim bridge exchange skipped:', error);
+    }
   }
 
   const res = await fetch(buildUrl(path), {

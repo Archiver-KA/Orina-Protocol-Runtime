@@ -1,8 +1,8 @@
-# ATP2 H1 — Wallet Auth -> Supabase Auth Claim Bridge (Design + Scaffold)
+# ATP2 H1 — Wallet Auth -> Supabase Auth Claim Bridge (Design + Implementation)
 
 **Date:** 2026-02-25  
 **Phase:** B (Hardening / Auth Bridge / Policy Lockdown)  
-**Status:** Design + scaffold created (not production-enabled)
+**Status:** Design + implementation code created (not deployed/enabled on project yet)
 
 `format batch: phạm vi hẹp, checklist chốt rõ, test sau từng bước.`
 
@@ -26,8 +26,8 @@ Use a short-lived Supabase-compatible JWT (issued by ATP2 backend bridge).
 - `wallet_session_id`
 - `iat`, `exp`, `aud`
 
-## 3) Request/Response Contract (scaffold)
-### Exchange endpoint (planned)
+## 3) Request/Response Contract (H1)
+### Exchange endpoint
 `POST /functions/v1/make-server-b0d68fc8/auth/supabase-claim-bridge/exchange`
 
 ### Request body
@@ -37,7 +37,8 @@ Use a short-lived Supabase-compatible JWT (issued by ATP2 backend bridge).
   "walletAuthSession": {
     "address": "0x...",
     "signedAt": 1700000000000,
-    "signature": "0x..."
+    "signature": "0x...",
+    "message": "Orina Wallet Session Authentication\\n..."
   },
   "client": {
     "app": "ATP2",
@@ -47,14 +48,17 @@ Use a short-lived Supabase-compatible JWT (issued by ATP2 backend bridge).
 }
 ```
 
-### Response body (planned)
+### Response body (implemented shape)
 ```json
 {
+  "ok": true,
   "accessToken": "<jwt>",
+  "tokenType": "Bearer",
   "expiresAt": "2026-02-25T00:15:00.000Z",
   "walletAddress": "0x...",
   "profileId": "uuid",
-  "claimVersion": "h1"
+  "claimVersion": "h1",
+  "verificationMode": "dev_trust_client_session"
 }
 ```
 
@@ -66,18 +70,26 @@ Use a short-lived Supabase-compatible JWT (issued by ATP2 backend bridge).
 5. Short TTL (recommended 10-15 minutes), with refresh endpoint if needed.
 6. Refuse bridge token issuance for invalid/expired/revoked wallet session.
 
-## 5) Scaffold Delivered (this batch)
+## 5) Implementation Artifacts Delivered (this batch)
 ### Client
 - `src/utils/supabaseAuthClaimBridge.ts`
   - local bridge token store
   - exchange request helper (disabled by default via env)
   - token/session event dispatch
+  - sends `walletAuthSession.message` when available (for stricter verification rollout)
 - `src/utils/supabaseRest.ts`
   - automatically prefers bridge bearer token over anon key when available
+  - best-effort exchange attempt (falls back to anon on bridge unavailable/error)
 
-### Server (Edge Function router scaffold)
+### Server (Edge Function router implementation)
 - `supabase/functions/server/wallet-auth-claim-bridge.tsx`
-  - route contract + validation + disabled-by-default behavior (`501`)
+  - `/exchange` implementation:
+    - request validation
+    - verification mode gate
+    - `profiles` resolve/create (service role)
+    - HS256 JWT signing (`SUPABASE_JWT_SECRET` / `ATP2_SUPABASE_JWT_SECRET`)
+    - short-lived token response
+  - disabled-by-default via `ATP2_ENABLE_SUPABASE_AUTH_CLAIM_BRIDGE`
 - mounted in:
   - `supabase/functions/server/index.tsx`
 
@@ -92,6 +104,18 @@ Use a short-lived Supabase-compatible JWT (issued by ATP2 backend bridge).
 - JWT signing implemented and validated
 - bridge returns `profileId` + short-lived JWT
 - test token can read/write owner rows under hardened RLS in staging/test project
+- function envs configured:
+  - `ATP2_ENABLE_SUPABASE_AUTH_CLAIM_BRIDGE=true`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+  - `SUPABASE_JWT_SECRET` (or `ATP2_SUPABASE_JWT_SECRET`)
+
+## 6.1 Verification Modes (implemented)
+- `dev_trust_client_session` (default)
+  - validates payload shape + recency of client wallet auth session
+  - suitable for dev/test while server-side wallet session verification is incomplete
+- `wallet_session_row`
+  - additionally requires active row in `public.wallet_sessions` for `wallet_address`
+  - recommended before applying H2 hardening on shared/staging environments
 
 ## 7) H1 Test Matrix (early-fail)
 ### Positive
@@ -106,4 +130,5 @@ Use a short-lived Supabase-compatible JWT (issued by ATP2 backend bridge).
 - uppercase wallet claim -> denied/normalized before issue
 
 ## 8) H1 Outcome for Roadmap
-- After H1 is implemented (not just scaffold), `H2` migration can replace `Batch 4C` temporary public writes with owner-scoped policies without breaking ATP2 functional flows.
+- H1 implementation code is ready for deployment/testing.
+- After H1 is deployed + validated end-to-end, `H2` migration can replace `Batch 4C` temporary public writes with owner-scoped policies without breaking ATP2 functional flows.

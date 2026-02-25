@@ -6,6 +6,7 @@ interface WalletAuthSession {
   address: string;
   signedAt: number;
   signature: string;
+  message?: string;
 }
 
 export function getWalletAuthSession(): WalletAuthSession | null {
@@ -19,6 +20,7 @@ export function getWalletAuthSession(): WalletAuthSession | null {
       address: normalizeAddress(parsed.address),
       signedAt: Number(parsed.signedAt) || Date.now(),
       signature: String(parsed.signature),
+      message: typeof parsed.message === 'string' ? parsed.message : undefined,
     };
   } catch {
     return null;
@@ -32,12 +34,17 @@ export function hasWalletAuthSession(address?: string | null): boolean {
   return session.address === normalizeAddress(address);
 }
 
-export function setWalletAuthSession(address: string, signature: string) {
+export function setWalletAuthSession(
+  address: string,
+  signature: string,
+  opts?: { message?: string }
+) {
   if (typeof window === 'undefined') return;
   const payload: WalletAuthSession = {
     address: normalizeAddress(address),
     signedAt: Date.now(),
     signature,
+    message: opts?.message,
   };
   localStorage.setItem(WALLET_AUTH_SESSION_KEY, JSON.stringify(payload));
   window.dispatchEvent(new Event('orina:wallet-auth-change'));

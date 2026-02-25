@@ -1313,8 +1313,8 @@ Tạo một function dùng chung để tránh copy logic.
 ## 22) Phase B Progress Log (Artifacts Ready, chưa apply)
 ### Batch H1 — Auth Claim Bridge (design + scaffold)
 **Status**
-- ✅ Design + scaffold created
-- ⏳ Not production-enabled (endpoint returns scaffold `501` by default)
+- ✅ Design + implementation code created (bridge `/exchange` can issue real JWT when enabled + envs are configured)
+- ⏳ Not deployed/validated end-to-end on project yet
 
 **Deliverables**
 - `docs/production/ATP2_H1_WALLET_AUTH_SUPABASE_CLAIM_BRIDGE_2026-02-25.md`
@@ -1326,7 +1326,8 @@ Tạo một function dùng chung để tránh copy logic.
 
 **Notes**
 - Bridge contract chốt claim fields: `role=authenticated`, `sub/profile_id`, `wallet_address`
-- H1 scaffold intentionally disabled by default via `ATP2_ENABLE_SUPABASE_AUTH_CLAIM_BRIDGE`
+- H1 bridge remains disabled by default via `ATP2_ENABLE_SUPABASE_AUTH_CLAIM_BRIDGE`
+- JWT signing requires `SUPABASE_JWT_SECRET` (or `ATP2_SUPABASE_JWT_SECRET`) in function env
 - H2 migration must not be applied until H1 verification + JWT signing is implemented and tested
 
 ### Batch H2 — Hardening RLS (migration + audit artifacts)

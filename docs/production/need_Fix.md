@@ -27,8 +27,8 @@
 - Test: invalid/expired wallet session không cấp claim
 - Gate: không còn mơ hồ ownership key cho RLS
 - Status hiện tại:
-  - ✅ Design + scaffold artifacts đã tạo
-  - ⏳ Chưa bật production (`bridge` endpoint vẫn scaffold/501 by default)
+  - ✅ Design + implementation code artifacts đã tạo (`/exchange` issues real JWT when enabled + env ready)
+  - ⏳ Chưa deploy/enable trên Supabase project (chưa validate end-to-end)
 
 ### H2 — RLS Hardening (Replace Batch 4C)
 - Xóa temp public-write policies `Batch 4C`

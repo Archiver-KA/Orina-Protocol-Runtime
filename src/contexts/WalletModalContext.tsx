@@ -83,8 +83,9 @@ export function WalletModalProvider({ children }: { children: ReactNode }) {
           return;
         }
         showProcessing();
-        const signature = await signMessageAsync({ message: buildWalletAuthMessage(address) });
-        setWalletAuthSession(address, signature);
+        const authMessage = buildWalletAuthMessage(address);
+        const signature = await signMessageAsync({ message: authMessage });
+        setWalletAuthSession(address, signature, { message: authMessage });
         clearGuestModeForced();
         showSuccess({
           hash: `0x${Math.random().toString(16).substring(2, 66)}`,

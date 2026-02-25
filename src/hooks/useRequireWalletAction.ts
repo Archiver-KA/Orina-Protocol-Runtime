@@ -39,8 +39,9 @@ export function useRequireWalletAction(setActivePage?: (page: string) => void) {
       }
 
       try {
-        const signature = await signMessageAsync({ message: buildWalletAuthMessage(address) });
-        setWalletAuthSession(address, signature);
+        const authMessage = buildWalletAuthMessage(address);
+        const signature = await signMessageAsync({ message: authMessage });
+        setWalletAuthSession(address, signature, { message: authMessage });
         clearGuestModeForced();
         return true;
       } catch (error) {
