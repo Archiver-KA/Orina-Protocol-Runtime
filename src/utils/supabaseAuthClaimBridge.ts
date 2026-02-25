@@ -34,6 +34,13 @@ interface ExchangeResponse {
   claimVersion?: string;
 }
 
+type BridgeWalletAuthLikeSession = {
+  address: string;
+  signedAt: number;
+  signature: string;
+  message?: string;
+};
+
 function isBrowser(): boolean {
   return typeof window !== 'undefined' && typeof fetch === 'function';
 }
@@ -46,6 +53,16 @@ function bridgeHeaders(extra?: Record<string, string>): Record<string, string> {
   return {
     Authorization: `Bearer ${publicAnonKey}`,
     'Content-Type': 'application/json',
+    ...extra,
+  };
+}
+
+function bridgeAuthHeaders(extra?: Record<string, string>): Record<string, string> {
+  const bearer = getSupabaseBridgeAccessToken() || publicAnonKey;
+  return {
+    Authorization: `Bearer ${bearer}`,
+    'Content-Type': 'application/json',
+    apikey: publicAnonKey,
     ...extra,
   };
 }
@@ -96,8 +113,22 @@ function isExpired(session: SupabaseAuthClaimBridgeSession, skewMs = 15_000): bo
 
 function isWalletSessionAligned(session: SupabaseAuthClaimBridgeSession): boolean {
   const walletSession = getWalletAuthSession();
-  if (!walletSession) return false;
+  // H1/H3 dev-trust mode may exchange using an address-only fallback session.
+  // In that case there may be no persisted walletAuthSession to compare against.
+  if (!walletSession) return true;
   return normalizeAddress(walletSession.address) === normalizeAddress(session.walletAddress);
+}
+
+function buildDevTrustFallbackSession(walletAddress: string): BridgeWalletAuthLikeSession {
+  const normalized = normalizeAddress(walletAddress);
+  const now = Date.now();
+  return {
+    address: normalized,
+    signedAt: now,
+    // H1 dev_trust_client_session mode validates shape/age/address, not cryptographic recovery.
+    signature: `0x${'00'.repeat(65)}`,
+    message: `ATP2 H1 dev-trust fallback\nAddress: ${normalized}\nTime: ${new Date(now).toISOString()}`,
+  };
 }
 
 export function isSupabaseAuthClaimBridgeEnabled(): boolean {
@@ -127,7 +158,12 @@ export async function exchangeWalletAuthForSupabaseClaimSession(
 ): Promise<SupabaseAuthClaimBridgeSession | null> {
   if (!isSupabaseAuthClaimBridgeEnabled()) return null;
 
-  const walletSession = getWalletAuthSession();
+  const requestedWallet = walletAddress ? normalizeAddress(walletAddress) : '';
+  const rawWalletSession = getWalletAuthSession();
+  const walletSession: BridgeWalletAuthLikeSession | null =
+    rawWalletSession ||
+    (requestedWallet ? buildDevTrustFallbackSession(requestedWallet) : null);
+
   if (!walletSession) return null;
 
   const normalizedWallet = normalizeAddress(walletAddress || walletSession.address);
@@ -153,7 +189,7 @@ export async function exchangeWalletAuthForSupabaseClaimSession(
         address: walletSession.address,
         signedAt: walletSession.signedAt,
         signature: walletSession.signature,
-        message: (walletSession as any).message || undefined,
+        message: walletSession.message || undefined,
       },
       client: {
         app: 'ATP2',
@@ -204,4 +240,50 @@ export async function exchangeWalletAuthForSupabaseClaimSession(
 
 export function getSupabaseBridgeSessionEventName(): string {
   return SESSION_EVENT;
+}
+
+export async function sendCommunityNotificationViaBridge(params: {
+  targetWalletAddress: string;
+  title: string;
+  message: string;
+  sourceId?: string | null;
+  metadata?: Record<string, unknown>;
+  actorWalletAddress?: string | null;
+  actorName?: string | null;
+}): Promise<boolean> {
+  if (!isBrowser() || !supabaseUrl || !publicAnonKey) return false;
+
+  try {
+    if (isSupabaseAuthClaimBridgeEnabled() && !getSupabaseBridgeAccessToken() && params.actorWalletAddress) {
+      await exchangeWalletAuthForSupabaseClaimSession(params.actorWalletAddress);
+    }
+  } catch (error) {
+    console.debug('[H1 Bridge] Community notify token exchange skipped:', error);
+  }
+
+  try {
+    const res = await fetch(`${getBridgeBaseUrl()}/community-notify`, {
+      method: 'POST',
+      headers: bridgeAuthHeaders(),
+      body: JSON.stringify({
+        targetWalletAddress: normalizeAddress(params.targetWalletAddress),
+        title: params.title,
+        message: params.message,
+        sourceId: params.sourceId || null,
+        metadata: params.metadata || {},
+        actorWalletAddress: params.actorWalletAddress ? normalizeAddress(params.actorWalletAddress) : null,
+        actorName: params.actorName || null,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      console.debug('[H1 Bridge] community-notify failed:', res.status, text);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.debug('[H1 Bridge] community-notify network error:', error);
+    return false;
+  }
 }

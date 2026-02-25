@@ -14,6 +14,7 @@ import {
   setLocalSupabaseId,
   toQuery,
 } from '@/utils/supabaseRest';
+import { exchangeWalletAuthForSupabaseClaimSession, isSupabaseAuthClaimBridgeEnabled } from '@/utils/supabaseAuthClaimBridge';
 
 // ✅ NEW ARCHITECTURE: Address-based only, no userId concept
 const ACTIVITIES_KEY = 'studio_user_activities';
@@ -230,6 +231,14 @@ async function ensureRemoteProfileId(address: string, seedProfile?: UserProfile)
   const cached = profileIdForWallet(normalized);
   if (cached) return cached;
   if (!isSupabaseRestEnabled()) return null;
+
+  if (isSupabaseAuthClaimBridgeEnabled()) {
+    try {
+      await exchangeWalletAuthForSupabaseClaimSession(normalized);
+    } catch (error) {
+      console.debug('[Profile] Claim bridge exchange skipped:', error);
+    }
+  }
 
   try {
     const rows = await restSelect<DbProfileRow>(

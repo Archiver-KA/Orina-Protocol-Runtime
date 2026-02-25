@@ -64,7 +64,7 @@ export interface UserAction {
   pollOptionId?: string;
 }
 
-export type FeedFilter = 'all' | 'following' | 'discussions' | 'questions' | 'announcements' | 'achievements' | 'my-posts';
+export type FeedFilter = 'all' | 'following' | 'discussions' | 'questions' | 'announcements' | 'achievements' | 'my-posts' | 'my-saved';
 
 export type FeedSort = 'recent' | 'trending' | 'popular' | 'unanswered';
 

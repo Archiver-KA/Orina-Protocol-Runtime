@@ -3,6 +3,7 @@ import {
   dispatchSyncEvent,
   encodeEq,
   restDelete,
+  restPatch,
   restSelect,
   restUpsert,
   toQuery,
@@ -43,11 +44,19 @@ export function generateNotificationId(): string {
  * @param walletAddress - The wallet address to load notifications for
  */
 export function loadNotifications(walletAddress: string): AppNotification[] {
+  return loadNotificationsInternal(walletAddress, false);
+}
+
+export function loadNotificationsLocalOnly(walletAddress: string): AppNotification[] {
+  return loadNotificationsInternal(walletAddress, true);
+}
+
+function loadNotificationsInternal(walletAddress: string, skipHydrate: boolean): AppNotification[] {
   try {
     const key = getNotificationsKey(walletAddress);
     const stored = localStorage.getItem(key);
     const parsed = stored ? JSON.parse(stored) : [];
-    if (walletAddress) {
+    if (walletAddress && !skipHydrate) {
       void hydrateNotificationsFromSupabase(walletAddress);
     }
     return Array.isArray(parsed) ? parsed : [];
@@ -63,11 +72,19 @@ export function loadNotifications(walletAddress: string): AppNotification[] {
  * @param notifications - The notifications to save
  */
 export function saveNotifications(walletAddress: string, notifications: AppNotification[]): void {
+  saveNotificationsInternal(walletAddress, notifications, false);
+}
+
+export function saveNotificationsLocalOnly(walletAddress: string, notifications: AppNotification[]): void {
+  saveNotificationsInternal(walletAddress, notifications, true);
+}
+
+function saveNotificationsInternal(walletAddress: string, notifications: AppNotification[], skipRemoteSync: boolean): void {
   try {
     const key = getNotificationsKey(walletAddress);
     localStorage.setItem(key, JSON.stringify(notifications));
     dispatchSyncEvent(NOTIFICATIONS_SYNC_EVENT);
-    if (walletAddress) {
+    if (walletAddress && !skipRemoteSync) {
       queueNotificationsSync(walletAddress, notifications);
     }
   } catch (error) {
@@ -201,7 +218,33 @@ async function hydrateNotificationsFromSupabase(walletAddress: string): Promise<
       })
     );
     const mapped = mapDbNotificationsToApp(rows);
-    localStorage.setItem(getNotificationsKey(walletKey), JSON.stringify(mapped));
+    const existingRaw = localStorage.getItem(getNotificationsKey(walletKey));
+    const existing = existingRaw ? JSON.parse(existingRaw) : [];
+    const existingList = Array.isArray(existing) ? (existing as AppNotification[]) : [];
+
+    const remoteById = new Map<string, AppNotification>(
+      mapped.filter((n) => n?.id).map((n) => [String(n.id), n])
+    );
+
+    for (const localNotif of existingList) {
+      if (!localNotif?.id) continue;
+      const key = String(localNotif.id);
+      const remoteNotif = remoteById.get(key);
+      if (!remoteNotif) continue;
+      // Preserve local read-state immediately after user actions while remote sync catches up.
+      // This avoids unread badges/items "coming back" on refresh in non-realtime mode.
+      remoteById.set(key, {
+        ...remoteNotif,
+        read: !!remoteNotif.read || !!localNotif.read,
+      });
+    }
+
+    const remoteIds = new Set(remoteById.keys());
+    const localOnly = existingList.filter((n) => n?.id && !remoteIds.has(String(n.id)));
+    const merged = [...Array.from(remoteById.values()), ...localOnly]
+      .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))
+      .slice(0, 100);
+    localStorage.setItem(getNotificationsKey(walletKey), JSON.stringify(merged));
     dispatchSyncEvent(NOTIFICATIONS_SYNC_EVENT);
   } catch (error) {
     console.debug('[Notifications] Supabase hydrate skipped:', error);
@@ -281,6 +324,50 @@ async function syncNotificationsToSupabase(walletAddress: string, notifications:
     }
   } catch (error) {
     console.debug('[Notifications] Supabase sync skipped:', error);
+  }
+}
+
+export async function markNotificationReadRemote(walletAddress: string, notificationId: string): Promise<void> {
+  try {
+    const walletKey = normalizeWalletKey(walletAddress);
+    const userId = getCachedRemoteProfileId(walletKey) || await ensureRemoteProfileIdForWallet(walletKey);
+    if (!userId || !notificationId) return;
+    await restPatch(
+      'notifications',
+      toQuery({
+        user_id: encodeEq(userId),
+        source_type: encodeEq(NOTIFICATION_SOURCE_TYPE),
+        source_id: encodeEq(notificationId),
+      }),
+      {
+        is_read: true,
+        read_at: new Date().toISOString(),
+      }
+    );
+  } catch (error) {
+    console.debug('[Notifications] markNotificationReadRemote skipped:', error);
+  }
+}
+
+export async function markAllNotificationsReadRemote(walletAddress: string): Promise<void> {
+  try {
+    const walletKey = normalizeWalletKey(walletAddress);
+    const userId = getCachedRemoteProfileId(walletKey) || await ensureRemoteProfileIdForWallet(walletKey);
+    if (!userId) return;
+    await restPatch(
+      'notifications',
+      toQuery({
+        user_id: encodeEq(userId),
+        source_type: encodeEq(NOTIFICATION_SOURCE_TYPE),
+        is_read: encodeEq(false),
+      }),
+      {
+        is_read: true,
+        read_at: new Date().toISOString(),
+      }
+    );
+  } catch (error) {
+    console.debug('[Notifications] markAllNotificationsReadRemote skipped:', error);
   }
 }
 

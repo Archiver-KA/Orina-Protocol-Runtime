@@ -1,5 +1,5 @@
 import { Hono } from 'npm:hono';
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const router = new Hono();
 
@@ -16,6 +16,16 @@ type ExchangeRequest = {
     phase?: string;
     requestedAt?: string;
   };
+};
+
+type CommunityNotifyRequest = {
+  targetWalletAddress?: string;
+  title?: string;
+  message?: string;
+  sourceId?: string | null;
+  metadata?: Record<string, unknown>;
+  actorWalletAddress?: string | null;
+  actorName?: string | null;
 };
 
 type DbProfileRow = {
@@ -394,6 +404,82 @@ router.post('/refresh', async (c) => {
 router.post('/logout', async (c) => {
   // Client can clear local bridge token without server coordination in H1.
   return c.json({ ok: true, status: 'noop_h1' });
+});
+
+router.post('/community-notify', async (c) => {
+  let body: CommunityNotifyRequest;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const targetWalletAddress = normalizeAddress(String(body.targetWalletAddress || '').trim());
+  if (!isValidWalletAddress(targetWalletAddress)) {
+    return c.json({ error: 'Invalid targetWalletAddress (expected lowercase 0x + 40 hex chars)' }, 400);
+  }
+
+  const title = String(body.title || '').trim();
+  const message = String(body.message || '').trim();
+  if (!title || !message) {
+    return c.json({ error: 'title and message are required' }, 400);
+  }
+
+  const requestedSourceId = String(body.sourceId || '').trim();
+  const sourceId =
+    requestedSourceId && requestedSourceId.length <= 200
+      ? requestedSourceId
+      : `notif_${crypto.randomUUID()}`;
+
+  if (!isEnabled('ATP2_ENABLE_SUPABASE_AUTH_CLAIM_BRIDGE')) {
+    return c.json({ error: 'Bridge is disabled' }, 501);
+  }
+
+  try {
+    const supabase = getServiceSupabaseClient();
+    const targetProfile = await resolveOrCreateProfile(supabase, targetWalletAddress);
+
+    const payload = {
+      ...(body.metadata || {}),
+      actorWalletAddress: body.actorWalletAddress ? normalizeAddress(String(body.actorWalletAddress)) : null,
+      actorName: body.actorName || null,
+      delivered_by: 'h1_bridge_service_role',
+    };
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert({
+        user_id: targetProfile.id,
+        type: 'community',
+        title,
+        body: message,
+        payload,
+        source_type: 'atp2_app_v1',
+        source_id: sourceId,
+        is_read: false,
+        read_at: null,
+      })
+      .select('id,user_id,source_id,created_at')
+      .limit(1);
+
+    if (error) {
+      throw new Error(`notifications insert failed: ${error.message}`);
+    }
+
+    return c.json({
+      ok: true,
+      targetWalletAddress,
+      profileId: targetProfile.id,
+      sourceId,
+      row: data?.[0] || null,
+    });
+  } catch (error) {
+    console.error('[H1 Bridge] community-notify failed:', error);
+    return c.json(
+      { error: error instanceof Error ? error.message : 'community-notify failed' },
+      500
+    );
+  }
 });
 
 router.get('/health', async (c) => {

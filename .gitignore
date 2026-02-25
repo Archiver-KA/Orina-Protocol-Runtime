@@ -9,9 +9,16 @@ dist/
 # Supabase local temp/cache
 supabase/.temp/
 
+# Supabase audit local secrets / probe outputs
+supabase/audit/key.md
+supabase/audit/*.json
+
 # OS/editor noise
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
 *.log
+
+# Accidental local file
+.env)

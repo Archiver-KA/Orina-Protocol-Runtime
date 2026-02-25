@@ -10,7 +10,7 @@ import { storeAPIKey, getAllKeysForWallet } from "./api-auth.tsx";
 import { APIKey } from "./types.ts";
 import * as messagesHandler from "./messages-handler.ts";
 
-const app = new Hono();
+export const app = new Hono();
 
 // Enable logger
 app.use('*', logger(console.log));
@@ -142,4 +142,8 @@ function generateRandomToken(length: number): string {
   return result;
 }
 
-Deno.serve(app.fetch);
+if (import.meta.main) {
+  Deno.serve(app.fetch);
+}
+
+export default app;

@@ -13,6 +13,10 @@ import {
   toQuery,
 } from '@/utils/supabaseRest';
 import { ensureRemoteProfileIdForWallet, getCachedRemoteProfileId } from '@/utils/profileUtils';
+import {
+  exchangeWalletAuthForSupabaseClaimSession,
+  isSupabaseAuthClaimBridgeEnabled,
+} from '@/utils/supabaseAuthClaimBridge';
 
 // ─── Storage Keys ───────────────────────────────────────────
 const POSTS_KEY = 'studio_community_posts';
@@ -28,6 +32,10 @@ const COMMUNITY_COMMENT_SYNC_TIMERS = new Map<string, number>();
 // ─── Address Normalization ──────────────────────────────────
 function normalizeAddress(address: string): string {
   return address.toLowerCase();
+}
+
+function isLikelyWalletAddress(value?: string | null): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(String(value || ''));
 }
 
 function shouldBlockGuestCommunityWrite(op: string): boolean {
@@ -176,7 +184,17 @@ async function hydratePostsFromSupabase(): Promise<void> {
     );
     const mapped = rows.map(mapDbPostToLocal);
     mapped.forEach((post, idx) => setLocalSupabaseId('community_post', postMapKey(post.id), rows[idx].id));
-    localStorage.setItem(POSTS_KEY, JSON.stringify(mapped));
+
+    const existing = loadAllPosts();
+    const remoteIds = new Set(mapped.map((p) => p.id));
+    const localOnly = existing.filter(
+      (post) =>
+        !getLocalSupabaseId('community_post', postMapKey(post.id)) &&
+        !remoteIds.has(post.id)
+    );
+    const merged = [...mapped, ...localOnly].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    localStorage.setItem(POSTS_KEY, JSON.stringify(merged));
     dispatchSyncEvent(COMMUNITY_SYNC_EVENT);
   } catch (error) {
     console.debug('[Community] Supabase posts hydrate skipped:', error);
@@ -201,13 +219,22 @@ async function hydrateCommentsForPostFromSupabase(clientPostId: string): Promise
         limit: '500',
       })
     );
-    const all = loadAllComments().filter((c) => c.postId !== clientPostId);
+    const allComments = loadAllComments();
+    const all = allComments.filter((c) => c.postId !== clientPostId);
     const mapped = rows.map((row) => {
       const localComment = mapDbCommentToLocal(row, clientPostId);
       setLocalSupabaseId('community_comment', commentMapKey(localComment.id), row.id);
       return localComment;
     });
-    localStorage.setItem(COMMENTS_KEY, JSON.stringify([...all, ...mapped]));
+    const remoteIds = new Set(mapped.map((c) => c.id));
+    const localOnlyForPost = allComments.filter(
+      (c) =>
+        c.postId === clientPostId &&
+        !getLocalSupabaseId('community_comment', commentMapKey(c.id)) &&
+        !remoteIds.has(c.id)
+    );
+    const mergedForPost = [...mapped, ...localOnlyForPost].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    localStorage.setItem(COMMENTS_KEY, JSON.stringify([...all, ...mergedForPost]));
     dispatchSyncEvent(COMMUNITY_SYNC_EVENT);
   } catch (error) {
     console.debug('[Community] Supabase comments hydrate skipped:', error);
@@ -219,6 +246,13 @@ async function hydrateCommentsForPostFromSupabase(clientPostId: string): Promise
 async function syncPostToSupabase(post: Post): Promise<void> {
   if (!isSupabaseRestEnabled()) return;
   const wallet = post.walletAddress || post.userId;
+  if (wallet && isLikelyWalletAddress(wallet) && isSupabaseAuthClaimBridgeEnabled()) {
+    try {
+      await exchangeWalletAuthForSupabaseClaimSession(wallet);
+    } catch (error) {
+      console.debug('[Community] Claim bridge exchange skipped before post sync:', error);
+    }
+  }
   const authorId = wallet ? await ensureRemoteProfileIdForWallet(wallet) : null;
   if (!authorId) return;
 
@@ -259,6 +293,13 @@ async function syncCommentToSupabase(comment: Comment): Promise<void> {
   const dbPostId = getLocalSupabaseId('community_post', postMapKey(comment.postId));
   if (!dbPostId) return;
   const wallet = comment.walletAddress || comment.userId;
+  if (wallet && isLikelyWalletAddress(wallet) && isSupabaseAuthClaimBridgeEnabled()) {
+    try {
+      await exchangeWalletAuthForSupabaseClaimSession(wallet);
+    } catch (error) {
+      console.debug('[Community] Claim bridge exchange skipped before comment sync:', error);
+    }
+  }
   const authorId = wallet ? await ensureRemoteProfileIdForWallet(wallet) : null;
   if (!authorId) return;
   const parentDbId = comment.parentId ? getLocalSupabaseId('community_comment', commentMapKey(comment.parentId)) : null;
@@ -313,6 +354,13 @@ async function syncDeleteCommentToSupabase(commentId: string): Promise<void> {
 async function syncReactionToSupabase(action: UserAction, added: boolean): Promise<void> {
   if (!isSupabaseRestEnabled()) return;
   if (!['like', 'bookmark'].includes(action.action)) return;
+  if (isLikelyWalletAddress(action.userId) && isSupabaseAuthClaimBridgeEnabled()) {
+    try {
+      await exchangeWalletAuthForSupabaseClaimSession(action.userId);
+    } catch (error) {
+      console.debug('[Community] Claim bridge exchange skipped before reaction sync:', error);
+    }
+  }
   const userId = getCachedRemoteProfileId(action.userId) || await ensureRemoteProfileIdForWallet(action.userId);
   const targetDbId = getLocalSupabaseId('community_post', postMapKey(action.postId));
   if (!userId || !targetDbId) return;
@@ -439,7 +487,14 @@ function loadAllComments(): Comment[] {
     const stored = localStorage.getItem(COMMENTS_KEY);
     if (!stored) return [];
     const parsed = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    const sanitized = parsed.filter(
+      (c) => c && typeof c === 'object' && !String((c as { id?: string }).id || '').startsWith('mock_comment_')
+    );
+    if (sanitized.length !== parsed.length) {
+      localStorage.setItem(COMMENTS_KEY, JSON.stringify(sanitized));
+    }
+    return sanitized;
   } catch {
     return [];
   }
@@ -641,14 +696,20 @@ export function filterPosts(posts: Post[], filter: FeedFilter, currentWalletAddr
     case 'my-posts':
       if (!currentWalletAddress) return [];
       return posts.filter((p) => isPostOwner(p, currentWalletAddress));
+    case 'my-saved':
+      if (!currentWalletAddress) return [];
+      return posts.filter((p) => hasUserAction(currentWalletAddress, p.id, 'bookmark'));
     default:
       return posts;
   }
 }
 
-export function sortPosts(posts: Post[], sort: FeedSort): Post[] {
-  const pinned = posts.filter((p) => p.isPinned);
-  const unpinned = posts.filter((p) => !p.isPinned);
+export function sortPosts(posts: Post[], sort: FeedSort, currentWalletAddress?: string): Post[] {
+  const isPinnedVisibleToViewer = (post: Post) =>
+    !!post.isPinned && (!!currentWalletAddress ? isPostOwner(post, currentWalletAddress) : true);
+
+  const pinned = posts.filter((p) => isPinnedVisibleToViewer(p));
+  const unpinned = posts.filter((p) => !isPinnedVisibleToViewer(p));
   let sorted = [...unpinned];
 
   switch (sort) {
@@ -710,6 +771,7 @@ export function getFilterLabel(filter: FeedFilter): string {
     announcements: 'Announcements',
     achievements: 'Achievements',
     'my-posts': 'My Posts',
+    'my-saved': 'My Saved',
   };
   return map[filter] || filter;
 }

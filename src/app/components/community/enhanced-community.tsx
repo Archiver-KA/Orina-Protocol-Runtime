@@ -24,7 +24,6 @@ import {
   formatCount,
   incrementPostCount,
   decrementPostCount,
-  generateMockComments,
   ensureMockData,
   isPostOwner,
   getUserPollVote,
@@ -33,7 +32,9 @@ import {
 } from '@/utils/communityUtils';
 import {
   loadNotifications,
+  loadNotificationsLocalOnly,
   saveNotifications,
+  saveNotificationsLocalOnly,
   createNotification,
   getUnreadCount,
 } from '@/utils/notifications';
@@ -72,6 +73,7 @@ import { EmptyStateCard } from '@/app/components/ui/empty-state-card';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { createDefaultProfile, loadUserProfile, saveUserProfile } from '@/utils/profileUtils';
+import { sendCommunityNotificationViaBridge } from '@/utils/supabaseAuthClaimBridge';
 
 // ─── Sub-components ───────────────────────────────────────────
 
@@ -95,6 +97,8 @@ function EmptyState({ filter, isSearching }: { filter: FeedFilter; isSearching: 
     <Search size={28} className="text-zinc-600" />
   ) : filter === 'my-posts' ? (
     <User size={28} className="text-zinc-600" />
+  ) : filter === 'my-saved' ? (
+    <Bookmark size={28} className="text-zinc-600" />
   ) : (
     <MessageSquare size={28} className="text-zinc-600" />
   );
@@ -103,12 +107,16 @@ function EmptyState({ filter, isSearching }: { filter: FeedFilter; isSearching: 
     ? 'No results found'
     : filter === 'my-posts'
       ? 'No posts yet'
+      : filter === 'my-saved'
+        ? 'No saved posts yet'
       : 'Nothing here yet';
 
   const description = isSearching
     ? 'Try different keywords or remove some filters.'
     : filter === 'my-posts'
       ? 'Create your first post to share with the community!'
+      : filter === 'my-saved'
+        ? 'Bookmark posts to quickly find them again here.'
       : 'Be the first to start a conversation in this category.';
 
   return (
@@ -650,6 +658,10 @@ export function EnhancedCommunity({
   currentUserName = 'Current User',
   onNavigateToUserProfile,
 }: EnhancedCommunityProps) {
+  const getLikedCommentsStorageKey = useCallback((walletAddress: string) => {
+    return `orina_community_liked_comments_${walletAddress.toLowerCase()}`;
+  }, []);
+
   // ── State ──
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<FeedFilter>('all');
@@ -683,6 +695,15 @@ export function EnhancedCommunity({
 
   const actualUserId = userData?.address || address || currentUserId;
   const actualUserName = displayName || userData?.displayName || userData?.username || currentUserName;
+
+  const persistLikedComments = useCallback((next: Set<string>) => {
+    if (!address || typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(getLikedCommentsStorageKey(address), JSON.stringify(Array.from(next)));
+    } catch (error) {
+      console.debug('[Community] Persist likedComments skipped:', error);
+    }
+  }, [address, getLikedCommentsStorageKey]);
 
   const seedProfileSnapshot = useCallback((walletAddress?: string, snapshot?: { displayName?: string; avatarUrl?: string }) => {
     if (!walletAddress || !walletAddress.startsWith('0x')) return;
@@ -719,6 +740,17 @@ export function EnhancedCommunity({
     }
   }, []);
 
+  const resolveWalletNotificationTarget = useCallback(
+    (value?: { walletAddress?: string; userId?: string } | null): string | null => {
+      const wallet = value?.walletAddress;
+      if (wallet && wallet.startsWith('0x')) return wallet;
+      const userId = value?.userId;
+      if (typeof userId === 'string' && userId.startsWith('0x')) return userId;
+      return null;
+    },
+    []
+  );
+
   // ── Helper: require wallet ──
   const requireWallet = useCallback(
     (actionLabel: string): boolean => {
@@ -745,6 +777,22 @@ export function EnhancedCommunity({
     }
   }, [address]);
 
+  // ── Load persisted comment likes for current wallet ──
+  useEffect(() => {
+    if (!address || typeof window === 'undefined') {
+      setLikedComments(new Set());
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(getLikedCommentsStorageKey(address));
+      const parsed = raw ? JSON.parse(raw) : [];
+      setLikedComments(new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : []));
+    } catch (error) {
+      console.debug('[Community] Load likedComments skipped:', error);
+      setLikedComments(new Set());
+    }
+  }, [address, getLikedCommentsStorageKey]);
+
   // ── Notification helper ──
   const addNotification = useCallback(
     (postOwnerAddress: string, title: string, message: string, metadata?: AppNotification['metadata']) => {
@@ -758,9 +806,28 @@ export function EnhancedCommunity({
         actorAddress: address,
       });
 
-      const existing = loadNotifications(postOwnerAddress);
+      const targetIsCurrentViewer =
+        !!address && postOwnerAddress.toLowerCase() === address.toLowerCase();
+      const existing = targetIsCurrentViewer
+        ? loadNotifications(postOwnerAddress)
+        : loadNotificationsLocalOnly(postOwnerAddress);
       const updated = [notif, ...existing].slice(0, 100); // Keep max 100
-      saveNotifications(postOwnerAddress, updated);
+      if (targetIsCurrentViewer) {
+        saveNotifications(postOwnerAddress, updated);
+      } else {
+        // Under H2 hardened RLS, client-side cross-wallet writes to public.notifications are denied.
+        // Keep same-browser visibility via local storage and send backend fanout via H1 bridge route.
+        saveNotificationsLocalOnly(postOwnerAddress, updated);
+        void sendCommunityNotificationViaBridge({
+          targetWalletAddress: postOwnerAddress,
+          title,
+          message,
+          sourceId: notif.id,
+          metadata: metadata as Record<string, unknown> | undefined,
+          actorWalletAddress: address,
+          actorName: actualUserName,
+        });
+      }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('orina:notifications-changed'));
       }
@@ -772,7 +839,7 @@ export function EnhancedCommunity({
   const processedPosts = useMemo(() => {
     let result = filterPosts(posts, selectedFilter, address);
     result = searchPosts(result, searchQuery);
-    result = sortPosts(result, selectedSort);
+    result = sortPosts(result, selectedSort, address);
     return result;
   }, [posts, selectedFilter, selectedSort, searchQuery, address]);
 
@@ -959,11 +1026,7 @@ export function EnhancedCommunity({
     } else {
       next.add(postId);
       if (!comments[postId]) {
-        let loaded = loadComments(postId);
-        if (loaded.length === 0) {
-          loaded = generateMockComments(postId, 3);
-          loaded.forEach((c) => saveComment(c));
-        }
+        const loaded = loadComments(postId);
         setComments((prev) => ({ ...prev, [postId]: loaded }));
       }
     }
@@ -1014,21 +1077,27 @@ export function EnhancedCommunity({
     incrementPostCount(postId, 'commentCount');
     refreshPosts();
 
-    // Notify post owner on comment
     const post = posts.find((p) => p.id === postId);
-    if (post?.walletAddress) {
+    const postOwnerAddress = resolveWalletNotificationTarget(post);
+    const replyTargetAddress = resolveWalletNotificationTarget(replyTarget);
+    const sameRecipient =
+      !!postOwnerAddress &&
+      !!replyTargetAddress &&
+      postOwnerAddress.toLowerCase() === replyTargetAddress.toLowerCase();
+
+    // Notify post owner on comment (skip duplicate if reply recipient is same wallet)
+    if (postOwnerAddress && !sameRecipient) {
       addNotification(
-        post.walletAddress,
+        postOwnerAddress,
         'New Comment',
         `${actualUserName} commented on your post: "${content.slice(0, 80)}${content.length > 80 ? '...' : ''}"`,
         { postId, commentId: newComment.id }
       );
     }
 
-    // Notify parent comment author on reply
-    if (replyTarget?.walletAddress) {
+    if (replyTargetAddress) {
       addNotification(
-        replyTarget.walletAddress,
+        replyTargetAddress,
         'New Reply',
         `${actualUserName} replied to your comment: "${content.slice(0, 80)}${content.length > 80 ? '...' : ''}"`,
         { postId, commentId: newComment.id }
@@ -1064,6 +1133,8 @@ export function EnhancedCommunity({
   const handleLikeComment = (commentId: string) => {
     if (!requireWallet('like a comment')) return;
     const alreadyLiked = likedComments.has(commentId);
+    const allComments = Object.values(comments).flat();
+    const targetComment = allComments.find((c) => c.id === commentId);
     // Toggle liked state
     setLikedComments((prev) => {
       const next = new Set(prev);
@@ -1072,8 +1143,16 @@ export function EnhancedCommunity({
       } else {
         next.add(commentId);
       }
+      persistLikedComments(next);
       return next;
     });
+    if (targetComment) {
+      const persisted = {
+        ...targetComment,
+        likeCount: Math.max(0, targetComment.likeCount + (alreadyLiked ? -1 : 1)),
+      };
+      saveComment(persisted);
+    }
     // Update comment like count
     setComments((prev) => {
       const updated = { ...prev };
@@ -1086,6 +1165,19 @@ export function EnhancedCommunity({
       }
       return updated;
     });
+
+    if (!alreadyLiked && targetComment) {
+      const targetAddress = resolveWalletNotificationTarget(targetComment);
+      if (targetAddress) {
+        const isReply = !!targetComment.parentId;
+        addNotification(
+          targetAddress,
+          isReply ? 'Reply Liked' : 'Comment Liked',
+          `${actualUserName} liked your ${isReply ? 'reply' : 'comment'}`,
+          { postId: targetComment.postId, commentId: targetComment.id }
+        );
+      }
+    }
   };
 
   const handlePollVote = (postId: string, optionId: string) => {
@@ -1270,7 +1362,7 @@ export function EnhancedCommunity({
                   { value: 'questions', label: 'Questions' },
                   { value: 'announcements', label: 'Announcements' },
                   { value: 'achievements', label: 'Achievements' },
-                  ...(isConnected ? [{ value: 'my-posts', label: 'My Posts' }] : []),
+                  ...(isConnected ? [{ value: 'my-posts', label: 'My Posts' }, { value: 'my-saved', label: 'My Saved' }] : []),
                 ]}
                 defaultValue={selectedFilter}
                 onChange={(v) => setSelectedFilter(v as FeedFilter)}
@@ -1314,13 +1406,15 @@ export function EnhancedCommunity({
                 const topLevelComments = postComments.filter((c) => !c.parentId);
                 const currentReply = replyingTo[post.id];
 
+                const showPinnedState = isOwner && !!post.isPinned;
+
                 return (
                   <div
                     key={post.id}
-                    className={`post-card rounded-2xl ${post.isPinned ? 'ring-1 ring-[var(--color-primary-custom)]/20' : ''}`}
+                    className={`post-card rounded-2xl ${showPinnedState ? 'ring-1 ring-[var(--color-primary-custom)]/20' : ''}`}
                   >
                     {/* Pin indicator */}
-                    {post.isPinned && (
+                    {showPinnedState && (
                       <div className="flex items-center gap-2 px-5 py-2 bg-[var(--color-primary-custom)]/5 border-b border-[var(--color-primary-custom)]/10">
                         <Pin size={12} className="text-[var(--color-primary-custom)]" />
                         <span className="text-[10px] text-[var(--color-primary-custom)] font-bold uppercase tracking-widest">
@@ -1357,6 +1451,12 @@ export function EnhancedCommunity({
                               >
                                 {postDisplayName}
                               </button>
+                              {showPinnedState && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-800/80 border border-zinc-700 text-[9px] uppercase tracking-widest text-zinc-300">
+                                  <Pin size={9} className="text-[var(--color-primary-custom)]" />
+                                  Pinned
+                                </span>
+                              )}
                               <PostTypeBadge type={post.type} />
                               {post.isEdited && (
                                 <span className="text-[9px] text-zinc-600 italic">(edited)</span>

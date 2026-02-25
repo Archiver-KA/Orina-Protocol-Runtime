@@ -1,3 +1,4 @@
+import { forwardRef, type MouseEvent } from 'react';
 import { X, ExternalLink, Package, MessageSquare, Settings as SettingsIcon, CheckCircle, AlertTriangle, XCircle, ShoppingCart, Bell } from 'lucide-react';
 import { motion } from 'motion/react';
 import { AppNotification, NotificationType } from '@/types/notifications';
@@ -9,7 +10,10 @@ interface NotificationItemProps {
   onClose?: () => void;
 }
 
-export function NotificationItem({ notification, onClose }: NotificationItemProps) {
+export const NotificationItem = forwardRef<HTMLDivElement, NotificationItemProps>(function NotificationItem(
+  { notification, onClose }: NotificationItemProps,
+  ref
+) {
   const { markAsRead, deleteNotification } = useNotifications();
 
   const handleClick = () => {
@@ -21,7 +25,7 @@ export function NotificationItem({ notification, onClose }: NotificationItemProp
     }
   };
 
-  const handleDelete = (e: React.MouseEvent) => {
+  const handleDelete = (e: MouseEvent) => {
     e.stopPropagation();
     deleteNotification(notification.id);
   };
@@ -78,6 +82,7 @@ export function NotificationItem({ notification, onClose }: NotificationItemProp
 
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
@@ -145,4 +150,6 @@ export function NotificationItem({ notification, onClose }: NotificationItemProp
       </div>
     </motion.div>
   );
-}
+});
+
+NotificationItem.displayName = 'NotificationItem';

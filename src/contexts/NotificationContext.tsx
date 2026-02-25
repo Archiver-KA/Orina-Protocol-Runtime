@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
 import { AppNotification, NotificationPreferences, NotificationType } from '@/types/notifications';
 import {
   loadNotifications,
   saveNotifications,
+  saveNotificationsLocalOnly,
   loadPreferences,
   savePreferences,
   createNotification,
@@ -12,7 +13,10 @@ import {
   playNotificationSound,
   getUnreadCount,
   sortNotifications,
+  markNotificationReadRemote,
+  markAllNotificationsReadRemote,
 } from '@/utils/notifications';
+import { exchangeWalletAuthForSupabaseClaimSession } from '@/utils/supabaseAuthClaimBridge';
 
 interface NotificationContextType {
   notifications: AppNotification[];
@@ -33,11 +37,34 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
+function areNotificationsEquivalent(a: AppNotification[], b: AppNotification[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (!x || !y) return false;
+    if (
+      x.id !== y.id ||
+      !!x.read !== !!y.read ||
+      x.timestamp !== y.timestamp ||
+      x.type !== y.type ||
+      x.title !== y.title ||
+      x.message !== y.message
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   // ✅ PHASE 1: Get wallet address for address-based storage
   const { address } = useAccount();
   
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const skipNextPersistRef = useRef(false);
+  const persistLocalOnlyNextRef = useRef(false);
   const [preferences, setPreferences] = useState<NotificationPreferences>(() => {
     // Load preferences on mount (only if address exists)
     return address ? loadPreferences(address) : {
@@ -57,6 +84,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!address) {
       setNotifications([]);
+      skipNextPersistRef.current = true;
       setPreferences({
         enableDesktop: true,
         enableSound: false,
@@ -73,13 +101,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     const refreshNotifications = () => {
       const loaded = loadNotifications(address);
-      setNotifications(sortNotifications(loaded));
+      const next = sortNotifications(loaded);
+      setNotifications((prev) => {
+        if (areNotificationsEquivalent(prev, next)) return prev;
+        skipNextPersistRef.current = true;
+        return next;
+      });
     };
     const refreshPreferences = () => {
       setPreferences(loadPreferences(address));
     };
 
     refreshPreferences();
+    void exchangeWalletAuthForSupabaseClaimSession(address).catch(() => {
+      // H3 bridge may be disabled/unavailable; loadNotifications will gracefully fall back.
+    });
     refreshNotifications();
     window.addEventListener('focus', refreshNotifications);
     window.addEventListener('storage', refreshNotifications);
@@ -96,6 +132,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   // Save notifications whenever they change (only if address exists)
   useEffect(() => {
     if (!address) return;
+    if (skipNextPersistRef.current) {
+      skipNextPersistRef.current = false;
+      return;
+    }
+    if (persistLocalOnlyNextRef.current) {
+      persistLocalOnlyNextRef.current = false;
+      saveNotificationsLocalOnly(address, notifications);
+      return;
+    }
     saveNotifications(address, notifications);
   }, [notifications, address]);
 
@@ -151,17 +196,25 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
    * Mark notification as read
    */
   const markAsRead = useCallback((id: string) => {
+    persistLocalOnlyNextRef.current = true;
     setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      prev.map((n) => (n.id === id && !n.read ? { ...n, read: true } : n))
     );
-  }, []);
+    if (address) {
+      void markNotificationReadRemote(address, id);
+    }
+  }, [address]);
 
   /**
    * Mark all notifications as read
    */
   const markAllAsRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  }, []);
+    persistLocalOnlyNextRef.current = true;
+    setNotifications((prev) => prev.map((n) => (n.read ? n : { ...n, read: true })));
+    if (address) {
+      void markAllNotificationsReadRemote(address);
+    }
+  }, [address]);
 
   /**
    * Delete a notification
