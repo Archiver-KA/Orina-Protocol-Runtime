@@ -1,0 +1,243 @@
+{
+  "audited_at_utc": "2026-02-24T21:02:24.195Z",
+  "project_ref": "azimhqpsjgxbmjlxaghp",
+  "audit_mode": "anon_rest_readonly",
+  "limitation": "Anon key can verify API surface access and infer some table existence; it cannot provide full DB schema inspection.",
+  "jwt_claims": {
+    "iss": "supabase",
+    "ref": "azimhqpsjgxbmjlxaghp",
+    "role": "anon",
+    "iat": 1770608212,
+    "exp": 2086184212
+  },
+  "endpoints": {
+    "rest_root": {
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key"
+    },
+    "auth_settings": {
+      "status": 401,
+      "ok": false
+    }
+  },
+  "table_checks": [
+    {
+      "table": "profiles",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "assets_catalog",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "asset_media",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "asset_tags",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "asset_tag_map",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "community_posts",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "community_comments",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "protocol_assets",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "protocol_asset_events",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "protocol_orders",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "protocol_order_events",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "notifications",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "user_preferences",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "user_favorites",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "user_watchlist",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "watchlist_alerts",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "wallet_auth_challenges",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "wallet_sessions",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "conversations",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "conversation_participants",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    },
+    {
+      "table": "messages",
+      "inference": "exists_or_exposed_but_denied",
+      "status": 401,
+      "ok": false,
+      "code": null,
+      "message": "Invalid API key",
+      "details": null,
+      "sample_row_count": null
+    }
+  ],
+  "summary": {
+    "public_read_candidates_readable": [],
+    "public_read_candidates_missing_or_not_exposed": [],
+    "deferred_messaging_tables_readable_under_anon": []
+  },
+  "strategy_note": "Still follow Option A (new project). This audit is only for drift/runtime awareness on the old project."
+}

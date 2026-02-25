@@ -1,0 +1,33 @@
+{
+  "source": "c:\\ORINA\\ATPProtocol2\\ATP2\\supabase\\audit\\batch1_index_stats.txt",
+  "expected_total": 22,
+  "present_count": 22,
+  "missing_count": 0,
+  "present": [
+    "wallet_auth_challenges",
+    "wallet_sessions",
+    "profiles",
+    "user_preferences",
+    "user_badges",
+    "assets_catalog",
+    "asset_media",
+    "asset_tags",
+    "asset_tag_map",
+    "user_follows",
+    "user_favorites",
+    "user_watchlist",
+    "watchlist_alerts",
+    "notifications",
+    "community_posts",
+    "community_comments",
+    "community_reactions",
+    "protocol_assets",
+    "protocol_asset_events",
+    "protocol_orders",
+    "protocol_order_events",
+    "asset_protocol_links"
+  ],
+  "missing": [],
+  "inferred_expected_missing_is_empty": true,
+  "note": "Proxy verification via pg index-stats output (checks for each <table>_pkey index)."
+}

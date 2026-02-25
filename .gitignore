@@ -1,0 +1,17 @@
+node_modules/
+dist/
+
+# Local env / secrets
+.env
+.env.local
+.env.*.local
+
+# Supabase local temp/cache
+supabase/.temp/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

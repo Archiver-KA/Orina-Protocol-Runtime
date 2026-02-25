@@ -1,0 +1,67 @@
+
+  
+   Name                                                      | Size       | Percent used | Index scans | Seq scans | Unused 
+  -----------------------------------------------------------|------------|--------------|-------------|-----------|--------
+   public.protocol_order_events_chain_tx_log_uk              | 8192 bytes | 0%           | 0           | 0         | true   
+   public.wallet_auth_challenges_pkey                        | 8192 bytes | 0%           | 0           | 0         | true   
+   public.protocol_assets_pkey                               | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_wallet_sessions_wallet_address                 | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_wallet_auth_challenges_wallet_address          | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_community_posts_author_created_at_desc         | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_protocol_order_events_order_id_block           | 8192 bytes | 0%           | 0           | 0         | true   
+   public.user_badges_user_id_badge_key_uk                   | 8192 bytes | 0%           | 0           | 0         | true   
+   public.assets_catalog_pkey                                | 8192 bytes | 0%           | 0           | 0         | true   
+   public.assets_catalog_asset_uid_uk                        | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_asset_protocol_links_chain_contract_token      | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_community_comments_post_id_created_at          | 8192 bytes | 0%           | 0           | 0         | true   
+   public.protocol_asset_events_pkey                         | 8192 bytes | 0%           | 0           | 0         | true   
+   public.profiles_wallet_address_uk                         | 8192 bytes | 0%           | 0           | 0         | true   
+   public.user_favorites_pkey                                | 8192 bytes | 0%           | 0           | 0         | true   
+   public.wallet_auth_challenges_nonce_uk                    | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_assets_catalog_is_active                       | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_protocol_asset_events_protocol_asset_id_block  | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_wallet_sessions_expires_at                     | 8192 bytes | 0%           | 0           | 0         | true   
+   public.notifications_pkey                                 | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_watchlist_alerts_asset_id_is_active            | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_user_favorites_asset_id_created_at_desc        | 8192 bytes | 0%           | 0           | 0         | true   
+   public.community_comments_pkey                            | 8192 bytes | 0%           | 0           | 0         | true   
+   public.profiles_pkey                                      | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_protocol_assets_owner_address                  | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_assets_catalog_category                        | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_community_posts_visibility_created_at_desc     | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_notifications_user_id_created_at_desc          | 8192 bytes | 0%           | 0           | 0         | true   
+   public.community_posts_pkey                               | 8192 bytes | 0%           | 0           | 0         | true   
+   public.protocol_order_events_pkey                         | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_protocol_orders_chain_status_updated_at_desc   | 8192 bytes | 0%           | 0           | 0         | true   
+   public.asset_protocol_links_pkey                          | 8192 bytes | 0%           | 0           | 0         | true   
+   public.protocol_orders_pkey                               | 8192 bytes | 0%           | 0           | 0         | true   
+   public.user_preferences_pkey                              | 8192 bytes | 0%           | 0           | 0         | true   
+   public.wallet_sessions_session_token_hash_uk              | 8192 bytes | 0%           | 0           | 0         | true   
+   public.asset_media_pkey                                   | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_user_watchlist_asset_id_created_at_desc        | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_user_follows_following_user_id_created_at_desc | 8192 bytes | 0%           | 0           | 0         | true   
+   public.wallet_sessions_pkey                               | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_wallet_auth_challenges_expires_at              | 8192 bytes | 0%           | 0           | 0         | true   
+   public.asset_tags_tag_uk                                  | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_watchlist_alerts_user_id_is_active             | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_asset_tag_map_tag_id_asset_id                  | 8192 bytes | 0%           | 0           | 0         | true   
+   public.user_watchlist_pkey                                | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_community_reactions_target                     | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_user_badges_user_id                            | 8192 bytes | 0%           | 0           | 0         | true   
+   public.protocol_asset_events_chain_tx_log_uk              | 8192 bytes | 0%           | 0           | 0         | true   
+   public.profiles_username_uk                               | 8192 bytes | 0%           | 0           | 0         | true   
+   public.user_follows_pkey                                  | 8192 bytes | 0%           | 0           | 0         | true   
+   public.user_badges_pkey                                   | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_assets_catalog_seller_user_id                  | 8192 bytes | 0%           | 0           | 0         | true   
+   public.community_reactions_pkey                           | 8192 bytes | 0%           | 0           | 0         | true   
+   public.assets_catalog_slug_uk                             | 8192 bytes | 0%           | 0           | 0         | true   
+   public.asset_tag_map_pkey                                 | 8192 bytes | 0%           | 0           | 0         | true   
+   public.protocol_orders_order_uid_uk                       | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_asset_media_asset_id_sort_order                | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_notifications_user_id_is_read                  | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_assets_catalog_contract_token                  | 8192 bytes | 0%           | 0           | 0         | true   
+   public.watchlist_alerts_pkey                              | 8192 bytes | 0%           | 0           | 0         | true   
+   public.protocol_assets_chain_contract_token_uk            | 8192 bytes | 0%           | 0           | 0         | true   
+   public.idx_community_comments_parent_comment_id           | 8192 bytes | 0%           | 0           | 0         | true   
+   public.asset_tags_pkey                                    | 8192 bytes | 0%           | 0           | 0         | true   
+

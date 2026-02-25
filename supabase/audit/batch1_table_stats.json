@@ -1,0 +1,27 @@
+
+  
+   Name                          | Table size | Index size | Total size | Estimated row count | Seq scans 
+  -------------------------------|------------|------------|------------|---------------------|-----------
+   public.assets_catalog         | 8192 bytes | 56 kB      | 64 kB      | 0                   | 7         
+   public.wallet_auth_challenges | 8192 bytes | 32 kB      | 40 kB      | 0                   | 4         
+   public.wallet_sessions        | 8192 bytes | 32 kB      | 40 kB      | 0                   | 4         
+   public.protocol_assets        | 8192 bytes | 24 kB      | 32 kB      | 0                   | 3         
+   public.protocol_asset_events  | 8192 bytes | 24 kB      | 32 kB      | 0                   | 3         
+   public.profiles               | 8192 bytes | 24 kB      | 32 kB      | 0                   | 3         
+   public.protocol_order_events  | 8192 bytes | 24 kB      | 32 kB      | 0                   | 3         
+   public.protocol_orders        | 8192 bytes | 24 kB      | 32 kB      | 0                   | 3         
+   public.user_badges            | 8192 bytes | 24 kB      | 32 kB      | 0                   | 3         
+   public.notifications          | 8192 bytes | 24 kB      | 32 kB      | 0                   | 3         
+   public.watchlist_alerts       | 8192 bytes | 24 kB      | 32 kB      | 0                   | 3         
+   public.community_posts        | 8192 bytes | 24 kB      | 32 kB      | 0                   | 3         
+   public.community_comments     | 8192 bytes | 24 kB      | 32 kB      | 0                   | 3         
+   public.asset_protocol_links   | 8192 bytes | 16 kB      | 24 kB      | 0                   | 2         
+   public.asset_media            | 8192 bytes | 16 kB      | 24 kB      | 0                   | 2         
+   public.asset_tags             | 8192 bytes | 16 kB      | 24 kB      | 0                   | 2         
+   public.user_favorites         | 8192 bytes | 16 kB      | 24 kB      | 0                   | 2         
+   public.user_watchlist         | 8192 bytes | 16 kB      | 24 kB      | 0                   | 2         
+   public.community_reactions    | 8192 bytes | 16 kB      | 24 kB      | 0                   | 2         
+   public.user_follows           | 0 bytes    | 16 kB      | 16 kB      | 0                   | 2         
+   public.asset_tag_map          | 0 bytes    | 16 kB      | 16 kB      | 0                   | 2         
+   public.user_preferences       | 8192 bytes | 8192 bytes | 16 kB      | 0                   | 1         
+

@@ -1,0 +1,927 @@
+import { UserProfile, ActivityItem, Badge, ProfileStats, ActivityFilter } from '@/types/profile';
+import { AssetDetails } from '@/types/asset';
+import { normalizeAddress, scopedAddress } from '@/utils/storageScope';
+import { isGuestModeForced } from '@/utils/guestMode';
+import {
+  dispatchSyncEvent,
+  encodeEq,
+  encodeIn,
+  getLocalSupabaseId,
+  isSupabaseRestEnabled,
+  restDelete,
+  restSelect,
+  restUpsert,
+  setLocalSupabaseId,
+  toQuery,
+} from '@/utils/supabaseRest';
+
+// ✅ NEW ARCHITECTURE: Address-based only, no userId concept
+const ACTIVITIES_KEY = 'studio_user_activities';
+const PROFILE_SYNC_EVENT = 'orina:profile-changed';
+const PROFILE_SYNC_IN_FLIGHT = new Set<string>();
+
+/**
+ * ✅ NEW: Get profile storage key from address
+ */
+function getProfileKey(address: string): string {
+  return `user_profile_${scopedAddress(address)}`;
+}
+
+function getLegacyProfileKey(address: string): string {
+  return `user_profile_${normalizeAddress(address)}`;
+}
+
+function shouldBlockGuestProfileWrite(op: string): boolean {
+  if (!isGuestModeForced()) return false;
+  console.warn(`[Profile] Blocked guest-mode write: ${op}`);
+  return true;
+}
+
+function normalizeUserProfileShape(address: string, raw: Partial<UserProfile> | null | undefined): UserProfile {
+  const normalizedAddress = normalizeAddress(address);
+  const parsed = (raw && typeof raw === 'object') ? raw : {};
+  const avatarValue = (parsed as any).avatarUrl || (parsed as any).avatar;
+  const bannerValue = (parsed as any).bannerUrl || (parsed as any).banner;
+  const usernameValue = typeof (parsed as any).username === 'string' && (parsed as any).username.trim()
+    ? (parsed as any).username
+    : `@${normalizedAddress.slice(2, 10)}`;
+  const displayNameValue = typeof (parsed as any).displayName === 'string' && (parsed as any).displayName.trim()
+    ? (parsed as any).displayName
+    : shortenUserDisplayName(normalizedAddress);
+
+  return {
+    ...createDefaultProfile(normalizedAddress),
+    ...(parsed as any),
+    id: normalizeAddress(((parsed as any).id || normalizedAddress) as string),
+    address: normalizedAddress,
+    username: usernameValue,
+    displayName: displayNameValue,
+    avatar: avatarValue,
+    banner: bannerValue,
+    avatarUrl: avatarValue,
+    bannerUrl: bannerValue,
+    socialLinks: (parsed as any).socialLinks || {},
+    followers: Array.isArray((parsed as any).followers) ? (parsed as any).followers.map(normalizeAddress).filter(Boolean) : [],
+    following: Array.isArray((parsed as any).following) ? (parsed as any).following.map(normalizeAddress).filter(Boolean) : [],
+    badges: Array.isArray((parsed as any).badges) ? (parsed as any).badges : [],
+  };
+}
+
+function loadUserProfileLocalOnly(address: string): UserProfile | null {
+  try {
+    const key = getProfileKey(address);
+    const legacyKey = getLegacyProfileKey(address);
+    const stored = localStorage.getItem(key) || localStorage.getItem(legacyKey);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    const normalized = normalizeAddress(address);
+    const repaired = normalizeUserProfileShape(normalized, parsed);
+    if (!isGuestModeForced()) {
+      localStorage.setItem(key, JSON.stringify(repaired));
+      if (legacyKey !== key) localStorage.removeItem(legacyKey);
+    }
+    return repaired;
+  } catch (error) {
+    console.error('Failed to load user profile:', error);
+    return null;
+  }
+}
+
+function saveUserProfileLocalOnly(profile: UserProfile): UserProfile {
+  const repaired = normalizeUserProfileShape(profile.address, profile);
+  localStorage.setItem(getProfileKey(repaired.address), JSON.stringify(repaired));
+  return repaired;
+}
+
+function profileMapKey(address: string): string {
+  return normalizeAddress(address);
+}
+
+function profileIdForWallet(address: string): string | null {
+  return getLocalSupabaseId('profile', profileMapKey(address));
+}
+
+type DbProfileRow = {
+  id: string;
+  wallet_address: string;
+  display_name: string | null;
+  username: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  banner_url: string | null;
+  avatar_type: string | null;
+  website: string | null;
+  twitter: string | null;
+  discord: string | null;
+  telegram: string | null;
+  is_verified: boolean;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type DbUserPreferencesRow = {
+  user_id: string;
+  notification_settings: Record<string, any>;
+  ui_preferences: Record<string, any>;
+  privacy_settings: Record<string, any>;
+};
+
+type DbUserBadgeRow = {
+  user_id: string;
+  badge_key: string;
+};
+
+function mapDbProfileToLocal(
+  address: string,
+  row: DbProfileRow,
+  prefsRow?: DbUserPreferencesRow | null,
+  badgeRows?: DbUserBadgeRow[],
+  followers?: string[],
+  following?: string[]
+): UserProfile {
+  const base = loadUserProfileLocalOnly(address) || createDefaultProfile(address);
+  const notificationSettings = prefsRow?.notification_settings ?? {};
+  const uiPreferences = prefsRow?.ui_preferences ?? {};
+  const privacySettings = prefsRow?.privacy_settings ?? {};
+
+  return normalizeUserProfileShape(address, {
+    ...base,
+    id: normalizeAddress(address),
+    address: normalizeAddress(address),
+    username: row.username || base.username,
+    displayName: row.display_name || base.displayName,
+    bio: row.bio ?? base.bio,
+    avatar: row.avatar_url ?? base.avatar,
+    banner: row.banner_url ?? base.banner,
+    avatarUrl: row.avatar_url ?? base.avatarUrl,
+    bannerUrl: row.banner_url ?? base.bannerUrl,
+    verified: !!row.is_verified,
+    socialLinks: {
+      ...(base.socialLinks || {}),
+      website: row.website || undefined,
+      twitter: row.twitter || undefined,
+      discord: row.discord || undefined,
+      telegram: row.telegram || undefined,
+    },
+    settings: {
+      ...base.settings,
+      notifications: {
+        ...base.settings.notifications,
+        ...notificationSettings,
+      },
+      display: {
+        ...base.settings.display,
+        ...uiPreferences,
+      },
+      privacy: {
+        ...base.settings.privacy,
+        ...privacySettings,
+      },
+    },
+    badges: badgeRows?.map((b) => b.badge_key) ?? base.badges,
+    followers: followers ?? base.followers,
+    following: following ?? base.following,
+  });
+}
+
+function profileRowFromLocal(profile: UserProfile): Partial<DbProfileRow> {
+  return {
+    wallet_address: normalizeAddress(profile.address),
+    display_name: profile.displayName || null,
+    username: profile.username || null,
+    bio: profile.bio || null,
+    avatar_url: profile.avatarUrl || profile.avatar || null,
+    banner_url: profile.bannerUrl || profile.banner || null,
+    avatar_type: (profile as any).avatarType || null,
+    website: profile.socialLinks?.website || null,
+    twitter: profile.socialLinks?.twitter || null,
+    discord: profile.socialLinks?.discord || null,
+    telegram: profile.socialLinks?.telegram || null,
+    is_verified: !!profile.verified,
+    status: 'active',
+  };
+}
+
+async function fetchWalletsByProfileIds(profileIds: string[]): Promise<Record<string, string>> {
+  const unique = Array.from(new Set(profileIds.filter(Boolean)));
+  if (unique.length === 0) return {};
+  try {
+    const rows = await restSelect<{ id: string; wallet_address: string }>(
+      'profiles',
+      toQuery({
+        select: 'id,wallet_address',
+        id: encodeIn(unique),
+      })
+    );
+    return rows.reduce<Record<string, string>>((acc, row) => {
+      acc[row.id] = normalizeAddress(row.wallet_address);
+      return acc;
+    }, {});
+  } catch {
+    return {};
+  }
+}
+
+async function ensureRemoteProfileId(address: string, seedProfile?: UserProfile): Promise<string | null> {
+  const normalized = normalizeAddress(address);
+  const cached = profileIdForWallet(normalized);
+  if (cached) return cached;
+  if (!isSupabaseRestEnabled()) return null;
+
+  try {
+    const rows = await restSelect<DbProfileRow>(
+      'profiles',
+      toQuery({ select: '*', wallet_address: encodeEq(normalized), limit: '1' })
+    );
+    const found = rows[0];
+    if (found?.id) {
+      setLocalSupabaseId('profile', profileMapKey(normalized), found.id);
+      return found.id;
+    }
+  } catch (error) {
+    console.debug('[Profile] Remote lookup skipped:', error);
+    return null;
+  }
+
+  if (!seedProfile) return null;
+
+  try {
+    const rows = await restUpsert<DbProfileRow>(
+      'profiles',
+      [profileRowFromLocal(seedProfile)],
+      { onConflict: 'wallet_address' }
+    );
+    const saved = rows[0];
+    if (saved?.id) {
+      setLocalSupabaseId('profile', profileMapKey(normalized), saved.id);
+      return saved.id;
+    }
+  } catch (error) {
+    console.debug('[Profile] Remote create blocked or failed:', error);
+  }
+
+  return null;
+}
+
+async function hydrateProfileFromSupabase(address: string): Promise<void> {
+  const normalized = normalizeAddress(address);
+  if (!normalized || PROFILE_SYNC_IN_FLIGHT.has(normalized) || !isSupabaseRestEnabled()) return;
+
+  PROFILE_SYNC_IN_FLIGHT.add(normalized);
+  try {
+    const rows = await restSelect<DbProfileRow>(
+      'profiles',
+      toQuery({ select: '*', wallet_address: encodeEq(normalized), limit: '1' })
+    );
+    const row = rows[0];
+    if (!row) return;
+
+    setLocalSupabaseId('profile', profileMapKey(normalized), row.id);
+
+    const [prefsRows, badgeRows, followingRows, followerRows] = await Promise.all([
+      restSelect<DbUserPreferencesRow>('user_preferences', toQuery({ select: '*', user_id: encodeEq(row.id), limit: '1' })).catch(() => []),
+      restSelect<DbUserBadgeRow>('user_badges', toQuery({ select: 'user_id,badge_key', user_id: encodeEq(row.id) })).catch(() => []),
+      restSelect<{ following_user_id: string }>('user_follows', toQuery({ select: 'following_user_id', follower_user_id: encodeEq(row.id) })).catch(() => []),
+      restSelect<{ follower_user_id: string }>('user_follows', toQuery({ select: 'follower_user_id', following_user_id: encodeEq(row.id) })).catch(() => []),
+    ]);
+
+    const followIds = [
+      ...followingRows.map((x) => x.following_user_id),
+      ...followerRows.map((x) => x.follower_user_id),
+    ];
+    const walletById = await fetchWalletsByProfileIds(followIds);
+
+    const merged = mapDbProfileToLocal(
+      normalized,
+      row,
+      prefsRows[0] || null,
+      badgeRows,
+      followerRows.map((x) => walletById[x.follower_user_id]).filter(Boolean),
+      followingRows.map((x) => walletById[x.following_user_id]).filter(Boolean)
+    );
+
+    saveUserProfileLocalOnly(merged);
+    dispatchSyncEvent(PROFILE_SYNC_EVENT);
+  } catch (error) {
+    console.debug('[Profile] Remote hydrate skipped:', error);
+  } finally {
+    PROFILE_SYNC_IN_FLIGHT.delete(normalized);
+  }
+}
+
+async function syncProfileToSupabase(profile: UserProfile): Promise<void> {
+  if (!isSupabaseRestEnabled()) return;
+  const normalized = normalizeAddress(profile.address);
+  if (!normalized) return;
+
+  const local = normalizeUserProfileShape(normalized, profile);
+  const remoteProfileId = await ensureRemoteProfileId(normalized, local);
+  if (!remoteProfileId) return;
+
+  try {
+    await restUpsert<DbProfileRow>(
+      'profiles',
+      [{ ...profileRowFromLocal(local), id: remoteProfileId }],
+      { onConflict: 'wallet_address' }
+    );
+  } catch (error) {
+    console.debug('[Profile] Remote profile sync failed:', error);
+    return;
+  }
+
+  try {
+    await restUpsert<DbUserPreferencesRow>(
+      'user_preferences',
+      [{
+        user_id: remoteProfileId,
+        notification_settings: local.settings.notifications,
+        ui_preferences: local.settings.display,
+        privacy_settings: local.settings.privacy,
+      }],
+      { onConflict: 'user_id' }
+    );
+  } catch (error) {
+    console.debug('[Profile] Remote preferences sync skipped:', error);
+  }
+
+  try {
+    const badgeKeys = Array.from(new Set((local.badges || []).filter(Boolean)));
+    if (badgeKeys.length > 0) {
+      await restUpsert(
+        'user_badges',
+        badgeKeys.map((badgeKey) => ({
+          user_id: remoteProfileId,
+          badge_key: badgeKey,
+        })),
+        { onConflict: 'user_id,badge_key' }
+      );
+    }
+  } catch (error) {
+    console.debug('[Profile] Remote badges sync skipped:', error);
+  }
+}
+
+async function syncFollowRelation(currentAddress: string, targetAddress: string, follow: boolean): Promise<void> {
+  if (!isSupabaseRestEnabled()) return;
+  const currentLocal = loadUserProfileLocalOnly(currentAddress) || createDefaultProfile(currentAddress);
+  const targetLocal = loadUserProfileLocalOnly(targetAddress) || createDefaultProfile(targetAddress);
+  const [currentId, targetId] = await Promise.all([
+    ensureRemoteProfileId(currentAddress, currentLocal),
+    ensureRemoteProfileId(targetAddress, targetLocal),
+  ]);
+  if (!currentId || !targetId) return;
+
+  try {
+    if (follow) {
+      await restUpsert(
+        'user_follows',
+        [{ follower_user_id: currentId, following_user_id: targetId }],
+        { onConflict: 'follower_user_id,following_user_id' }
+      );
+    } else {
+      await restDelete(
+        'user_follows',
+        toQuery({
+          follower_user_id: encodeEq(currentId),
+          following_user_id: encodeEq(targetId),
+        })
+      );
+    }
+  } catch (error) {
+    console.debug('[Profile] Remote follow sync skipped:', error);
+  }
+}
+
+export function getCachedRemoteProfileId(address: string): string | null {
+  return profileIdForWallet(address);
+}
+
+export async function ensureRemoteProfileIdForWallet(address: string): Promise<string | null> {
+  const normalized = normalizeAddress(address);
+  const seed = loadUserProfileLocalOnly(normalized) || createDefaultProfile(normalized);
+  return ensureRemoteProfileId(normalized, seed);
+}
+
+/**
+ * ✅ NEW: Load user profile by wallet address (ONLY method)
+ */
+export function loadUserProfile(address: string): UserProfile | null {
+  const profile = loadUserProfileLocalOnly(address);
+  if (!isGuestModeForced()) {
+    void hydrateProfileFromSupabase(address);
+  }
+  return profile;
+}
+
+/**
+ * ✅ NEW: Save user profile by wallet address
+ */
+export function saveUserProfile(profile: UserProfile): void {
+  try {
+    if (!profile.address) {
+      console.error('Cannot save profile without wallet address');
+      return;
+    }
+    const repaired = saveUserProfileLocalOnly(profile);
+    dispatchSyncEvent(PROFILE_SYNC_EVENT);
+    if (!isGuestModeForced()) {
+      void syncProfileToSupabase(repaired);
+    }
+  } catch (error) {
+    console.error('Failed to save user profile:', error);
+  }
+}
+
+/**
+ * ✅ NEW: Create default user profile (address-based)
+ */
+export function createDefaultProfile(address: string): UserProfile {
+  const normalized = normalizeAddress(address);
+  return {
+    id: normalized, // Use address as ID
+    address: normalized,
+    username: `@${address.slice(2, 10)}`,
+    displayName: shortenUserDisplayName(address),
+    bio: undefined,
+    avatar: undefined,
+    banner: undefined,
+    socialLinks: {},
+    stats: {
+      assetsOwned: 0,
+      totalSpent: 0,
+      totalSales: 0,
+      totalVolume: 0,
+      joinedDate: Date.now(),
+      lastActive: Date.now(),
+    },
+    followers: [],
+    following: [],
+    badges: [],
+    settings: {
+      notifications: {
+        email: true,
+        push: true,
+        sales: true,
+        offers: true,
+        followers: true,
+      },
+      privacy: {
+        showActivity: true,
+        showBalance: true,
+        showFollowers: true,
+      },
+      display: {
+        theme: 'dark',
+        currency: 'ETH',
+        language: 'en',
+      },
+    },
+    verified: false,
+  };
+}
+
+/**
+ * ✅ NEW: Update user profile
+ */
+export function updateUserProfile(address: string, updates: Partial<UserProfile>): UserProfile {
+  const profile = loadUserProfile(address) || createDefaultProfile(address);
+  const updated = normalizeUserProfileShape(address, { ...profile, ...updates, address: normalizeAddress(address) });
+  saveUserProfile(updated);
+  return updated;
+}
+
+/**
+ * ✅ NEW: Load user activities by address
+ */
+export function loadUserActivities(address: string): ActivityItem[] {
+  try {
+    const stored = localStorage.getItem(`${ACTIVITIES_KEY}_${normalizeAddress(address)}`);
+    if (!stored) return [];
+    return JSON.parse(stored);
+  } catch (error) {
+    console.error('Failed to load user activities:', error);
+    return [];
+  }
+}
+
+/**
+ * ✅ NEW: Save user activities by address
+ */
+export function saveUserActivities(address: string, activities: ActivityItem[]): void {
+  try {
+    if (shouldBlockGuestProfileWrite('saveUserActivities')) return;
+    localStorage.setItem(`${ACTIVITIES_KEY}_${normalizeAddress(address)}`, JSON.stringify(activities));
+  } catch (error) {
+    console.error('Failed to save user activities:', error);
+  }
+}
+
+/**
+ * Add activity
+ */
+export function addActivity(activity: ActivityItem): void {
+  if (!activity.userId) return; // userId here represents the wallet address
+  if (shouldBlockGuestProfileWrite('addActivity')) return;
+  const activities = loadUserActivities(activity.userId);
+  activities.unshift(activity); // Add to beginning
+  saveUserActivities(activity.userId, activities);
+}
+
+/**
+ * Filter activities
+ */
+export function filterActivities(activities: ActivityItem[], filter: ActivityFilter): ActivityItem[] {
+  if (filter === 'all') return activities;
+  return activities.filter(activity => activity.type === filter);
+}
+
+/**
+ * Calculate profile statistics
+ */
+export function calculateProfileStats(
+  activities: ActivityItem[],
+  ownedAssets: AssetDetails[]
+): ProfileStats {
+  const purchases = activities.filter(a => a.type === 'purchase');
+  const sales = activities.filter(a => a.type === 'sale');
+  
+  const totalSpent = purchases.reduce((sum, a) => sum + (a.price || 0), 0);
+  const totalSales = sales.reduce((sum, a) => sum + (a.price || 0), 0);
+  const totalProfit = totalSales - totalSpent;
+  
+  const portfolioValue = ownedAssets.reduce((sum, asset) => {
+    const price = parseFloat(asset.currentPrice.replace(' ETH', '')) || 0;
+    return sum + price;
+  }, 0);
+  
+  const avgPurchasePrice = purchases.length > 0 ? totalSpent / purchases.length : 0;
+  const avgSalePrice = sales.length > 0 ? totalSales / sales.length : 0;
+  
+  const mostExpensivePurchase = purchases.reduce((max, a) => {
+    return (a.price || 0) > (max.price || 0) ? a : max;
+  }, purchases[0] || { assetName: 'N/A', price: 0 });
+  
+  // Category breakdown
+  const categoryCount: Record<string, number> = {};
+  ownedAssets.forEach(asset => {
+    categoryCount[asset.category] = (categoryCount[asset.category] || 0) + 1;
+  });
+  
+  const topCategory = Object.entries(categoryCount)
+    .sort(([, a], [, b]) => b - a)[0]?.[0] || 'N/A';
+  
+  return {
+    portfolioValue,
+    totalSpent,
+    totalSales,
+    totalProfit,
+    assetsOwned: ownedAssets.length,
+    assetsSold: sales.length,
+    avgPurchasePrice,
+    avgSalePrice,
+    mostExpensivePurchase: {
+      assetName: mostExpensivePurchase.assetName,
+      price: mostExpensivePurchase.price || 0,
+    },
+    topCategory,
+  };
+}
+
+/**
+ * ✅ NEW: Follow user by address
+ */
+export function followUser(currentAddress: string, targetAddress: string): void {
+  if (shouldBlockGuestProfileWrite('followUser')) return;
+  const normalizedCurrent = normalizeAddress(currentAddress);
+  const normalizedTarget = normalizeAddress(targetAddress);
+
+  if (!normalizedCurrent || !normalizedTarget || normalizedCurrent === normalizedTarget) return;
+
+  const profile = loadUserProfile(normalizedCurrent) || createDefaultProfile(normalizedCurrent);
+  const targetProfile = loadUserProfile(normalizedTarget) || createDefaultProfile(normalizedTarget);
+
+  if (!profile.following.includes(normalizedTarget)) {
+    profile.following.push(normalizedTarget);
+    saveUserProfile(profile);
+  }
+
+  if (!targetProfile.followers.includes(normalizedCurrent)) {
+    targetProfile.followers.push(normalizedCurrent);
+    saveUserProfile(targetProfile);
+  }
+  if (!isGuestModeForced()) {
+    void syncFollowRelation(normalizedCurrent, normalizedTarget, true);
+  }
+}
+
+/**
+ * ✅ NEW: Unfollow user by address
+ */
+export function unfollowUser(currentAddress: string, targetAddress: string): void {
+  if (shouldBlockGuestProfileWrite('unfollowUser')) return;
+  const normalizedCurrent = normalizeAddress(currentAddress);
+  const normalizedTarget = normalizeAddress(targetAddress);
+  if (!normalizedCurrent || !normalizedTarget || normalizedCurrent === normalizedTarget) return;
+
+  const profile = loadUserProfile(normalizedCurrent) || createDefaultProfile(normalizedCurrent);
+  profile.following = profile.following.filter(addr => addr !== normalizedTarget);
+  saveUserProfile(profile);
+  
+  // Remove from target's followers
+  const targetProfile = loadUserProfile(normalizedTarget);
+  if (targetProfile) {
+    targetProfile.followers = targetProfile.followers.filter(addr => addr !== normalizedCurrent);
+    saveUserProfile(targetProfile);
+  }
+  if (!isGuestModeForced()) {
+    void syncFollowRelation(normalizedCurrent, normalizedTarget, false);
+  }
+}
+
+/**
+ * ✅ NEW: Check if following by address
+ */
+export function isFollowing(currentAddress: string, targetAddress: string): boolean {
+  const profile = loadUserProfile(normalizeAddress(currentAddress));
+  if (!profile) return false;
+  return profile.following.includes(normalizeAddress(targetAddress));
+}
+
+/**
+ * Get available badges
+ */
+export function getAvailableBadges(): Badge[] {
+  return [
+    {
+      id: 'early_adopter',
+      name: 'Early Adopter',
+      description: 'Joined in the first month',
+      icon: '🌟',
+      rarity: 'rare',
+    },
+    {
+      id: 'collector',
+      name: 'Collector',
+      description: 'Own 10+ assets',
+      icon: '🎨',
+      rarity: 'common',
+    },
+    {
+      id: 'trader',
+      name: 'Active Trader',
+      description: 'Complete 50+ transactions',
+      icon: '💎',
+      rarity: 'rare',
+    },
+    {
+      id: 'whale',
+      name: 'Whale',
+      description: 'Portfolio value > 100 ETH',
+      icon: '🐋',
+      rarity: 'epic',
+    },
+    {
+      id: 'verified',
+      name: 'Verified User',
+      description: 'Verified account',
+      icon: '✓',
+      rarity: 'rare',
+    },
+    {
+      id: 'creator',
+      name: 'Creator',
+      description: 'Minted 5+ assets',
+      icon: '✨',
+      rarity: 'common',
+    },
+    {
+      id: 'influencer',
+      name: 'Influencer',
+      description: '100+ followers',
+      icon: '🔥',
+      rarity: 'epic',
+    },
+    {
+      id: 'legend',
+      name: 'Legend',
+      description: 'Achieved legendary status',
+      icon: '👑',
+      rarity: 'legendary',
+    },
+  ];
+}
+
+/**
+ * ✅ NEW: Check and award badges (address-based)
+ */
+export function checkAndAwardBadges(address: string, activities: ActivityItem[], ownedAssets: AssetDetails[]): string[] {
+  if (shouldBlockGuestProfileWrite('checkAndAwardBadges')) return [];
+  const profile = loadUserProfile(address);
+  if (!profile) return [];
+  
+  const newBadges: string[] = [];
+  const availableBadges = getAvailableBadges();
+  
+  // Early adopter - joined in first 30 days (mock)
+  const daysSinceJoin = (Date.now() - profile.stats.joinedDate) / (1000 * 60 * 60 * 24);
+  if (daysSinceJoin < 30 && !profile.badges.includes('early_adopter')) {
+    newBadges.push('early_adopter');
+  }
+  
+  // Collector - own 10+ assets
+  if (ownedAssets.length >= 10 && !profile.badges.includes('collector')) {
+    newBadges.push('collector');
+  }
+  
+  // Trader - 50+ transactions
+  if (activities.length >= 50 && !profile.badges.includes('trader')) {
+    newBadges.push('trader');
+  }
+  
+  // Whale - portfolio > 100 ETH
+  const portfolioValue = ownedAssets.reduce((sum, asset) => {
+    const price = parseFloat(asset.currentPrice.replace(' ETH', '')) || 0;
+    return sum + price;
+  }, 0);
+  if (portfolioValue >= 100 && !profile.badges.includes('whale')) {
+    newBadges.push('whale');
+  }
+  
+  // Verified
+  if (profile.verified && !profile.badges.includes('verified')) {
+    newBadges.push('verified');
+  }
+  
+  // Creator - minted 5+ assets
+  const mints = activities.filter(a => a.type === 'mint').length;
+  if (mints >= 5 && !profile.badges.includes('creator')) {
+    newBadges.push('creator');
+  }
+  
+  // Influencer - 100+ followers
+  if (profile.followers.length >= 100 && !profile.badges.includes('influencer')) {
+    newBadges.push('influencer');
+  }
+  
+  // Update profile with new badges
+  if (newBadges.length > 0) {
+    profile.badges = [...profile.badges, ...newBadges];
+    saveUserProfile(profile);
+  }
+  
+  return newBadges;
+}
+
+/**
+ * Get badge rarity color
+ */
+export function getBadgeRarityColor(rarity: Badge['rarity']): string {
+  switch (rarity) {
+    case 'common':
+      return 'text-zinc-400 bg-zinc-800/50';
+    case 'rare':
+      return 'text-blue-400 bg-blue-500/10';
+    case 'epic':
+      return 'text-purple-400 bg-purple-500/10';
+    case 'legendary':
+      return 'text-yellow-400 bg-yellow-500/10';
+    default:
+      return 'text-zinc-400 bg-zinc-800/50';
+  }
+}
+
+/**
+ * Format activity type label
+ */
+export function getActivityTypeLabel(type: ActivityItem['type']): string {
+  switch (type) {
+    case 'mint':
+      return 'Minted';
+    case 'purchase':
+      return 'Purchased';
+    case 'sale':
+      return 'Sold';
+    case 'transfer':
+      return 'Transferred';
+    case 'list':
+      return 'Listed';
+    case 'offer':
+      return 'Made Offer';
+    default:
+      return type;
+  }
+}
+
+/**
+ * Get activity type color
+ */
+export function getActivityTypeColor(type: ActivityItem['type']): string {
+  switch (type) {
+    case 'mint':
+      return 'text-purple-400 bg-purple-500/10';
+    case 'purchase':
+      return 'text-green-400 bg-green-500/10';
+    case 'sale':
+      return 'text-blue-400 bg-blue-500/10';
+    case 'transfer':
+      return 'text-yellow-400 bg-yellow-500/10';
+    case 'list':
+      return 'text-orange-400 bg-orange-500/10';
+    case 'offer':
+      return 'text-pink-400 bg-pink-500/10';
+    default:
+      return 'text-zinc-400 bg-zinc-800/50';
+  }
+}
+
+/**
+ * ✅ NEW: Generate mock activities (address-based)
+ */
+export function generateMockActivities(address: string, count: number = 20): ActivityItem[] {
+  const types: ActivityItem['type'][] = ['mint', 'purchase', 'sale', 'transfer', 'list', 'offer'];
+  const activities: ActivityItem[] = [];
+  
+  for (let i = 0; i < count; i++) {
+    const type = types[Math.floor(Math.random() * types.length)];
+    const assetId = `${Math.floor(Math.random() * 100)}`;
+    
+    activities.push({
+      id: `activity_${Date.now()}_${i}`,
+      userId: address, // userId represents wallet address
+      type,
+      assetId,
+      assetName: `Asset #${assetId}`,
+      assetImage: 'luxury asset premium',
+      price: ['purchase', 'sale', 'offer'].includes(type) 
+        ? Math.random() * 10 + 0.5 
+        : undefined,
+      from: type === 'purchase' ? '0x1234...5678' : undefined,
+      to: type === 'sale' ? '0x8765...4321' : undefined,
+      timestamp: Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000, // Last 30 days
+      txHash: `0x${Math.random().toString(36).substr(2, 64)}`,
+      status: 'completed',
+    });
+  }
+  
+  return activities.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+/**
+ * Shorten address
+ */
+export function shortenAddress(address: string): string {
+  if (!address) return '';
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+/**
+ * Shorten address for user display name (5 chars ... 3 chars)
+ */
+export function shortenUserDisplayName(address: string): string {
+  if (!address) return '';
+  // Format: 0x8a1...2f3 (5 chars + ... + 3 chars)
+  return `${address.slice(0, 5)}...${address.slice(-3)}`;
+}
+
+/**
+ * Format number with suffix
+ */
+export function formatNumberWithSuffix(num: number): string {
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+  return num.toString();
+}
+
+/**
+ * ✅ NEW: Validate wallet address format
+ */
+export function isValidWalletAddress(address: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+}
+
+/**
+ * ✅ NEW: Migration utility - clean up old userId-based profiles
+ * This should be called once on app startup
+ */
+export function migrateOldProfiles(): void {
+  console.log('🔄 [Migration] Starting old profile cleanup...');
+  let cleaned = 0;
+  
+  // Find and remove old profile keys (studio_user_profile_user_*)
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('studio_user_profile_user_')) {
+      console.log(`🗑️ [Migration] Removing old profile: ${key}`);
+      localStorage.removeItem(key);
+      cleaned++;
+    }
+  }
+  
+  // Remove old mapping table
+  localStorage.removeItem('studio_address_to_userid');
+  
+  console.log(`✅ [Migration] Cleanup complete. Removed ${cleaned} old profiles.`);
+}

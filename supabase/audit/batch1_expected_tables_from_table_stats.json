@@ -1,0 +1,33 @@
+{
+  "source": "c:\\ORINA\\ATPProtocol2\\ATP2\\supabase\\audit\\batch1_table_stats.json",
+  "expected_total": 22,
+  "runtime_count_detected": 22,
+  "expected_present": [
+    "asset_media",
+    "asset_protocol_links",
+    "asset_tag_map",
+    "asset_tags",
+    "assets_catalog",
+    "community_comments",
+    "community_posts",
+    "community_reactions",
+    "notifications",
+    "profiles",
+    "protocol_asset_events",
+    "protocol_assets",
+    "protocol_order_events",
+    "protocol_orders",
+    "user_badges",
+    "user_favorites",
+    "user_follows",
+    "user_preferences",
+    "user_watchlist",
+    "wallet_auth_challenges",
+    "wallet_sessions",
+    "watchlist_alerts"
+  ],
+  "expected_missing": [],
+  "unexpected_public_from_table_stats_scope": [],
+  "expected_missing_is_empty": true,
+  "note": "Parsed from `supabase inspect db table-stats` output (linked project)."
+}

@@ -1,0 +1,766 @@
+@custom-variant dark (&:is(.dark *));
+@plugin "@tailwindcss/forms";
+
+:root {
+  --font-size: 16px;
+  --background: #ffffff;
+  --foreground: oklch(0.145 0 0);
+  --card: #ffffff;
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: #030213;
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.95 0.0058 264.53);
+  --secondary-foreground: #030213;
+  --muted: #ececf0;
+  --muted-foreground: #717182;
+  --accent: #e9ebef;
+  --accent-foreground: #030213;
+  --destructive: #d4183d;
+  --destructive-foreground: #ffffff;
+  --border: rgba(0, 0, 0, 0.1);
+  --input: transparent;
+  --input-background: #f3f3f5;
+  --switch-background: #cbced4;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: #030213;
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+  
+  /* Web3 Dashboard Custom Colors */
+  --color-primary-custom: #2CC295;
+  --color-studio-bg: #121212;
+  --color-panel-bg: #141417;
+  --color-panel-border: #27272a;
+  --color-panel-border-soft: rgba(255, 255, 255, 0.08);
+  --color-panel-highlight: rgba(255, 255, 255, 0.03);
+  --color-panel-inset: rgba(255, 255, 255, 0.05);
+  --color-panel-surface: #141417;
+  --color-sidebar-shell: rgba(24, 24, 27, 0.3);
+  --color-sidebar-footer: rgba(9, 9, 11, 0.8);
+  --color-pill-active-bg: #2CC295;
+  --color-pill-active-fg: #000000;
+  --color-pill-inactive-fg: #a1a1aa;
+  --color-button-secondary-bg: #18181b;
+  --color-button-secondary-bg-hover: #27272a;
+  --color-button-secondary-border: #27272a;
+  --color-button-primary-bg: #2CC295;
+  --color-button-primary-bg-hover: #25a882;
+  --color-button-primary-fg: #000000;
+  --color-button-ghost-fg: #a1a1aa;
+  --color-button-ghost-fg-hover: #ffffff;
+
+  /* ==========================================
+     TYPOGRAPHY SYSTEM v2.0 - Based on HTML Template
+     Match Tailwind CSS defaults + Studio Pro Design
+     ========================================== */
+  
+  /* Font Family: Inter (imported in fonts.css) */
+  
+  /* Font Sizes - Aligned with Tailwind + HTML Template */
+  --font-size-tiny: 0.625rem;      /* 10px - Micro labels (LIVE AUCTION, PRICE, etc.) */
+  --font-size-caption: 0.6875rem;  /* 11px - Category badges (Abstract Realism) */
+  --font-size-xs: 0.75rem;         /* 12px - Descriptions, helper text */
+  --font-size-sm: 0.875rem;        /* 14px - Body text, card content */
+  --font-size-base: 1rem;          /* 16px - Default base */
+  --font-size-lg: 1.125rem;        /* 18px - Logo, emphasized text */
+  --font-size-xl: 1.25rem;         /* 20px - Page headings (Featured Assets) */
+  --font-size-2xl: 1.5rem;         /* 24px - Large metrics */
+  --font-size-3xl: 1.875rem;       /* 30px - Hero headings */
+  --font-size-4xl: 2.25rem;        /* 36px - Display headings */
+  
+  /* Font Weights - Inter Variable Font */
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* Line Heights - Optimized for readability */
+  --line-height-tight: 1.25;       /* For headings */
+  --line-height-snug: 1.375;       /* For subheadings */
+  --line-height-normal: 1.5;       /* Default body text */
+  --line-height-relaxed: 1.625;    /* For long-form content */
+  
+  /* Letter Spacing - Based on HTML Template */
+  --tracking-tighter: -0.025em;    /* Tight headings */
+  --tracking-normal: 0;            /* Default */
+  --tracking-wide: 0.025em;        /* Slightly spaced */
+  --tracking-wider: 0.05em;        /* Category labels (tracking-wider) */
+  --tracking-widest: 0.1em;        /* Micro labels (tracking-widest) */
+  --tracking-section: 0.15em;      /* Section headers (CURATION LAB) */
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: #2CC295;
+  --primary-foreground: #000000;
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  /* Clean base layer - no global borders/outlines */
+  body {
+    @apply text-foreground;
+    background: #0f0f11;
+  }
+
+  /* ==========================================
+     GLOBAL FORM FOCUS: System Green (#2CC295)
+     Override @tailwindcss/forms default blue
+     ========================================== */
+  [type='text']:focus,
+  [type='email']:focus,
+  [type='url']:focus,
+  [type='password']:focus,
+  [type='number']:focus,
+  [type='date']:focus,
+  [type='datetime-local']:focus,
+  [type='month']:focus,
+  [type='search']:focus,
+  [type='tel']:focus,
+  [type='time']:focus,
+  [type='week']:focus,
+  input:not([type]):focus,
+  textarea:focus,
+  select:focus,
+  [multiple]:focus {
+    --tw-ring-color: rgba(44, 194, 149, 0.35) !important;
+    border-color: #2CC295 !important;
+    box-shadow: 0 0 0 1px rgba(44, 194, 149, 0.35) !important;
+    outline: none !important;
+    outline-color: #2CC295 !important;
+  }
+
+  /**
+  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
+  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  */
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h4 {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+
+  /* Leaflet Map Styles */
+  .leaflet-container {
+    background: #0d0d0f !important;
+  }
+
+  .leaflet-popup-content-wrapper {
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 16px !important;
+  }
+
+  .leaflet-popup-content {
+    margin: 0 !important;
+  }
+
+  .leaflet-popup-tip-container {
+    display: none !important;
+  }
+
+  .custom-marker {
+    background: transparent !important;
+    border: none !important;
+  }
+
+  /* Map Asset Card Styles - Matching HTML Template */
+  .persistent-card {
+    position: absolute;
+    width: 140px;
+    transition: transform 0.2s ease-out;
+    box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+  }
+
+  .persistent-card:hover {
+    transform: translateY(-4px);
+    z-index: 50;
+  }
+
+  .glass-card {
+    background: rgba(20, 20, 23, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Leaflet controls dark theme */
+  .leaflet-control-zoom a,
+  .leaflet-control-attribution {
+    background-color: #1a1a1c !important;
+    border: 1px solid #27272a !important;
+    color: #fff !important;
+  }
+
+  .leaflet-control-zoom a:hover {
+    background-color: #27272a !important;
+  }
+
+  .leaflet-control-attribution {
+    font-size: 9px !important;
+    opacity: 0.7;
+  }
+
+  /* Custom scrollbar for notification dropdown */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #27272a;
+    border-radius: 10px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #3a3a3f;
+  }
+
+  /* Style Guide: Toggle Switch (Suno-style) */
+  .suno-toggle {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 22px;
+  }
+
+  .suno-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #27272a;
+    transition: .3s;
+    border-radius: 34px;
+  }
+
+  .toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: #71717a;
+    transition: .3s;
+    border-radius: 50%;
+  }
+
+  input:checked + .toggle-slider {
+    background-color: #2CC295;
+  }
+
+  input:checked + .toggle-slider:before {
+    transform: translateX(22px);
+    background-color: white;
+  }
+
+  /* Style Guide: Input Gradient Border */
+  .input-gradient-border {
+    position: relative;
+    background: #1a1a1c;
+    border-radius: 0.75rem;
+    padding: 1px;
+  }
+
+  .input-gradient-border:focus-within {
+    background: linear-gradient(135deg, #2CC295 0%, #9333ea 100%);
+  }
+
+  .input-inner {
+    background: #141417;
+    border-radius: 11px;
+    width: 100%;
+  }
+
+  /* Style Guide: Teal Glow Focus */
+  .teal-glow-focus:focus {
+    box-shadow: 0 0 0 2px rgba(44, 194, 149, 0.2);
+    border-color: #2CC295;
+    outline: none;
+  }
+
+  /* Style Guide: Dropdown Panel */
+  .dropdown-panel {
+    background: #1e1e20;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Material Symbols Outlined - Match HTML Template */
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  /* Style Guide: Custom Checkbox & Radio Styling */
+  input[type="checkbox"]:checked,
+  input[type="radio"]:checked {
+    background-color: #2CC295;
+    border-color: #2CC295;
+  }
+
+  input[type="checkbox"]:focus,
+  input[type="radio"]:focus {
+    --tw-ring-color: rgba(44, 194, 149, 0.5);
+    border-color: #2CC295;
+  }
+
+input[type="checkbox"],
+input[type="radio"] {
+  cursor: pointer;
+}
+
+  /* Global: remove native number input spin buttons (white up/down arrows) */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+
+/* CRITICAL: Override Tailwind Forms Plugin - Must be OUTSIDE @layer base */
+input[type="checkbox"]:checked,
+input[type="radio"]:checked {
+  background-color: #2CC295 !important;
+  border-color: #2CC295 !important;
+  background-image: none !important;
+}
+
+input[type="checkbox"]:checked {
+  background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e") !important;
+}
+
+input[type="radio"]:checked {
+  background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3ccircle cx='8' cy='8' r='3'/%3e%3c/svg%3e") !important;
+}
+
+input[type="checkbox"]:focus,
+input[type="radio"]:focus {
+  --tw-ring-color: rgba(44, 194, 149, 0.5) !important;
+  border-color: #2CC295 !important;
+}
+
+/* Style Guide: Button Styles */
+.teal-gradient-btn {
+  background: linear-gradient(135deg, #2CC295 0%, #1a9470 100%);
+}
+
+.glass-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.glass-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Style Guide: Card Components */
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+/* ==========================================
+   LEFT SIDEBAR: Complete Border & Outline Reset
+   Zero-border approach - uses only background colors
+   ========================================== */
+
+.sidebar-btn {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.sidebar-btn:hover,
+.sidebar-btn:focus,
+.sidebar-btn:active,
+.sidebar-btn:focus-visible {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-width: 0px !important;
+  --tw-ring-offset-width: 0px !important;
+}
+
+/* ==========================================
+   DEPRECATED: Old sidebar border rules (No longer used)
+   ========================================== */
+
+/* DEPRECATED: Remove all borders/outlines from sidebar buttons when collapsed 
+.sidebar-no-border,
+.sidebar-no-border *,
+button.sidebar-no-border,
+button.sidebar-no-border * {
+  border-width: 0 !important;
+  border-style: none !important;
+  border-color: transparent !important;
+  outline: none !important;
+  outline-width: 0 !important;
+  outline-style: none !important;
+  outline-color: transparent !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+  ring: 0 !important;
+  --tw-ring-width: 0px !important;
+  --tw-ring-offset-width: 0px !important;
+  --tw-ring-color: transparent !important;
+  --tw-ring-offset-color: transparent !important;
+  --tw-shadow: 0 0 #0000 !important;
+  --tw-shadow-colored: 0 0 #0000 !important;
+}
+
+.sidebar-no-border:hover,
+.sidebar-no-border:focus,
+.sidebar-no-border:active,
+.sidebar-no-border:focus-visible,
+.sidebar-no-border *:hover,
+.sidebar-no-border *:focus,
+.sidebar-no-border *:active,
+.sidebar-no-border *:focus-visible,
+button.sidebar-no-border:hover,
+button.sidebar-no-border:focus,
+button.sidebar-no-border:active,
+button.sidebar-no-border:focus-visible {
+  border-width: 0 !important;
+  border-style: none !important;
+  border-color: transparent !important;
+  outline: none !important;
+  outline-width: 0 !important;
+  outline-style: none !important;
+  outline-color: transparent !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+  ring: 0 !important;
+  --tw-ring-width: 0px !important;
+  --tw-ring-offset-width: 0px !important;
+  --tw-ring-color: transparent !important;
+  --tw-ring-offset-color: transparent !important;
+  --tw-shadow: 0 0 #0000 !important;
+  --tw-shadow-colored: 0 0 #0000 !important;
+}
+*/
+
+/* ==========================================
+   TYPOGRAPHY UTILITY CLASSES v2.0
+   Based on HTML Template - Studio Pro Design
+   Use Tailwind defaults when possible
+   ========================================== */
+
+/* Micro Labels - 10px (Exactly like HTML: text-[10px]) */
+.text-micro {
+  font-size: 0.625rem; /* 10px */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+}
+
+/* Caption Labels - 11px (HTML: text-[11px]) */
+.text-caption {
+  font-size: 0.6875rem; /* 11px */
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.3;
+}
+
+/* Section Headers - 11px with wider tracking (HTML: text-[11px] tracking-[0.15em]) */
+.text-section-label {
+  font-size: 0.6875rem; /* 11px */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  line-height: 1.3;
+}
+
+/* Studio Pro Typography Patterns (from HTML template) */
+
+/* Logo/Brand Text - 18px bold (HTML: text-lg font-bold) */
+.text-brand {
+  font-size: 1.125rem; /* 18px */
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+/* Page Headings - 20px bold (HTML: text-xl font-bold) */
+.text-page-heading {
+  font-size: 1.25rem; /* 20px */
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+/* Card Titles - inherit size, bold (HTML: font-bold) */
+.text-card-title {
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* Helper text - 12px (HTML: text-xs) */
+.text-helper {
+  font-size: 0.75rem; /* 12px */
+  color: #71717a;
+  line-height: 1.4;
+}
+
+/* Category badges - 11px uppercase (HTML: text-[11px] uppercase tracking-wider) */
+.text-category-badge {
+  font-size: 0.6875rem; /* 11px */
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Live auction badge - 10px uppercase tight tracking (HTML: text-[10px] tracking-tighter) */
+.text-live-badge {
+  font-size: 0.625rem; /* 10px */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.025em;
+}
+
+/* Price labels - 10px uppercase (HTML: text-[10px] uppercase) */
+.text-price-label {
+  font-size: 0.625rem; /* 10px */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #71717a;
+}
+
+/* ==========================================
+   GLOBAL FOCUS OVERRIDE: System Green (#2CC295) 
+   Catches ALL inputs including those with Tailwind classes
+   Must be outside @layer for highest specificity
+   ========================================== */
+input:focus,
+textarea:focus,
+select:focus,
+[contenteditable]:focus {
+  --tw-ring-color: rgba(44, 194, 149, 0.35) !important;
+  border-color: #2CC295 !important;
+  box-shadow: 0 0 0 1px rgba(44, 194, 149, 0.35) !important;
+  outline: 2px solid transparent !important;
+  outline-offset: 2px !important;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  --tw-ring-color: rgba(44, 194, 149, 0.35) !important;
+  border-color: #2CC295 !important;
+  box-shadow: 0 0 0 1px rgba(44, 194, 149, 0.35) !important;
+  outline: 2px solid transparent !important;
+  outline-offset: 2px !important;
+}
+
+/* ==========================================
+   NOTIFICATION BADGE - System Green (#2CC295)
+   Matches HTML Template .notification-badge
+   ========================================== */
+.notification-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #2CC295;
+  color: black;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 9999px;
+  box-shadow: 0 0 15px rgba(44, 194, 149, 0.3);
+}
+
+/* ==========================================
+   SONNER TOAST: Force Dark Theme
+   Override for non-Next.js environment
+   ========================================== */
+[data-sonner-toaster] [data-sonner-toast] {
+  --normal-bg: #141417 !important;
+  --normal-text: #fafafa !important;
+  --normal-border: #27272a !important;
+  background: #141417 !important;
+  color: #fafafa !important;
+  border-color: #27272a !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-title] {
+  color: #ffffff !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-description] {
+  color: #a1a1aa !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="success"] {
+  --normal-bg: #141417 !important;
+  border-left: 3px solid #2CC295;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="success"] svg {
+  color: #2CC295 !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] {
+  --normal-bg: #141417 !important;
+  border-left: 3px solid #ef4444;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] svg {
+  color: #ef4444 !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="warning"] {
+  --normal-bg: #141417 !important;
+  border-left: 3px solid #f59e0b;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="warning"] svg {
+  color: #f59e0b !important;
+}

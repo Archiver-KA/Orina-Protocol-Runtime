@@ -1,0 +1,589 @@
+import { useState, useEffect, useMemo } from 'react';
+import { Heart, Eye, Bell, TrendingUp, TrendingDown, DollarSign, ShoppingCart, ArrowUpRight, ChevronDown, AlertTriangle, CheckCircle2, X } from 'lucide-react';
+import { AssetDetails } from '@/types/asset';
+import { FavoriteSortOption, FavoriteFilterOption, WatchlistItem, WatchlistAlert } from '@/types/favorites';
+import { SetPriceAlertModal } from './set-price-alert-modal';
+import {
+  loadFavorites,
+  removeFavorite,
+  sortFavoriteAssets,
+  calculateFavoritesStats,
+  toggleFavorite,
+  loadWatchlist,
+  removeFromWatchlist,
+  loadWatchlistAlerts,
+  markAlertAsRead,
+  calculateWatchlistStats,
+  updateWatchlistItem,
+  seedMockAlerts,
+} from '@/utils/favoritesUtils';
+import { generateMockAsset } from '@/utils/mockAssetData';
+import { formatDistanceToNow } from 'date-fns';
+import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'sonner';
+
+interface FavoritesWatchlistPageProps {
+  currentUserId?: string;
+  onNavigateToAsset?: (assetId: string) => void;
+}
+
+type TabType = 'favorites' | 'watchlist';
+
+export function FavoritesWatchlistPage({
+  currentUserId = 'user_current',
+  onNavigateToAsset,
+}: FavoritesWatchlistPageProps) {
+  const [activeTab, setActiveTab] = useState<TabType>('favorites');
+  
+  // Favorites State
+  const [sortBy, setSortBy] = useState<FavoriteSortOption>('recent');
+  const [filterBy, setFilterBy] = useState<FavoriteFilterOption>('all');
+  const [favoriteAssets, setFavoriteAssets] = useState<AssetDetails[]>([]);
+  
+  // Watchlist State
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [watchlistAssets, setWatchlistAssets] = useState<AssetDetails[]>([]);
+  const [alerts, setAlerts] = useState<WatchlistAlert[]>([]);
+  const [editingItem, setEditingItem] = useState<WatchlistItem | null>(null);
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
+
+  // Load data on mount
+  useEffect(() => {
+    loadFavoritesData();
+    loadWatchlistData();
+  }, [currentUserId]);
+
+  const loadFavoritesData = () => {
+    const favorites = loadFavorites(currentUserId);
+    const assets = favorites.map((fav) => generateMockAsset(fav.assetId));
+    setFavoriteAssets(assets);
+  };
+
+  const loadWatchlistData = () => {
+    const items = loadWatchlist(currentUserId);
+    setWatchlist(items);
+    
+    const assets = items.map((item) => generateMockAsset(item.assetId));
+    setWatchlistAssets(assets);
+    
+    const userAlerts = loadWatchlistAlerts(currentUserId);
+    setAlerts(userAlerts);
+  };
+
+  // Favorites Logic
+  const filteredAssets = useMemo(() => {
+    if (filterBy === 'all') return favoriteAssets;
+    return favoriteAssets.filter((asset) => 
+      asset.category.toLowerCase() === filterBy.toLowerCase()
+    );
+  }, [favoriteAssets, filterBy]);
+
+  const sortedAssets = useMemo(() => {
+    const favorites = loadFavorites(currentUserId);
+    return sortFavoriteAssets(filteredAssets, sortBy, favorites);
+  }, [filteredAssets, sortBy, currentUserId]);
+
+  const favoritesStats = useMemo(() => 
+    calculateFavoritesStats(favoriteAssets), 
+    [favoriteAssets]
+  );
+
+  const handleToggleFavorite = (assetId: string) => {
+    const isFav = toggleFavorite(currentUserId, assetId);
+    loadFavoritesData();
+    toast.success(isFav ? 'Added to favorites' : 'Removed from favorites');
+  };
+
+  // Watchlist Logic
+  const watchlistStats = useMemo(() => 
+    calculateWatchlistStats(watchlist, alerts, watchlistAssets),
+    [watchlist, alerts, watchlistAssets]
+  );
+
+  const handleRemoveFromWatchlist = (assetId: string) => {
+    removeFromWatchlist(currentUserId, assetId);
+    loadWatchlistData();
+    toast.success('Removed from watchlist');
+  };
+
+  const handleEditAlert = (item: WatchlistItem) => {
+    setEditingItem(item);
+    setIsAlertModalOpen(true);
+  };
+
+  const handleSetAlert = (item: WatchlistItem, targetPrice: number, condition: 'above' | 'below') => {
+    const updatedItem = {
+      ...item,
+      priceAlert: {
+        targetPrice,
+        condition,
+        isActive: true,
+      },
+    };
+    updateWatchlistItem(updatedItem);
+    loadWatchlistData();
+    setIsAlertModalOpen(false);
+    setEditingItem(null);
+    toast.success('Price alert set successfully');
+  };
+
+  const handleToggleAlert = (item: WatchlistItem) => {
+    if (!item.priceAlert) {
+      handleEditAlert(item);
+      return;
+    }
+
+    const updatedItem = {
+      ...item,
+      priceAlert: {
+        ...item.priceAlert,
+        isActive: !item.priceAlert.isActive,
+      },
+    };
+    updateWatchlistItem(updatedItem);
+    loadWatchlistData();
+    toast.success(
+      updatedItem.priceAlert.isActive 
+        ? 'Price alert activated' 
+        : 'Price alert paused'
+    );
+  };
+
+  const getAssetForItem = (item: WatchlistItem): AssetDetails | undefined => {
+    return watchlistAssets.find((asset) => asset.id === item.assetId);
+  };
+
+  const triggeredAlerts = alerts.filter(alert => !alert.isRead).slice(0, 3);
+
+  return (
+    <div className="h-full bg-[#0f0f11] overflow-y-auto custom-scrollbar">
+      <style>{`
+        .ambient-blob {
+          position: absolute;
+          width: 600px;
+          height: 600px;
+          background: radial-gradient(circle, rgba(44, 194, 149, 0.03) 0%, rgba(18, 18, 18, 0) 70%);
+          border-radius: 50%;
+          filter: blur(80px);
+          z-index: 0;
+          pointer-events: none;
+        }
+      `}</style>
+
+      <div className="p-8 space-y-8 relative">
+        {/* Ambient Blob */}
+        <div className="ambient-blob -top-40 -left-40"></div>
+
+        <div className="relative z-10">
+          {/* Header with Tabs */}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-2xl font-bold text-white">Favorites & Watchlist</h1>
+              <p className="text-sm text-zinc-500 mt-1">Manage your saved assets and price alerts.</p>
+            </div>
+
+            {/* Tab Toggle */}
+            <div className="bg-zinc-900/80 p-1 rounded-full border border-[#27272a] flex items-center">
+              <button
+                onClick={() => setActiveTab('favorites')}
+                className={`
+                  px-6 py-2 rounded-full text-xs font-bold transition-all
+                  ${activeTab === 'favorites'
+                    ? 'bg-[#2CC295] text-black'
+                    : 'text-zinc-400 hover:text-white'
+                  }
+                `}
+              >
+                Favorites
+              </button>
+              <button
+                onClick={() => setActiveTab('watchlist')}
+                className={`
+                  px-6 py-2 rounded-full text-xs font-bold transition-all
+                  ${activeTab === 'watchlist'
+                    ? 'bg-[#2CC295] text-black'
+                    : 'text-zinc-400 hover:text-white'
+                  }
+                `}
+              >
+                Watchlist
+              </button>
+            </div>
+          </div>
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div className="bg-zinc-900 border border-[#27272a] p-5 rounded-xl">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Total Favorites</span>
+                <Heart size={20} className="text-[#2CC295]" />
+              </div>
+              <p className="text-2xl font-bold text-white">{favoriteAssets.length} Assets</p>
+              <p className="text-xs text-[#2CC295] mt-1">+{Math.floor(favoriteAssets.length * 0.1)} this week</p>
+            </div>
+
+            <div className="bg-zinc-900 border border-[#27272a] p-5 rounded-xl">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Total Value</span>
+                <DollarSign size={20} className="text-[#2CC295]" />
+              </div>
+              <p className="text-2xl font-bold text-white">{favoritesStats.totalValue.toFixed(2)} ETH</p>
+              <p className="text-xs text-zinc-500 mt-1">~${(favoritesStats.totalValue * 2800).toFixed(2)} USD</p>
+            </div>
+
+            <div className="bg-zinc-900 border border-[#27272a] p-5 rounded-xl">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Active Alerts</span>
+                <Bell size={20} className="text-[#2CC295]" />
+              </div>
+              <p className="text-2xl font-bold text-white">{watchlistStats.activeAlerts} Alerts</p>
+              <p className="text-xs text-amber-500 mt-1">{triggeredAlerts.length} Triggered today</p>
+            </div>
+          </div>
+
+          {/* Main Content Grid */}
+          <div className="grid grid-cols-12 gap-8">
+            {/* Left Column - Favorites/Watchlist Management */}
+            <div className="col-span-12 lg:col-span-7">
+              {activeTab === 'favorites' ? (
+                <>
+                  {/* Favorites Header */}
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Favorites Management</h3>
+                  </div>
+
+                  {/* Filter Tabs */}
+                  <div className="flex items-center gap-2 mb-6 flex-wrap">
+                    <button
+                      onClick={() => setFilterBy('all')}
+                      className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                        filterBy === 'all'
+                          ? 'bg-[#2CC295]/10 text-[#2CC295] border border-[#2CC295]/20'
+                          : 'bg-zinc-900 text-zinc-400 border border-[#27272a] hover:text-white'
+                      }`}
+                    >
+                      All Items
+                    </button>
+                    <button
+                      onClick={() => setFilterBy('art')}
+                      className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                        filterBy === 'art'
+                          ? 'bg-[#2CC295]/10 text-[#2CC295] border border-[#2CC295]/20'
+                          : 'bg-zinc-900 text-zinc-400 border border-[#27272a] hover:text-white'
+                      }`}
+                    >
+                      Art
+                    </button>
+                    <button
+                      onClick={() => setFilterBy('collectibles')}
+                      className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                        filterBy === 'collectibles'
+                          ? 'bg-[#2CC295]/10 text-[#2CC295] border border-[#2CC295]/20'
+                          : 'bg-zinc-900 text-zinc-400 border border-[#27272a] hover:text-white'
+                      }`}
+                    >
+                      Collectibles
+                    </button>
+                    <button
+                      onClick={() => setFilterBy('luxury')}
+                      className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                        filterBy === 'luxury'
+                          ? 'bg-[#2CC295]/10 text-[#2CC295] border border-[#2CC295]/20'
+                          : 'bg-zinc-900 text-zinc-400 border border-[#27272a] hover:text-white'
+                      }`}
+                    >
+                      Utility
+                    </button>
+                  </div>
+
+                  {/* Favorites Grid */}
+                  {sortedAssets.length === 0 ? (
+                    <div className="py-20 text-center">
+                      <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Heart size={40} className="text-zinc-700" />
+                      </div>
+                      <h3 className="text-xl font-bold text-white mb-2">No favorites yet</h3>
+                      <p className="text-sm text-zinc-500">Start adding assets to your favorites</p>
+                    </div>
+                  ) : (
+                    <AnimatePresence mode="popLayout">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {sortedAssets.slice(0, 4).map((asset) => (
+                          <motion.div
+                            key={asset.id}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="bg-zinc-900 border border-[#27272a] rounded-xl overflow-hidden group cursor-pointer hover:border-[#2CC295]/30 transition-all"
+                          >
+                            <div 
+                              className="relative h-48 bg-zinc-800"
+                              onClick={() => {
+                                console.log('Favorite card image clicked, assetId:', asset.id);
+                                onNavigateToAsset?.(asset.id);
+                              }}
+                            >
+                              <img
+                                src={asset.image}
+                                alt={asset.name}
+                                className="w-full h-full object-cover"
+                              />
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  console.log('Heart button clicked, assetId:', asset.id);
+                                  handleToggleFavorite(asset.id);
+                                }}
+                                className="absolute top-3 right-3 w-8 h-8 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-[#2CC295] border border-white/10 hover:bg-black/70 transition-all z-10"
+                              >
+                                <Heart size={16} fill="currentColor" />
+                              </button>
+                            </div>
+                            <div 
+                              className="p-4"
+                              onClick={() => {
+                                console.log('Favorite card content clicked, assetId:', asset.id);
+                                onNavigateToAsset?.(asset.id);
+                              }}
+                            >
+                              <div className="flex justify-between items-start mb-2">
+                                <p className="text-xs font-bold text-[#2CC295] uppercase">{asset.category}</p>
+                                <p className="text-xs text-zinc-500">#{asset.tokenId}</p>
+                              </div>
+                              <h4 className="text-white font-bold mb-3">{asset.name}</h4>
+                              <div className="flex items-center justify-between pt-3 border-t border-[#27272a]">
+                                <div>
+                                  <p className="text-[10px] text-zinc-500 uppercase font-bold">Current Price</p>
+                                  <p className="text-sm font-bold text-white">{asset.currentPrice}</p>
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    console.log('Shopping cart button clicked, assetId:', asset.id);
+                                    onNavigateToAsset?.(asset.id);
+                                  }}
+                                  className="bg-zinc-800 hover:bg-zinc-700 p-2 rounded-lg transition-colors z-10"
+                                >
+                                  <ShoppingCart size={18} />
+                                </button>
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </AnimatePresence>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Watchlist Header */}
+                  <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-6">Watchlist Management</h3>
+                  
+                  {/* Watchlist Content */}
+                  {watchlist.length === 0 ? (
+                    <div className="py-20 text-center">
+                      <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Eye size={40} className="text-zinc-700" />
+                      </div>
+                      <h3 className="text-xl font-bold text-white mb-2">No assets in watchlist</h3>
+                      <p className="text-sm text-zinc-500">Add assets to track prices and set alerts</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {watchlist.slice(0, 4).map((item) => {
+                        const asset = getAssetForItem(item);
+                        if (!asset) return null;
+
+                        return (
+                          <div
+                            key={item.id}
+                            className="flex items-center gap-4 p-3 bg-zinc-800/50 rounded-lg border border-[#27272a]"
+                          >
+                            <div className="w-12 h-12 rounded-lg bg-zinc-700 overflow-hidden shrink-0">
+                              <img
+                                src={asset.image}
+                                alt={asset.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-white truncate">{asset.name}</p>
+                              <p className="text-xs text-zinc-500">{asset.currentPriceUsd}</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-2">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  className="w-16 bg-zinc-900 border border-[#27272a] text-[10px] rounded p-1 text-white focus:ring-[#2CC295]"
+                                  value={item.priceAlert ? `$${(item.priceAlert.targetPrice * 2800).toFixed(0)}` : ''}
+                                  placeholder="Target"
+                                  readOnly
+                                />
+                                <button
+                                  onClick={() => handleToggleAlert(item)}
+                                  className={`w-8 h-4 rounded-full relative flex items-center px-0.5 cursor-pointer ${
+                                    item.priceAlert?.isActive
+                                      ? 'bg-[#2CC295]/20'
+                                      : 'bg-zinc-700'
+                                  }`}
+                                >
+                                  <div className={`w-3 h-3 rounded-full ${
+                                    item.priceAlert?.isActive
+                                      ? 'bg-[#2CC295] ml-auto'
+                                      : 'bg-zinc-500'
+                                  }`}></div>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Right Column - Watchlist & Alerts / Quick Stats */}
+            <div className="col-span-12 lg:col-span-5 space-y-8">
+              {activeTab === 'favorites' ? (
+                <>
+                  {/* Quick Actions and Category Breakdown sections removed */}
+                </>
+              ) : (
+                <>
+                  {/* Watchlist & Alerts */}
+                  <div>
+                    <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-6">Watchlist &amp; Alerts</h3>
+                    <div className="bg-zinc-900 border border-[#27272a] rounded-xl overflow-hidden">
+                      <div className="p-4 space-y-4">
+                        {watchlist.slice(0, 3).map((item) => {
+                          const asset = getAssetForItem(item);
+                          if (!asset) return null;
+
+                          return (
+                            <div
+                              key={item.id}
+                              className="flex items-center gap-4 p-3 bg-zinc-800/50 rounded-lg border border-[#27272a]"
+                            >
+                              <div className="w-12 h-12 rounded-lg bg-zinc-700 overflow-hidden shrink-0">
+                                <img
+                                  src={asset.image}
+                                  alt={asset.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-white truncate">{asset.name}</p>
+                                <p className="text-xs text-zinc-500">{asset.currentPriceUsd}</p>
+                              </div>
+                              <div className="flex flex-col items-end gap-2">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    className="w-16 bg-zinc-900 border border-[#27272a] text-[10px] rounded p-1 text-white focus:ring-[#2CC295]"
+                                    value={item.priceAlert ? `$${(item.priceAlert.targetPrice * 2800).toFixed(0)}` : ''}
+                                    placeholder="Target"
+                                    readOnly
+                                  />
+                                  <button
+                                    onClick={() => handleToggleAlert(item)}
+                                    className={`w-8 h-4 rounded-full relative flex items-center px-0.5 cursor-pointer ${
+                                      item.priceAlert?.isActive
+                                        ? 'bg-[#2CC295]/20'
+                                        : 'bg-zinc-700'
+                                    }`}
+                                  >
+                                    <div className={`w-3 h-3 rounded-full ${
+                                      item.priceAlert?.isActive
+                                        ? 'bg-[#2CC295] ml-auto'
+                                        : 'bg-zinc-500'
+                                    }`}></div>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Triggered Alerts */}
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Triggered Alerts</h3>
+                      <button
+                        onClick={() => {
+                          alerts.forEach(alert => markAlertAsRead(currentUserId, alert.id));
+                          loadWatchlistData();
+                          toast.success('All alerts cleared');
+                        }}
+                        className="text-[10px] text-[#2CC295] font-bold uppercase hover:underline"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      {triggeredAlerts.length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-sm text-zinc-500">No triggered alerts</p>
+                        </div>
+                      ) : (
+                        triggeredAlerts.map((alert) => (
+                          <div
+                            key={alert.id}
+                            className={`p-3 rounded-lg flex gap-3 ${
+                              alert.type === 'price_target'
+                                ? 'bg-amber-500/5 border border-amber-500/20'
+                                : 'bg-[#2CC295]/5 border border-[#2CC295]/20'
+                            }`}
+                          >
+                            {alert.type === 'price_target' ? (
+                              <AlertTriangle size={18} className="text-amber-500 shrink-0" />
+                            ) : (
+                              <CheckCircle2 size={18} className="text-[#2CC295] shrink-0" />
+                            )}
+                            <div className="flex-1">
+                              <p className="text-xs font-bold text-white">{alert.message}</p>
+                              <p className="text-[10px] text-zinc-500 mt-0.5">
+                                {formatDistanceToNow(new Date(alert.triggeredAt), { addSuffix: true })}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                markAlertAsRead(currentUserId, alert.id);
+                                loadWatchlistData();
+                              }}
+                              className="text-zinc-500 hover:text-white transition-colors"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Set Price Alert Modal */}
+      {editingItem && (
+        <SetPriceAlertModal
+          isOpen={isAlertModalOpen}
+          onClose={() => {
+            setIsAlertModalOpen(false);
+            setEditingItem(null);
+          }}
+          item={editingItem}
+          asset={getAssetForItem(editingItem)}
+          onSetAlert={handleSetAlert}
+        />
+      )}
+    </div>
+  );
+}
