@@ -1,4 +1,5 @@
 import { publicAnonKey, supabaseUrl } from '/utils/supabase/info';
+import { getSupabaseBridgeAccessToken } from '@/utils/supabaseAuthClaimBridge';
 
 type Json = Record<string, any> | any[];
 
@@ -27,9 +28,10 @@ function restBase(): string {
 }
 
 function buildHeaders(extra?: Record<string, string>): Record<string, string> {
+  const bearerToken = getSupabaseBridgeAccessToken() || publicAnonKey;
   return {
     apikey: publicAnonKey,
-    Authorization: `Bearer ${publicAnonKey}`,
+    Authorization: `Bearer ${bearerToken}`,
     'Content-Type': 'application/json',
     ...extra,
   };
@@ -177,4 +179,3 @@ export function dispatchSyncEvent(name: string): void {
   if (!isBrowser()) return;
   window.dispatchEvent(new Event(name));
 }
-

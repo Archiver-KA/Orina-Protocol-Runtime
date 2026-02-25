@@ -26,17 +26,32 @@
 - Chốt bridge path (API/Edge/server) + TTL/refresh/revoke
 - Test: invalid/expired wallet session không cấp claim
 - Gate: không còn mơ hồ ownership key cho RLS
+- Status hiện tại:
+  - ✅ Design + scaffold artifacts đã tạo
+  - ⏳ Chưa bật production (`bridge` endpoint vẫn scaffold/501 by default)
 
 ### H2 — RLS Hardening (Replace Batch 4C)
 - Xóa temp public-write policies `Batch 4C`
 - Bật owner-scoped RLS cho `profiles`, `community_*`, `user_*`, `notifications`
 - Giữ nguyên public-read subset `Batch 4A`
 - Audit snapshot pass (temp policies = empty, owner policies missing = [])
+- Status hiện tại:
+  - ✅ Migration + audit snapshot artifacts đã tạo
+  - ⏳ Chưa apply (đợi H1 bridge implemented/validated)
 
 ### H3 — Functional Smoke (2 Wallet, Hardened)
 - Rerun toàn bộ smoke 2-wallet trên `vcixsdudkizgfikhmfuv`
 - Bổ sung negative checks cross-wallet denial
 - Gate: không hồi quy consistency + không cần temp public writes
+- Status hiện tại:
+  - ⏳ Chưa bắt đầu (blocked by H1 implemented + H2 apply)
+
+## New Artifacts (H1/H2)
+- `docs/production/ATP2_H1_WALLET_AUTH_SUPABASE_CLAIM_BRIDGE_2026-02-25.md`
+- `src/utils/supabaseAuthClaimBridge.ts`
+- `supabase/functions/server/wallet-auth-claim-bridge.tsx`
+- `supabase/migrations/000011_d2_rls_hardening_owner_scoped_claim_bridge.sql`
+- `supabase/audit/batch_h2_rls_hardening_claim_bridge_snapshot_single_result.sql`
 
 ## GitHub Backup Track
 - Mục tiêu: backup snapshot source + docs + migrations của ATP2 phase hiện tại

@@ -5,6 +5,7 @@ import * as kv from "./kv_store.tsx";
 import apiEndpoints from "./api-endpoints.tsx";
 import aiChat from "./ai-chat.tsx";
 import ipfsRouter from "./ipfs-upload.tsx";
+import walletAuthClaimBridge from "./wallet-auth-claim-bridge.tsx";
 import { storeAPIKey, getAllKeysForWallet } from "./api-auth.tsx";
 import { APIKey } from "./types.ts";
 import * as messagesHandler from "./messages-handler.ts";
@@ -120,6 +121,9 @@ app.route("/make-server-b0d68fc8/ai", aiChat);
 
 // Mount IPFS upload endpoints (prefixed with /make-server-b0d68fc8/ipfs)
 app.route("/make-server-b0d68fc8/ipfs", ipfsRouter);
+
+// H1 scaffold: wallet-auth -> Supabase auth claim bridge
+app.route("/make-server-b0d68fc8/auth/supabase-claim-bridge", walletAuthClaimBridge);
 
 // Messages endpoints
 app.post("/make-server-b0d68fc8/messages/send", messagesHandler.handleSendMessage);

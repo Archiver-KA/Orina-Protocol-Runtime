@@ -1309,3 +1309,37 @@ Tạo một function dùng chung để tránh copy logic.
 - H3 ATP2 2-wallet smoke pass under hardened RLS
 - Temporary `Batch 4C` policies removed and documented as retired
 - Messaging scope vẫn deferred (không trôi phạm vi)
+
+## 22) Phase B Progress Log (Artifacts Ready, chưa apply)
+### Batch H1 — Auth Claim Bridge (design + scaffold)
+**Status**
+- ✅ Design + scaffold created
+- ⏳ Not production-enabled (endpoint returns scaffold `501` by default)
+
+**Deliverables**
+- `docs/production/ATP2_H1_WALLET_AUTH_SUPABASE_CLAIM_BRIDGE_2026-02-25.md`
+- `src/utils/supabaseAuthClaimBridge.ts`
+- `supabase/functions/server/wallet-auth-claim-bridge.tsx`
+- `supabase/functions/server/index.tsx` (route mount)
+- `src/utils/supabaseRest.ts` (prefers bridge bearer token when available)
+- `.env.example` (H1 bridge env placeholders)
+
+**Notes**
+- Bridge contract chốt claim fields: `role=authenticated`, `sub/profile_id`, `wallet_address`
+- H1 scaffold intentionally disabled by default via `ATP2_ENABLE_SUPABASE_AUTH_CLAIM_BRIDGE`
+- H2 migration must not be applied until H1 verification + JWT signing is implemented and tested
+
+### Batch H2 — Hardening RLS (migration + audit artifacts)
+**Status**
+- ✅ Migration + audit snapshot created
+- ⏳ Not applied (waiting for H1 implemented/validated)
+
+**Deliverables**
+- `supabase/migrations/000011_d2_rls_hardening_owner_scoped_claim_bridge.sql`
+- `supabase/audit/batch_h2_rls_hardening_claim_bridge_snapshot_single_result.sql`
+
+**What H2 is designed to do (when applied)**
+- Remove `Batch 4C` temporary public-write policies on `profiles` + `community_*`
+- Enable owner-scoped RLS for deferred tables (`user_preferences`, `user_follows`, `user_favorites`, `user_watchlist`, `watchlist_alerts`, `notifications`)
+- Preserve `Batch 4A` public-read subset
+- Keep messaging deferred
