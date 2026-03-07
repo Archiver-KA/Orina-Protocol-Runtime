@@ -29,7 +29,7 @@ export function AssetPriceChart({ data, currentPrice }: AssetPriceChartProps) {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="bg-[#141417] border border-zinc-800 rounded-lg p-3 shadow-xl">
+        <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-lg p-3 shadow-xl">
           <p className="text-xs text-zinc-400 mb-1">{format(new Date(data.timestamp), 'MMM d, yyyy')}</p>
           <p className="text-sm font-bold text-white">{data.price.toFixed(4)} ETH</p>
           <p className="text-xs text-zinc-500">${data.priceUsd.toLocaleString()}</p>

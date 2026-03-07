@@ -1,372 +1,215 @@
 import { MarketVolumeChart } from '@/app/components/market-volume-chart';
-import { useState, useMemo, useCallback } from 'react';
-import { TrendingUp, TrendingDown, Download } from 'lucide-react';
-import { useAccount } from 'wagmi';
-import { useAnalytics, usePortfolioDistribution, exportAnalytics } from '@/hooks/useAnalytics';
+import { ChevronUp, TrendingUp } from 'lucide-react';
+import { useState } from 'react';
 
 export function MainContent() {
-  const { address, isConnected } = useAccount();
   const [marketTimeRange, setMarketTimeRange] = useState('24H');
-  const [analyticsTimeRange, setAnalyticsTimeRange] = useState<'7D' | '30D' | '90D' | '1Y' | 'ALL'>('30D');
-  
-  const { metrics, categories, portfolioHistory, insights, isLoading } = useAnalytics(analyticsTimeRange);
-  const portfolioDistribution = usePortfolioDistribution();
-
-  const timeRangeButtons = useMemo(() => ['7D', '30D', '90D', '1Y', 'ALL'] as const, []);
-
-  // Memoize export handler
-  const handleExport = useCallback(() => {
-    if (metrics) {
-      exportAnalytics(metrics, categories, portfolioHistory);
-    }
-  }, [metrics, categories, portfolioHistory]);
-
-  // Memoize chart data points to prevent re-calculation
-  const chartLabels = useMemo(() => {
-    if (portfolioHistory.length === 0) return [];
-    return portfolioHistory
-      .filter((_, i) => i % Math.floor(portfolioHistory.length / 5) === 0)
-      .slice(0, 5)
-      .map((item) => 
-        new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()
-      );
-  }, [portfolioHistory]);
 
   return (
-    <section className="bg-[#0f0f11] h-full overflow-hidden relative">
-      <style>{`
-        .ambient-blob {
-          position: absolute;
-          width: 600px;
-          height: 600px;
-          background: radial-gradient(circle, rgba(44, 194, 149, 0.03) 0%, rgba(18, 18, 18, 0) 70%);
-          border-radius: 50%;
-          filter: blur(80px);
-          z-index: 0;
-          pointer-events: none;
-        }
-      `}</style>
-
-      {/* Ambient Blobs */}
-      <div className="ambient-blob -top-40 -left-40"></div>
-      <div className="ambient-blob -bottom-40 -right-40"></div>
-
+    <section className="bg-ui-page h-full overflow-hidden relative">
       <div className="h-full overflow-y-auto custom-scrollbar">
-        <div className="p-8 relative z-10 space-y-8">
+        <div className="p-8 relative z-10 space-y-6">
           {/* Market Overview Section */}
-          <div className="space-y-6">
-            <div className="flex items-end justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-white">Overview</h1>
-                <p className="text-sm text-zinc-500 mt-1">Real-time cross-chain analytics and volume tracking</p>
-              </div>
-              <div className="flex bg-zinc-900 p-1 rounded-lg border border-[#27272a]">
-                <button 
-                  className={`px-4 py-1.5 text-xs font-bold transition-all ${
-                    marketTimeRange === '24H' 
-                      ? 'text-white bg-zinc-800 rounded-md' 
-                      : 'text-zinc-500 hover:text-zinc-300'
-                  }`}
-                  onClick={() => setMarketTimeRange('24H')}
-                >
-                  24H
-                </button>
-                <button 
-                  className={`px-4 py-1.5 text-xs font-bold transition-all ${
-                    marketTimeRange === '7D' 
-                      ? 'text-white bg-zinc-800 rounded-md' 
-                      : 'text-zinc-500 hover:text-zinc-300'
-                  }`}
-                  onClick={() => setMarketTimeRange('7D')}
-                >
-                  7D
-                </button>
-                <button 
-                  className={`px-4 py-1.5 text-xs font-bold transition-all ${
-                    marketTimeRange === '30D' 
-                      ? 'text-white bg-zinc-800 rounded-md' 
-                      : 'text-zinc-500 hover:text-zinc-300'
-                  }`}
-                  onClick={() => setMarketTimeRange('30D')}
-                >
-                  30D
-                </button>
-              </div>
+          <div className="flex items-end justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-ui-primary">Overview</h1>
+              <p className="text-sm text-ui-muted mt-1">Real-time cross-chain analytics and volume tracking</p>
             </div>
-            <MarketVolumeChart />
+            <div className="flex bg-ui-pill p-1 rounded-full border border-ui-border-subtle">
+              <button
+                className={`px-4 py-1.5 text-xs font-bold transition-all ${
+                  marketTimeRange === '24H'
+                    ? 'text-ui-primary bg-[rgba(255,255,255,0.08)] rounded-full'
+                    : 'text-ui-muted hover:text-ui-secondary'
+                }`}
+                onClick={() => setMarketTimeRange('24H')}
+              >
+                24H
+              </button>
+              <button
+                className={`px-4 py-1.5 text-xs font-bold transition-all ${
+                  marketTimeRange === '7D'
+                    ? 'text-ui-primary bg-[rgba(255,255,255,0.08)] rounded-full'
+                    : 'text-ui-muted hover:text-ui-secondary'
+                }`}
+                onClick={() => setMarketTimeRange('7D')}
+              >
+                7D
+              </button>
+              <button
+                className={`px-4 py-1.5 text-xs font-bold transition-all ${
+                  marketTimeRange === '30D'
+                    ? 'text-ui-primary bg-[rgba(255,255,255,0.08)] rounded-full'
+                    : 'text-ui-muted hover:text-ui-secondary'
+                }`}
+                onClick={() => setMarketTimeRange('30D')}
+              >
+                30D
+              </button>
+            </div>
           </div>
 
-          {/* Personal Analytics Section - Only show if wallet connected */}
-          {isConnected && (
-            <div className="border-t border-[#27272a] pt-8 space-y-8">
-              {/* Header */}
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-white">Personal Analytics</h2>
-                  <p className="text-sm text-zinc-500 mt-1">
-                    Your portfolio performance and trading insights
-                  </p>
+          {/* Keep original largest chart */}
+          <MarketVolumeChart />
+
+          {/* Row 1 - Dual summary cards */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <article className="bg-ui-card rounded-[24px] p-6 min-h-[146px] flex flex-col justify-between">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-[#2CC295] text-black inline-flex items-center justify-center">
+                    <ChevronUp size={10} />
+                  </span>
+                  <span className="text-[12px] uppercase tracking-[0.12em] font-bold text-ui-muted">Total Value</span>
                 </div>
-                <div className="flex items-center gap-4">
-                  {/* Time Range Selector */}
-                  <div className="bg-zinc-900 border border-[#27272a] p-1 rounded-lg flex items-center">
-                    {timeRangeButtons.map((range) => (
-                      <button
-                        key={range}
-                        onClick={() => setAnalyticsTimeRange(range)}
-                        className={`px-4 py-1.5 text-xs font-bold transition-all ${
-                          analyticsTimeRange === range
-                            ? 'text-white bg-zinc-800 rounded-md'
-                            : 'text-zinc-500 hover:text-white'
-                        }`}
-                      >
-                        {range}
-                      </button>
-                    ))}
+                <span className="h-[19px] px-2 rounded-full bg-[rgba(44,194,149,0.1)] text-[#2CC295] text-[10px] font-bold inline-flex items-center gap-1">
+                  24H
+                  <TrendingUp size={10} />
+                </span>
+              </div>
+
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-[30px] leading-[36px] font-black text-ui-primary">$1,253,235</p>
+                  <p className="text-[10px] uppercase tracking-[-0.02em] text-ui-muted">Volume this month</p>
+                </div>
+                <svg viewBox="0 0 96 40" className="w-24 h-10 shrink-0">
+                  <defs>
+                    <linearGradient id="overviewSparkFill" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#2CC295" stopOpacity="0.2" />
+                      <stop offset="100%" stopColor="#2CC295" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path d="M0,30 C16,24 24,12 36,15 C48,18 62,30 75,24 C84,19 91,10 96,12 L96,40 L0,40 Z" fill="url(#overviewSparkFill)" />
+                  <path d="M0,30 C16,24 24,12 36,15 C48,18 62,30 75,24 C84,19 91,10 96,12" fill="none" stroke="#2CC295" strokeWidth="1.2" />
+                </svg>
+              </div>
+            </article>
+
+            <article className="bg-ui-card rounded-[24px] p-6 min-h-[146px]">
+              <div className="flex items-start justify-between">
+                <p className="text-[12px] uppercase tracking-[0.12em] font-bold text-ui-muted">Chain Health</p>
+                <span className="material-symbols-outlined text-ui-muted !text-[15px]">more_horiz</span>
+              </div>
+
+              <div className="mt-4 flex items-center gap-6">
+                <div className="relative w-16 h-16 rounded-full bg-[conic-gradient(#2CC295_0_252deg,#27272A_252deg_360deg)] p-[6px] shrink-0">
+                  <div className="w-full h-full rounded-full bg-[#131313] flex items-center justify-center text-[10px] font-bold text-ui-primary">
+                    70%
+                  </div>
+                </div>
+                <div className="space-y-1.5 min-w-0">
+                  <p className="text-xs font-medium text-ui-primary truncate">Liquidity Pool Health</p>
+                  <p className="text-[10px] text-ui-muted">Current index remains stable</p>
+                  <div className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#2CC295]" />
+                    <span className="text-[9px] uppercase font-bold text-[#A1A1AA]">Live Monitoring</span>
                   </div>
                 </div>
               </div>
+            </article>
+          </div>
 
-              {/* Loading State */}
-              {isLoading && (
-                <div className="flex items-center justify-center py-20">
-                  <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-zinc-800 border-t-[#2CC295] rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-sm text-zinc-500">Loading analytics data...</p>
+          {/* Row 2 - Performance + side insights */}
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-6 items-start">
+            <div className="space-y-6">
+              <article className="bg-ui-card rounded-[24px] p-6 min-h-[349px]">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-[12px] uppercase tracking-[0.12em] font-bold text-ui-primary">RWA Performance Index</h3>
+                    <p className="text-[10px] text-ui-muted mt-1">Synthetic benchmark for current market momentum</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button className="h-[25px] px-3 rounded-md border border-ui-border-subtle text-[10px] font-bold text-[#D4D4D8]">1D</button>
+                    <button className="h-[25px] px-3 rounded-md bg-[rgba(44,194,149,0.2)] border border-[rgba(44,194,149,0.3)] text-[10px] font-bold text-[#2CC295]">7D</button>
                   </div>
                 </div>
-              )}
 
-              {/* No Data State */}
-              {!isLoading && !metrics && (
-                <div className="flex items-center justify-center py-20">
-                  <div className="text-center max-w-md">
-                    <div className="w-20 h-20 bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                      <span className="material-symbols-outlined text-zinc-600 text-4xl">bar_chart</span>
-                    </div>
-                    <h3 className="text-lg font-bold text-white mb-3">No Trading History</h3>
-                    <p className="text-sm text-zinc-500">
-                      Start trading on the marketplace to see your analytics and performance metrics here.
-                    </p>
+                <div className="mt-6 h-[240px] relative">
+                  <svg viewBox="0 0 590 240" className="w-full h-full">
+                    <defs>
+                      <linearGradient id="overviewMainChartFill" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor="#2CC295" stopOpacity="0.20" />
+                        <stop offset="100%" stopColor="#2CC295" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M0,188 C48,178 88,162 124,148 C164,132 212,120 250,128 C296,136 334,168 374,154 C418,140 452,92 496,72 C528,58 562,52 590,44 L590,240 L0,240 Z" fill="url(#overviewMainChartFill)" />
+                    <path d="M0,188 C48,178 88,162 124,148 C164,132 212,120 250,128 C296,136 334,168 374,154 C418,140 452,92 496,72 C528,58 562,52 590,44" fill="none" stroke="#2CC295" strokeWidth="3" />
+                  </svg>
+                  <div className="absolute right-[10%] top-[4%]">
+                    <span className="w-2 h-2 rounded-full bg-[#2CC295] border-2 border-ui-card inline-flex" />
                   </div>
                 </div>
-              )}
+              </article>
 
-              {/* Analytics Content */}
-              {!isLoading && metrics && (
-                <div className="space-y-8">
-                  {/* Metrics Cards - 2 Cards Only */}
-                  <div className="grid grid-cols-2 gap-6">
-                    {/* Current Value */}
-                    <div className="bg-zinc-900/30 border border-[#27272a] p-6 rounded-xl">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="w-10 h-10 bg-[#2CC295]/10 rounded-lg flex items-center justify-center">
-                          <span className="material-symbols-outlined text-[#2CC295]">trending_up</span>
-                        </div>
-                        <span className={`text-xs font-bold px-2 py-1 rounded flex items-center gap-1 ${
-                          metrics.roi >= 0 
-                            ? 'bg-[#2CC295]/10 text-[#2CC295]' 
-                            : 'bg-red-500/10 text-red-400'
-                        }`}>
-                          {metrics.roi >= 0 ? '+' : ''}{metrics.roi.toFixed(1)}%
-                        </span>
-                      </div>
-                      <p className="text-sm text-zinc-400 font-medium mb-1">Current Value</p>
-                      <h3 className="text-3xl font-bold text-white">{metrics.currentValue.toFixed(2)} ETH</h3>
-                    </div>
-
-                    {/* Total Profit */}
-                    <div className="bg-zinc-900/30 border border-[#27272a] p-6 rounded-xl">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="w-10 h-10 bg-[#2CC295]/10 rounded-lg flex items-center justify-center">
-                          <span className="material-symbols-outlined text-[#2CC295]">attach_money</span>
-                        </div>
-                        <span className="text-xs font-medium text-zinc-500">NET</span>
-                      </div>
-                      <p className="text-sm text-zinc-400 font-medium mb-1">Total Profit</p>
-                      <h3 className={`text-3xl font-bold ${
-                        (metrics.currentValue - metrics.totalInvested) >= 0 ? 'text-[#2CC295]' : 'text-red-400'
-                      }`}>
-                        {(metrics.currentValue - metrics.totalInvested) >= 0 ? '+' : ''}{(metrics.currentValue - metrics.totalInvested).toFixed(2)} ETH
-                      </h3>
-                    </div>
-                  </div>
-
-                  {/* Portfolio Value Chart */}
-                  <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-8">
-                    <div className="flex justify-between items-center mb-10">
-                      <div>
-                        <h4 className="text-white font-bold">Portfolio Value Over Time</h4>
-                        <p className="text-xs text-zinc-500 mt-1">Historical performance of your portfolio</p>
-                      </div>
-                      <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full bg-[#2CC295]"></div>
-                          <span className="text-xs text-zinc-400 font-medium">Current</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full border-2 border-purple-500/60 border-dashed bg-transparent"></div>
-                          <span className="text-xs text-zinc-400 font-medium">Baseline</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="h-[300px] w-full relative">
-                      {portfolioHistory.length > 0 ? (
-                        <>
-                          <div className="absolute inset-0 flex items-end">
-                            <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 300">
-                              <defs>
-                                <linearGradient id="tealGradient" x1="0" x2="0" y1="0" y2="1">
-                                  <stop offset="0%" stopColor="#2CC295" stopOpacity="0.15" />
-                                  <stop offset="100%" stopColor="#2CC295" stopOpacity="0" />
-                                </linearGradient>
-                              </defs>
-                              {/* Baseline (purple dashed) */}
-                              <path
-                                d="M0,280 C150,285 300,240 450,250 C600,260 750,290 900,270 C950,265 1000,260 1000,260"
-                                fill="none"
-                                stroke="#A855F7"
-                                strokeDasharray="6,4"
-                                strokeOpacity="0.6"
-                                strokeWidth="2"
-                              />
-                              {/* Area fill */}
-                              <path
-                                d="M0,240 C100,230 150,200 250,180 C350,160 400,100 500,60 C600,20 650,110 750,140 C850,170 900,130 1000,100 L1000,300 L0,300 Z"
-                                fill="url(#tealGradient)"
-                              />
-                              {/* Main line */}
-                              <path
-                                d="M0,240 C100,230 150,200 250,180 C350,160 400,100 500,60 C600,20 650,110 750,140 C850,170 900,130 1000,100"
-                                fill="none"
-                                stroke="#2CC295"
-                                strokeWidth="3"
-                              />
-                            </svg>
-                          </div>
-                          <div className="absolute bottom-0 left-0 right-0 flex justify-between pt-4 border-t border-zinc-800">
-                            {chartLabels.map((label, i) => (
-                              <span key={i} className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">
-                                {label}
-                              </span>
-                            ))}
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex items-center justify-center h-full">
-                          <p className="text-sm text-zinc-600">No historical data available</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Category Performance & Portfolio Distribution */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Category Performance */}
-                    <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-6">
-                      <h4 className="text-white font-bold mb-6">Category Performance</h4>
-                      <div className="space-y-6">
-                        {categories.map((category, index) => (
-                          <div key={index} className="space-y-2">
-                            <div className="flex justify-between text-xs font-medium">
-                              <span className="text-zinc-400">{category.category}</span>
-                              <span className={category.profitPercentage >= 0 ? 'text-[#2CC295]' : 'text-red-400'}>
-                                {category.profitPercentage >= 0 ? '+' : ''}{category.profitPercentage.toFixed(1)}%
-                              </span>
-                            </div>
-                            <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full"
-                                style={{ 
-                                  width: `${Math.min(Math.abs(category.profitPercentage) * 2, 100)}%`,
-                                  backgroundColor: index === 0 ? '#2CC295' : index === 1 ? '#1e8c6c' : '#15614a'
-                                }}
-                              ></div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Portfolio Distribution */}
-                    <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-6">
-                      <h4 className="text-white font-bold mb-6">Portfolio Distribution</h4>
-                      <div className="flex items-center gap-8">
-                        {/* Donut Chart */}
-                        <div className="w-40 h-40 relative flex items-center justify-center flex-shrink-0">
-                          {/* Donut Chart Background */}
-                          <div 
-                            className="absolute inset-0 rounded-full"
-                            style={{
-                              background: 'conic-gradient(#2CC295 0% 60%, #1e8c6c 60% 85%, #15614a 85% 100%)'
-                            }}
-                          />
-                          {/* Center Circle */}
-                          <div className="absolute inset-6 bg-[#141417] rounded-full flex flex-col items-center justify-center border border-[#27272a]">
-                            <span className="text-xs text-zinc-500 font-bold uppercase">Main</span>
-                            <span className="text-lg font-bold text-white">60%</span>
-                            <span className="text-[10px] text-zinc-500">Ethereum</span>
-                          </div>
-                        </div>
-
-                        {/* Legend */}
-                        <div className="flex-1 space-y-3">
-                          {portfolioDistribution.map((item, index) => (
-                            <div key={index} className="flex items-center justify-between group">
-                              <div className="flex items-center gap-3">
-                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: item.color }}></div>
-                                <span className="text-sm font-medium text-zinc-300">{item.name}</span>
-                              </div>
-                              <span className="text-sm font-bold text-white">{item.value}%</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Insights & Recommendations */}
-                  {insights.length > 0 && (
-                    <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-6">
-                      <div className="flex items-center gap-2 mb-6">
-                        <span className="material-symbols-outlined text-[#2CC295] text-lg">lightbulb</span>
-                        <h4 className="text-white font-bold text-base">Insights &amp; Recommendations</h4>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {insights.map((insight, index) => (
-                          <div 
-                            key={index}
-                            className={`p-3 rounded-lg border ${
-                              insight.type === 'success' ? 'bg-[#2CC295]/5 border-[#2CC295]/20' :
-                              insight.type === 'warning' ? 'bg-orange-500/5 border-orange-500/20' :
-                              insight.type === 'danger' ? 'bg-red-500/5 border-red-500/20' :
-                              'bg-blue-500/5 border-blue-500/20'
-                            }`}
-                          >
-                            <div className={`flex items-center gap-2 mb-2 ${
-                              insight.type === 'success' ? 'text-[#2CC295]' :
-                              insight.type === 'warning' ? 'text-orange-400' :
-                              insight.type === 'danger' ? 'text-red-400' :
-                              'text-blue-400'
-                            }`}>
-                              <span className="material-symbols-outlined text-sm">
-                                {insight.type === 'success' ? 'check_circle' :
-                                 insight.type === 'warning' ? 'warning' :
-                                 insight.type === 'danger' ? 'error' :
-                                 'info'}
-                              </span>
-                              <span className="text-[10px] font-medium">{insight.category.toUpperCase()}</span>
-                            </div>
-                            <p className="text-xs text-zinc-300 leading-relaxed">{insight.message}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+              <article className="bg-[rgba(9,9,11,0.5)] rounded-[24px] p-6 min-h-[200px]">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] uppercase tracking-[0.1em] font-bold text-ui-muted">Market Sentiment</p>
+                  <span className="h-[21px] px-2 rounded-full border border-[rgba(44,194,149,0.2)] bg-[rgba(44,194,149,0.1)] text-[#2CC295] text-[10px] font-bold inline-flex items-center">
+                    Live
+                  </span>
                 </div>
-              )}
+
+                <div className="mt-5 flex items-center gap-3">
+                  <span className="w-3.5 h-3.5 rounded-full bg-[#2CC295] shadow-[0_0_12px_rgba(44,194,149,0.6)]" />
+                  <p className="text-[20px] leading-7 font-black tracking-[-0.02em] uppercase text-ui-primary">Bullish Trend</p>
+                </div>
+
+                <div className="mt-5 grid grid-cols-6 gap-1.5">
+                  <span className="h-10 rounded-md bg-[rgba(44,194,149,0.2)]" />
+                  <span className="h-10 rounded-md bg-[rgba(44,194,149,0.4)]" />
+                  <span className="h-10 rounded-md bg-[rgba(44,194,149,0.6)]" />
+                  <span className="h-10 rounded-md bg-[rgba(44,194,149,0.8)]" />
+                  <span className="h-10 rounded-md bg-[#2CC295]" />
+                  <span className="h-10 rounded-md bg-[#2CC295] shadow-[0_0_8px_rgba(44,194,149,0.3)]" />
+                </div>
+              </article>
             </div>
-          )}
+
+            <div className="space-y-6">
+              <article className="bg-ui-card rounded-[24px] p-6 min-h-[349px] flex flex-col">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[12px] uppercase tracking-[0.12em] font-bold text-ui-primary">Conversion Yield</h3>
+                  <span className="text-[10px] font-bold text-[#6A4C93]">+2.4%</span>
+                </div>
+
+                <div className="mt-6 h-[172px]">
+                  <svg viewBox="0 0 258 180" className="w-full h-full">
+                    <defs>
+                      <linearGradient id="overviewSideChartFill" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor="#6A4C93" stopOpacity="0.18" />
+                        <stop offset="100%" stopColor="#6A4C93" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M0,126 C34,138 64,122 92,94 C118,68 148,64 176,90 C198,112 224,122 258,132 L258,180 L0,180 Z" fill="url(#overviewSideChartFill)" />
+                    <path d="M0,126 C34,138 64,122 92,94 C118,68 148,64 176,90 C198,112 224,122 258,132" fill="none" stroke="#6A4C93" strokeWidth="3.4" />
+                  </svg>
+                </div>
+
+                <div className="mt-auto border-t border-ui-border-subtle pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-ui-muted">Current cycle</span>
+                    <span className="text-[11px] font-bold text-ui-primary">0.64</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-ui-muted">Projected APR</span>
+                    <span className="text-[11px] font-bold text-[#6A4C93]">12.75%</span>
+                  </div>
+                </div>
+              </article>
+
+              <article className="bg-ui-card rounded-[24px] p-6 min-h-[200px] flex flex-col">
+                <h3 className="text-[12px] uppercase tracking-[0.12em] font-bold text-ui-muted">Claimable Rewards</h3>
+                <div className="mt-6 flex items-baseline gap-2">
+                  <span className="text-[30px] leading-[36px] font-black text-ui-primary">142.5</span>
+                  <span className="text-[12px] font-bold uppercase text-ui-muted">ETH</span>
+                </div>
+                <button className="mt-auto h-9 rounded-[24px] bg-[#2CC295] text-black text-[12px] font-extrabold uppercase tracking-[0.12em]">
+                  Claim Rewards
+                </button>
+              </article>
+            </div>
+          </div>
         </div>
       </div>
     </section>

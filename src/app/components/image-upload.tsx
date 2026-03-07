@@ -313,14 +313,14 @@ export function ImageUpload({
                   {variant === 'avatar' ? (
                     <>
                       <div className="w-12 h-12 bg-zinc-900 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                        <Upload className="text-[var(--color-primary-custom)]" size={24} />
+                        <Upload className="text-primary" size={24} />
                       </div>
                       <p className="text-sm font-medium text-white">Upload Photo</p>
                     </>
                   ) : (
                     <>
                       <div className="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                        <Upload className="text-[var(--color-primary-custom)]" size={28} />
+                        <Upload className="text-primary" size={28} />
                       </div>
                       <p className="text-white font-medium mb-1">Drag and drop or click to upload</p>
                     </>

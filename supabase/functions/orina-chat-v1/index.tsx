@@ -15,7 +15,7 @@ import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 
-import * as messagesHandler from "../server/messages-handler.ts";
+import * as messagesHandler from "../server/messages-handler-c5.ts";
 
 const app = new Hono();
 const PREFIX = "/orina-chat-v1";
@@ -39,6 +39,7 @@ app.use(
 app.get(`${PREFIX}/health`, (c) => c.json({ ok: true, name: "orina-chat-v1" }));
 
 // Clean messages endpoints (no extra prefix).
+app.post(`${PREFIX}/messages/conversation`, messagesHandler.handleCreateConversation);
 app.post(`${PREFIX}/messages/send`, messagesHandler.handleSendMessage);
 app.get(`${PREFIX}/messages/conversations/:address`, messagesHandler.handleGetConversations);
 app.get(`${PREFIX}/messages/:conversationId`, messagesHandler.handleGetMessages);

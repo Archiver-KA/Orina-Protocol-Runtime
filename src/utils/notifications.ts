@@ -21,6 +21,105 @@ const prefSyncTimers = new Map<string, number>();
 const notifHydrateInFlight = new Set<string>();
 const prefHydrateInFlight = new Set<string>();
 
+function normalizeNotificationSourceId(value: unknown): string | null {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  return raw.slice(0, 200);
+}
+
+function normalizeNotificationEventCode(value: unknown): string | null {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw) return null;
+  return raw.replace(/[^a-z0-9:_-]+/g, '_').slice(0, 120);
+}
+
+function normalizeNotificationMetadata(
+  metadata?: AppNotification['metadata']
+): AppNotification['metadata'] | undefined {
+  if (!metadata || typeof metadata !== 'object') return metadata;
+
+  const sourceId =
+    normalizeNotificationSourceId((metadata as any).sourceId) ??
+    normalizeNotificationSourceId((metadata as any).source_id);
+  const eventCode =
+    normalizeNotificationEventCode((metadata as any).eventCode) ??
+    normalizeNotificationEventCode((metadata as any).event_code);
+
+  const next: AppNotification['metadata'] = {
+    ...metadata,
+  };
+
+  if (sourceId) {
+    (next as any).sourceId = sourceId;
+    (next as any).source_id = sourceId;
+  }
+  if (eventCode) {
+    (next as any).eventCode = eventCode;
+    (next as any).event_code = eventCode;
+  }
+
+  if ((next as any).actorAddress) {
+    (next as any).actorAddress = String((next as any).actorAddress).toLowerCase();
+  }
+  if ((next as any).targetAddress) {
+    (next as any).targetAddress = String((next as any).targetAddress).toLowerCase();
+  }
+
+  return next;
+}
+
+export function buildNotificationSourceId(
+  eventCode: string,
+  parts: Array<string | number | null | undefined>
+): string {
+  const code = normalizeNotificationEventCode(eventCode) || 'event';
+  const normalizedParts = parts
+    .map((part) => String(part ?? '').trim().toLowerCase())
+    .filter(Boolean)
+    .map((part) => part.replace(/[^a-z0-9:_-]+/g, '_'))
+    .slice(0, 8);
+  return normalizeNotificationSourceId([code, ...normalizedParts].join(':')) || generateNotificationId();
+}
+
+function dedupeNotificationsById(notifications: AppNotification[]): AppNotification[] {
+  const map = new Map<string, AppNotification>();
+
+  for (const item of sortNotifications(notifications)) {
+    if (!item) continue;
+    const normalizedMetadata = normalizeNotificationMetadata(item.metadata);
+    const key =
+      normalizeNotificationSourceId(item.id) ??
+      normalizeNotificationSourceId((normalizedMetadata as any)?.sourceId) ??
+      generateNotificationId();
+
+    const nextItem: AppNotification = {
+      ...item,
+      id: key,
+      metadata: normalizedMetadata,
+    };
+
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, nextItem);
+      continue;
+    }
+
+    map.set(key, {
+      ...existing,
+      ...nextItem,
+      id: key,
+      timestamp: Math.max(Number(existing.timestamp || 0), Number(nextItem.timestamp || 0)),
+      read: !!existing.read || !!nextItem.read,
+      metadata: {
+        ...(existing.metadata || {}),
+        ...(nextItem.metadata || {}),
+      },
+    });
+  }
+
+  return sortNotifications(Array.from(map.values())).slice(0, 100);
+}
+
 /**
  * Get storage keys (address-based)
  */
@@ -81,11 +180,12 @@ export function saveNotificationsLocalOnly(walletAddress: string, notifications:
 
 function saveNotificationsInternal(walletAddress: string, notifications: AppNotification[], skipRemoteSync: boolean): void {
   try {
+    const normalized = dedupeNotificationsById(notifications || []);
     const key = getNotificationsKey(walletAddress);
-    localStorage.setItem(key, JSON.stringify(notifications));
+    localStorage.setItem(key, JSON.stringify(normalized));
     dispatchSyncEvent(NOTIFICATIONS_SYNC_EVENT);
     if (walletAddress && !skipRemoteSync) {
-      queueNotificationsSync(walletAddress, notifications);
+      queueNotificationsSync(walletAddress, normalized);
     }
   } catch (error) {
     console.error('[Notifications] Failed to save:', error);
@@ -173,15 +273,18 @@ function normalizeWalletKey(walletAddress: string): string {
 
 function mapDbNotificationsToApp(rows: DbNotificationRow[]): AppNotification[] {
   return rows
-    .map((row) => ({
-      id: row.source_id || row.id,
+    .map((row) => {
+      const normalizedMetadata = normalizeNotificationMetadata((row.payload || {}) as AppNotification['metadata']);
+      return {
+      id: normalizeNotificationSourceId(row.source_id) || row.id,
       type: (row.type as NotificationType) || 'system',
       title: row.title || 'Notification',
       message: row.body || '',
       timestamp: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
       read: !!row.is_read,
-      metadata: (row.payload || {}) as AppNotification['metadata'],
-    }))
+      metadata: normalizedMetadata,
+    };
+    })
     .sort((a, b) => b.timestamp - a.timestamp);
 }
 
@@ -615,14 +718,19 @@ export function createNotification(
   message: string,
   metadata?: AppNotification['metadata']
 ): AppNotification {
+  const normalizedMetadata = normalizeNotificationMetadata(metadata);
+  const sourceId =
+    normalizeNotificationSourceId((normalizedMetadata as any)?.sourceId) ??
+    normalizeNotificationSourceId((normalizedMetadata as any)?.source_id);
+
   return {
-    id: generateNotificationId(),
+    id: sourceId || generateNotificationId(),
     type,
     title,
     message,
     timestamp: Date.now(),
     read: false,
-    metadata,
+    metadata: normalizedMetadata,
   };
 }
 

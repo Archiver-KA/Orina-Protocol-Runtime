@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { X, Copy, Check, Facebook, Twitter, Send, QrCode } from 'lucide-react';
+import { Copy, Check, Facebook, Twitter, Send, QrCode } from 'lucide-react';
 import { toast } from 'sonner';
 import { copyToClipboard } from '@/utils/clipboard';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from 'qrcode.react';
+import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 
 interface ShareAssetModalProps {
   isOpen: boolean;
@@ -55,18 +56,13 @@ export function ShareAssetModal({ isOpen, onClose, assetName, assetUrl }: ShareA
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.2 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-[#141417] w-full max-w-md rounded-2xl border border-zinc-800 overflow-hidden shadow-2xl"
+          className="bg-[rgba(255,255,255,0.02)] w-full max-w-md rounded-2xl border-0 overflow-hidden shadow-2xl"
         >
           {/* Header */}
           <div className="p-6 border-b border-zinc-800">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">Share Asset</h2>
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
-              >
-                <X size={20} className="text-zinc-400" />
-              </button>
+              <StudioModalCloseButton onClick={onClose} />
             </div>
             <p className="text-sm text-zinc-400 mt-1 line-clamp-1">
               {assetName}

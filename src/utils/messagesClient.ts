@@ -25,6 +25,16 @@ const LEGACY_FN_BASE = `${SUPABASE_BASE}/functions/v1/${LEGACY_FN_NAME}`;
 const MESSAGES_BASE_LEGACY = `${LEGACY_FN_BASE}/messages`; // most common
 const MESSAGES_BASE_LEGACY_DUP = `${LEGACY_FN_BASE}/${LEGACY_FN_NAME}/messages`; // older duplicate-prefix
 
+// C6.3.1 chat invalidation events (no-payload event bus; listeners self-refresh)
+export const CHAT_CONVERSATIONS_CHANGED_EVENT = 'orina:chat-conversations-changed';
+export const CHAT_MESSAGES_CHANGED_EVENT = 'orina:chat-messages-changed';
+export const CHAT_READ_STATE_CHANGED_EVENT = 'orina:chat-read-state-changed';
+
+function dispatchChatEvent(name: string): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(name));
+}
+
 function buildHeaders(extra?: Record<string, string>) {
   // Keep headers as "simple" as possible to reduce CORS preflight failures.
   // Some Supabase setups accept Authorization alone for Edge Functions calls.
@@ -141,6 +151,8 @@ export async function sendMessage(
       headers: buildHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ sender, receiver, text, image }),
     });
+    dispatchChatEvent(CHAT_MESSAGES_CHANGED_EVENT);
+    dispatchChatEvent(CHAT_CONVERSATIONS_CHANGED_EVENT);
     return { message: data.message, conversation: data.conversation };
   } catch (error) {
     console.error('[MessagesClient] Send error:', error);
@@ -209,6 +221,8 @@ export async function markAsRead(
       headers: buildHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ conversationId, userAddress }),
     });
+    dispatchChatEvent(CHAT_READ_STATE_CHANGED_EVENT);
+    dispatchChatEvent(CHAT_CONVERSATIONS_CHANGED_EVENT);
   } catch (error) {
     console.error('[MessagesClient] Mark as read error:', error);
     throw error;
@@ -227,6 +241,8 @@ export async function deleteConversation(
       `/${conversationId}?userAddress=${encodeURIComponent(userAddress)}`,
       { method: 'DELETE', headers: buildHeaders() }
     );
+    dispatchChatEvent(CHAT_MESSAGES_CHANGED_EVENT);
+    dispatchChatEvent(CHAT_CONVERSATIONS_CHANGED_EVENT);
   } catch (error) {
     console.error('[MessagesClient] Delete conversation error:', error);
     throw error;
@@ -241,12 +257,23 @@ export async function createConversation(
   receiver: string,
   displayName?: string
 ): Promise<Conversation> {
-  // Send an initial message to create the conversation
-  const result = await sendMessage(
-    sender,
-    receiver,
-    'Conversation started',
-    undefined
-  );
-  return result.conversation;
+  try {
+    const data = await fetchJsonWithFallback<any>('/conversation', {
+      method: 'POST',
+      headers: buildHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ sender, receiver, displayName }),
+    });
+    dispatchChatEvent(CHAT_CONVERSATIONS_CHANGED_EVENT);
+    return data.conversation as Conversation;
+  } catch (error) {
+    // Backward compatibility for deployments that do not yet expose /conversation.
+    console.debug('[MessagesClient] createConversation fallback -> sendMessage:', error);
+    const result = await sendMessage(
+      sender,
+      receiver,
+      'Conversation started',
+      undefined
+    );
+    return result.conversation;
+  }
 }

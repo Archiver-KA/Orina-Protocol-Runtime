@@ -22,7 +22,7 @@ export function TrendingSidebar({ topics, stats, onTagClick }: TrendingSidebarPr
     <div className="space-y-6 overflow-y-auto h-full pb-6">
       {/* Community Stats */}
       {stats && (
-        <div className="p-6 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl">
+        <div className="p-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
             <Activity size={16} className="text-[#2CC295]" />
             Community Stats
@@ -57,7 +57,7 @@ export function TrendingSidebar({ topics, stats, onTagClick }: TrendingSidebarPr
       )}
 
       {/* Trending Topics */}
-      <div className="p-6 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl">
+      <div className="p-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
         <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
           <TrendingUp size={16} className="text-[#2CC295]" />
           Trending Topics
@@ -98,7 +98,7 @@ export function TrendingSidebar({ topics, stats, onTagClick }: TrendingSidebarPr
       </div>
 
       {/* Quick Links */}
-      <div className="p-6 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl">
+      <div className="p-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
         <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4">
           Quick Links
         </h3>

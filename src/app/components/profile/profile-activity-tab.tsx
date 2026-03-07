@@ -71,7 +71,7 @@ export function ProfileActivityTab({ activities, showAll = false }: ProfileActiv
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl hover:border-zinc-700 transition-colors"
+                className="p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl hover:border-zinc-700 transition-colors"
               >
                 <div className="flex items-center gap-4">
                   {/* Asset Image */}

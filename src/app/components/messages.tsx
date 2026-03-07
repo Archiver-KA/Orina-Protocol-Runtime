@@ -6,11 +6,25 @@ import { AIAgentClient } from '@/utils/aiAgentClient';
 import { AIAgentTest } from '@/app/components/ai-agent-test';
 import { shortenUserDisplayName } from '@/utils/profileUtils';
 import { useUser } from '@/contexts/UserContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { NewConversationModal } from '@/app/components/new-conversation-modal';
 import * as MessagesClient from '@/utils/messagesClient';
 import { toast } from 'sonner';
 import { loadReputationScore, loadRatings, calculateReputationScore, generateMockRatings, saveRatings } from '@/utils/reputationUtils';
 import { loadUserActivities } from '@/utils/profileUtils';
+import { buildNotificationSourceId } from '@/utils/notifications';
+import {
+  StudioSidebarShell,
+  StudioSidebarHeader,
+  StudioSidebarScroll,
+  StudioSidebarFooter,
+} from '@/app/components/ui/studio-sidebar';
+import {
+  CHAT_PRESENCE_ACTIVITY_WINDOW_MS_DEFAULT,
+  resolveChatPresenceOnline,
+  subscribeChatConversationList,
+  subscribeChatConversationThread,
+} from '@/utils/chatRealtimeAdapter';
 
 // ✅ FIX: Local image attachment type (different from UploadedImage which requires IPFS fields)
 interface AttachedImage {
@@ -18,7 +32,16 @@ interface AttachedImage {
   file?: File;
 }
 
-// Default conversations (mock data for testing)
+const CHAT_ACTIVITY_ONLINE_WINDOW_MS = CHAT_PRESENCE_ACTIVITY_WINDOW_MS_DEFAULT;
+const CHAT_CONVERSATIONS_POLL_MS_FG = 2500;
+const CHAT_CONVERSATIONS_POLL_MS_BG = 10000;
+const CHAT_MESSAGES_POLL_MS_FG = 900;
+const CHAT_CONVERSATIONS_POLL_BACKOFF_BASE_MS = 1500;
+const CHAT_CONVERSATIONS_POLL_BACKOFF_MAX_MS = 12000;
+const CHAT_MESSAGES_POLL_BACKOFF_BASE_MS = 800;
+const CHAT_MESSAGES_POLL_BACKOFF_MAX_MS = 8000;
+
+// Default conversations (keep only AI Agent test tab; legacy mock user chats removed for C6 cleanup)
 const defaultConversations = [
   {
     id: 'ai-agent',
@@ -39,113 +62,10 @@ const defaultConversations = [
         { event: 'Test Mode Active', date: 'Live Testing', isRecent: true }
       ]
     }
-  },
-  {
-    id: 1,
-    address: '0x8a1...2f3',
-    displayName: 'Whale Collector',
-    AvatarComponent: getAvatarByUserId(1),
-    lastMessage: 'The liquidity pool looks solid, ready to mint?',
-    timestamp: '2m ago',
-    online: true,
-    unread: 0,
-    isAIAgent: false,
-    userInfo: {
-      displayName: 'Whale Collector',
-      role: 'Verified Collector',
-      walletAddress: '0x8a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b', // ✅ Full address for proper detection
-      avatarUrl: undefined, // Will use default SVG avatar
-      bannerUrl: undefined, // Will use default gradient
-      mutualHoldings: [
-        { name: 'Ethereum', amount: '2.4 ETH Held', icon: 'Diamond', color: '#2CC295' },
-        { name: 'ApeCoin', amount: '450 APE Held', icon: 'Coins', color: '#3b82f6' },
-        { name: 'Polygon', amount: '1.2k MATIC Held', icon: 'Zap', color: '#a855f7' }
-      ],
-      interactionHistory: [
-        { event: 'Last Trade: 1.2 ETH', date: 'Oct 24, 2023', isRecent: true },
-        { event: 'Chat Started', date: 'Aug 12, 2023', isRecent: false }
-      ]
-    }
-  },
-  {
-    id: 2,
-    address: 'CryptoPunk #293',
-    displayName: 'CryptoPunk #293',
-    AvatarComponent: getAvatarByUserId(2),
-    lastMessage: 'Sent you an offer for 12.5 ETH',
-    timestamp: '1h ago',
-    online: false,
-    unread: 1,
-    isAIAgent: false,
-    userInfo: {
-      displayName: 'CryptoPunk #293',
-      role: 'NFT Collector',
-      walletAddress: '0x7b9c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c', // ✅ Full valid mock address
-      mutualHoldings: [
-        { name: 'CryptoPunks', amount: '3 NFTs Held', icon: 'Diamond', color: '#2CC295' },
-        { name: 'Bored Apes', amount: '1 NFT Held', icon: 'Diamond', color: '#ff6b35' }
-      ],
-      interactionHistory: [
-        { event: 'Offer Sent: 12.5 ETH', date: '1 hour ago', isRecent: true },
-        { event: 'First Contact', date: 'Oct 20, 2023', isRecent: false }
-      ]
-    }
-  },
-  {
-    id: 3,
-    address: '0xf1e...9d2',
-    displayName: '0xf1e...9d2',
-    AvatarComponent: getAvatarByUserId(6),
-    lastMessage: "Let's coordinate on the DAO proposal.",
-    timestamp: '3h ago',
-    online: true,
-    unread: 0,
-    isAIAgent: false,
-    userInfo: {
-      displayName: '0xf1e...9d2',
-      role: 'DAO Contributor',
-      walletAddress: '0xf1e2d3c4b5a6978899aabbccddeeff0011223344', // ✅ Full valid mock address
-      mutualHoldings: [
-        { name: 'Governance Token', amount: '5,000 GOV Held', icon: 'Zap', color: '#8b5cf6' },
-        { name: 'Ethereum', amount: '3.8 ETH Held', icon: 'Diamond', color: '#2CC295' }
-      ],
-      interactionHistory: [
-        { event: 'DAO Proposal Discussion', date: '3 hours ago', isRecent: true },
-        { event: 'Voted Together', date: 'Oct 18, 2023', isRecent: false }
-      ]
-    }
   }
 ];
 
-const defaultMessages = [
-  {
-    id: 1,
-    sender: 'them',
-    AvatarComponent: getAvatarByUserId(1),
-    text: 'Hey! Noticed you minted some sick NFTs. Want to collab on a drop?',
-    timestamp: '10:42 AM',
-    read: true,
-    conversationId: 1
-  },
-  {
-    id: 2,
-    sender: 'me',
-    AvatarComponent: getAvatarByUserId(18),
-    text: 'Absolutely! I\'ve been looking for a partner for my next collection.',
-    timestamp: '10:45 AM',
-    read: true,
-    conversationId: 1
-  },
-  {
-    id: 3,
-    sender: 'them',
-    AvatarComponent: getAvatarByUserId(1),
-    text: 'The liquidity pool looks solid, ready to mint? I think the gas fees are quite low right now, around 18 GWEI.',
-    timestamp: '10:48 AM',
-    read: true,
-    conversationId: 1
-  }
-];
+const defaultMessages: any[] = [];
 
 const initialMessagesByConversation = defaultMessages.reduce<Record<string, any[]>>((acc, msg) => {
   const key = String(msg.conversationId);
@@ -161,6 +81,11 @@ const emojiRows = [
   ['💩', '🐴', '🐏', '🐇', '🐍', '🐔', '🐖', '🐭', '🐮'],
 ];
 
+function computePollBackoffMs(streak: number, baseMs: number, maxMs: number): number {
+  const normalizedStreak = Math.max(1, Math.min(streak, 6));
+  return Math.min(maxMs, baseMs * Math.pow(2, normalizedStreak - 1));
+}
+
 interface MessagesProps {
   onNavigateToUserProfile?: (walletAddress: string) => void;
   onNavigateToPage?: (page: string) => void;
@@ -173,6 +98,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
   
   // Get user data from context
   const { userData } = useUser();
+  const { addNotification } = useNotifications();
   
   // Fallback if user is not loaded yet
   const currentUser = userData || {
@@ -184,7 +110,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
   
   // State
   const [conversations, setConversations] = useState<any[]>(defaultConversations);
-  const [activeConversation, setActiveConversation] = useState<number | string>(initialConversationId || 1);
+  const [activeConversation, setActiveConversation] = useState<number | string>(initialConversationId || 'ai-agent');
   const [messagesByConversation, setMessagesByConversation] = useState<Record<string, any[]>>(initialMessagesByConversation);
   const [userInput, setUserInput] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -202,6 +128,17 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
   const shouldAutoScrollRef = useRef<boolean>(true);
   const messagesByConversationRef = useRef<Record<string, any[]>>(initialMessagesByConversation);
   const latestMessagesRequestRef = useRef<number>(0);
+  const messagesLoadInFlightRef = useRef<null | { conversationId: string; silent: boolean }>(null);
+  const conversationsLoadInFlightRef = useRef<boolean>(false);
+  const chatEventRefreshTimerRef = useRef<number | null>(null);
+  const lastConversationsPollAtRef = useRef<number>(0);
+  const lastMessagesPollAtRef = useRef<number>(0);
+  const conversationsPollErrorStreakRef = useRef<number>(0);
+  const messagesPollErrorStreakRef = useRef<number>(0);
+  const conversationsPollBackoffUntilRef = useRef<number>(0);
+  const messagesPollBackoffUntilRef = useRef<number>(0);
+  const chatNotificationBaselineReadyRef = useRef<boolean>(false);
+  const chatUnreadSnapshotRef = useRef<Record<string, number>>({});
   
   // ✅ FIX: Track locally-added messages for demo conversations to prevent polling from clearing them
   const localMessagesRef = useRef<any[]>([]);
@@ -238,6 +175,11 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
   useEffect(() => {
     messagesByConversationRef.current = messagesByConversation;
   }, [messagesByConversation]);
+
+  useEffect(() => {
+    chatNotificationBaselineReadyRef.current = false;
+    chatUnreadSnapshotRef.current = {};
+  }, [address]);
   
   // ✅ Get reputation score for active conversation partner
   const getPartnerReputation = useCallback((walletAddress: string | null): { score: number; reviewCount: number } => {
@@ -327,13 +269,18 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
   };
   
   // Load conversations from backend (silent=true for polling to suppress toasts/loading)
-  const loadBackendConversations = async (silent: boolean = false) => {
+  const loadBackendConversations = async (silent: boolean = false, force: boolean = false) => {
     const currentAddress = addressRef.current;
     if (!currentAddress) return;
+    if (silent && conversationsLoadInFlightRef.current) return;
+    if (silent && !force && conversationsPollBackoffUntilRef.current > Date.now()) return;
     
     try {
+      conversationsLoadInFlightRef.current = true;
       if (!silent) setLoading(true);
       const backendConversations = await MessagesClient.getConversations(currentAddress);
+      conversationsPollErrorStreakRef.current = 0;
+      conversationsPollBackoffUntilRef.current = 0;
       
       // Transform backend conversations to UI format
       const transformed = backendConversations.map((conv: any) => {
@@ -343,21 +290,31 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
         );
         
         const unreadCount = conv.unreadCount[currentAddress.toLowerCase()] || 0;
+        const recentlyActive = resolveChatPresenceOnline({
+          backendOnline: conv.online,
+          lastMessageTime: conv.lastMessageTime || null,
+          createdAt: conv.createdAt || null,
+          activityWindowMs: CHAT_ACTIVITY_ONLINE_WINDOW_MS,
+        });
         
         return {
           id: conv.id,
           address: otherAddress || '',
           displayName: conv.displayName || shortenUserDisplayName(otherAddress || ''),
+          avatar: conv.avatar || undefined,
           AvatarComponent: getAvatarByUserId(otherAddress || ''),
           lastMessage: conv.lastMessage,
           timestamp: formatTimestamp(conv.lastMessageTime),
-          online: conv.online || false,
+          // C6 currently has no true presence service; use backend flag if present,
+          // otherwise fallback to recent-message activity as a practical online heuristic.
+          online: recentlyActive,
           unread: unreadCount,
           isAIAgent: false,
           userInfo: {
             displayName: conv.displayName || shortenUserDisplayName(otherAddress || ''),
             role: 'Community Member',
             walletAddress: otherAddress || '',
+            avatarUrl: conv.avatar || undefined,
             mutualHoldings: [],
             interactionHistory: [
               { event: 'Conversation Created', date: formatTimestamp(conv.createdAt), isRecent: true }
@@ -365,12 +322,77 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
           }
         };
       });
+
+      // Chat message notifications (C6 UX): trigger when unread count increases for the current wallet.
+      // Dedupe is enforced by notifications sourceId (`conversation + lastMessageTime`).
+      const nextUnreadSnapshot: Record<string, number> = {};
+      for (let i = 0; i < transformed.length; i += 1) {
+        const uiConv = transformed[i];
+        const backendConv = backendConversations[i];
+        if (!uiConv || !backendConv) continue;
+        if (!uiConv.id || uiConv.id === 'ai-agent') continue;
+
+        const unread = Number(uiConv.unread || 0);
+        nextUnreadSnapshot[String(uiConv.id)] = unread;
+
+        if (!chatNotificationBaselineReadyRef.current) continue;
+
+        const prevUnread = Number(chatUnreadSnapshotRef.current[String(uiConv.id)] || 0);
+        if (unread <= prevUnread || unread <= 0) continue;
+
+        const otherAddress = String(uiConv.address || '').toLowerCase();
+        const actorName =
+          String(uiConv.displayName || '').trim() ||
+          shortenUserDisplayName(otherAddress || '');
+        const lastMessage = String(backendConv.lastMessage || '').trim() || 'Sent you a message';
+        const lastMessageTime = String(backendConv.lastMessageTime || backendConv.createdAt || Date.now());
+        const sourceId = buildNotificationSourceId('chat:message:new', [
+          uiConv.id,
+          lastMessageTime,
+        ]);
+
+        addNotification(
+          'message',
+          'New Message',
+          `${actorName}: ${lastMessage}`,
+          {
+            sourceId,
+            eventCode: 'chat:message:new',
+            conversationId: String(uiConv.id),
+            actorAddress: otherAddress,
+            actorName,
+            action: 'open_chat_thread',
+            actionPage: 'messages',
+          } as any
+        );
+      }
+      chatUnreadSnapshotRef.current = nextUnreadSnapshot;
+      chatNotificationBaselineReadyRef.current = true;
       
       // Merge with default conversations (AI Agent, demo conversations)
       const merged = [...transformed, ...defaultConversations];
       setConversations(merged);
+
+      // Reconcile active conversation with the latest backend list.
+      // This prevents the thread pane from staying on a stale/deleted UUID after DB reset or cleanup.
+      setActiveConversation((prev) => {
+        if (prev === 'ai-agent' || typeof prev === 'number') return prev;
+        const stillExists = transformed.some((c: any) => c.id === prev);
+        if (stillExists) return prev;
+        if (transformed.length > 0) return transformed[0].id;
+        return 'ai-agent';
+      });
     } catch (error) {
       console.error('[Messages] Load conversations error:', error);
+      if (silent) {
+        conversationsPollErrorStreakRef.current += 1;
+        const backoffMs = computePollBackoffMs(
+          conversationsPollErrorStreakRef.current,
+          CHAT_CONVERSATIONS_POLL_BACKOFF_BASE_MS,
+          CHAT_CONVERSATIONS_POLL_BACKOFF_MAX_MS
+        );
+        conversationsPollBackoffUntilRef.current = Date.now() + backoffMs;
+      }
       if (!silent) {
         const msg =
           error instanceof Error
@@ -379,18 +401,35 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
         toast.error(`Failed to load conversations: ${msg}`);
       }
     } finally {
+      conversationsLoadInFlightRef.current = false;
       if (!silent) setLoading(false);
     }
   };
   
   // Load messages for active conversation (silent=true for polling to suppress toasts)
-  const loadBackendMessages = async (conversationId: string | number, silent: boolean = false) => {
+  const loadBackendMessages = async (conversationId: string | number, silent: boolean = false, force: boolean = false) => {
+    const conversationKey = String(conversationId);
+
+    // Prevent overlapping silent polls for the same conversation.
+    // Without this, polling every 900ms can continuously invalidate in-flight responses
+    // via latestMessagesRequestRef and create "messages appear after minutes" symptoms.
+    if (
+      silent &&
+      messagesLoadInFlightRef.current &&
+      messagesLoadInFlightRef.current.conversationId === conversationKey
+    ) {
+      return;
+    }
+
     const requestId = ++latestMessagesRequestRef.current;
-    const cacheKey = String(conversationId);
+    const cacheKey = conversationKey;
 
     // Skip polling reload during send cooldown, but allow user-initiated loads (tab switch)
-    if (silent && sendCooldownRef.current > Date.now()) {
+    if (silent && !force && sendCooldownRef.current > Date.now()) {
       console.log('[Messages] Skipping poll refresh - send cooldown active');
+      return;
+    }
+    if (silent && !force && messagesPollBackoffUntilRef.current > Date.now()) {
       return;
     }
     
@@ -413,8 +452,11 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
     }
     
     try {
+      messagesLoadInFlightRef.current = { conversationId: conversationKey, silent };
       console.log('[Messages] Loading messages for conversation:', conversationId);
       const result = await MessagesClient.getMessages(String(conversationId), currentAddress);
+      messagesPollErrorStreakRef.current = 0;
+      messagesPollBackoffUntilRef.current = 0;
       
       // ✅ FIX: Guard against stale response - only update if this conversation is still active
       if (activeConversationRef.current !== conversationId || latestMessagesRequestRef.current !== requestId) {
@@ -423,6 +465,13 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
       }
       
       console.log('[Messages] Received messages:', result.messages);
+
+      // If backend reports the conversation no longer exists (e.g. reset/deleted),
+      // clear stale UI cache for that thread instead of preserving old local state.
+      if (!result.conversation) {
+        setConversationMessagesFor(conversationId, []);
+        return;
+      }
       
       // Transform backend messages to UI format
       const transformed = result.messages.map((msg: any) => {
@@ -440,14 +489,37 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
         };
       });
 
-      // Prevent transient empty responses from wiping visible chat content
+      // Prevent transient empty poll responses from wiping visible chat content.
+      // Only keep old content during a short post-send cooldown.
       const cachedForConversation = messagesByConversationRef.current[cacheKey] || [];
-      if (transformed.length === 0 && cachedForConversation.length > 0) {
+      if (
+        silent &&
+        sendCooldownRef.current > Date.now() &&
+        transformed.length === 0 &&
+        cachedForConversation.length > 0
+      ) {
         return;
       }
       
       console.log('[Messages] Transformed messages:', transformed);
       setConversationMessagesFor(conversationId, (prev) => {
+        const confirmedPrev = prev.filter(
+          (msg: any) => !String(msg.id).startsWith('temp_')
+        );
+
+        // Guard against transient stale/partial poll snapshots overwriting a newer local view.
+        // Symptom observed by users: incoming message appears late because one poll shrinks list to an older server snapshot.
+        if (silent && transformed.length > 0 && confirmedPrev.length > transformed.length) {
+          const confirmedPrevIds = new Set(confirmedPrev.map((msg: any) => String(msg.id)));
+          const transformedIdsAreKnown = transformed.every((msg: any) =>
+            confirmedPrevIds.has(String(msg.id))
+          );
+          if (transformedIdsAreKnown) {
+            console.log('[Messages] Skipping stale partial poll snapshot (list shrink detected)');
+            return prev;
+          }
+        }
+
         const optimisticForConversation = prev.filter(
           (msg: any) => String(msg.id).startsWith('temp_')
         );
@@ -487,7 +559,20 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
       });
     } catch (error) {
       console.error('[Messages] Load messages error:', error);
+      if (silent) {
+        messagesPollErrorStreakRef.current += 1;
+        const backoffMs = computePollBackoffMs(
+          messagesPollErrorStreakRef.current,
+          CHAT_MESSAGES_POLL_BACKOFF_BASE_MS,
+          CHAT_MESSAGES_POLL_BACKOFF_MAX_MS
+        );
+        messagesPollBackoffUntilRef.current = Date.now() + backoffMs;
+      }
       if (!silent) toast.error('Failed to load messages');
+    } finally {
+      if (messagesLoadInFlightRef.current?.conversationId === conversationKey) {
+        messagesLoadInFlightRef.current = null;
+      }
     }
   };
   
@@ -511,24 +596,109 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
   useEffect(() => {
     loadBackendConversations();
     
-    // Poll conversation list at lower frequency
+    // Poll conversation list (C6.3.2.1 visibility-aware: keep slower background cadence)
     const conversationsInterval = setInterval(() => {
+      const now = Date.now();
+      const isVisible = typeof document === 'undefined' || document.visibilityState === 'visible';
+      const minCadence = isVisible ? CHAT_CONVERSATIONS_POLL_MS_FG : CHAT_CONVERSATIONS_POLL_MS_BG;
+      if (now - lastConversationsPollAtRef.current < minCadence) return;
+      if (conversationsLoadInFlightRef.current) return;
+      if (conversationsPollBackoffUntilRef.current > now) return;
+      lastConversationsPollAtRef.current = now;
       loadBackendConversations(true); // silent=true for polling
-    }, 5000);
+    }, CHAT_CONVERSATIONS_POLL_MS_FG);
 
-    // Poll active conversation messages at higher frequency for chat-like UX
+    // Poll active conversation messages (C6.3.2.1 visibility-aware: foreground only)
     const messagesInterval = setInterval(() => {
-      const currentActive = activeConversationRef.current;
-      if (currentActive) {
-        loadBackendMessages(currentActive, true); // silent=true for polling
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        return;
       }
-    }, 1200);
+      const currentActive = activeConversationRef.current;
+      if (!currentActive) return;
+      const now = Date.now();
+      if (now - lastMessagesPollAtRef.current < CHAT_MESSAGES_POLL_MS_FG) return;
+      if (sendCooldownRef.current > now) return;
+      if (messagesPollBackoffUntilRef.current > now) return;
+      if (
+        messagesLoadInFlightRef.current &&
+        messagesLoadInFlightRef.current.conversationId === String(currentActive)
+      ) {
+        return;
+      }
+      lastMessagesPollAtRef.current = now;
+      loadBackendMessages(currentActive, true); // silent=true for polling
+    }, CHAT_MESSAGES_POLL_MS_FG);
     
     return () => {
       clearInterval(conversationsInterval);
       clearInterval(messagesInterval);
     };
   }, [address]);
+
+  // C6.3.1: chat invalidation events (no-payload bus). Coalesce rapid emits (send/create/read)
+  // to avoid duplicate polling requests and keep sidebar/thread in sync across chat entry points.
+  useEffect(() => {
+    const scheduleChatRefresh = () => {
+      if (typeof window === 'undefined') return;
+      if (chatEventRefreshTimerRef.current) {
+        window.clearTimeout(chatEventRefreshTimerRef.current);
+      }
+
+      chatEventRefreshTimerRef.current = window.setTimeout(() => {
+        chatEventRefreshTimerRef.current = null;
+        loadBackendConversations(true, true);
+        const currentActive = activeConversationRef.current;
+        if (currentActive) {
+          loadBackendMessages(currentActive, true, true);
+        }
+      }, 120);
+    };
+
+    const onConversationsChanged = () => scheduleChatRefresh();
+    const onMessagesChanged = () => scheduleChatRefresh();
+    const onReadStateChanged = () => scheduleChatRefresh();
+
+    window.addEventListener(MessagesClient.CHAT_CONVERSATIONS_CHANGED_EVENT, onConversationsChanged);
+    window.addEventListener(MessagesClient.CHAT_MESSAGES_CHANGED_EVENT, onMessagesChanged);
+    window.addEventListener(MessagesClient.CHAT_READ_STATE_CHANGED_EVENT, onReadStateChanged);
+
+    return () => {
+      window.removeEventListener(MessagesClient.CHAT_CONVERSATIONS_CHANGED_EVENT, onConversationsChanged);
+      window.removeEventListener(MessagesClient.CHAT_MESSAGES_CHANGED_EVENT, onMessagesChanged);
+      window.removeEventListener(MessagesClient.CHAT_READ_STATE_CHANGED_EVENT, onReadStateChanged);
+      if (chatEventRefreshTimerRef.current) {
+        window.clearTimeout(chatEventRefreshTimerRef.current);
+        chatEventRefreshTimerRef.current = null;
+      }
+    };
+  }, [activeConversation]);
+
+  // C6.3.2.3: realtime/presence adapter boundary (polling fallback-safe)
+  // Default adapter is no-op; future realtime implementation can invalidate via callbacks.
+  useEffect(() => {
+    if (!address) return;
+
+    const unsubscribe = subscribeChatConversationList(address, () => {
+      if (typeof window === 'undefined') return;
+      window.dispatchEvent(new Event(MessagesClient.CHAT_CONVERSATIONS_CHANGED_EVENT));
+    });
+
+    return () => unsubscribe();
+  }, [address]);
+
+  useEffect(() => {
+    if (!activeConversation || activeConversation === 'ai-agent' || typeof activeConversation === 'number') {
+      return;
+    }
+
+    const conversationId = String(activeConversation);
+    const unsubscribe = subscribeChatConversationThread(conversationId, () => {
+      if (typeof window === 'undefined') return;
+      window.dispatchEvent(new Event(MessagesClient.CHAT_MESSAGES_CHANGED_EVENT));
+    });
+
+    return () => unsubscribe();
+  }, [activeConversation]);
   
   // Load messages when active conversation changes
   useEffect(() => {
@@ -540,6 +710,26 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
       loadBackendMessages(activeConversation); // NOT silent - user-initiated
     }
   }, [activeConversation, address]);
+
+  // Allow external navigation (e.g. notification click) to switch the active thread after mount.
+  useEffect(() => {
+    if (!initialConversationId) return;
+    const target = String(initialConversationId);
+    if (!target || target === 'ai-agent') return;
+
+    // If a wallet address is passed, resolve to a loaded conversation UUID when possible.
+    if (target.startsWith('0x')) {
+      const matched = conversations.find(
+        (c) => String(c.address || '').toLowerCase() === target.toLowerCase()
+      );
+      if (matched?.id) {
+        setActiveConversation((prev) => (prev === matched.id ? prev : matched.id));
+      }
+      return;
+    }
+
+    setActiveConversation((prev) => (prev === target ? prev : target));
+  }, [initialConversationId, conversations]);
 
   // Check if AI Agent is enabled for this seller
   useEffect(() => {
@@ -646,6 +836,9 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
       
       setConversationMessagesFor(activeConversation, (prev) => [...prev, optimisticMessage]);
 
+      // Briefly suppress poll overwrite while backend catches up (C6 polling baseline)
+      sendCooldownRef.current = Date.now() + 2500;
+
       // Send message to backend in background
       await MessagesClient.sendMessage(
         address,
@@ -663,6 +856,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
     } catch (error) {
       console.error('[Messages] Send message error:', error);
       toast.error('Failed to send message');
+      sendCooldownRef.current = 0;
       // Restore input on error
       setUserInput(messageText);
       // Remove failed optimistic message
@@ -740,6 +934,15 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        // C6.3.2.1: force foreground refresh before next polling ticks
+        // so sidebar/thread catch up immediately after tab resumes.
+        lastConversationsPollAtRef.current = Date.now();
+        lastMessagesPollAtRef.current = Date.now();
+        loadBackendConversations(true, true);
+        const currentActive = activeConversationRef.current;
+        if (currentActive) {
+          loadBackendMessages(currentActive, true, true);
+        }
         // Scroll when tab becomes visible
         requestAnimationFrame(() => scrollToBottom(false));
       }
@@ -757,22 +960,21 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
     }
 
     try {
-      // Create conversation on backend by sending an initial message
-      await MessagesClient.sendMessage(
+      // Create (or get) direct conversation and use the real backend UUID.
+      // Do not synthesize `conv_<a>_<b>` IDs because C5/C6 storage is UUID-based.
+      const conversation = await MessagesClient.createConversation(
         address,
         walletAddress,
-        'Conversation started',
-        undefined
+        displayName
       );
 
       // Reload conversations to show the new one
       await loadBackendConversations();
+      setActiveConversation(conversation.id);
+      setConversationMessagesFor(conversation.id, []);
+      await loadBackendMessages(conversation.id, true);
 
       toast.success('Conversation created!');
-
-      // Find the new conversation ID and switch to it
-      const convId = `conv_${[address.toLowerCase(), walletAddress.toLowerCase()].sort().join('_')}`;
-      setActiveConversation(convId);
     } catch (error) {
       console.error('[Messages] Create conversation error:', error);
       toast.error('Failed to create conversation');
@@ -785,11 +987,14 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
         .hidden-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
 
-      <section className="bg-[#0f0f11] flex gap-0 h-full overflow-hidden">
+      <section className="h-full bg-ui-page overflow-hidden">
+        <div className="h-full flex overflow-hidden">
+        <div className="flex-1 min-w-0 p-2.5 pr-0 overflow-hidden">
+        <div className="h-full min-w-0 rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-hidden flex">
         {/* Conversations Sidebar */}
-        <div className="w-[280px] border-r border-[#27272a] flex flex-col bg-[#141417]">
+        <div className="w-[300px] border-r border-[var(--t-border-subtle)] flex flex-col bg-transparent">
           {/* Header */}
-          <div className="p-4 border-b border-[#27272a] bg-[#141417]">
+          <div className="p-4 border-b border-[var(--t-border-subtle)] bg-transparent">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-bold text-white uppercase tracking-wider">Messages</h2>
               <button
@@ -800,16 +1005,16 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                   }
                   setIsNewConversationModalOpen(true);
                 }}
-                className="w-7 h-7 bg-[#2CC295] hover:bg-[#2CC295]/90 text-black rounded-lg flex items-center justify-center transition-all hover:scale-105"
+                className="w-10 h-10 bg-[#2CC295] hover:bg-[#2CC295]/90 text-black rounded-full flex items-center justify-center transition-all hover:scale-105 shrink-0"
                 title="New Conversation"
               >
-                <Plus size={16} strokeWidth={3} />
+                <Plus size={18} strokeWidth={3} />
               </button>
             </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={14} />
               <input
-                className="w-full bg-zinc-900/50 border-[#27272a] rounded-lg pl-9 pr-4 py-2 text-xs text-white focus:ring-[#2CC295] focus:border-[#2CC295] placeholder-zinc-600"
+                className="w-full bg-[rgba(18,18,18,0.5)] border border-[rgba(255,255,255,0.1)] rounded-[999px] pl-9 pr-4 py-2 text-xs text-[#F1F5F9] focus:ring-[#2CC295] focus:border-[#2CC295] placeholder:text-[rgba(203,213,225,0.5)]"
                 placeholder="Search conversations"
                 type="text"
               />
@@ -822,7 +1027,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
               <div
                 key={conv.id}
                 onClick={() => setActiveConversation(conv.id)}
-                className={`p-3 border-b border-[#27272a] cursor-pointer transition-colors ${
+                className={`p-3 border-b border-[var(--t-border-subtle)] cursor-pointer transition-colors ${
                   activeConversation === conv.id
                     ? 'bg-[#2CC295]/5 border-l-2 border-l-[#2CC295]'
                     : 'hover:bg-white/[0.02]'
@@ -898,9 +1103,9 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
           </div>
         ) : (
           /* Normal Chat Interface */
-          <div className="flex-1 flex flex-col overflow-hidden bg-[#121212]/50 relative">{/* Removed h-full to fix flex layout */}
+          <div className="flex-1 flex flex-col overflow-hidden bg-transparent relative">
             {/* Chat Header */}
-            <div className="p-5 border-b border-[#27272a] flex items-center justify-between bg-[#121212]/80 backdrop-blur-md flex-shrink-0 relative">
+            <div className="p-5 border-b border-[var(--t-border-subtle)] flex items-center justify-between bg-[rgba(18,18,18,0.5)] backdrop-blur-[6px] flex-shrink-0 relative">
               {(() => {
                 const activeConv = conversations.find(c => c.id === activeConversation);
                 const AvatarComp = activeConv?.AvatarComponent;
@@ -911,10 +1116,10 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                   <>
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-full bg-zinc-800 border border-[#27272a] overflow-hidden flex items-center justify-center">
-                        {AvatarComp ? (
-                          <AvatarComp className="w-full h-full" />
-                        ) : activeConv?.avatar ? (
+                        {activeConv?.avatar ? (
                           <img src={activeConv.avatar} alt={displayName} className="w-full h-full object-cover" />
+                        ) : AvatarComp ? (
+                          <AvatarComp className="w-full h-full" />
                         ) : (
                           <div className="w-full h-full bg-gradient-to-br from-[#2CC295] to-[#1a9d6f] flex items-center justify-center text-white font-bold">
                             {displayName.charAt(0).toUpperCase()}
@@ -945,7 +1150,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
             <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto p-6 pb-24 space-y-6 hidden-scrollbar min-h-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               {/* Date Divider */}
               <div className="flex justify-center">
-                <span className="text-[10px] px-3 py-1 bg-zinc-900 border border-[#27272a] rounded-full text-zinc-500 uppercase tracking-widest font-bold">
+                <span className="text-[10px] px-3 py-1 bg-[rgba(255,255,255,0.02)] border-0 rounded-full text-zinc-500 uppercase tracking-widest font-bold">
                   Today
                 </span>
               </div>
@@ -960,10 +1165,10 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                   message.sender !== 'me' ? (
                     <div key={message.id} className="flex items-end gap-3 max-w-[80%]">
                       <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0 self-end">
-                        {ConvAvatarComp ? (
-                          <ConvAvatarComp className="w-full h-full" />
-                        ) : activeConv?.avatar ? (
+                        {activeConv?.avatar ? (
                           <img src={activeConv.avatar} alt="User" className="w-full h-full object-cover" />
+                        ) : ConvAvatarComp ? (
+                          <ConvAvatarComp className="w-full h-full" />
                         ) : (
                           <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-600 flex items-center justify-center text-white text-xs font-bold">
                             {activeConv?.displayName?.charAt(0).toUpperCase() || 'U'}
@@ -973,11 +1178,13 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                       <div className="bg-white/[0.05] backdrop-blur-lg border border-white/10 p-4 rounded-2xl rounded-bl-none">
                         {message.image && (
                           <div className="mb-2">
-                            <img src={message.image.url} alt="Attached" className="max-w-full max-h-48 rounded-lg" />
+                            <div className="w-[220px] sm:w-[260px] aspect-[4/3] rounded-lg overflow-hidden border border-white/10 bg-zinc-900/50">
+                              <img src={message.image.url} alt="Attached" className="w-full h-full object-cover" />
+                            </div>
                           </div>
                         )}
                         <p className="text-sm text-zinc-200 leading-relaxed">{message.text}</p>
-                        <span className="text-xs text-zinc-500 mt-1 block">{message.timestamp}</span>
+                        <span className="text-[10px] text-zinc-500 mt-1 block">{message.timestamp}</span>
                         {message.isAI && (
                           <div className="flex items-center gap-1 mt-2 text-xs text-[#2CC295]" title="AI Agent Response">
                             <Bot size={12} />
@@ -1000,10 +1207,12 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                       <div className="bg-[#2CC295]/15 backdrop-blur-lg border border-[#2CC295]/20 p-4 rounded-2xl rounded-br-none">
                         {message.image && (
                           <div className="mb-2">
-                            <img src={message.image.url} alt="Attached" className="max-w-full max-h-48 rounded-lg" />
+                            <div className="w-[220px] sm:w-[260px] aspect-[4/3] rounded-lg overflow-hidden border border-[#2CC295]/20 bg-zinc-900/50">
+                              <img src={message.image.url} alt="Attached" className="w-full h-full object-cover" />
+                            </div>
                           </div>
                         )}
-                        <p className="text-xs text-white">{message.text}</p>
+                        <p className="text-sm text-white leading-relaxed break-words whitespace-pre-wrap">{message.text}</p>
                         <div className="flex items-center justify-end gap-1 mt-2">
                           <span className="text-[10px] text-[#2CC295]/70">{message.timestamp}</span>
                           <svg className="w-3.5 h-3.5 text-[#2CC295]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1025,10 +1234,10 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                 return (
                   <div className="flex items-end gap-3 max-w-[80%]">
                     <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0 self-end">
-                      {ConvAvatarComp ? (
-                        <ConvAvatarComp className="w-full h-full" />
-                      ) : activeConv?.avatar ? (
+                      {activeConv?.avatar ? (
                         <img src={activeConv.avatar} alt="User" className="w-full h-full object-cover" />
+                      ) : ConvAvatarComp ? (
+                        <ConvAvatarComp className="w-full h-full" />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-600 flex items-center justify-center text-white text-xs font-bold">
                           {activeConv?.displayName?.charAt(0).toUpperCase() || 'U'}
@@ -1051,11 +1260,11 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
             </div>
 
             {/* Message Input */}
-            <div className="p-6 border-t border-[#27272a] bg-[#121212]/80 backdrop-blur-md">
+            <div className="p-6 border-t border-[var(--t-border-subtle)] bg-[rgba(18,18,18,0.5)] backdrop-blur-[6px]">
               <div className="flex items-center gap-4 max-w-4xl mx-auto w-full">
                 <div className="flex-grow relative">
                   <input
-                    className="w-full bg-zinc-900 border-[#27272a] rounded-xl px-4 py-3 pr-20 text-sm text-white focus:ring-[#2CC295] focus:border-[#2CC295] placeholder-zinc-600"
+                    className="w-full bg-[rgba(18,18,18,0.5)] border border-[rgba(255,255,255,0.1)] rounded-xl px-4 py-3 pr-20 text-sm text-[#F1F5F9] focus:ring-[#2CC295] focus:border-[#2CC295] placeholder:text-[rgba(203,213,225,0.5)]"
                     placeholder="Type a secure message..."
                     type="text"
                     value={userInput}
@@ -1080,7 +1289,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                   {showEmojiPicker && (
                     <div
                       ref={emojiPickerRef}
-                      className="absolute bottom-full right-0 mb-2 bg-zinc-900 border border-[#27272a] rounded-xl p-3 shadow-2xl shadow-black/50 z-50"
+                      className="absolute bottom-full right-0 mb-2 bg-[#121212] border border-[rgba(255,255,255,0.08)] rounded-xl p-3 shadow-2xl shadow-black/70 backdrop-blur-[20px] z-[120]"
                     >
                       <div className="flex flex-col gap-1.5">
                         {emojiRows.map((row, rowIdx) => (
@@ -1128,9 +1337,12 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
             </div>
           </div>
         )}
+        </div>
+        </div>
 
         {/* User Info Sidebar */}
-        <div className="w-[320px] border-l border-[#27272a] bg-[#141417] flex flex-col h-full overflow-hidden">
+        <StudioSidebarShell widthClassName="w-[344px]" className="bg-ui-page border-l-0 p-2.5">
+        <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
           {(() => {
             const activeConv = conversations.find(c => c.id === activeConversation);
             const userInfo = activeConv?.userInfo;
@@ -1142,13 +1354,15 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
             return (
               <>
                 {/* User Profile */}
-                <div className="p-5 text-center border-b border-[#27272a]">
+                <StudioSidebarHeader className="p-5 text-center border-b border-[var(--t-border-subtle)]">
                   <div className={`w-16 h-16 rounded-full border-2 mx-auto mb-3 overflow-hidden flex items-center justify-center ${
                     isAIAgent 
                       ? 'bg-gradient-to-br from-[#2CC295] to-[#1a9d6f] border-[#2CC295]/50'
                       : 'bg-zinc-800 border-[#27272a]'
                   }`}>
-                    {AvatarComp ? (
+                    {userInfo.avatarUrl ? (
+                      <img src={userInfo.avatarUrl} alt={userInfo.displayName} className="w-full h-full object-cover" />
+                    ) : AvatarComp ? (
                       <AvatarComp className="w-full h-full" />
                     ) : (
                       <Bot className="text-white" size={32} />
@@ -1179,7 +1393,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                               console.error('❌ Missing address or handler');
                             }
                           }}
-                          className="px-4 py-2 bg-zinc-900 border border-[#27272a] rounded-lg text-xs font-bold text-zinc-400 hover:text-white hover:border-[#2CC295]/50 transition-all flex items-center gap-1.5"
+                          className="px-4 py-2 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg text-xs font-bold text-zinc-400 hover:text-white hover:border-[#2CC295]/50 transition-all flex items-center gap-1.5"
                         >
                           View Profile
                           <ArrowRight size={12} />
@@ -1193,7 +1407,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                             setReportReason('');
                             setReportModalOpen(true);
                           }}
-                          className="p-2 bg-zinc-900 border border-[#27272a] rounded-lg text-zinc-400 hover:text-red-400 hover:border-red-500/30 transition-colors"
+                          className="p-2 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg text-zinc-400 hover:text-red-400 hover:border-red-500/30 transition-colors"
                           title="Report User"
                         >
                           <Flag size={14} />
@@ -1210,10 +1424,10 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                       </button>
                     )}
                   </div>
-                </div>
+                </StudioSidebarHeader>
 
                 {/* Scrollable Info */}
-                <div className="flex-grow overflow-y-auto p-6 space-y-6 hidden-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <StudioSidebarScroll className="p-6 space-y-6">
                   {/* Wallet Address - Only for non-AI users */}
                   {userInfo.walletAddress && (
                     <div>
@@ -1279,14 +1493,14 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                       </div>
                     </div>
                   )}
-                </div>
+                </StudioSidebarScroll>
 
                 {/* Footer - Rating for non-AI users - ✅ Dynamic from reputation system */}
                 {!isAIAgent && (() => {
                   const rep = getPartnerReputation(userInfo.walletAddress);
                   const filledStars = Math.round(rep.score);
                   return (
-                    <div className="p-6 bg-zinc-950/50 border-t border-[#27272a]">
+                    <StudioSidebarFooter className="p-6 bg-[rgba(18,18,18,0.5)] border-t border-[var(--t-border-subtle)]">
                       <div className="flex items-center justify-center gap-1.5 mb-1">
                         <span className="text-xl font-bold text-white">{rep.score}</span>
                         <div className="flex items-center">
@@ -1294,12 +1508,14 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                         </div>
                       </div>
                       <p className="text-[10px] text-zinc-500 text-center">Based on {rep.reviewCount} reviews</p>
-                    </div>
+                    </StudioSidebarFooter>
                   );
                 })()}
               </>
             );
           })()}
+        </div>
+        </StudioSidebarShell>
         </div>
       </section>
 
@@ -1377,7 +1593,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                 </div>
 
                 {/* Info */}
-                <div className="bg-zinc-900/50 border border-[#27272a] rounded-xl p-4">
+                <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
                       <span className="text-blue-400 text-sm">i</span>

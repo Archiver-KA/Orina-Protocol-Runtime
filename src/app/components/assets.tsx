@@ -1,9 +1,7 @@
-import { useState, useMemo } from 'react';
-import { Heart, TrendingUp, Package, Sparkles, ShoppingBag, Grid3x3, Eye } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { TrendingUp, Package, Sparkles, ShoppingBag, Grid3x3 } from 'lucide-react';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { useAccount } from 'wagmi';
-import { useReceiptBalance } from '@/hooks/useReceipts';
-import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
 import { SellerAssetManagementModal } from '@/app/components/seller-asset-management-modal';
 import { TransferModal } from '@/app/components/transfer-modal';
 import { ListForSaleModal } from '@/app/components/list-for-sale-modal';
@@ -16,7 +14,12 @@ import {
   MyAssetNftCard,
   MyAssetReceiptCard,
   MyAssetRwaCard,
+  type MyAssetNft,
+  type MyAssetReceipt,
+  type MyAssetRwa,
 } from '@/app/components/cards/my-asset-cards';
+import { getTestWalletMyAssets } from '@/utils/testWalletAssetFixtures';
+import { ensureAssetMetadataSeedForWalletFixtures } from '@/utils/assetMetadataSync';
 
 // Mock data for RWA Assets (user minted) - OPTIMIZED: Direct Unsplash URLs for bright, clear photos
 const mockRWAAssets = [
@@ -250,10 +253,7 @@ type AssetTab = 'All Assets' | 'RWA Minted' | 'Receipts' | 'NFT Owned';
 export function Assets() {
   const [activeTab, setActiveTab] = useState<AssetTab>('All Assets');
   const [sortBy, setSortBy] = useState('Recent');
-  type RwaAsset = (typeof mockRWAAssets)[number];
-  type ReceiptAsset = (typeof mockReceiptNFTs)[number];
-  type NftAsset = (typeof mockDigitalNFTs)[number];
-  type AnyAsset = RwaAsset | ReceiptAsset | NftAsset;
+  type AnyAsset = MyAssetRwa | MyAssetReceipt | MyAssetNft;
   const [selectedAsset, setSelectedAsset] = useState<AnyAsset | null>(null);
   const [isSellerModalOpen, setIsSellerModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -262,50 +262,51 @@ export function Assets() {
   const [isReceiptDetailModalOpen, setIsReceiptDetailModalOpen] = useState(false);
 
   const { address, isConnected } = useAccount();
-  const { data: receiptBalance } = useReceiptBalance(address);
+  const walletFixture = useMemo(() => getTestWalletMyAssets(address), [address]);
+  const rwaAssets = walletFixture?.rwaAssets ?? mockRWAAssets;
+  const receiptAssets = walletFixture?.receiptAssets ?? mockReceiptNFTs;
+  const nftAssets = walletFixture?.nftAssets ?? mockDigitalNFTs;
+
+  useEffect(() => {
+    if (!isConnected || !address) return;
+    // C2.3: seed persisted asset metadata for deterministic A/B fixtures (owned + linked listing ids).
+    void ensureAssetMetadataSeedForWalletFixtures(address);
+  }, [address, isConnected]);
 
   // Calculate totals
-  const totalRWA = mockRWAAssets.length;
-  const totalReceipts = mockReceiptNFTs.length;
-  const totalNFTs = mockDigitalNFTs.length;
+  const totalRWA = rwaAssets.length;
+  const totalReceipts = receiptAssets.length;
+  const totalNFTs = nftAssets.length;
   const totalAssets = totalRWA + totalReceipts + totalNFTs;
 
   // Filter assets based on active tab
   const displayAssets = useMemo(() => {
     switch (activeTab) {
       case 'RWA Minted':
-        return mockRWAAssets;
+        return rwaAssets;
       case 'Receipts':
-        return mockReceiptNFTs;
+        return receiptAssets;
       case 'NFT Owned':
-        return mockDigitalNFTs;
+        return nftAssets;
       case 'All Assets':
       default:
-        return [...mockRWAAssets, ...mockReceiptNFTs, ...mockDigitalNFTs];
+        return [...rwaAssets, ...receiptAssets, ...nftAssets];
     }
-  }, [activeTab]);
+  }, [activeTab, nftAssets, receiptAssets, rwaAssets]);
 
   return (
-    <div className="h-full flex flex-col overflow-hidden relative" style={{ background: '#121212' }}>
+    <div className="assets-page-shell h-full flex flex-col overflow-hidden relative bg-ui-page">
       <style>{`
-        .ambient-blob {
-          position: absolute;
-          width: 600px;
-          height: 600px;
-          background: radial-gradient(circle, rgba(44, 194, 149, 0.03) 0%, rgba(18, 18, 18, 0) 70%);
-          border-radius: 50%;
-          filter: blur(80px);
-          z-index: 0;
-          pointer-events: none;
+        .assets-page-shell {
+          isolation: isolate;
         }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
+        .assets-page-shell .dropdown-panel {
+          background: rgba(18, 18, 18, 0.96) !important;
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          z-index: 9999 !important;
+        }
       `}</style>
-
-      {/* Ambient Blobs */}
-      <div className="ambient-blob -top-40 -left-40"></div>
-      <div className="ambient-blob -bottom-40 -right-40"></div>
 
       {/* Seller Asset Management Modal */}
       <SellerAssetManagementModal
@@ -352,121 +353,123 @@ export function Assets() {
         <StudioPageHeader title="My Asset" compact />
 
         {/* Portfolio Overview */}
-        <StudioPanel className="rounded-2xl p-6">
+        <StudioPanel className="rounded-[24px] p-6 backdrop-blur-[10px]">
           <div className="flex items-start justify-between mb-8">
             <div>
-              <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold">Total Portfolio Value</p>
-              <h2 className="text-4xl font-bold text-white mt-1">$142,892.45</h2>
+              <p className="text-xs text-ui-muted uppercase tracking-widest font-bold">Total Portfolio Value</p>
+              <h2 className="text-4xl font-bold text-ui-primary mt-1">$142,892.45</h2>
               <div className="flex items-center gap-2 mt-2">
-                <span className="text-[#2CC295] text-sm font-bold flex items-center">
+                <span className="text-primary text-sm font-bold flex items-center">
                   <TrendingUp size={14} className="mr-1" />
                   +12.4%
                 </span>
-                <span className="text-zinc-600 text-xs font-medium">vs last week</span>
+                <span className="text-ui-muted text-xs font-medium">vs last week</span>
               </div>
             </div>
-            
+
             {/* Quick Stats */}
             <div className="flex gap-8">
               <div className="text-center">
-                <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold mb-1">RWA</p>
-                <p className="text-2xl font-bold text-white">{totalRWA}</p>
+                <p className="text-xs text-ui-muted uppercase tracking-widest font-bold mb-1">RWA</p>
+                <p className="text-2xl font-bold text-ui-primary">{totalRWA}</p>
               </div>
               <div className="text-center">
-                <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold mb-1">Receipts</p>
-                <p className="text-2xl font-bold text-white">{totalReceipts}</p>
+                <p className="text-xs text-ui-muted uppercase tracking-widest font-bold mb-1">Receipts</p>
+                <p className="text-2xl font-bold text-ui-primary">{totalReceipts}</p>
               </div>
               <div className="text-center">
-                <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold mb-1">NFTs</p>
-                <p className="text-2xl font-bold text-white">{totalNFTs}</p>
+                <p className="text-xs text-ui-muted uppercase tracking-widest font-bold mb-1">NFTs</p>
+                <p className="text-2xl font-bold text-ui-primary">{totalNFTs}</p>
               </div>
             </div>
           </div>
 
           {/* Chart */}
-          <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-zinc-950/40 p-4">
-            <div className="h-44 relative">
-              <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 200">
+          <div className="h-44 relative">
+            <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 200">
               <defs>
                 <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
                   <stop offset="0%" stopColor="#2CC295" stopOpacity="0.2"></stop>
                   <stop offset="100%" stopColor="#2CC295" stopOpacity="0"></stop>
                 </linearGradient>
               </defs>
-              <path 
-                d="M0 200 L0 150 C100 140, 200 170, 300 120 S400 100, 500 130 S600 40, 700 80 S800 60, 900 30 L1000 20 L1000 200 Z" 
+              <path
+                d="M0 200 L0 150 C100 140, 200 170, 300 120 S400 100, 500 130 S600 40, 700 80 S800 60, 900 30 L1000 20 L1000 200 Z"
                 fill="url(#chartGradient)"
               />
-              <path 
-                d="M0 150 C100 140, 200 170, 300 120 S400 100, 500 130 S600 40, 700 80 S800 60, 900 30 L1000 20" 
-                fill="none" 
-                stroke="#2CC295" 
+              <path
+                d="M0 150 C100 140, 200 170, 300 120 S400 100, 500 130 S600 40, 700 80 S800 60, 900 30 L1000 20"
+                fill="none"
+                stroke="#2CC295"
                 strokeWidth="3"
               />
-              </svg>
-            </div>
+            </svg>
           </div>
         </StudioPanel>
 
         {/* Pill Segmented Toggle + Sort */}
-        <div className="flex items-center justify-between">
-          {/* Pill Segmented Toggle */}
-          <StudioPillGroup>
-            <StudioPillButton
-              onClick={() => setActiveTab('All Assets')}
-              active={activeTab === 'All Assets'}
-            >
-              <span className="flex items-center gap-2">
-                <Grid3x3 size={14} />
-                All Assets
-              </span>
-            </StudioPillButton>
-            <StudioPillButton
-              onClick={() => setActiveTab('RWA Minted')}
-              active={activeTab === 'RWA Minted'}
-            >
-              <span className="flex items-center gap-2">
-                <Sparkles size={14} />
-                RWA Minted ({totalRWA})
-              </span>
-            </StudioPillButton>
-            <StudioPillButton
-              onClick={() => setActiveTab('Receipts')}
-              active={activeTab === 'Receipts'}
-            >
-              <span className="flex items-center gap-2">
-                <Package size={14} />
-                Receipts ({totalReceipts})
-              </span>
-            </StudioPillButton>
-            <StudioPillButton
-              onClick={() => setActiveTab('NFT Owned')}
-              active={activeTab === 'NFT Owned'}
-            >
-              <span className="flex items-center gap-2">
-                <ShoppingBag size={14} />
-                NFT Owned ({totalNFTs})
-              </span>
-            </StudioPillButton>
-          </StudioPillGroup>
+        <StudioPanel className="relative z-[80] rounded-[24px] p-3 backdrop-blur-[10px]">
+          <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-4">
+            {/* Pill Segmented Toggle */}
+            <StudioPillGroup className="flex-wrap">
+              <StudioPillButton
+                onClick={() => setActiveTab('All Assets')}
+                active={activeTab === 'All Assets'}
+              >
+                <span className="flex items-center gap-2">
+                  <Grid3x3 size={14} />
+                  All Assets
+                </span>
+              </StudioPillButton>
+              <StudioPillButton
+                onClick={() => setActiveTab('RWA Minted')}
+                active={activeTab === 'RWA Minted'}
+              >
+                <span className="flex items-center gap-2">
+                  <Sparkles size={14} />
+                  RWA Minted ({totalRWA})
+                </span>
+              </StudioPillButton>
+              <StudioPillButton
+                onClick={() => setActiveTab('Receipts')}
+                active={activeTab === 'Receipts'}
+              >
+                <span className="flex items-center gap-2">
+                  <Package size={14} />
+                  Receipts ({totalReceipts})
+                </span>
+              </StudioPillButton>
+              <StudioPillButton
+                onClick={() => setActiveTab('NFT Owned')}
+                active={activeTab === 'NFT Owned'}
+              >
+                <span className="flex items-center gap-2">
+                  <ShoppingBag size={14} />
+                  NFT Owned ({totalNFTs})
+                </span>
+              </StudioPillButton>
+            </StudioPillGroup>
 
-          {/* Sort Dropdown */}
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Sort By:</span>
-            <CustomDropdown
-              options={['Recent', 'Value: High to Low', 'Value: Low to High', 'A-Z', 'Z-A']}
-              defaultOption={sortBy}
-              onChange={setSortBy}
-            />
+            {/* Sort Dropdown */}
+            <div className="relative z-[90] flex items-center gap-3 shrink-0">
+              <span className="text-xs text-ui-muted font-bold uppercase tracking-widest">Sort By:</span>
+              <CustomDropdown
+                options={['Recent', 'Value: High to Low', 'Value: Low to High', 'A-Z', 'Z-A']}
+                defaultOption={sortBy}
+                onChange={setSortBy}
+                variant="compact"
+                className="w-[220px] z-[100]"
+              />
+            </div>
           </div>
-        </div>
+        </StudioPanel>
 
         {/* Assets Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 pb-20">
+        <div className="relative z-[10] grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 pb-20">
           {displayAssets.length === 0 ? (
             <div className="col-span-full">
               <EmptyStateCard
-                icon={<Package size={30} className="text-zinc-700" />}
+                icon={<Package size={30} className="text-ui-muted" />}
                 title="No assets found"
                 description="Start by minting RWA or purchasing NFTs"
                 className="py-16 px-6 text-center"

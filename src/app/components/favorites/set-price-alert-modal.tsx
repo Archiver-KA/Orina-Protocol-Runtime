@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { X, Bell, TrendingUp, TrendingDown } from 'lucide-react';
+import { Bell, TrendingUp, TrendingDown } from 'lucide-react';
 import { WatchlistItem } from '@/types/favorites';
 import { AssetDetails } from '@/types/asset';
 import { motion, AnimatePresence } from 'motion/react';
 import { AssetThumb } from '@/app/components/asset-thumb';
+import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 
 interface SetPriceAlertModalProps {
   isOpen: boolean;
@@ -73,13 +74,7 @@ export function SetPriceAlertModal({
                 </div>
                 <h2 className="text-xl font-bold text-white">Set Price Alert</h2>
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
-              >
-                <X size={20} className="text-zinc-400" />
-              </button>
+              <StudioModalCloseButton onClick={onClose} />
             </div>
 
             <div className="p-6 space-y-6">

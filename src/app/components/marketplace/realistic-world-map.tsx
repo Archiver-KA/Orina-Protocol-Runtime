@@ -134,7 +134,7 @@ export function RealisticWorldMap({
   };
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#0a0a0b]">
+    <div className="relative h-full w-full overflow-hidden bg-transparent">
       {/* Stats Info - Expandable on Hover */}
       <div className="absolute left-4 top-4 z-20 group pointer-events-auto">
         <div className="flex items-center gap-2 rounded-lg border border-[#27272a] bg-[#18181b] px-3 py-2 transition-all duration-300 hover:px-4 hover:gap-3 select-none">

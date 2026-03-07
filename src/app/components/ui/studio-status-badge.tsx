@@ -25,26 +25,26 @@ export function StudioStatusBadge({
 }: StudioStatusBadgeProps) {
   const sizeClass =
     size === 'sm'
-      ? 'px-2 py-0.5 text-[10px] rounded-md'
-      : 'px-1.5 py-0.5 text-[9px] rounded';
+      ? 'px-2.5 py-1 text-[10px] rounded-full'
+      : 'px-2 py-0.5 text-[9px] rounded-full';
 
   const variantClass =
     variant === 'success'
-      ? 'bg-zinc-800 text-[#2CC295] border-[#27272a]'
+      ? 'bg-[rgba(44,194,149,0.12)] text-[#2CC295]'
       : variant === 'warning'
-        ? 'bg-zinc-800 text-[#F7DC7F] border-[#27272a]'
+        ? 'bg-[rgba(247,220,127,0.12)] text-[#F7DC7F]'
         : variant === 'danger'
-          ? 'bg-zinc-800 text-orange-400 border-[#27272a]'
+          ? 'bg-[rgba(251,146,60,0.12)] text-orange-400'
           : variant === 'info'
-            ? 'bg-zinc-800 text-blue-400 border-[#27272a]'
+            ? 'bg-[rgba(96,165,250,0.12)] text-blue-400'
             : variant === 'accent'
-              ? 'bg-zinc-800 text-purple-300 border-[#27272a]'
-              : 'bg-zinc-800 text-zinc-400 border-[#27272a]';
+              ? 'bg-[rgba(196,181,253,0.12)] text-purple-300'
+              : 'bg-[rgba(255,255,255,0.06)] text-zinc-400';
 
   return (
     <span
       className={cn(
-        'inline-flex items-center border font-bold uppercase tracking-wide',
+        'inline-flex items-center border-0 font-bold uppercase tracking-wide',
         sizeClass,
         variantClass,
         className

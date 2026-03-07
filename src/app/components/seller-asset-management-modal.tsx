@@ -1,29 +1,48 @@
-import { useState, useEffect } from 'react';
-import { X, ArrowLeft, Shield, Package, TrendingUp, Edit3, BarChart3, Clock, CheckCircle2, AlertCircle, Eye, DollarSign, Users, Activity, Info } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  AlertCircle,
+  BarChart3,
+  CheckCircle2,
+  Clock3,
+  DollarSign,
+  History,
+  Package,
+  Settings2,
+  Shield,
+  TrendingUp,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { createPortal } from 'react-dom';
+import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
+
+interface SellerAsset {
+  id: string;
+  name: string;
+  category: string;
+  image: string;
+  totalAmount: string;
+  availableAmount: string;
+  minPrice: string;
+  status: string;
+  mintedDate: string;
+}
 
 interface SellerAssetManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
-  asset: {
-    id: string;
-    name: string;
-    category: string;
-    image: string;
-    totalAmount: string;
-    availableAmount: string;
-    minPrice: string;
-    status: string;
-    mintedDate: string;
-  } | null;
+  asset: SellerAsset | null;
 }
 
-type SellerTab = 'overview' | 'active-orders' | 'sales-history' | 'manage-listing' | 'analytics';
+type SellerTab = 'overview' | 'active' | 'history' | 'manage';
 
-export function SellerAssetManagementModal({ isOpen, onClose, asset }: SellerAssetManagementModalProps) {
+export function SellerAssetManagementModal({
+  isOpen,
+  onClose,
+  asset,
+}: SellerAssetManagementModalProps) {
   const [activeTab, setActiveTab] = useState<SellerTab>('overview');
 
-  // Prevent body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -35,554 +54,398 @@ export function SellerAssetManagementModal({ isOpen, onClose, asset }: SellerAss
     };
   }, [isOpen]);
 
-  if (!isOpen || !asset) return null;
+  const soldUnits = useMemo(() => {
+    if (!asset) return 0;
+    const total = Number.parseInt(asset.totalAmount, 10) || 0;
+    const available = Number.parseInt(asset.availableAmount, 10) || 0;
+    return Math.max(0, total - available);
+  }, [asset]);
 
-  return (
+  if (!isOpen || !asset || typeof document === 'undefined') return null;
+
+  const modalContent = (
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6"
+        className="fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
       >
-        {/* Backdrop Overlay */}
-        <div 
-          className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-          onClick={onClose}
-        ></div>
-
-        {/* Modal Container */}
         <motion.div
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="relative w-full max-w-[95vw] h-[90vh] bg-[#0f0f11] rounded-xl shadow-2xl border border-[#27272a] overflow-hidden flex"
+          transition={{ type: 'spring', duration: 0.3 }}
+          className="relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
+          onClick={(e) => e.stopPropagation()}
         >
           <style>{`
             .hidden-scrollbar::-webkit-scrollbar { display: none; }
-            .ambient-blob {
-              position: absolute;
-              width: 600px;
-              height: 600px;
-              background: radial-gradient(circle, rgba(44, 194, 149, 0.03) 0%, rgba(18, 18, 18, 0) 70%);
-              border-radius: 50%;
-              filter: blur(80px);
-              z-index: 0;
-              pointer-events: none;
-            }
           `}</style>
 
-          {/* Ambient Blobs */}
-          <div className="ambient-blob -top-40 -left-40"></div>
-          <div className="ambient-blob -bottom-40 -right-40"></div>
-
-          {/* Left Sidebar - Navigation & Asset Info */}
-          <aside className="w-64 bg-zinc-900/30 flex flex-col border-r border-[#27272a] overflow-hidden relative z-10">
-            {/* Header with Close Button */}
-            <div className="p-6 border-b border-[#27272a]">
-              <div className="flex items-center gap-3 mb-4">
-                <button
-                  onClick={onClose}
-                  className="w-10 h-10 flex items-center justify-center rounded-lg border border-[#27272a] bg-zinc-900/50 hover:bg-zinc-800 transition-colors"
+          <div className="shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h1 className="text-lg font-bold text-white tracking-tight truncate">Manage Asset</h1>
+                <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5">
+                  Seller Dashboard
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
+                  Token ID #{asset.id.slice(-4)}
+                </span>
+                <span
+                  className={`h-7 px-3 inline-flex items-center rounded-full border text-[9px] font-bold uppercase tracking-widest ${
+                    asset.status.toLowerCase() === 'active'
+                      ? 'bg-[#2CC295]/15 border-[#2CC295]/30 text-[#2CC295]'
+                      : 'bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)] text-zinc-400'
+                  }`}
                 >
-                  <X className="text-zinc-400" size={20} />
-                </button>
-                <div>
-                  <h2 className="text-white font-bold text-sm uppercase tracking-wider">Manage Asset</h2>
-                  <p className="text-xs text-zinc-500 mt-0.5">Seller Dashboard</p>
-                </div>
+                  {asset.status}
+                </span>
+                <StudioModalCloseButton onClick={onClose} />
               </div>
             </div>
+          </div>
 
-            {/* Navigation Menu */}
-            <div className="p-6">
-              <nav className="space-y-2">
-                <NavItem
-                  icon={<BarChart3 size={14} />}
-                  label="Overview"
-                  isActive={activeTab === 'overview'}
-                  onClick={() => setActiveTab('overview')}
-                />
-                <NavItem
-                  icon={<Clock size={14} />}
-                  label="Active Orders"
-                  badge="3"
-                  isActive={activeTab === 'active-orders'}
-                  onClick={() => setActiveTab('active-orders')}
-                />
-                <NavItem
-                  icon={<CheckCircle2 size={14} />}
-                  label="Sales History"
-                  isActive={activeTab === 'sales-history'}
-                  onClick={() => setActiveTab('sales-history')}
-                />
-                <NavItem
-                  icon={<Edit3 size={14} />}
-                  label="Manage Listing"
-                  highlighted
-                  isActive={activeTab === 'manage-listing'}
-                  onClick={() => setActiveTab('manage-listing')}
-                />
-                <NavItem
-                  icon={<TrendingUp size={14} />}
-                  label="Analytics"
-                  isActive={activeTab === 'analytics'}
-                  onClick={() => setActiveTab('analytics')}
-                />
-              </nav>
-            </div>
-          </aside>
-
-          {/* Middle Section - Asset Display */}
-          <section className="flex-1 overflow-y-auto hidden-scrollbar relative">
-            <div className="p-6 md:p-8 relative z-10">
-              {/* Title */}
-              <div className="pb-4 mb-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-lg font-bold text-white tracking-tight">{asset.name}</h1>
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5">
-                      TOKEN ID #{asset.id.slice(-4)}
-                    </p>
+          <section className="min-w-0 min-h-0 flex-1 overflow-y-auto lg:overflow-hidden hidden-scrollbar relative">
+            <div className="h-full p-5 md:p-6 pt-4 relative z-10">
+              <div className="w-full h-full max-w-[860px] mx-auto flex flex-col lg:flex-row justify-center items-start gap-6 px-0 md:px-2">
+                <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
+                  <div className="relative w-full aspect-square max-w-full bg-[rgba(24,24,27,0.5)] rounded-[24px] overflow-hidden">
+                    <img
+                      src={asset.image}
+                      alt={asset.name}
+                      className="w-full h-full object-cover opacity-80"
+                    />
+                    <div className="absolute left-[17px] top-[17px] flex items-center gap-1 px-2 py-1 bg-black/60 border border-white/10 backdrop-blur-[6px] rounded-[6px]">
+                      <Shield size={10} className="text-[#2CC295]" />
+                      <span className="text-[9px] leading-[14px] font-bold uppercase text-[#2CC295]">Verified</span>
+                    </div>
+                    <div className="absolute right-[17px] top-[13px] px-2 py-[2.5px] bg-black/60 border border-white/10 backdrop-blur-[6px] rounded-[6px]">
+                      <span className="text-[9px] leading-[14px] font-bold uppercase text-[#A1A1AA]">
+                        {asset.category}
+                      </span>
+                    </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-full border text-[9px] font-bold uppercase tracking-widest ${
-                    asset.status === 'Active' 
-                      ? 'bg-[#2CC295]/10 border-[#2CC295]/20 text-[#2CC295]' 
-                      : 'bg-zinc-900 border-[#27272a] text-zinc-400'
-                  }`}>
-                    {asset.status}
-                  </span>
-                </div>
-              </div>
 
-              {/* Asset Image - Smaller */}
-              <div className="rounded-xl overflow-hidden bg-black relative group mb-6">
-                <div className="aspect-video">
-                  <img
-                    src={asset.image}
-                    alt={asset.name}
-                    className="w-full h-full object-cover"
-                    style={{ filter: 'brightness(1.15) contrast(1.1)', opacity: 1 }}
-                  />
-                </div>
-                
-                {/* Glass Badge */}
-                <div className="absolute bottom-4 left-4 right-4">
-                  <span className="bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[9px] font-bold text-white uppercase tracking-widest border border-white/10">
-                    External View 01
-                  </span>
-                </div>
-              </div>
-
-              {/* Asset Stats Grid - Compact */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-4">
-                  <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold mb-1.5">Total Minted</p>
-                  <p className="text-xl font-bold text-white">{asset.totalAmount}</p>
-                </div>
-                <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-4">
-                  <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold mb-1.5">Available</p>
-                  <p className="text-xl font-bold text-[#2CC295]">{asset.availableAmount}</p>
-                </div>
-                <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-4">
-                  <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold mb-1.5">Min Price</p>
-                  <p className="text-xl font-bold text-white">{asset.minPrice}</p>
-                </div>
-                <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-4">
-                  <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold mb-1.5">Status</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className={`w-2 h-2 rounded-full ${asset.status === 'Active' ? 'bg-green-400 animate-pulse' : 'bg-zinc-500'}`}></div>
-                    <p className="text-base font-bold text-white">{asset.status}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex -space-x-2">
+                      <span className="w-8 h-8 rounded-full bg-[#27272A] border-2 border-[#141417] text-[10px] font-bold text-[#D4D4D8] inline-flex items-center justify-center">
+                        1
+                      </span>
+                      <span className="w-8 h-8 rounded-full bg-[#3F3F46] border-2 border-[#141417] text-[10px] font-bold text-[#D4D4D8] inline-flex items-center justify-center">
+                        2
+                      </span>
+                      <span className="w-8 h-8 rounded-full bg-[#52525B] border-2 border-[#141417] text-[10px] font-bold text-[#D4D4D8] inline-flex items-center justify-center">
+                        3
+                      </span>
+                      <span className="w-8 h-8 rounded-full bg-[#2CC295] border-2 border-[#141417] text-[10px] font-bold text-black inline-flex items-center justify-center">
+                        {soldUnits}
+                      </span>
+                    </div>
+                    <span className="text-[10px] leading-[15px] font-medium text-[#71717A]">
+                      Minted {asset.mintedDate}
+                    </span>
                   </div>
+
+                  <div className="grid grid-cols-4 gap-2">
+                    <StatTile label="Total Minted" value={asset.totalAmount} />
+                    <StatTile label="Available" value={asset.availableAmount} valueClassName="text-[#2CC295]" />
+                    <StatTile label="Sold Units" value={`${soldUnits}`} />
+                    <StatTile label="Min Price" value={asset.minPrice} />
+                  </div>
+                </div>
+
+                <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-6 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
+                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-3">
+                    <div className="grid grid-cols-4 gap-2">
+                      <TabButton
+                        label="Overview"
+                        icon={<BarChart3 size={12} />}
+                        isActive={activeTab === 'overview'}
+                        onClick={() => setActiveTab('overview')}
+                      />
+                      <TabButton
+                        label="Active"
+                        icon={<Clock3 size={12} />}
+                        isActive={activeTab === 'active'}
+                        onClick={() => setActiveTab('active')}
+                      />
+                      <TabButton
+                        label="History"
+                        icon={<History size={12} />}
+                        isActive={activeTab === 'history'}
+                        onClick={() => setActiveTab('history')}
+                      />
+                      <TabButton
+                        label="Manage"
+                        icon={<Settings2 size={12} />}
+                        isActive={activeTab === 'manage'}
+                        onClick={() => setActiveTab('manage')}
+                      />
+                    </div>
+                  </div>
+
+                  {activeTab === 'overview' && <OverviewTab asset={asset} soldUnits={soldUnits} />}
+                  {activeTab === 'active' && <ActiveTab />}
+                  {activeTab === 'history' && <HistoryTab />}
+                  {activeTab === 'manage' && <ManageTab asset={asset} />}
                 </div>
               </div>
             </div>
           </section>
-
-          {/* Right Sidebar - Content Tabs */}
-          <aside className="w-96 bg-zinc-900/30 flex flex-col border-l border-[#27272a] overflow-hidden">
-            {/* Tab Content Header */}
-            <div className="p-6 border-b border-[#27272a]">
-              <h2 className="text-white font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
-                <Shield className="text-[#2CC295]" size={18} />
-                {activeTab === 'overview' && 'Overview'}
-                {activeTab === 'active-orders' && 'Active Orders'}
-                {activeTab === 'sales-history' && 'Sales History'}
-                {activeTab === 'manage-listing' && 'Manage Listing'}
-                {activeTab === 'analytics' && 'Analytics'}
-              </h2>
-              <p className="text-xs text-zinc-500 mt-1">Management Dashboard</p>
-            </div>
-
-            {/* Content Area - Scrollable */}
-            <div className="flex-1 overflow-y-auto hidden-scrollbar p-6">
-              {activeTab === 'overview' && <OverviewTab asset={asset} />}
-              {activeTab === 'active-orders' && <ActiveOrdersTab />}
-              {activeTab === 'sales-history' && <SalesHistoryTab />}
-              {activeTab === 'manage-listing' && <ManageListingTab asset={asset} />}
-              {activeTab === 'analytics' && <AnalyticsTab />}
-            </div>
-          </aside>
         </motion.div>
       </motion.div>
     </AnimatePresence>
   );
+
+  return createPortal(modalContent, document.body);
 }
 
-// Navigation Item Component - STANDARDIZED
-function NavItem({
-  icon,
+function TabButton({
   label,
-  badge,
-  highlighted,
+  icon,
   isActive,
   onClick,
 }: {
-  icon: React.ReactNode;
   label: string;
-  badge?: string;
-  highlighted?: boolean;
+  icon: React.ReactNode;
   isActive: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`
-        w-full flex items-center justify-between px-4 py-2.5 rounded-lg transition-all text-left border
-        ${isActive
+      className={`h-10 rounded-full border text-[9px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-1 ${
+        isActive
           ? 'bg-[#2CC295]/10 border-[#2CC295]/30 text-[#2CC295]'
-          : highlighted
-          ? 'bg-zinc-900/50 border-[#2CC295]/20 text-zinc-300 hover:bg-[#2CC295]/5'
-          : 'border-transparent text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300'
-        }
-      `}
+          : 'bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.06)] text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+      }`}
     >
-      <div className="flex items-center gap-2.5">
-        {icon}
-        <span className="text-xs font-bold uppercase tracking-widest">{label}</span>
-      </div>
-      {badge && (
-        <span className="px-2 py-0.5 bg-[#2CC295] text-black text-[9px] font-bold rounded-full">
-          {badge}
-        </span>
-      )}
+      {icon}
+      <span className="hidden sm:inline">{label}</span>
     </button>
   );
 }
 
-// Overview Tab - STANDARDIZED
-function OverviewTab({ asset }: { asset: any }) {
+function StatTile({
+  label,
+  value,
+  valueClassName,
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="bg-[rgba(24,24,27,0.4)] rounded-[16px] p-3">
+      <p className="text-[8px] text-zinc-500 uppercase tracking-widest font-bold mb-1 leading-tight">{label}</p>
+      <p className={`text-sm font-bold text-white leading-tight ${valueClassName ?? ''}`}>{value}</p>
+    </div>
+  );
+}
+
+function OverviewTab({
+  asset,
+  soldUnits,
+}: {
+  asset: SellerAsset;
+  soldUnits: number;
+}) {
   return (
     <div className="space-y-6">
-      {/* Asset Information */}
-      <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-5">
-        <div className="flex items-center gap-2 mb-4">
+      <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Asset Information</h3>
           <Shield size={14} className="text-[#2CC295]" />
-          <h3 className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Asset Information</h3>
         </div>
-        <div className="space-y-0">
-          <div className="flex items-center justify-between py-3 border-b border-[#27272a]">
-            <span className="text-xs text-zinc-500">Category</span>
-            <span className="text-xs font-bold text-white">{asset.category}</span>
-          </div>
-          <div className="flex items-center justify-between py-3 border-b border-[#27272a]">
-            <span className="text-xs text-zinc-500">Minted Date</span>
-            <span className="text-xs font-bold text-white">{asset.mintedDate}</span>
-          </div>
-          <div className="flex items-center justify-between py-3 border-b border-[#27272a]">
-            <span className="text-xs text-zinc-500">Asset Type</span>
-            <span className="text-xs font-bold text-[#2CC295]">RWA (Real World Asset)</span>
-          </div>
-          <div className="flex items-center justify-between py-3">
-            <span className="text-xs text-zinc-500">Verification</span>
-            <div className="flex items-center gap-2">
-              <Shield size={12} className="text-[#2CC295]" />
-              <span className="text-xs font-bold text-[#2CC295]">VERIFIED</span>
-            </div>
-          </div>
+        <div className="space-y-3">
+          <InfoRow label="Name" value={asset.name} />
+          <InfoRow label="Category" value={asset.category} />
+          <InfoRow label="Minted Date" value={asset.mintedDate} />
+          <InfoRow label="Sold Units" value={`${soldUnits}/${asset.totalAmount}`} />
         </div>
       </div>
 
-      <div>
-        <h3 className="text-sm font-bold text-white mb-4">Quick Stats</h3>
+      <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
+        <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A] mb-4">Live Snapshot</h3>
         <div className="grid grid-cols-2 gap-4">
-          <StatCard
-            icon={<DollarSign size={18} className="text-[#2CC295]" />}
-            label="Total Revenue"
-            value="47.5 ETH"
-            change="+12.4%"
-          />
-          <StatCard
-            icon={<Users size={18} className="text-blue-400" />}
-            label="Total Buyers"
-            value="55"
-            change="+8"
-          />
-          <StatCard
-            icon={<Package size={18} className="text-purple-400" />}
-            label="Units Sold"
-            value={`${parseInt(asset.totalAmount) - parseInt(asset.availableAmount)}`}
-            subtitle={`of ${asset.totalAmount}`}
-          />
-          <StatCard
-            icon={<Activity size={18} className="text-orange-400" />}
-            label="Active Orders"
-            value="3"
-            subtitle="Pending"
-          />
+          <MiniStat icon={<DollarSign size={14} className="text-[#2CC295]" />} label="Revenue" value="47.5 ETH" />
+          <MiniStat icon={<Package size={14} className="text-blue-400" />} label="Orders" value="55" />
+          <MiniStat icon={<Activity size={14} className="text-purple-400" />} label="Active" value="3" />
+          <MiniStat icon={<TrendingUp size={14} className="text-amber-400" />} label="Growth" value="+12.4%" />
         </div>
       </div>
 
-      <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Activity size={12} className="text-[#2CC295]" />
-          <h4 className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Recent Activity</h4>
+      <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 h-40 flex items-center justify-center">
+        <div className="text-center">
+          <TrendingUp size={36} className="text-zinc-700 mx-auto mb-3" />
+          <p className="text-xs text-zinc-500">Sales chart coming soon</p>
         </div>
-        <div className="space-y-0">
-          <ActivityItem
-            type="sale"
-            message="Order #1234 completed"
-            time="2 hours ago"
-            amount="0.85 ETH"
-          />
-          <ActivityItem
-            type="pending"
-            message="New order received"
-            time="5 hours ago"
-            amount="1.2 ETH"
-          />
-          <ActivityItem
-            type="sale"
-            message="Order #1230 completed"
-            time="1 day ago"
-            amount="0.95 ETH"
-          />
-        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <MiniStat icon={<DollarSign size={14} className="text-[#2CC295]" />} label="Avg Price" value="2.64 ETH" />
+        <MiniStat icon={<Activity size={14} className="text-blue-400" />} label="Conversion" value="68%" />
       </div>
     </div>
   );
 }
 
-// Active Orders Tab - STANDARDIZED
-function ActiveOrdersTab() {
-  const mockOrders = [
-    { id: 'ORD-1245', buyer: '0x742d...9c4F', amount: '2', price: '5.0 ETH', status: 'Pending Payment', time: '2h ago' },
-    { id: 'ORD-1244', buyer: '0x8f3a...2b1D', amount: '1', price: '2.5 ETH', status: 'Paid - Awaiting Release', time: '5h ago' },
-    { id: 'ORD-1243', buyer: '0x1c7e...5a9B', amount: '3', price: '7.5 ETH', status: 'Pending Payment', time: '1d ago' },
+function ActiveTab() {
+  const orders = [
+    { id: 'ORD-1245', buyer: '0x742d...9c4F', amount: '2', total: '5.0 ETH', status: 'Pending Payment' },
+    { id: 'ORD-1244', buyer: '0x8f3a...2b1D', amount: '1', total: '2.5 ETH', status: 'Paid - Awaiting Release' },
+    { id: 'ORD-1243', buyer: '0x1c7e...5a9B', amount: '3', total: '7.5 ETH', status: 'Pending Payment' },
   ];
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-white">Active Orders</h3>
-        <span className="text-xs text-zinc-500">{mockOrders.length} pending</span>
-      </div>
-      {mockOrders.map((order) => (
-        <div key={order.id} className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-5 transition-all hover:border-[#2CC295]/30">
-          <div className="flex items-start justify-between mb-3">
+      {orders.map((order) => (
+        <div key={order.id} className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-4">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-bold text-white mb-1">{order.id}</p>
-              <p className="text-[10px] text-zinc-500">Buyer: {order.buyer}</p>
+              <p className="text-xs font-bold text-white">{order.id}</p>
+              <p className="text-[10px] text-zinc-500 mt-1">Buyer: {order.buyer}</p>
             </div>
-            <span className={`px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${
-              order.status.includes('Paid')
-                ? 'bg-green-500/20 text-green-300 border-green-500/30'
-                : 'bg-orange-500/20 text-orange-300 border-orange-500/30'
-            }`}>
+            <span
+              className={`px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${
+                order.status.includes('Paid')
+                  ? 'bg-green-500/20 text-green-300 border-green-500/30'
+                  : 'bg-orange-500/20 text-orange-300 border-orange-500/30'
+              }`}
+            >
               {order.status}
             </span>
           </div>
-          <div className="flex items-center justify-between text-[10px] mb-4">
-            <div className="flex items-center gap-4">
-              <span className="text-zinc-500">Amount: <span className="text-white font-bold">{order.amount} units</span></span>
-              <span className="text-zinc-500">Price: <span className="text-[#2CC295] font-bold">{order.price}</span></span>
-            </div>
-            <span className="text-zinc-600">{order.time}</span>
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="text-zinc-500">
+              Amount: <span className="text-white font-bold">{order.amount}</span>
+            </span>
+            <span className="text-[#2CC295] font-bold">{order.total}</span>
           </div>
-          {order.status.includes('Paid') && (
-            <button className="w-full py-3 bg-[#2CC295] hover:brightness-110 text-black rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-[#2CC295]/10">
-              Release Asset
-            </button>
-          )}
+          <button className="w-full h-[45px] rounded-full bg-[#2CC295] text-black text-sm font-bold tracking-tight hover:brightness-110 transition-all">
+            Release Asset
+          </button>
         </div>
       ))}
     </div>
   );
 }
 
-// Sales History Tab - STANDARDIZED
-function SalesHistoryTab() {
-  const mockSales = [
-    { id: 'ORD-1240', buyer: '0x9a2b...3c4D', amount: '1', price: '2.5 ETH', date: '2024-02-01', status: 'Finalized' },
-    { id: 'ORD-1238', buyer: '0x5e6f...7g8H', amount: '2', price: '5.0 ETH', date: '2024-01-28', status: 'Finalized' },
-    { id: 'ORD-1235', buyer: '0x1i2j...3k4L', amount: '1', price: '2.5 ETH', date: '2024-01-25', status: 'Finalized' },
-    { id: 'ORD-1230', buyer: '0x5m6n...7o8P', amount: '3', price: '7.5 ETH', date: '2024-01-20', status: 'Finalized' },
+function HistoryTab() {
+  const sales = [
+    { id: 'ORD-1240', buyer: '0x9a2b...3c4D', amount: '1', total: '2.5 ETH', date: '2024-02-01' },
+    { id: 'ORD-1238', buyer: '0x5e6f...7g8H', amount: '2', total: '5.0 ETH', date: '2024-01-28' },
+    { id: 'ORD-1235', buyer: '0x1i2j...3k4L', amount: '1', total: '2.5 ETH', date: '2024-01-25' },
   ];
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-white">Sales History</h3>
-        <span className="text-xs text-zinc-500">{mockSales.length} completed</span>
-      </div>
-      {mockSales.map((sale) => (
-        <div key={sale.id} className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-5">
-          <div className="flex items-start justify-between mb-3">
+      {sales.map((sale) => (
+        <div key={sale.id} className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
+          <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-bold text-white mb-1">{sale.id}</p>
-              <p className="text-[10px] text-zinc-500">Buyer: {sale.buyer}</p>
+              <p className="text-xs font-bold text-white">{sale.id}</p>
+              <p className="text-[10px] text-zinc-500 mt-1">Buyer: {sale.buyer}</p>
             </div>
             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-500/20 rounded-full border border-green-500/30">
               <CheckCircle2 size={10} className="text-green-400" />
-              <span className="text-[9px] font-bold text-green-300 uppercase tracking-widest">{sale.status}</span>
+              <span className="text-[9px] font-bold text-green-300 uppercase tracking-widest">Finalized</span>
             </div>
           </div>
           <div className="flex items-center justify-between text-[10px]">
-            <div className="flex items-center gap-4">
-              <span className="text-zinc-500">Amount: <span className="text-white font-bold">{sale.amount} units</span></span>
-              <span className="text-zinc-500">Price: <span className="text-[#2CC295] font-bold">{sale.price}</span></span>
-            </div>
-            <span className="text-zinc-600">{sale.date}</span>
+            <span className="text-zinc-500">
+              Amount: <span className="text-white font-bold">{sale.amount}</span>
+            </span>
+            <span className="text-[#2CC295] font-bold">{sale.total}</span>
           </div>
+          <p className="text-[10px] text-zinc-600">{sale.date}</p>
         </div>
       ))}
     </div>
   );
 }
 
-// Manage Listing Tab - STANDARDIZED
-function ManageListingTab({ asset }: { asset: any }) {
+function ManageTab({ asset }: { asset: SellerAsset }) {
   const [minPrice, setMinPrice] = useState(asset.minPrice);
   const [isPaused, setIsPaused] = useState(false);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-sm font-bold text-white mb-5">Listing Settings</h3>
-        
-        {/* Price Management */}
-        <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-5 mb-4">
-          <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Minimum Price per Unit</label>
-          <div className="flex gap-3 mb-2">
+      <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
+        <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Listing Settings</h3>
+        <div>
+          <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Min Price per Unit</label>
+          <div className="flex gap-3">
             <input
               type="text"
               value={minPrice}
               onChange={(e) => setMinPrice(e.target.value)}
-              className="flex-1 bg-zinc-950 border border-[#27272a] rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-[#2CC295]"
+              className="flex-1 h-[45px] px-4 bg-zinc-950 border border-[#27272a] rounded-full text-white text-sm focus:outline-none focus:border-[#2CC295]"
               placeholder="2.5 ETH"
             />
-            <button className="px-6 py-3 bg-[#2CC295] hover:brightness-110 text-black rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-[#2CC295]/10">
+            <button className="h-[45px] px-6 rounded-full bg-[#2CC295] text-black text-sm font-bold tracking-tight hover:brightness-110 transition-all">
               Update
             </button>
           </div>
-          <p className="text-[10px] text-zinc-600">Current: {asset.minPrice}</p>
         </div>
+        <button
+          onClick={() => setIsPaused(!isPaused)}
+          className={`w-full h-[45px] rounded-full border text-sm font-bold transition-all ${
+            isPaused
+              ? 'bg-green-500/20 text-green-300 border-green-500/30'
+              : 'bg-orange-500/20 text-orange-300 border-orange-500/30'
+          }`}
+        >
+          {isPaused ? 'Resume Listing' : 'Pause Listing'}
+        </button>
+      </div>
 
-        {/* Pause/Resume Listing */}
-        <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-5 mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h4 className="text-xs font-bold text-white mb-1">Listing Status</h4>
-              <p className="text-[10px] text-zinc-500">Pause listing to prevent new orders</p>
-            </div>
-            <button
-              onClick={() => setIsPaused(!isPaused)}
-              className={`px-4 py-2 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all border ${
-                isPaused
-                  ? 'bg-green-500/20 text-green-300 border-green-500/30 hover:bg-green-500/30'
-                  : 'bg-orange-500/20 text-orange-300 border-orange-500/30 hover:bg-orange-500/30'
-              }`}
-            >
-              {isPaused ? 'Resume Listing' : 'Pause Listing'}
-            </button>
-          </div>
-          <div className="flex items-center gap-2 text-[10px]">
-            <div className={`w-2 h-2 rounded-full ${isPaused ? 'bg-orange-400' : 'bg-green-400 animate-pulse'}`}></div>
-            <span className="text-zinc-500">{isPaused ? 'Listing is paused' : 'Listing is active'}</span>
-          </div>
+      <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-3">
+        <div className="flex items-center gap-2">
+          <AlertCircle size={14} className="text-red-400" />
+          <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-red-400">Danger Zone</h3>
         </div>
-
-        {/* Danger Zone */}
-        <div className="border border-red-500/20 bg-red-500/5 rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertCircle size={14} className="text-red-400" />
-            <h4 className="text-[9px] font-bold text-red-400 uppercase tracking-widest">Danger Zone</h4>
-          </div>
-          <p className="text-[10px] text-zinc-500 mb-4">Permanently remove this listing from marketplace</p>
-          <button className="w-full py-3 bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 rounded-xl text-xs font-black uppercase tracking-widest transition-colors">
-            Delist Asset
-          </button>
-        </div>
+        <p className="text-xs text-zinc-500">Permanently remove this listing from marketplace.</p>
+        <button className="w-full h-[45px] rounded-full bg-red-500/20 border border-red-500/30 text-red-300 text-sm font-bold tracking-tight hover:bg-red-500/30 transition-all">
+          Delist Asset
+        </button>
       </div>
     </div>
   );
 }
 
-// Analytics Tab - STANDARDIZED
-function AnalyticsTab() {
+function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="space-y-6">
-      <h3 className="text-sm font-bold text-white mb-4">Performance Analytics</h3>
-      
-      {/* Chart Placeholder */}
-      <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-6 h-64 flex items-center justify-center">
-        <div className="text-center">
-          <TrendingUp size={48} className="text-zinc-700 mx-auto mb-3" />
-          <p className="text-xs text-zinc-500">Sales chart coming soon</p>
-        </div>
-      </div>
-
-      {/* Metrics */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-4">
-          <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold mb-2">Avg Sale Price</p>
-          <p className="text-2xl font-bold text-white">2.64 ETH</p>
-          <p className="text-[10px] text-[#2CC295] font-bold mt-1">+5.2% vs avg</p>
-        </div>
-        <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-4">
-          <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold mb-2">Conversion Rate</p>
-          <p className="text-2xl font-bold text-white">68%</p>
-          <p className="text-[10px] text-zinc-500 mt-1">Views to sales</p>
-        </div>
-      </div>
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-xs text-zinc-500">{label}</span>
+      <span className="text-xs font-bold text-white text-right">{value}</span>
     </div>
   );
 }
 
-// Helper Components - STANDARDIZED
-function StatCard({ icon, label, value, change, subtitle }: any) {
+function MiniStat({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
   return (
-    <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-4">
+    <div className="bg-[rgba(255,255,255,0.02)] rounded-xl p-4">
       <div className="flex items-center gap-2 mb-2">
         {icon}
         <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold">{label}</p>
       </div>
-      <p className="text-2xl font-bold text-white">{value}</p>
-      {change && (
-        <p className={`text-[10px] font-bold mt-1 ${change.startsWith('+') ? 'text-[#2CC295]' : 'text-red-400'}`}>
-          {change}
-        </p>
-      )}
-      {subtitle && <p className="text-[10px] text-zinc-600 mt-1">{subtitle}</p>}
-    </div>
-  );
-}
-
-function ActivityItem({ type, message, time, amount }: any) {
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-[#27272a] last:border-0">
-      <div className="flex items-center gap-3">
-        <div className={`w-2 h-2 rounded-full ${
-          type === 'sale' ? 'bg-[#2CC295]' : 'bg-orange-400'
-        }`}></div>
-        <div>
-          <p className="text-xs text-white font-bold">{message}</p>
-          <p className="text-[10px] text-zinc-600">{time}</p>
-        </div>
-      </div>
-      <span className="text-xs font-bold text-[#2CC295]">{amount}</span>
+      <p className="text-xl font-bold text-white">{value}</p>
     </div>
   );
 }

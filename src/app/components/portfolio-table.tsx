@@ -83,7 +83,7 @@ const portfolioData = [
 
 export function PortfolioTable() {
   return (
-    <div className="bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-[rgba(255,255,255,0.08)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] rounded-2xl overflow-hidden">
+    <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-hidden">
       <div className="p-6 border-b border-[#27272a] flex items-center justify-between">
         <h3 className="font-bold text-white flex items-center gap-2">
           <Layers className="text-[#2CC295]" size={20} />

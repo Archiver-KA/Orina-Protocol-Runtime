@@ -30,7 +30,7 @@ export function StudioLoadingIndicator({
 }: StudioLoadingIndicatorProps) {
   const toneClass =
     tone === 'primary'
-      ? 'text-[var(--color-primary-custom)]'
+      ? 'text-primary'
       : tone === 'muted'
         ? 'text-zinc-400'
         : tone === 'light'

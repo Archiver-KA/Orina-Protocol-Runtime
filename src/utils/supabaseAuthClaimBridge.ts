@@ -34,6 +34,35 @@ interface ExchangeResponse {
   claimVersion?: string;
 }
 
+interface AssetMetadataSeedBridgeItem {
+  assetUid: string;
+  title: string;
+  slug: string;
+  category?: string | null;
+  subcategory?: string | null;
+  description?: string | null;
+  coverImageUrl?: string | null;
+  galleryImages?: string[];
+  attributes?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  contractAddress?: string | null;
+  tokenId?: string | null;
+  chainId?: number | null;
+  isActive?: boolean;
+  media?: Array<{
+    mediaType: 'image' | 'video' | 'document';
+    url: string;
+    sortOrder?: number;
+    metadata?: Record<string, unknown>;
+  }>;
+  tags?: string[];
+}
+
+interface AssetMetadataSeedBridgeResponse {
+  ok: boolean;
+  rows?: Array<{ assetUid: string; assetId: string }>;
+}
+
 type BridgeWalletAuthLikeSession = {
   address: string;
   signedAt: number;
@@ -285,5 +314,45 @@ export async function sendCommunityNotificationViaBridge(params: {
   } catch (error) {
     console.debug('[H1 Bridge] community-notify network error:', error);
     return false;
+  }
+}
+
+export async function sendAssetMetadataSeedViaBridge(
+  assetItems: AssetMetadataSeedBridgeItem[]
+): Promise<AssetMetadataSeedBridgeResponse | null> {
+  if (!isBrowser() || !supabaseUrl || !publicAnonKey) return null;
+  if (!assetItems?.length) return { ok: true, rows: [] };
+
+  try {
+    const res = await fetch(`${getBridgeBaseUrl()}/asset-metadata-seed`, {
+      method: 'POST',
+      headers: bridgeAuthHeaders(),
+      body: JSON.stringify({
+        assetItems,
+        client: {
+          app: 'ATP2',
+          phase: 'C2.3',
+          requestedAt: new Date().toISOString(),
+        },
+      }),
+    });
+
+    const text = await res.text().catch(() => '');
+    let payload: any = null;
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch {
+      payload = { raw: text };
+    }
+
+    if (!res.ok) {
+      console.debug('[H1 Bridge] asset-metadata-seed failed:', res.status, payload);
+      return null;
+    }
+
+    return (payload || { ok: false }) as AssetMetadataSeedBridgeResponse;
+  } catch (error) {
+    console.debug('[H1 Bridge] asset-metadata-seed network error:', error);
+    return null;
   }
 }

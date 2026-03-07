@@ -94,7 +94,7 @@ export function OrdersStudio({ onNavigateToPage }: OrdersStudioProps) {
     }
 
     if (searchQuery) {
-      filtered = filtered.filter(o => 
+      filtered = filtered.filter(o =>
         o.orderId.toString().includes(searchQuery) ||
         o.assetName.toLowerCase().includes(searchQuery.toLowerCase())
       );
@@ -161,21 +161,21 @@ export function OrdersStudio({ onNavigateToPage }: OrdersStudioProps) {
 
           {/* Stats Grid */}
           <div className="grid grid-cols-4 gap-4 mb-8">
-            <div className="bg-[#141417] border border-[#27272a] p-5 rounded-2xl shadow-lg shadow-black/50">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Total Orders</p>
-              <h3 className="text-2xl font-bold text-white">{stats.total}</h3>
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 p-5 rounded-2xl shadow-lg shadow-black/50">
+              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest mb-1">Total Orders</p>
+              <h3 className="text-2xl font-bold text-ui-primary">{stats.total}</h3>
             </div>
-            <div className="bg-[#141417] border border-[#27272a] border-l-2 border-l-[#2CC295] p-5 rounded-2xl shadow-lg shadow-black/50">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Active Escrow</p>
-              <h3 className="text-2xl font-bold text-white">{stats.active}</h3>
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 border-l-2 border-l-[#2CC295] p-5 rounded-2xl shadow-lg shadow-black/50">
+              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest mb-1">Active Escrow</p>
+              <h3 className="text-2xl font-bold text-ui-primary">{stats.active}</h3>
             </div>
-            <div className="bg-[#141417] border border-[#27272a] p-5 rounded-2xl shadow-lg shadow-black/50">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Completed</p>
-              <h3 className="text-2xl font-bold text-white">{stats.completed}</h3>
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 p-5 rounded-2xl shadow-lg shadow-black/50">
+              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest mb-1">Completed</p>
+              <h3 className="text-2xl font-bold text-ui-primary">{stats.completed}</h3>
             </div>
-            <div className="bg-[#141417] border border-[#27272a] border-l-2 border-l-[#F7DC7F] p-5 rounded-2xl shadow-lg shadow-black/50">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Volume (ETH)</p>
-              <h3 className="text-2xl font-bold text-white">{stats.volume.toFixed(2)}</h3>
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 border-l-2 border-l-[#F7DC7F] p-5 rounded-2xl shadow-lg shadow-black/50">
+              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest mb-1">Volume (ETH)</p>
+              <h3 className="text-2xl font-bold text-ui-primary">{stats.volume.toFixed(2)}</h3>
             </div>
           </div>
 
@@ -185,11 +185,10 @@ export function OrdersStudio({ onNavigateToPage }: OrdersStudioProps) {
               <div
                 key={order.orderId.toString()}
                 onClick={() => setSelectedOrder(order)}
-                className={`bg-[#141417] border rounded-2xl overflow-hidden cursor-pointer transition-all ${
-                  order.state === 1
+                className={`bg-[#141417] border rounded-2xl overflow-hidden cursor-pointer transition-all ${order.state === 1
                     ? 'border-l-4 border-l-[#2CC295] border-[#27272a]'
                     : 'border-l-4 border-l-[#F7DC7F] border-[#27272a]'
-                } ${selectedOrder.orderId === order.orderId ? 'ring-2 ring-[#2CC295]' : ''}`}
+                  } ${selectedOrder.orderId === order.orderId ? 'ring-2 ring-[#2CC295]' : ''}`}
               >
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-8">
@@ -219,7 +218,7 @@ export function OrdersStudio({ onNavigateToPage }: OrdersStudioProps) {
                           />
                         </svg>
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <span className={`text-[8px] font-bold ${order.state === 1 ? 'text-[#2CC295]' : 'text-[#F7DC7F]'}`}>
+                          <span className={`text-[8px] font-bold ${order.state === 1 ? 'text-primary' : 'text-[#F7DC7F]'}`}>
                             {order.progress}%
                           </span>
                         </div>
@@ -227,20 +226,19 @@ export function OrdersStudio({ onNavigateToPage }: OrdersStudioProps) {
 
                       <div>
                         <div className="flex items-center gap-3">
-                          <span className="text-base font-bold text-white font-mono">#{order.orderId.toString()}</span>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${
-                            order.state === 1
-                              ? 'bg-zinc-800 text-[#2CC295] border-[#27272a]'
+                          <span className="text-base font-bold text-ui-primary font-mono">#{order.orderId.toString()}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${order.state === 1
+                              ? 'bg-zinc-800 text-primary border-[#27272a]'
                               : 'bg-zinc-800 text-[#F7DC7F] border-[#27272a]'
-                          }`}>
+                            }`}>
                             {order.state === 0 ? 'Proposed' : order.state === 1 ? 'Paid' : 'Completed'}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <Timer size={14} className="text-zinc-500" />
-                          <p className="text-[11px] text-zinc-500 font-medium">
+                          <Timer size={14} className="text-ui-muted" />
+                          <p className="text-[11px] text-ui-muted font-medium">
                             {order.state === 1 ? 'Auto-Release: ' : 'Payment Due: '}
-                            <span className="font-mono text-white">
+                            <span className="font-mono text-ui-primary">
                               {order.state === 1
                                 ? formatCountdown(order.autoReleaseAt)
                                 : formatCountdown(order.payDeadline)}
@@ -251,10 +249,10 @@ export function OrdersStudio({ onNavigateToPage }: OrdersStudioProps) {
                     </div>
 
                     <div className="text-right">
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">
+                      <p className="text-[10px] font-bold text-ui-muted uppercase mb-1">
                         {order.state === 0 ? 'Total Due' : 'Order Value'}
                       </p>
-                      <p className="text-2xl font-black text-white">
+                      <p className="text-2xl font-black text-ui-primary">
                         {formatEther(order.grossPrice)} ETH
                       </p>
                     </div>
@@ -262,28 +260,28 @@ export function OrdersStudio({ onNavigateToPage }: OrdersStudioProps) {
 
                   <div className="flex flex-col gap-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center gap-3 p-3 bg-zinc-900 border border-[#27272a] rounded-xl">
+                      <div className="flex items-center gap-3 p-3 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
                         <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
                           <User className="text-blue-400" size={16} />
                         </div>
                         <div>
-                          <p className="text-[9px] uppercase font-bold text-zinc-600">Buyer</p>
-                          <p className="text-xs font-mono text-zinc-300">{formatAddress(order.buyer)}</p>
+                          <p className="text-[9px] uppercase font-bold text-ui-muted">Buyer</p>
+                          <p className="text-xs font-mono text-ui-secondary">{formatAddress(order.buyer)}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 p-3 bg-zinc-900 border border-[#27272a] rounded-xl">
+                      <div className="flex items-center gap-3 p-3 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
                         <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0">
                           <Store className="text-purple-400" size={16} />
                         </div>
                         <div>
-                          <p className="text-[9px] uppercase font-bold text-zinc-600">Seller</p>
-                          <p className="text-xs font-mono text-zinc-300">{formatAddress(order.seller)}</p>
+                          <p className="text-[9px] uppercase font-bold text-ui-muted">Seller</p>
+                          <p className="text-xs font-mono text-ui-secondary">{formatAddress(order.seller)}</p>
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between pt-4 border-t border-[#27272a]">
-                      <button className="bg-zinc-800 text-zinc-400 border border-[#27272a] text-[10px] font-bold px-3 py-1.5 rounded-lg hover:text-white transition-all flex items-center gap-1">
+                      <button className="bg-zinc-800 text-ui-secondary border border-[#27272a] text-[10px] font-bold px-3 py-1.5 rounded-lg hover:text-ui-primary transition-all flex items-center gap-1">
                         <Info size={12} />
                         Details
                       </button>
@@ -294,7 +292,7 @@ export function OrdersStudio({ onNavigateToPage }: OrdersStudioProps) {
                         </button>
                       ) : order.state === 0 ? (
                         <>
-                          <button className="bg-zinc-800 text-zinc-400 border border-[#27272a] text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-zinc-700 transition-all flex items-center gap-1">
+                          <button className="bg-zinc-800 text-ui-secondary border border-[#27272a] text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-zinc-700 transition-all flex items-center gap-1">
                             <XCircle size={12} />
                             Cancel Order
                           </button>
@@ -316,82 +314,79 @@ export function OrdersStudio({ onNavigateToPage }: OrdersStudioProps) {
       {/* Right Sidebar - Order Summary */}
       <aside className="w-[340px] bg-[#141417] flex flex-col border-l border-[#27272a]">
         <div className="p-6 border-b border-[#27272a]">
-          <h2 className="text-white font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
-            <CheckCircle className="text-zinc-500" size={18} />
+          <h2 className="text-ui-primary font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
+            <CheckCircle className="text-ui-muted" size={18} />
             Order Summary
           </h2>
-          <p className="text-xs text-zinc-500 mt-1">EIP-712 Signature Status</p>
+          <p className="text-xs text-ui-muted mt-1">EIP-712 Signature Status</p>
         </div>
 
         <div className="flex-grow overflow-y-auto p-4 space-y-6">
           {/* Signature Status */}
-          <div className="p-5 bg-[#141417] border border-[#27272a] rounded-2xl space-y-5 shadow-lg shadow-black/50">
+          <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl space-y-5 shadow-lg shadow-black/50">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                    selectedOrder.signatures.buyer1 ? 'bg-[#2CC295]' : 'border border-zinc-700'
-                  }`}>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${selectedOrder.signatures.buyer1 ? 'bg-[#2CC295]' : 'border border-zinc-700'
+                    }`}>
                     {selectedOrder.signatures.buyer1 ? (
                       <Check size={12} className="text-black font-bold" />
                     ) : (
-                      <span className="text-[10px] font-bold text-zinc-500">1</span>
+                      <span className="text-[10px] font-bold text-ui-muted">1</span>
                     )}
                   </div>
-                  <span className={`text-xs font-semibold ${selectedOrder.signatures.buyer1 ? 'text-white' : 'text-zinc-500'}`}>
+                  <span className={`text-xs font-semibold ${selectedOrder.signatures.buyer1 ? 'text-ui-primary' : 'text-ui-muted'}`}>
                     Buyer Sig 1
                   </span>
                 </div>
                 {selectedOrder.signatures.buyer1 && (
-                  <span className="text-[10px] font-mono text-zinc-500">0x...f2</span>
+                  <span className="text-[10px] font-mono text-ui-muted">0x...f2</span>
                 )}
               </div>
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                    selectedOrder.signatures.seller ? 'bg-[#2CC295]' : 'border border-zinc-700'
-                  }`}>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${selectedOrder.signatures.seller ? 'bg-[#2CC295]' : 'border border-zinc-700'
+                    }`}>
                     {selectedOrder.signatures.seller ? (
                       <Check size={12} className="text-black font-bold" />
                     ) : (
-                      <span className="text-[10px] font-bold text-zinc-500">2</span>
+                      <span className="text-[10px] font-bold text-ui-muted">2</span>
                     )}
                   </div>
-                  <span className={`text-xs font-semibold ${selectedOrder.signatures.seller ? 'text-white' : 'text-zinc-500'}`}>
+                  <span className={`text-xs font-semibold ${selectedOrder.signatures.seller ? 'text-ui-primary' : 'text-ui-muted'}`}>
                     Seller Sig
                   </span>
                 </div>
                 {!selectedOrder.signatures.seller && (
-                  <span className="text-[10px] text-zinc-600 bg-zinc-800 px-1.5 py-0.5 rounded font-bold">PENDING</span>
+                  <span className="text-[10px] text-ui-muted bg-zinc-800 px-1.5 py-0.5 rounded font-bold">PENDING</span>
                 )}
               </div>
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                    selectedOrder.signatures.buyer2 ? 'bg-[#2CC295]' : 'border border-zinc-700'
-                  }`}>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${selectedOrder.signatures.buyer2 ? 'bg-[#2CC295]' : 'border border-zinc-700'
+                    }`}>
                     {selectedOrder.signatures.buyer2 ? (
                       <Check size={12} className="text-black font-bold" />
                     ) : (
-                      <span className="text-[10px] font-bold text-zinc-500">3</span>
+                      <span className="text-[10px] font-bold text-ui-muted">3</span>
                     )}
                   </div>
-                  <span className={`text-xs font-semibold ${selectedOrder.signatures.buyer2 ? 'text-white' : 'text-zinc-500'}`}>
+                  <span className={`text-xs font-semibold ${selectedOrder.signatures.buyer2 ? 'text-ui-primary' : 'text-ui-muted'}`}>
                     Buyer Sig 2
                   </span>
                 </div>
                 {!selectedOrder.signatures.buyer2 && (
-                  <span className="text-[10px] text-zinc-600 bg-zinc-800 px-1.5 py-0.5 rounded font-bold">WAITING</span>
+                  <span className="text-[10px] text-ui-muted bg-zinc-800 px-1.5 py-0.5 rounded font-bold">WAITING</span>
                 )}
               </div>
             </div>
 
             <div className="pt-4 border-t border-[#27272a]">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-[10px] font-bold text-zinc-500 uppercase">Process Confidence</span>
-                <span className="text-[10px] font-bold text-[#2CC295]">{selectedOrder.progress}%</span>
+                <span className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">Process Confidence</span>
+                <span className="text-[10px] font-bold text-primary">{selectedOrder.progress}%</span>
               </div>
               <div className="h-1.5 bg-zinc-900 rounded-full overflow-hidden">
                 <div
@@ -404,34 +399,34 @@ export function OrdersStudio({ onNavigateToPage }: OrdersStudioProps) {
 
           {/* History Feed */}
           <div className="space-y-4">
-            <h3 className="text-[11px] uppercase tracking-widest font-black text-zinc-600 px-2">History Feed</h3>
+            <h3 className="text-[11px] uppercase tracking-widest font-black text-ui-muted px-2">History Feed</h3>
             <div className="space-y-4 px-2">
               {selectedOrder.state === 1 && (
                 <>
                   <div className="relative pl-6 border-l border-zinc-800 pb-4">
                     <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-[#2CC295]" />
-                    <p className="text-xs font-bold text-white">Funds Deposited</p>
-                    <p className="text-[10px] text-zinc-500 mt-1">{formatEther(selectedOrder.grossPrice)} ETH sent to Escrow</p>
-                    <p className="text-[9px] font-mono text-zinc-600 mt-1">2 mins ago</p>
+                    <p className="text-xs font-bold text-ui-primary">Funds Deposited</p>
+                    <p className="text-[10px] text-ui-muted mt-1">{formatEther(selectedOrder.grossPrice)} ETH sent to Escrow</p>
+                    <p className="text-[9px] font-mono text-ui-muted mt-1">2 mins ago</p>
                   </div>
                   <div className="relative pl-6 border-l border-zinc-800 pb-4">
                     <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-zinc-700" />
-                    <p className="text-xs font-bold text-zinc-400">Buyer Signed (EIP-712)</p>
-                    <p className="text-[10px] text-zinc-500 mt-1">Signature Hash: 0x92...11</p>
-                    <p className="text-[9px] font-mono text-zinc-600 mt-1">5 mins ago</p>
+                    <p className="text-xs font-bold text-ui-secondary">Buyer Signed (EIP-712)</p>
+                    <p className="text-[10px] text-ui-muted mt-1">Signature Hash: 0x92...11</p>
+                    <p className="text-[9px] font-mono text-ui-muted mt-1">5 mins ago</p>
                   </div>
                 </>
               )}
               <div className="relative pl-6 border-l border-zinc-800 pb-4">
                 <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-zinc-700" />
-                <p className="text-xs font-bold text-zinc-400">Order Proposed</p>
-                <p className="text-[10px] text-zinc-500 mt-1">Creation by {formatAddress(selectedOrder.buyer)}</p>
-                <p className="text-[9px] font-mono text-zinc-600 mt-1">12 mins ago</p>
+                <p className="text-xs font-bold text-ui-secondary">Order Proposed</p>
+                <p className="text-[10px] text-ui-muted mt-1">Creation by {formatAddress(selectedOrder.buyer)}</p>
+                <p className="text-[9px] font-mono text-ui-muted mt-1">12 mins ago</p>
               </div>
 
               {/* Product Information */}
               <div className="mt-4 p-4 bg-zinc-900/50 rounded-xl border border-[#27272a]">
-                <p className="text-[10px] font-bold text-zinc-500 uppercase mb-2 tracking-wider">Product Information</p>
+                <p className="text-[10px] font-bold text-ui-muted uppercase mb-2 tracking-wider">Product Information</p>
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-lg bg-zinc-800 border border-[#27272a] overflow-hidden">
                     <img
@@ -441,12 +436,12 @@ export function OrdersStudio({ onNavigateToPage }: OrdersStudioProps) {
                     />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-white">{selectedOrder.assetName}</p>
+                    <p className="text-xs font-bold text-ui-primary">{selectedOrder.assetName}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] text-zinc-500">Qty:</span>
-                      <span className="text-[10px] font-mono font-bold text-[#2CC295]">{selectedOrder.amount.toString()}.0</span>
-                      <span className="text-[10px] text-zinc-500 ml-1">Price:</span>
-                      <span className="text-[10px] font-mono font-bold text-white">{formatEther(selectedOrder.grossPrice)} ETH</span>
+                      <span className="text-[10px] text-ui-muted">Qty:</span>
+                      <span className="text-[10px] font-mono font-bold text-primary">{selectedOrder.amount.toString()}.0</span>
+                      <span className="text-[10px] text-ui-muted ml-1">Price:</span>
+                      <span className="text-[10px] font-mono font-bold text-ui-primary">{formatEther(selectedOrder.grossPrice)} ETH</span>
                     </div>
                   </div>
                 </div>
@@ -458,13 +453,13 @@ export function OrdersStudio({ onNavigateToPage }: OrdersStudioProps) {
         {/* Footer */}
         <div className="mt-auto border-t border-[#27272a] p-5 bg-[#141417]">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-[10px] font-bold text-zinc-500 uppercase">Node Health</span>
-            <span className="text-[10px] font-black text-[#2CC295] flex items-center gap-1.5">
+            <span className="text-[10px] font-bold text-ui-muted uppercase">Node Health</span>
+            <span className="text-[10px] font-black text-primary flex items-center gap-1.5">
               <Circle size={6} className="fill-[#2CC295]" />
               SYNCED
             </span>
           </div>
-          <button className="w-full py-2.5 rounded-xl bg-zinc-900 border border-[#27272a] text-[11px] font-bold text-white uppercase tracking-wider hover:bg-zinc-800 transition-all flex items-center justify-center gap-2">
+          <button className="w-full py-2.5 rounded-xl bg-[rgba(255,255,255,0.02)] border-0 text-[11px] font-bold text-ui-primary uppercase tracking-wider hover:bg-zinc-800 transition-all flex items-center justify-center gap-2">
             <ExternalLink size={14} />
             View on Etherscan
           </button>

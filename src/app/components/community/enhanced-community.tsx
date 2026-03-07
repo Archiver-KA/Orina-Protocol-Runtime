@@ -36,6 +36,7 @@ import {
   saveNotifications,
   saveNotificationsLocalOnly,
   createNotification,
+  buildNotificationSourceId,
   getUnreadCount,
 } from '@/utils/notifications';
 import {
@@ -79,7 +80,7 @@ import { sendCommunityNotificationViaBridge } from '@/utils/supabaseAuthClaimBri
 
 function PostTypeBadge({ type }: { type: Post['type'] }) {
   const map: Record<string, { bg: string; text: string; label: string }> = {
-    achievement: { bg: 'bg-[var(--color-primary-custom)]/10', text: 'text-[var(--color-primary-custom)]', label: 'Achievement' },
+    achievement: { bg: 'bg-[var(--color-primary-custom)]/10', text: 'text-primary', label: 'Achievement' },
     announcement: { bg: 'bg-blue-500/10', text: 'text-blue-400', label: 'Announcement' },
     discussion: { bg: 'bg-zinc-800', text: 'text-zinc-400', label: 'Discussion' },
     question: { bg: 'bg-yellow-500/10', text: 'text-yellow-400', label: 'Question' },
@@ -109,7 +110,7 @@ function EmptyState({ filter, isSearching }: { filter: FeedFilter; isSearching: 
       ? 'No posts yet'
       : filter === 'my-saved'
         ? 'No saved posts yet'
-      : 'Nothing here yet';
+        : 'Nothing here yet';
 
   const description = isSearching
     ? 'Try different keywords or remove some filters.'
@@ -117,7 +118,7 @@ function EmptyState({ filter, isSearching }: { filter: FeedFilter; isSearching: 
       ? 'Create your first post to share with the community!'
       : filter === 'my-saved'
         ? 'Bookmark posts to quickly find them again here.'
-      : 'Be the first to start a conversation in this category.';
+        : 'Be the first to start a conversation in this category.';
 
   return (
     <EmptyStateCard
@@ -217,9 +218,15 @@ function PostActionMenu({
   useEffect(() => {
     if (open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
+      const width = 220;
+      const safeMargin = 8;
+      const clampedLeft = Math.min(
+        Math.max(safeMargin, rect.right - width),
+        window.innerWidth - width - safeMargin,
+      );
       setMenuPos({
-        top: rect.bottom + 4,
-        left: rect.right - 192, // 192 = w-48
+        top: rect.bottom + 6,
+        left: clampedLeft,
       });
     }
   }, [open]);
@@ -227,38 +234,37 @@ function PostActionMenu({
   const menuContent = open ? (
     <div
       ref={menuRef}
-      className="fixed w-48 bg-[#1c1c1f] border border-[var(--color-panel-border)] rounded-xl shadow-2xl z-[9999] py-1 overflow-hidden"
-      style={{ top: menuPos.top, left: Math.max(8, menuPos.left) }}
+      className="fixed w-[220px] dropdown-panel rounded-[24px] overflow-hidden z-[9999]"
+      style={{ top: menuPos.top, left: menuPos.left }}
     >
       {isOwner && (
         <>
           <button
             onClick={() => { onEdit(); setOpen(false); }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
+            className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left text-ui-secondary hover:bg-[rgba(255,255,255,0.05)] hover:text-ui-primary transition-colors"
           >
-            <Edit2 size={14} /> Edit Post
+            <Edit2 size={16} /> Edit Post
           </button>
           <button
             onClick={() => { onPin(); setOpen(false); }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
+            className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left text-ui-secondary hover:bg-[rgba(255,255,255,0.05)] hover:text-ui-primary transition-colors"
           >
-            <Pin size={14} /> {post.isPinned ? 'Unpin Post' : 'Pin Post'}
+            <Pin size={16} /> {post.isPinned ? 'Unpin Post' : 'Pin Post'}
           </button>
-          <div className="border-t border-[var(--color-panel-border)] my-1" />
           <button
             onClick={() => { onDelete(); setOpen(false); }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+            className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left text-red-400 hover:bg-red-500/10 transition-colors"
           >
-            <Trash2 size={14} /> Delete Post
+            <Trash2 size={16} /> Delete Post
           </button>
         </>
       )}
       {!isOwner && (
         <button
           onClick={() => { onReport(); setOpen(false); }}
-          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-400 hover:bg-yellow-500/10 transition-colors"
+          className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-left text-yellow-400 hover:bg-yellow-500/10 transition-colors"
         >
-          <Flag size={14} /> Report Post
+          <Flag size={16} /> Report Post
         </button>
       )}
     </div>
@@ -269,7 +275,7 @@ function PostActionMenu({
       <button
         ref={btnRef}
         onClick={() => setOpen(!open)}
-        className="text-zinc-500 hover:text-white transition-colors p-1 rounded-lg hover:bg-zinc-800"
+        className="inline-flex items-center justify-center p-1 text-zinc-400 hover:text-white transition-colors"
       >
         <MoreHorizontal size={20} />
       </button>
@@ -299,9 +305,9 @@ function PollSection({
   const showResults = !!userVote || ended;
 
   return (
-    <div className="bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-xl p-4 space-y-3">
+    <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4 space-y-3">
       <p className="text-sm font-bold text-white flex items-center gap-2">
-        <BarChart3 size={16} className="text-[var(--color-primary-custom)]" />
+        <BarChart3 size={16} className="text-primary" />
         {poll.question}
       </p>
       <div className="space-y-2">
@@ -313,11 +319,10 @@ function PollSection({
               key={option.id}
               disabled={!!userVote || ended || !isConnected}
               onClick={() => onVote(post.id, option.id)}
-              className={`w-full relative rounded-lg overflow-hidden text-left transition-all ${
-                isVoted
+              className={`w-full relative rounded-lg overflow-hidden text-left transition-all ${isVoted
                   ? 'border border-[var(--color-primary-custom)]/40'
                   : 'border border-[var(--color-panel-border)] hover:border-zinc-600'
-              } ${!isConnected && !showResults ? 'opacity-60 cursor-not-allowed' : ''}`}
+                } ${!isConnected && !showResults ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
               {showResults && (
                 <div
@@ -327,7 +332,7 @@ function PollSection({
               )}
               <div className="relative flex items-center justify-between px-4 py-2.5">
                 <span className="text-sm text-zinc-300 flex items-center gap-2">
-                  {isVoted && <Check size={14} className="text-[var(--color-primary-custom)]" />}
+                  {isVoted && <Check size={14} className="text-primary" />}
                   {option.text}
                 </span>
                 {showResults && (
@@ -360,9 +365,9 @@ function TrendingTopicsBar({
   if (topics.length === 0) return null;
 
   return (
-    <div className="bg-zinc-900/40 border border-[var(--color-panel-border)] rounded-xl p-4">
+    <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-4">
       <div className="flex items-center gap-2 mb-3">
-        <TrendingUp size={14} className="text-[var(--color-primary-custom)]" />
+        <TrendingUp size={14} className="text-primary" />
         <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">Trending</span>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -372,11 +377,10 @@ function TrendingTopicsBar({
             <button
               key={topic.tag}
               onClick={() => onTagClick(isActive ? '' : topic.tag)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                isActive
-                  ? 'bg-[var(--color-primary-custom)]/20 text-[var(--color-primary-custom)] border border-[var(--color-primary-custom)]/30'
-                  : 'bg-zinc-800/80 text-zinc-400 border border-transparent hover:bg-zinc-800 hover:text-white'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isActive
+                  ? 'bg-[var(--color-primary-custom)]/20 text-primary border border-[var(--color-primary-custom)]/30'
+                  : 'bg-[rgba(18,18,18,0.5)] text-zinc-400 border border-transparent hover:bg-[rgba(255,255,255,0.06)] hover:text-white'
+                }`}
             >
               <span>#{topic.tag}</span>
               <span className="text-[10px] text-zinc-500">{topic.postCount}</span>
@@ -435,7 +439,7 @@ function NotificationPanel({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-panel-border)]">
         <div className="flex items-center gap-2">
-          <Bell size={16} className="text-[var(--color-primary-custom)]" />
+          <Bell size={16} className="text-primary" />
           <span className="text-sm font-bold text-white">Notifications</span>
           {unreadCount > 0 && (
             <span className="bg-[var(--color-primary-custom)] text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
@@ -447,7 +451,7 @@ function NotificationPanel({
           {unreadCount > 0 && (
             <button
               onClick={onMarkAllRead}
-              className="text-[10px] text-[var(--color-primary-custom)] hover:underline font-bold uppercase"
+              className="text-[10px] text-primary hover:underline font-bold uppercase"
             >
               Mark all read
             </button>
@@ -476,9 +480,8 @@ function NotificationPanel({
             <button
               key={notif.id}
               onClick={() => onMarkRead(notif.id)}
-              className={`w-full text-left px-4 py-3 border-b border-[var(--color-panel-border)]/50 hover:bg-zinc-800/50 transition-colors ${
-                !notif.read ? 'bg-[var(--color-primary-custom)]/5' : ''
-              }`}
+              className={`w-full text-left px-4 py-3 border-b border-[var(--color-panel-border)]/50 hover:bg-zinc-800/50 transition-colors ${!notif.read ? 'bg-[var(--color-primary-custom)]/5' : ''
+                }`}
             >
               <div className="flex items-start gap-3">
                 <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${!notif.read ? 'bg-[var(--color-primary-custom)]' : 'bg-transparent'}`} />
@@ -553,7 +556,7 @@ function CommentThread({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="bg-zinc-800/50 p-3 rounded-2xl border border-[var(--color-panel-border)]/50">
+          <div className="bg-[rgba(255,255,255,0.02)] p-3 rounded-2xl border-0">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-bold text-white">{commentName}</span>
               <span className="text-[10px] text-zinc-500">
@@ -561,7 +564,7 @@ function CommentThread({
               </span>
             </div>
             {comment.parentId && depth === 0 && (
-              <p className="text-[10px] text-[var(--color-primary-custom)]/70 mb-1 flex items-center gap-1">
+              <p className="text-[10px] text-primary/70 mb-1 flex items-center gap-1">
                 <CornerDownRight size={10} />
                 replying to a comment
               </p>
@@ -571,11 +574,10 @@ function CommentThread({
           <div className="flex items-center gap-3 mt-1.5 ml-1">
             <button
               onClick={() => onLikeComment(comment.id)}
-              className={`text-[10px] font-bold uppercase flex items-center gap-1 transition-colors ${
-                likedCommentIds.has(comment.id)
+              className={`text-[10px] font-bold uppercase flex items-center gap-1 transition-colors ${likedCommentIds.has(comment.id)
                   ? 'text-red-500/80 hover:text-red-500'
                   : 'text-zinc-500 hover:text-white'
-              }`}
+                }`}
             >
               <Heart size={10} fill={likedCommentIds.has(comment.id) ? 'currentColor' : 'none'} />
               {comment.likeCount > 0 ? comment.likeCount : 'Like'}
@@ -583,7 +585,7 @@ function CommentThread({
             {isConnected && (
               <button
                 onClick={() => onReply(comment)}
-                className="text-[10px] text-zinc-500 font-bold hover:text-[var(--color-primary-custom)] uppercase flex items-center gap-1"
+                className="text-[10px] text-zinc-500 font-bold hover:text-primary uppercase flex items-center gap-1"
               >
                 <Reply size={10} /> Reply
               </button>
@@ -599,7 +601,7 @@ function CommentThread({
             {replies.length > 0 && (
               <button
                 onClick={() => setShowReplies(!showReplies)}
-                className="text-[10px] text-[var(--color-primary-custom)]/70 font-bold hover:text-[var(--color-primary-custom)] uppercase flex items-center gap-1"
+                className="text-[10px] text-primary/70 font-bold hover:text-primary uppercase flex items-center gap-1"
               >
                 {showReplies ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
                 {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
@@ -804,6 +806,7 @@ export function EnhancedCommunity({
         ...metadata,
         actorName: actualUserName,
         actorAddress: address,
+        targetAddress: postOwnerAddress,
       });
 
       const targetIsCurrentViewer =
@@ -823,7 +826,7 @@ export function EnhancedCommunity({
           title,
           message,
           sourceId: notif.id,
-          metadata: metadata as Record<string, unknown> | undefined,
+          metadata: notif.metadata as Record<string, unknown> | undefined,
           actorWalletAddress: address,
           actorName: actualUserName,
         });
@@ -893,18 +896,18 @@ export function EnhancedCommunity({
       images: data.images,
       poll: data.poll
         ? {
-            id: `poll_${Date.now()}`,
-            question: data.poll.question,
-            options: data.poll.options.map((text, i) => ({
-              id: `option_${i}`,
-              text,
-              votes: 0,
-              percentage: 0,
-            })),
-            totalVotes: 0,
-            endsAt: data.poll.endsAt,
-            multipleChoice: data.poll.multipleChoice,
-          }
+          id: `poll_${Date.now()}`,
+          question: data.poll.question,
+          options: data.poll.options.map((text, i) => ({
+            id: `option_${i}`,
+            text,
+            votes: 0,
+            percentage: 0,
+          })),
+          totalVotes: 0,
+          endsAt: data.poll.endsAt,
+          multipleChoice: data.poll.multipleChoice,
+        }
         : undefined,
       tags: data.tags,
       likeCount: 0,
@@ -961,6 +964,7 @@ export function EnhancedCommunity({
     const post = allPosts.find((p) => p.id === postId);
     if (post) {
       post.isPinned = !post.isPinned;
+      post.updatedAt = Date.now();
       saveAllPosts(allPosts);
       refreshPosts();
       toast.success(post.isPinned ? 'Post pinned' : 'Post unpinned');
@@ -982,7 +986,12 @@ export function EnhancedCommunity({
           post.walletAddress,
           'New Like',
           `${actualUserName} liked your post`,
-          { postId }
+          {
+            postId,
+            action: 'post_like',
+            eventCode: 'community_post_liked',
+            sourceId: buildNotificationSourceId('community_post_liked', [postId, address]),
+          } as any
         );
       }
     }
@@ -1003,7 +1012,12 @@ export function EnhancedCommunity({
           post.walletAddress,
           'New Bookmark',
           `${actualUserName} bookmarked your post`,
-          { postId }
+          {
+            postId,
+            action: 'post_bookmark',
+            eventCode: 'community_post_bookmarked',
+            sourceId: buildNotificationSourceId('community_post_bookmarked', [postId, address]),
+          } as any
         );
       }
     }
@@ -1091,7 +1105,13 @@ export function EnhancedCommunity({
         postOwnerAddress,
         'New Comment',
         `${actualUserName} commented on your post: "${content.slice(0, 80)}${content.length > 80 ? '...' : ''}"`,
-        { postId, commentId: newComment.id }
+        {
+          postId,
+          commentId: newComment.id,
+          action: 'post_comment',
+          eventCode: 'community_comment_created',
+          sourceId: buildNotificationSourceId('community_comment_created', [postId, newComment.id, 'post-owner']),
+        } as any
       );
     }
 
@@ -1100,7 +1120,14 @@ export function EnhancedCommunity({
         replyTargetAddress,
         'New Reply',
         `${actualUserName} replied to your comment: "${content.slice(0, 80)}${content.length > 80 ? '...' : ''}"`,
-        { postId, commentId: newComment.id }
+        {
+          postId,
+          commentId: newComment.id,
+          parentCommentId: replyTarget?.id,
+          action: 'comment_reply',
+          eventCode: 'community_reply_created',
+          sourceId: buildNotificationSourceId('community_reply_created', [postId, newComment.id, replyTarget?.id]),
+        } as any
       );
     }
   };
@@ -1174,7 +1201,16 @@ export function EnhancedCommunity({
           targetAddress,
           isReply ? 'Reply Liked' : 'Comment Liked',
           `${actualUserName} liked your ${isReply ? 'reply' : 'comment'}`,
-          { postId: targetComment.postId, commentId: targetComment.id }
+          {
+            postId: targetComment.postId,
+            commentId: targetComment.id,
+            action: isReply ? 'reply_like' : 'comment_like',
+            eventCode: isReply ? 'community_reply_liked' : 'community_comment_liked',
+            sourceId: buildNotificationSourceId(
+              isReply ? 'community_reply_liked' : 'community_comment_liked',
+              [targetComment.postId, targetComment.id, address]
+            ),
+          } as any
         );
       }
     }
@@ -1249,25 +1285,16 @@ export function EnhancedCommunity({
   // ─── Render ──────────────────────────────────────────────
 
   return (
-    <div className="h-full overflow-hidden bg-[#0f0f11] relative">
+    <div className="h-full overflow-hidden bg-ui-page relative p-2.5">
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--color-panel-border); border-radius: 10px; }
-        .post-card { background: #18181b; border: 1px solid var(--color-panel-border); }
-        .ambient-blob {
-          position: absolute;
-          width: 600px; height: 600px;
-          background: radial-gradient(circle, rgba(44, 194, 149, 0.03) 0%, rgba(18, 18, 18, 0) 70%);
-          border-radius: 50%; filter: blur(80px); z-index: 0; pointer-events: none;
-        }
+        .post-card { background: rgba(255, 255, 255, 0.02); border: 0; }
       `}</style>
 
-      <div className="ambient-blob -top-40 -left-40" />
-      <div className="ambient-blob -bottom-40 -right-40" />
-
-      <div className="relative z-10 h-full overflow-y-auto custom-scrollbar">
-        <div className="p-8 max-w-3xl mx-auto space-y-6">
+      <div className="relative z-10 h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto custom-scrollbar">
+        <div className="p-6 max-w-5xl mx-auto space-y-6">
           {/* ─── Header ─── */}
           <div className="flex items-end justify-between">
             <div>
@@ -1316,8 +1343,7 @@ export function EnhancedCommunity({
                   setIsCreateModalOpen(true);
                 }}
                 variant="primary"
-                size="md"
-                className="text-sm px-5 py-2.5 rounded-lg"
+                className="h-[43px] px-6 rounded-full text-[15px] font-bold tracking-tight"
                 leftIcon={<Plus size={18} />}
               >
                 Create Post
@@ -1325,65 +1351,67 @@ export function EnhancedCommunity({
             </div>
           </div>
 
-          {/* ─── Search ─── */}
-          <div className="relative">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search posts, tags, users..."
-              className="w-full pl-11 pr-10 py-2.5 bg-zinc-900/60 border border-[var(--color-panel-border)] rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[var(--color-primary-custom)]/50 transition-colors"
+          <div className="bg-[rgba(255,255,255,0.02)] rounded-[24px] border-0 p-4 sm:p-5 space-y-4">
+            {/* ─── Search + Filters (single row on desktop) ─── */}
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.38fr)_minmax(200px,0.32fr)] gap-3 items-center">
+              <div className="relative w-full">
+                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#4A4A4A]" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search posts, tags, users..."
+                  className="w-full h-[43px] pl-11 pr-10 bg-[rgba(18,18,18,0.5)] border border-[rgba(255,255,255,0.1)] rounded-[999px] text-sm text-[#F1F5F9] placeholder:text-[rgba(203,213,225,0.5)] focus:outline-none focus:border-[var(--color-primary-custom)]/50 transition-colors"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              <div className="relative w-full">
+                <CustomDropdown
+                  options={[
+                    { value: 'all', label: 'All Discussions' },
+                    { value: 'discussions', label: 'Discussions' },
+                    { value: 'questions', label: 'Questions' },
+                    { value: 'announcements', label: 'Announcements' },
+                    { value: 'achievements', label: 'Achievements' },
+                    ...(isConnected ? [{ value: 'my-posts', label: 'My Posts' }, { value: 'my-saved', label: 'My Saved' }] : []),
+                  ]}
+                  defaultValue={selectedFilter}
+                  onChange={(v) => setSelectedFilter(v as FeedFilter)}
+                  variant="compact"
+                  className="w-full"
+                  triggerClassName="h-[43px]"
+                  icon={Filter}
+                />
+              </div>
+              <div className="relative w-full">
+                <CustomDropdown
+                  options={[
+                    { value: 'recent', label: 'Sort by: Newest' },
+                    { value: 'popular', label: 'Sort by: Popular' },
+                    { value: 'trending', label: 'Sort by: Trending' },
+                  ]}
+                  defaultValue={selectedSort}
+                  onChange={(v) => setSelectedSort(v as FeedSort)}
+                  variant="compact"
+                  className="w-full"
+                  triggerClassName="h-[43px]"
+                />
+              </div>
+            </div>
+
+            {/* ─── Trending Topics Bar ─── */}
+            <TrendingTopicsBar
+              topics={trendingTopics}
+              activeTag={searchQuery}
+              onTagClick={handleTrendingTagClick}
             />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-
-          {/* ─── Trending Topics Bar ─── */}
-          <TrendingTopicsBar
-            topics={trendingTopics}
-            activeTag={searchQuery}
-            onTagClick={handleTrendingTagClick}
-          />
-
-          {/* ─── Filters ─── */}
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            <div className="relative flex-1 w-full">
-              <CustomDropdown
-                options={[
-                  { value: 'all', label: 'All Discussions' },
-                  { value: 'discussions', label: 'Discussions' },
-                  { value: 'questions', label: 'Questions' },
-                  { value: 'announcements', label: 'Announcements' },
-                  { value: 'achievements', label: 'Achievements' },
-                  ...(isConnected ? [{ value: 'my-posts', label: 'My Posts' }, { value: 'my-saved', label: 'My Saved' }] : []),
-                ]}
-                defaultValue={selectedFilter}
-                onChange={(v) => setSelectedFilter(v as FeedFilter)}
-                variant="compact"
-                className="w-full"
-                icon={Filter}
-              />
-            </div>
-            <div className="relative min-w-[180px]">
-              <CustomDropdown
-                options={[
-                  { value: 'recent', label: 'Sort by: Newest' },
-                  { value: 'popular', label: 'Sort by: Popular' },
-                  { value: 'trending', label: 'Sort by: Trending' },
-                ]}
-                defaultValue={selectedSort}
-                onChange={(v) => setSelectedSort(v as FeedSort)}
-                variant="compact"
-                className="w-full"
-              />
-            </div>
           </div>
 
           {/* ─── Post Feed ─── */}
@@ -1411,13 +1439,13 @@ export function EnhancedCommunity({
                 return (
                   <div
                     key={post.id}
-                    className={`post-card rounded-2xl ${showPinnedState ? 'ring-1 ring-[var(--color-primary-custom)]/20' : ''}`}
+                    className={`post-card rounded-2xl overflow-hidden ${showPinnedState ? 'ring-1 ring-[var(--color-primary-custom)]/20' : ''}`}
                   >
                     {/* Pin indicator */}
                     {showPinnedState && (
-                      <div className="flex items-center gap-2 px-5 py-2 bg-[var(--color-primary-custom)]/5 border-b border-[var(--color-primary-custom)]/10">
-                        <Pin size={12} className="text-[var(--color-primary-custom)]" />
-                        <span className="text-[10px] text-[var(--color-primary-custom)] font-bold uppercase tracking-widest">
+                      <div className="flex items-center gap-2 px-5 py-2 bg-[var(--color-primary-custom)]/5 border-b border-[var(--color-primary-custom)]/10 rounded-t-2xl">
+                        <Pin size={12} className="text-primary" />
+                        <span className="text-[10px] text-primary font-bold uppercase tracking-widest">
                           Pinned Post
                         </span>
                       </div>
@@ -1447,13 +1475,13 @@ export function EnhancedCommunity({
                             <div className="flex items-center gap-2 flex-wrap">
                               <button
                                 onClick={() => handleNavigateProfile(post)}
-                                className="text-white font-bold text-sm hover:text-[var(--color-primary-custom)] transition-colors cursor-pointer"
+                                className="text-white font-bold text-sm hover:text-primary transition-colors cursor-pointer"
                               >
                                 {postDisplayName}
                               </button>
                               {showPinnedState && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-800/80 border border-zinc-700 text-[9px] uppercase tracking-widest text-zinc-300">
-                                  <Pin size={9} className="text-[var(--color-primary-custom)]" />
+                                  <Pin size={9} className="text-primary" />
                                   Pinned
                                 </span>
                               )}
@@ -1516,7 +1544,7 @@ export function EnhancedCommunity({
                                 <button
                                   key={tag}
                                   onClick={() => setSearchQuery(tag)}
-                                  className="text-[var(--color-primary-custom)] hover:underline text-xs cursor-pointer"
+                                  className="text-primary hover:underline text-xs cursor-pointer"
                                 >
                                   #{tag}
                                 </button>
@@ -1555,18 +1583,16 @@ export function EnhancedCommunity({
                         <div className="flex items-center gap-6">
                           <button
                             onClick={() => handleLike(post.id)}
-                            className={`flex items-center gap-2 transition-all group ${
-                              isLiked ? 'text-red-500/80 hover:text-red-500' : 'text-zinc-500 hover:text-red-500'
-                            }`}
+                            className={`flex items-center gap-2 transition-all group ${isLiked ? 'text-red-500/80 hover:text-red-500' : 'text-zinc-500 hover:text-red-500'
+                              }`}
                           >
                             <Heart size={20} fill={isLiked ? 'currentColor' : 'none'} />
                             <span className="text-xs font-bold">{post.likeCount > 0 ? formatCount(post.likeCount) : '0'}</span>
                           </button>
                           <button
                             onClick={() => handleToggleComments(post.id)}
-                            className={`flex items-center gap-2 transition-all group ${
-                              isCommentsOpen ? 'text-[var(--color-primary-custom)]' : 'text-zinc-500 hover:text-zinc-300'
-                            }`}
+                            className={`flex items-center gap-2 transition-all group ${isCommentsOpen ? 'text-primary' : 'text-zinc-500 hover:text-zinc-300'
+                              }`}
                           >
                             <MessageSquare size={20} />
                             <span className="text-xs font-bold">{post.commentCount}</span>
@@ -1585,9 +1611,8 @@ export function EnhancedCommunity({
                           </span>
                           <button
                             onClick={() => handleBookmark(post.id)}
-                            className={`transition-all ${
-                              isBookmarked ? 'text-[var(--color-primary-custom)]' : 'text-zinc-500 hover:text-[var(--color-primary-custom)]'
-                            }`}
+                            className={`transition-all ${isBookmarked ? 'text-primary' : 'text-zinc-500 hover:text-primary'
+                              }`}
                           >
                             <Bookmark size={20} fill={isBookmarked ? 'currentColor' : 'none'} />
                           </button>
@@ -1597,7 +1622,7 @@ export function EnhancedCommunity({
 
                     {/* ─ Comments Section ─ */}
                     {isCommentsOpen && (
-                      <div className="bg-zinc-900/50 border-t border-[var(--color-panel-border)] p-5 space-y-4">
+                      <div className="bg-[rgba(255,255,255,0.02)] border-t border-[var(--color-panel-border)] p-5 space-y-4">
                         {topLevelComments.length === 0 && postComments.length === 0 && (
                           <p className="text-xs text-zinc-500 text-center py-4">No comments yet. Be the first!</p>
                         )}
@@ -1630,8 +1655,8 @@ export function EnhancedCommunity({
                         {/* Reply indicator */}
                         {currentReply && (
                           <div className="flex items-center gap-2 px-3 py-2 bg-[var(--color-primary-custom)]/5 border border-[var(--color-primary-custom)]/20 rounded-lg">
-                            <CornerDownRight size={14} className="text-[var(--color-primary-custom)]" />
-                            <span className="text-xs text-[var(--color-primary-custom)]">
+                            <CornerDownRight size={14} className="text-primary" />
+                            <span className="text-xs text-primary">
                               Replying to <strong>{currentReply.userName}</strong>
                             </span>
                             <button

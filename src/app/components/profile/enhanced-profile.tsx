@@ -1,34 +1,41 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
-import { 
-  Grid3x3, 
-  Activity as ActivityIcon, 
-  Heart, 
-  Camera, 
-  Twitter, 
-  MessageCircle, 
-  Send, 
-  Globe, 
-  Copy, 
-  Share2, 
-  Mail, 
-  TrendingUp as TrendingUpIcon, 
+import {
+  Grid3x3,
+  Activity as ActivityIcon,
+  Heart,
+  Pencil,
+  Twitter,
+  MessageCircle,
+  Send,
+  Globe,
+  Share2,
+  Mail,
+  TrendingUp as TrendingUpIcon,
   TrendingDown,
-  ExternalLink, 
+  ExternalLink,
   Shield,
   Star,
-  Gem
+  Gem,
+  AlignLeft,
+  Heading3,
+  ImagePlus,
+  X
 } from 'lucide-react';
 import { EditProfileModal } from './edit-profile-modal';
 import { loadFavorites, toggleFavorite } from '@/utils/favoritesUtils';
-import { copyWithToast } from '@/utils/clipboard';
-import { createNotification, loadNotifications, saveNotifications } from '@/utils/notifications';
+import {
+  createNotification,
+  loadNotificationsLocalOnly,
+  saveNotificationsLocalOnly,
+  buildNotificationSourceId,
+} from '@/utils/notifications';
 import { useUser } from '@/contexts/UserContext';
-import { 
-  loadUserProfile, 
-  saveUserProfile, 
-  createDefaultProfile, 
+import {
+  loadUserProfile,
+  saveUserProfile,
+  createDefaultProfile,
   shortenUserDisplayName,
   loadUserActivities,
   followUser,
@@ -37,18 +44,21 @@ import {
 } from '@/utils/profileUtils';
 import { generateMockAsset } from '@/utils/mockAssetData';
 import { getMarketplaceAssetById } from '@/utils/mockMarketplaceData';
+import { ASSET_METADATA_CHANGED_EVENT } from '@/utils/assetMetadataSync';
+import { sendCommunityNotificationViaBridge } from '@/utils/supabaseAuthClaimBridge';
 import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
 import { getAvatarByUserId } from '@/app/components/user-avatars';
 import { SearchResultCard } from '@/app/components/search-result-card';
+import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
 import { VerifiedUserIcon } from '@/app/components/verified-user-icon';
-import { 
-  getWalletIdentity, 
-  formatETH, 
-  formatUSD, 
-  formatProfit, 
+import {
+  getWalletIdentity,
+  formatETH,
+  formatUSD,
+  formatProfit,
   formatResponseTime,
   getScoreGaugeGradient,
-  getTrustBarWidth 
+  getTrustBarWidth
 } from '@/utils/walletIdentityStore';
 import type { WalletIdentity } from '@/types/wallet-identity';
 import type { UserProfile, ProfileTab, ActivityItem } from '@/types/profile';
@@ -71,6 +81,32 @@ const activityTypeConfig: Record<string, { label: string; color: string }> = {
   list: { label: 'Listed', color: 'bg-orange-500' },
   offer: { label: 'Offer Made', color: 'bg-pink-500' },
 };
+
+type StoryBlock = {
+  id: string;
+  type: 'heading' | 'paragraph' | 'image';
+  content: string;
+};
+
+type StorySettingsState = {
+  category: string;
+  tags: string;
+};
+
+const STORY_CHARACTER_LIMIT = 5000;
+const STORY_IMAGE_LIMIT = 5;
+const DEFAULT_STORY_SETTINGS: StorySettingsState = {
+  category: 'Institutional',
+  tags: 'rwa, logistics, yield',
+};
+
+function countStoryCharacters(blocks: StoryBlock[]): number {
+  return blocks.reduce((total, block) => total + (block.type === 'image' ? 0 : block.content.length), 0);
+}
+
+function countStoryImages(blocks: StoryBlock[]): number {
+  return blocks.reduce((total, block) => total + (block.type === 'image' ? 1 : 0), 0);
+}
 
 function formatActivityTime(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -133,6 +169,40 @@ export function EnhancedProfile({
   const [walletIdentity, setWalletIdentity] = useState<WalletIdentity | null>(null);
   const [realActivities, setRealActivities] = useState<ActivityItem[]>([]);
   const [isFollowingProfile, setIsFollowingProfile] = useState(false);
+  const [storyBlocks, setStoryBlocks] = useState<StoryBlock[]>([
+    {
+      id: 'story-heading-intro',
+      type: 'heading',
+      content: 'Introduction to the Asset',
+    },
+    {
+      id: 'story-paragraph-intro',
+      type: 'paragraph',
+      content:
+        'The evolving landscape of Real World Assets (RWA) is creating unprecedented opportunities for retail and institutional sellers alike. This storefront collection focuses on high-yield industrial logistics centers in emerging tech hubs.',
+    },
+    {
+      id: 'story-image-main',
+      type: 'image',
+      content: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=1600',
+    },
+    {
+      id: 'story-heading-market',
+      type: 'heading',
+      content: 'Market Dynamics',
+    },
+    {
+      id: 'story-paragraph-market',
+      type: 'paragraph',
+      content:
+        'By leveraging tokenized ownership, we can now provide liquidity in markets that were previously locked behind massive capital requirements. This entry details the methodology for asset selection and risk mitigation in volatile cycles.',
+    },
+  ]);
+  const [pendingStoryImageIndex, setPendingStoryImageIndex] = useState<number | null>(null);
+  const storyImageInputRef = useRef<HTMLInputElement>(null);
+  const [storySettings, setStorySettings] = useState<StorySettingsState>(DEFAULT_STORY_SETTINGS);
+  const [storyDraftSettings, setStoryDraftSettings] = useState<StorySettingsState>(DEFAULT_STORY_SETTINGS);
+  const [isStorySettingsEditing, setIsStorySettingsEditing] = useState(false);
   const { updateAvatar, updateBanner, updateUserData, userData } = useUser();
   const { address: connectedAddress } = useAccount();
 
@@ -140,7 +210,7 @@ export function EnhancedProfile({
   const profileAddress = address || connectedAddress || userData?.address;
 
   // ✅ AUTO-DETECT: Check if viewing own profile or someone else's
-  const isOwnProfile = connectedAddress && profileAddress && 
+  const isOwnProfile = connectedAddress && profileAddress &&
     connectedAddress.toLowerCase() === profileAddress.toLowerCase();
 
   console.log('🔍 [EnhancedProfile] REBUILT Profile System:');
@@ -165,29 +235,29 @@ export function EnhancedProfile({
     }
 
     console.log('📂 [EnhancedProfile] Loading profile for:', profileAddress);
-    
+
     // Try to load profile by address
     let userProfile = loadUserProfile(profileAddress);
-    
+
     // If not found, create a new profile
     if (!userProfile) {
       console.log('✨ [EnhancedProfile] Creating new profile for:', profileAddress);
       userProfile = createDefaultProfile(profileAddress);
       saveUserProfile(userProfile);
     }
-    
+
     setProfile(userProfile);
-    
+
     // ✅ WALLET IDENTITY: Compute unified wallet data
     const identity = getWalletIdentity(profileAddress);
     setWalletIdentity(identity);
     console.log('🆔 [WalletIdentity] Loaded for profile:', identity.address.slice(0, 10));
-    
+
     // ✅ Load real activities from storage
     const activities = loadUserActivities(profileAddress);
     setRealActivities(activities);
     console.log('📊 [Activities] Loaded', activities.length, 'activities for', profileAddress.slice(0, 10));
-    
+
     // ✅ CRITICAL: Only sync to UserContext if viewing OWN profile
     if (isOwnProfile && connectedAddress) {
       console.log('✅ [EnhancedProfile] Syncing to UserContext (OWN profile)');
@@ -261,10 +331,12 @@ export function EnhancedProfile({
 
     window.addEventListener('orina:profile-changed', refreshProfile as EventListener);
     window.addEventListener('orina:favorites-changed', refreshFavorites as EventListener);
+    window.addEventListener(ASSET_METADATA_CHANGED_EVENT, refreshFavorites as EventListener);
     window.addEventListener('storage', refreshFavorites as EventListener);
     return () => {
       window.removeEventListener('orina:profile-changed', refreshProfile as EventListener);
       window.removeEventListener('orina:favorites-changed', refreshFavorites as EventListener);
+      window.removeEventListener(ASSET_METADATA_CHANGED_EVENT, refreshFavorites as EventListener);
       window.removeEventListener('storage', refreshFavorites as EventListener);
     };
   }, [profileAddress, address, connectedAddress, isOwnProfile]);
@@ -277,7 +349,7 @@ export function EnhancedProfile({
       toast.error('Please connect your wallet to manage favorites');
       return;
     }
-    
+
     toggleFavorite(userAddress, assetId);
     loadFavoritesData();
     toast.success('Removed from favorites');
@@ -306,7 +378,7 @@ export function EnhancedProfile({
         userData?.username ||
         profile?.displayName ||
         shortenUserDisplayName(connectedAddress);
-      const existingNotifications = loadNotifications(profileAddress);
+      const sourceId = buildNotificationSourceId('follow_profile', [connectedAddress, profileAddress]);
       const followNotif = createNotification(
         'community',
         'New Follower',
@@ -316,9 +388,24 @@ export function EnhancedProfile({
           actorAddress: connectedAddress,
           targetAddress: profileAddress,
           action: 'follow',
+          eventCode: 'follow_profile',
+          sourceId,
         } as any
       );
-      saveNotifications(profileAddress, [followNotif, ...existingNotifications].slice(0, 100));
+      // Under H2 owner-scoped RLS, cross-wallet create goes through H1 bridge (service_role).
+      saveNotificationsLocalOnly(profileAddress, [followNotif, ...loadNotificationsLocalOnly(profileAddress)].slice(0, 100));
+      void sendCommunityNotificationViaBridge({
+        targetWalletAddress: profileAddress,
+        title: followNotif.title,
+        message: followNotif.message,
+        sourceId: followNotif.id,
+        metadata: followNotif.metadata as Record<string, unknown> | undefined,
+        actorWalletAddress: connectedAddress,
+        actorName,
+      });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('orina:notifications-changed'));
+      }
     } catch (error) {
       console.debug('[EnhancedProfile] Follow notification skipped:', error);
     }
@@ -343,18 +430,121 @@ export function EnhancedProfile({
     }
   };
 
+  const createStoryBlock = (type: StoryBlock['type'], content?: string): StoryBlock => ({
+    id: `story-${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    content: content ?? '',
+  });
+
+  const updateStoryBlock = (id: string, nextContent: string) => {
+    if (!isOwnProfile) return;
+
+    setStoryBlocks((prev) => {
+      const targetBlock = prev.find((block) => block.id === id);
+      if (!targetBlock) return prev;
+      if (targetBlock.type === 'image') {
+        return prev.map((block) => (block.id === id ? { ...block, content: nextContent } : block));
+      }
+
+      const currentCharCount = countStoryCharacters(prev);
+      const availableForBlock = Math.max(0, STORY_CHARACTER_LIMIT - (currentCharCount - targetBlock.content.length));
+      const limitedContent = nextContent.slice(0, availableForBlock);
+
+      return prev.map((block) => (block.id === id ? { ...block, content: limitedContent } : block));
+    });
+  };
+
+  const addStoryBlock = (type: StoryBlock['type'], atIndex = storyBlocks.length) => {
+    if (!isOwnProfile) return;
+
+    setStoryBlocks((prev) => {
+      const next = [...prev];
+      next.splice(atIndex, 0, createStoryBlock(type));
+      return next;
+    });
+  };
+
+  const removeStoryBlock = (id: string) => {
+    if (!isOwnProfile) return;
+
+    setStoryBlocks((prev) => prev.filter((block) => block.id !== id));
+  };
+
+  const requestStoryImageInsert = (atIndex: number) => {
+    if (!isOwnProfile) return;
+
+    if (countStoryImages(storyBlocks) >= STORY_IMAGE_LIMIT) {
+      toast.error(`Maximum ${STORY_IMAGE_LIMIT} images per article`);
+      return;
+    }
+    setPendingStoryImageIndex(atIndex);
+    storyImageInputRef.current?.click();
+  };
+
+  const autoResizeTextarea = (element: HTMLTextAreaElement | null) => {
+    if (!element) return;
+    element.style.height = 'auto';
+    element.style.height = `${element.scrollHeight}px`;
+  };
+
+  const handleStoryImageSelected = (event: ChangeEvent<HTMLInputElement>) => {
+    if (!isOwnProfile) {
+      event.target.value = '';
+      return;
+    }
+
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (countStoryImages(storyBlocks) >= STORY_IMAGE_LIMIT) {
+      toast.error(`Maximum ${STORY_IMAGE_LIMIT} images per article`);
+      event.target.value = '';
+      return;
+    }
+
+    const imageUrl = URL.createObjectURL(file);
+    setStoryBlocks((prev) => {
+      const next = [...prev];
+      const insertAt = pendingStoryImageIndex ?? next.length;
+      next.splice(insertAt, 0, createStoryBlock('image', imageUrl));
+      return next;
+    });
+
+    setPendingStoryImageIndex(null);
+    event.target.value = '';
+  };
+
+  const handleStorySettingsAction = () => {
+    if (!isOwnProfile) return;
+
+    if (isStorySettingsEditing) {
+      const normalized: StorySettingsState = {
+        category: (storyDraftSettings.category || 'Institutional').trim(),
+        tags: (storyDraftSettings.tags || '').trim(),
+      };
+      setStorySettings(normalized);
+      setStoryDraftSettings(normalized);
+      setIsStorySettingsEditing(false);
+      toast.success('Story settings saved');
+      return;
+    }
+
+    setStoryDraftSettings(storySettings);
+    setIsStorySettingsEditing(true);
+  };
+
   const handleSaveProfile = (updates: Partial<UserProfile>) => {
     if (!profile || !profileAddress) return;
-    
+
     const updatedProfile = { ...profile, ...updates };
     setProfile(updatedProfile);
     saveUserProfile(updatedProfile);
-    
+
     console.log('[Orina Profile] Saving profile updates:', updates);
     console.log('[Orina Profile] Updated profile:', updatedProfile);
     console.log('[Orina Profile] Profile ID:', updatedProfile.id);
     console.log('[Orina Profile] Display name:', updatedProfile.displayName);
-    
+
     // Sync all updated fields to UserContext
     updateUserData({
       address: profileAddress,
@@ -366,14 +556,14 @@ export function EnhancedProfile({
       twitter: updatedProfile.socialLinks?.twitter,
       website: updatedProfile.socialLinks?.website,
     });
-    
+
     console.log('[Orina Profile] Synced to UserContext');
-    
+
     // ✅ Refresh WalletIdentity after profile changes
     const refreshedIdentity = getWalletIdentity(profileAddress);
     setWalletIdentity(refreshedIdentity);
     console.log('[Orina Profile] WalletIdentity refreshed after save');
-    
+
     setIsEditModalOpen(false);
     toast.success('Profile updated successfully!');
   };
@@ -391,12 +581,15 @@ export function EnhancedProfile({
 
   const tabs = [
     { id: 'overview' as ProfileTab, label: 'Overview', icon: Grid3x3 },
+    { id: 'story' as ProfileTab, label: 'Story', icon: Gem },
     { id: 'activity' as ProfileTab, label: 'Activity', icon: ActivityIcon },
     { id: 'favorites' as ProfileTab, label: 'Favorites', icon: Heart },
   ];
+  const storyCharacterCount = countStoryCharacters(storyBlocks);
+  const storyImageCount = countStoryImages(storyBlocks);
 
   return (
-    <section className="bg-[#0f0f11] h-full overflow-hidden flex relative">
+    <section className="h-full bg-ui-page overflow-hidden relative">
       <style>{`
         .hidden-scrollbar::-webkit-scrollbar { display: none; }
         .metallic-panel {
@@ -407,24 +600,12 @@ export function EnhancedProfile({
         .score-gauge {
           background: conic-gradient(from 0deg, var(--color-primary-custom) 0%, var(--color-primary-custom) 94%, #1f2937 94%);
         }
-        .ambient-blob {
-          position: absolute;
-          width: 600px;
-          height: 600px;
-          background: radial-gradient(circle, rgba(44, 194, 149, 0.03) 0%, rgba(18, 18, 18, 0) 70%);
-          border-radius: 50%;
-          filter: blur(80px);
-          z-index: 0;
-          pointer-events: none;
-        }
       `}</style>
 
-      {/* Ambient Blobs */}
-      <div className="ambient-blob -top-40 -left-40"></div>
-      <div className="ambient-blob -bottom-40 -right-40"></div>
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto hidden-scrollbar relative z-10">
+      <div className="h-full flex overflow-hidden">
+        {/* Main Content */}
+        <div className={`flex-1 min-w-0 p-2.5 ${isOwnProfile ? 'pr-0' : ''} overflow-hidden`}>
+          <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto hidden-scrollbar relative z-10">
         {/* Banner */}
         <div className="h-48 w-full relative overflow-hidden bg-gradient-to-br from-[#1a1a1a] to-[#0f0f11]">
           {(profile.bannerUrl || profile.banner) ? (
@@ -440,91 +621,84 @@ export function EnhancedProfile({
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-[#1a1a1a] via-[var(--color-panel-bg)] to-[#0f0f11] opacity-50"></div>
           )}
-          
+
           {/* Banner Edit Icon (Owner only) */}
           {isOwnProfile && (
             <button
               onClick={() => setIsEditModalOpen(true)}
               className="absolute top-4 right-4 p-2 bg-black/60 hover:bg-black/80 backdrop-blur-sm border border-white/10 rounded-lg text-white transition-colors"
-              title="Edit Banner"
+              title="Edit Profile"
             >
-              <Camera size={16} />
+              <Pencil size={16} />
             </button>
           )}
-          
+
           {/* Action Buttons - Positioned at bottom right of banner */}
           <div className="absolute bottom-4 right-8 flex items-center gap-3 z-20">
             {/* Social Links */}
             {profile.socialLinks && (
-              profile.socialLinks.twitter || 
-              profile.socialLinks.discord || 
-              profile.socialLinks.telegram || 
+              profile.socialLinks.twitter ||
+              profile.socialLinks.discord ||
+              profile.socialLinks.telegram ||
               profile.socialLinks.website
             ) && (
-              <>
-                {profile.socialLinks.twitter && (
-                  <a
-                    href={`https://twitter.com/${profile.socialLinks.twitter.replace('@', '')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 bg-black/60 hover:bg-zinc-800 border border-[var(--color-panel-border)] hover:border-[var(--color-primary-custom)]/50 rounded-lg text-zinc-400 hover:text-[var(--color-primary-custom)] transition-all backdrop-blur-md"
-                    title="Twitter"
-                  >
-                    <Twitter size={18} />
-                  </a>
-                )}
-                {profile.socialLinks.discord && (
-                  <a
-                    href={profile.socialLinks.discord}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 bg-black/60 hover:bg-zinc-800 border border-[var(--color-panel-border)] hover:border-[var(--color-primary-custom)]/50 rounded-lg text-zinc-400 hover:text-[var(--color-primary-custom)] transition-all backdrop-blur-md"
-                    title="Discord"
-                  >
-                    <MessageCircle size={18} />
-                  </a>
-                )}
-                {profile.socialLinks.telegram && (
-                  <a
-                    href={profile.socialLinks.telegram}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 bg-black/60 hover:bg-zinc-800 border border-[var(--color-panel-border)] hover:border-[var(--color-primary-custom)]/50 rounded-lg text-zinc-400 hover:text-[var(--color-primary-custom)] transition-all backdrop-blur-md"
-                    title="Telegram"
-                  >
-                    <Send size={18} />
-                  </a>
-                )}
-                {profile.socialLinks.website && (
-                  <a
-                    href={profile.socialLinks.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 bg-black/60 hover:bg-zinc-800 border border-[var(--color-panel-border)] hover:border-[var(--color-primary-custom)]/50 rounded-lg text-zinc-400 hover:text-[var(--color-primary-custom)] transition-all backdrop-blur-md"
-                    title="Website"
-                  >
-                    <Globe size={18} />
-                  </a>
-                )}
-                
-                {/* Divider between social and action buttons (Owner only) */}
-                {isOwnProfile && (
-                  <div className="h-6 w-px bg-[var(--color-panel-border)]"></div>
-                )}
-              </>
-            )}
-            
+                <>
+                  {profile.socialLinks.twitter && (
+                    <a
+                      href={`https://twitter.com/${profile.socialLinks.twitter.replace('@', '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 bg-black/60 border border-[var(--color-panel-border)] rounded-lg text-white hover:bg-zinc-800 hover:text-primary transition-colors backdrop-blur-md shadow-lg"
+                      title="Twitter"
+                    >
+                      <Twitter size={18} />
+                    </a>
+                  )}
+                  {profile.socialLinks.discord && (
+                    <a
+                      href={profile.socialLinks.discord}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 bg-black/60 border border-[var(--color-panel-border)] rounded-lg text-white hover:bg-zinc-800 hover:text-primary transition-colors backdrop-blur-md shadow-lg"
+                      title="Discord"
+                    >
+                      <MessageCircle size={18} />
+                    </a>
+                  )}
+                  {profile.socialLinks.telegram && (
+                    <a
+                      href={profile.socialLinks.telegram}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 bg-black/60 border border-[var(--color-panel-border)] rounded-lg text-white hover:bg-zinc-800 hover:text-primary transition-colors backdrop-blur-md shadow-lg"
+                      title="Telegram"
+                    >
+                      <Send size={18} />
+                    </a>
+                  )}
+                  {profile.socialLinks.website && (
+                    <a
+                      href={profile.socialLinks.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 bg-black/60 border border-[var(--color-panel-border)] rounded-lg text-white hover:bg-zinc-800 hover:text-primary transition-colors backdrop-blur-md shadow-lg"
+                      title="Website"
+                    >
+                      <Globe size={18} />
+                    </a>
+                  )}
+
+                  {/* Divider between social and action buttons (Owner only) */}
+                  {isOwnProfile && (
+                    <div className="h-6 w-px bg-[var(--color-panel-border)]"></div>
+                  )}
+                </>
+              )}
+
             {/* Action Buttons */}
             {isOwnProfile ? (
               <>
-                <button 
-                  onClick={() => copyWithToast(profileAddress)}
-                  className="p-2 bg-black/60 border border-[var(--color-panel-border)] rounded-lg text-white hover:bg-zinc-800 transition-colors backdrop-blur-md shadow-lg"
-                  title="Copy Address"
-                >
-                  <Copy size={18} />
-                </button>
-                <button 
+                <button
                   className="p-2 bg-black/60 border border-[var(--color-panel-border)] rounded-lg text-white hover:bg-zinc-800 transition-colors backdrop-blur-md shadow-lg"
                   title="Share Profile"
                 >
@@ -535,11 +709,11 @@ export function EnhancedProfile({
               <>
                 <button
                   onClick={handleToggleFollowProfile}
-                  className={`px-6 py-2 font-bold text-xs rounded-lg transition-colors shadow-lg ${isFollowingProfile ? 'bg-zinc-900 border border-[var(--color-primary-custom)]/40 text-[var(--color-primary-custom)] hover:bg-zinc-800' : 'bg-[var(--color-primary-custom)] text-black hover:bg-[var(--color-primary-custom)]/90'}`}
+                  className={`px-6 py-2 font-bold text-xs rounded-lg transition-colors shadow-lg ${isFollowingProfile ? 'bg-zinc-900 border border-[var(--color-primary-custom)]/40 text-primary hover:bg-zinc-800' : 'bg-[var(--color-primary-custom)] text-black hover:bg-[var(--color-primary-custom)]/90'}`}
                 >
                   {isFollowingProfile ? 'Following' : 'Follow'}
                 </button>
-                <button 
+                <button
                   onClick={handleOpenMessage}
                   className="p-2 bg-black/60 border border-[var(--color-panel-border)] rounded-lg text-white hover:bg-zinc-800 transition-colors backdrop-blur-md shadow-lg"
                   title="Send Message"
@@ -570,20 +744,20 @@ export function EnhancedProfile({
                   const AvatarComponent = getAvatarByUserId(profileAddress || 'default');
                   return <AvatarComponent className="w-full h-full" />;
                 })()}
-                
+
                 {/* Avatar Edit Overlay (Owner only) */}
                 {isOwnProfile && (
-                  <button 
+                  <button
                     onClick={() => setIsEditModalOpen(true)}
                     className="absolute inset-0 bg-black/0 group-hover:bg-black/60 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-full"
                   >
                     <div className="flex flex-col items-center">
-                      <Camera size={24} className="text-[var(--color-primary-custom)]" />
-                      <span className="text-white text-xs font-bold mt-1">Change</span>
+                      <Pencil size={24} className="text-primary" />
+                      <span className="text-white text-xs font-bold mt-1">Edit Profile</span>
                     </div>
                   </button>
                 )}
-                
+
                 {/* Verified Badge */}
                 {(walletIdentity?.verification.isVerified || walletIdentity?.verification.isPremium) && (
                   <div className={`absolute bottom-2 right-2 rounded-full w-6 h-6 flex items-center justify-center border-[3px] border-[var(--color-panel-bg)] ${walletIdentity?.verification.isPremium ? 'bg-purple-500' : 'bg-[var(--color-primary-custom)]'}`}>
@@ -608,7 +782,7 @@ export function EnhancedProfile({
                     </h1>
                     {/* ✅ WALLET IDENTITY: Conditional Premium/Verified badges */}
                     {walletIdentity?.verification.isPremium && (
-                      <span className="bg-[var(--color-primary-custom)]/10 text-[var(--color-primary-custom)] text-[10px] font-bold px-2 py-0.5 rounded border border-[var(--color-primary-custom)]/20 uppercase tracking-widest flex items-center gap-1">
+                      <span className="bg-[var(--color-primary-custom)]/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded border border-[var(--color-primary-custom)]/20 uppercase tracking-widest flex items-center gap-1">
                         <Gem size={10} />
                         {walletIdentity.verification.premiumLevel || 'Premium'}
                       </span>
@@ -636,21 +810,7 @@ export function EnhancedProfile({
                       {profileAddress ? `${profileAddress.slice(0, 6)}...${profileAddress.slice(-4)}` : ''}
                     </span>
                   </div>
-                  
-                  {/* Followers + Bio */}
-                  {walletIdentity && (
-                    <div className="flex items-center gap-4 mt-2 mb-1">
-                      <span className="text-xs text-zinc-400">
-                        <span className="text-white font-bold">{walletIdentity.social.followersCount}</span> followers
-                      </span>
-                      <span className="text-xs text-zinc-400">
-                        <span className="text-white font-bold">{walletIdentity.social.followingCount}</span> following
-                      </span>
-                      <span className="text-xs text-zinc-500">
-                        Joined {walletIdentity.social.joinedDateFormatted}
-                      </span>
-                    </div>
-                  )}
+
                   {/* Bio - Moved below avatar with smaller font */}
                   <p className="text-zinc-500 text-sm mt-1 max-w-md">{profile.bio || 'No bio available'}</p>
                 </div>
@@ -659,14 +819,14 @@ export function EnhancedProfile({
           </div>
 
           {/* Stats Panel */}
-          <div className="bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),var(--color-panel-bg)] border border-[rgba(255,255,255,0.08)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] rounded-2xl p-6 flex items-center justify-between gap-8 mb-10">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-6 flex items-center justify-between gap-8 mb-10">
             <div className="flex-1 text-center border-r border-[var(--color-panel-border)]/50">
               <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
                 Portfolio Value
               </p>
               <div className="flex items-center justify-center gap-2">
                 <span className="text-xl font-bold text-white">{walletIdentity ? formatETH(walletIdentity.portfolio.portfolioValueETH) : '—'}</span>
-                <span className="text-[var(--color-primary-custom)] font-bold text-sm">ETH</span>
+                <span className="text-primary font-bold text-sm">ETH</span>
               </div>
               <p className="text-xs text-zinc-500 mt-1">≈ {walletIdentity ? formatUSD(walletIdentity.portfolio.portfolioValueUSD) : '—'} USD</p>
             </div>
@@ -678,12 +838,12 @@ export function EnhancedProfile({
               <div className="flex items-center justify-center gap-2">
                 <span className="text-xl font-bold text-white">{walletIdentity ? formatProfit(walletIdentity.portfolio.totalProfitPercent) : '—'}</span>
                 {walletIdentity && walletIdentity.portfolio.totalProfitPercent >= 0 ? (
-                  <TrendingUpIcon size={18} className="text-[var(--color-primary-custom)]" />
+                  <TrendingUpIcon size={18} className="text-primary" />
                 ) : (
                   <TrendingDown size={18} className="text-red-400" />
                 )}
               </div>
-              <p className={`text-xs mt-1 ${walletIdentity && walletIdentity.portfolio.totalProfitPercent >= 0 ? 'text-[var(--color-primary-custom)]' : 'text-red-400'}`}>
+              <p className={`text-xs mt-1 ${walletIdentity && walletIdentity.portfolio.totalProfitPercent >= 0 ? 'text-primary' : 'text-red-400'}`}>
                 {walletIdentity ? `${walletIdentity.portfolio.totalProfitUSD >= 0 ? '+' : ''}${formatUSD(walletIdentity.portfolio.totalProfitUSD)}` : '—'} (30d)
               </p>
             </div>
@@ -724,11 +884,10 @@ export function EnhancedProfile({
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-6 py-3 font-bold text-sm transition-all relative ${
-                      activeTab === tab.id
-                        ? 'text-[var(--color-primary-custom)]'
+                    className={`flex items-center gap-2 px-6 py-3 font-bold text-sm transition-all relative ${activeTab === tab.id
+                        ? 'text-primary'
                         : 'text-zinc-400 hover:text-zinc-300'
-                    }`}
+                      }`}
                   >
                     <Icon size={18} />
                     {tab.label}
@@ -749,52 +908,52 @@ export function EnhancedProfile({
             <div className="space-y-8">
               <div>
                 <h3 className="text-lg font-bold text-white mb-6">Recent Activity</h3>
-                <div className="bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),var(--color-panel-bg)] border border-[rgba(255,255,255,0.08)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] rounded-2xl overflow-hidden">
+                <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-hidden">
                   {realActivities.length > 0 ? (
-                  <table className="w-full text-left">
-                    <thead className="border-b border-[var(--color-panel-border)] bg-zinc-800/30">
-                      <tr className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                        <th className="px-6 py-4">Transaction</th>
-                        <th className="px-6 py-4">Asset</th>
-                        <th className="px-6 py-4">Price</th>
-                        <th className="px-6 py-4">Date</th>
-                        <th className="px-6 py-4 text-right">Link</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--color-panel-border)]">
-                      {realActivities.slice(0, 4).map((activity) => {
-                        const config = activityTypeConfig[activity.type] || { label: activity.type, color: 'bg-zinc-500' };
-                        return (
-                        <tr key={activity.id} className="hover:bg-zinc-800/30 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <span className={`w-2 h-2 rounded-full ${config.color}`}></span>
-                              <span className="text-sm font-medium text-white">{config.label}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm text-zinc-300 font-mono">{activity.assetName}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm text-white font-bold">{activity.price ? `${activity.price} ETH` : '—'}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-xs text-zinc-500">{formatActivityTime(activity.timestamp)}</span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            {activity.txHash ? (
-                              <a href={`https://etherscan.io/tx/${activity.txHash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--color-primary-custom)] text-xs font-bold flex items-center justify-end gap-1 hover:underline">
-                                View TX <ExternalLink size={14} />
-                              </a>
-                            ) : (
-                              <span className="text-xs text-zinc-600">—</span>
-                            )}
-                          </td>
+                    <table className="w-full text-left">
+                      <thead className="border-b border-[var(--color-panel-border)] bg-zinc-800/30">
+                        <tr className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                          <th className="px-6 py-4">Transaction</th>
+                          <th className="px-6 py-4">Asset</th>
+                          <th className="px-6 py-4">Price</th>
+                          <th className="px-6 py-4">Date</th>
+                          <th className="px-6 py-4 text-right">Link</th>
                         </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--color-panel-border)]">
+                        {realActivities.slice(0, 4).map((activity) => {
+                          const config = activityTypeConfig[activity.type] || { label: activity.type, color: 'bg-zinc-500' };
+                          return (
+                            <tr key={activity.id} className="hover:bg-zinc-800/30 transition-colors">
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-2 h-2 rounded-full ${config.color}`}></span>
+                                  <span className="text-sm font-medium text-white">{config.label}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-sm text-zinc-300 font-mono">{activity.assetName}</span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-sm text-white font-bold">{activity.price ? `${activity.price} ETH` : '—'}</span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-xs text-zinc-500">{formatActivityTime(activity.timestamp)}</span>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                {activity.txHash ? (
+                                  <a href={`https://etherscan.io/tx/${activity.txHash}`} target="_blank" rel="noopener noreferrer" className="text-primary text-xs font-bold flex items-center justify-end gap-1 hover:underline">
+                                    View TX <ExternalLink size={14} />
+                                  </a>
+                                ) : (
+                                  <span className="text-xs text-zinc-600">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   ) : (
                     <div className="py-14 px-6 text-center">
                       <div className="w-16 h-16 rounded-2xl bg-zinc-950/80 border border-[var(--color-panel-border)] flex items-center justify-center mx-auto mb-5">
@@ -810,6 +969,121 @@ export function EnhancedProfile({
             </div>
           )}
 
+          {/* Story Tab */}
+          {activeTab === 'story' && (
+            <div className="mx-auto w-full max-w-4xl">
+              {isOwnProfile && (
+                <div className="mb-3 text-right text-[10px] text-zinc-500">
+                  {storyCharacterCount}/{STORY_CHARACTER_LIMIT} chars • {storyImageCount}/{STORY_IMAGE_LIMIT} images
+                </div>
+              )}
+              <div className="space-y-3">
+                {storyBlocks.map((block, index) => (
+                  <div key={block.id} className="relative">
+                    {isOwnProfile && (
+                      <button
+                        onClick={() => removeStoryBlock(block.id)}
+                        className="absolute right-1 top-1 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-black/45 text-zinc-300 transition-colors hover:bg-black/65 hover:text-white"
+                        title="Remove block"
+                      >
+                        <X size={15} />
+                      </button>
+                    )}
+
+                    {block.type === 'heading' && (
+                      <input
+                        value={block.content}
+                        onChange={(e) => updateStoryBlock(block.id, e.target.value)}
+                        readOnly={!isOwnProfile}
+                        className={`block w-full appearance-none rounded-[12px] border border-transparent bg-transparent px-3 py-1.5 text-2xl font-semibold text-white/90 outline-none placeholder:text-zinc-600 transition-colors ${
+                          isOwnProfile ? 'pr-10 focus:border-primary focus:ring-primary/35 focus:outline-none' : 'pr-3'
+                        }`}
+                        placeholder="Heading"
+                      />
+                    )}
+
+                    {block.type === 'paragraph' && (
+                      <textarea
+                        value={block.content}
+                        onChange={(e) => updateStoryBlock(block.id, e.target.value)}
+                        onInput={(e) => autoResizeTextarea(e.currentTarget)}
+                        ref={autoResizeTextarea}
+                        readOnly={!isOwnProfile}
+                        className={`block w-full appearance-none resize-none overflow-hidden rounded-[12px] border border-transparent bg-transparent px-3 py-1.5 text-lg leading-[1.6] text-zinc-400 outline-none placeholder:text-zinc-600 transition-colors ${
+                          isOwnProfile ? 'pr-10 focus:border-primary focus:ring-primary/35 focus:outline-none' : 'pr-3'
+                        }`}
+                        rows={1}
+                        placeholder="Write your story..."
+                      />
+                    )}
+
+                    {block.type === 'image' && (
+                      <div className="rounded-[24px] overflow-hidden">
+                        <ImageWithFallback
+                          src={block.content}
+                          alt="Story Asset"
+                          className="w-full h-[320px] object-cover opacity-85"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
+
+                    <div className="group relative h-7 flex items-center justify-center">
+                      <div className="h-px w-full bg-zinc-900 group-hover:bg-zinc-700 transition-colors" />
+                      {isOwnProfile && (
+                        <button
+                          onClick={() => requestStoryImageInsert(index + 1)}
+                          className="absolute h-6 w-6 rounded-full border border-zinc-700 bg-zinc-900 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-zinc-200"
+                          title="Insert image"
+                        >
+                          <ImagePlus size={12} className="mx-auto" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {isOwnProfile && (
+                <div className="sticky bottom-6 z-20 flex justify-center pt-8">
+                  <div className="relative flex h-[41px] w-[236px] items-center justify-center gap-4 rounded-full border border-ui-border-subtle bg-ui-input px-5 backdrop-blur-[6px] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.5)]">
+                    <button
+                      onClick={() => addStoryBlock('heading')}
+                      className="text-white hover:text-ui-primary transition-colors"
+                      title="Add H3"
+                    >
+                      <Heading3 size={14} />
+                    </button>
+                    <button
+                      onClick={() => addStoryBlock('paragraph')}
+                      className="text-white hover:text-ui-primary transition-colors"
+                      title="Add paragraph"
+                    >
+                      <AlignLeft size={14} />
+                    </button>
+                    <div className="h-4 w-px bg-ui-border-subtle" />
+                    <button
+                      onClick={() => requestStoryImageInsert(storyBlocks.length)}
+                      className="text-white hover:text-ui-primary transition-colors"
+                      title="Add image"
+                    >
+                      <ImagePlus size={15} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <input
+                ref={storyImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={!isOwnProfile}
+                onChange={handleStoryImageSelected}
+              />
+            </div>
+          )}
+
           {/* Activity Tab */}
           {activeTab === 'activity' && (
             <div>
@@ -819,62 +1093,61 @@ export function EnhancedProfile({
                   <span className="text-zinc-500 text-sm font-normal ml-2">({realActivities.length})</span>
                 )}
               </h3>
-              <div className="bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),var(--color-panel-bg)] border border-[rgba(255,255,255,0.08)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] rounded-2xl overflow-hidden">
+              <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-hidden">
                 {realActivities.length > 0 ? (
-                <table className="w-full text-left">
-                  <thead className="border-b border-[var(--color-panel-border)] bg-zinc-800/30">
-                    <tr className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                      <th className="px-6 py-4">Transaction</th>
-                      <th className="px-6 py-4">Asset</th>
-                      <th className="px-6 py-4">Price</th>
-                      <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4">Date</th>
-                      <th className="px-6 py-4 text-right">Link</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--color-panel-border)]">
-                    {realActivities.map((activity) => {
-                      const config = activityTypeConfig[activity.type] || { label: activity.type, color: 'bg-zinc-500' };
-                      return (
-                      <tr key={activity.id} className="hover:bg-zinc-800/30 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full ${config.color}`}></span>
-                            <span className="text-sm font-medium text-white">{config.label}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-sm text-zinc-300 font-mono">{activity.assetName}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-sm text-white font-bold">{activity.price ? `${activity.price} ETH` : '—'}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${
-                            activity.status === 'completed' ? 'bg-[var(--color-primary-custom)]/10 text-[var(--color-primary-custom)]' :
-                            activity.status === 'pending' ? 'bg-yellow-500/10 text-yellow-400' :
-                            'bg-red-500/10 text-red-400'
-                          }`}>
-                            {activity.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-xs text-zinc-500">{formatActivityTime(activity.timestamp)}</span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          {activity.txHash ? (
-                            <a href={`https://etherscan.io/tx/${activity.txHash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--color-primary-custom)] text-xs font-bold flex items-center justify-end gap-1 hover:underline">
-                              View TX <ExternalLink size={14} />
-                            </a>
-                          ) : (
-                            <span className="text-xs text-zinc-600">—</span>
-                          )}
-                        </td>
+                  <table className="w-full text-left">
+                    <thead className="border-b border-[var(--color-panel-border)] bg-zinc-800/30">
+                      <tr className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                        <th className="px-6 py-4">Transaction</th>
+                        <th className="px-6 py-4">Asset</th>
+                        <th className="px-6 py-4">Price</th>
+                        <th className="px-6 py-4">Status</th>
+                        <th className="px-6 py-4">Date</th>
+                        <th className="px-6 py-4 text-right">Link</th>
                       </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--color-panel-border)]">
+                      {realActivities.map((activity) => {
+                        const config = activityTypeConfig[activity.type] || { label: activity.type, color: 'bg-zinc-500' };
+                        return (
+                          <tr key={activity.id} className="hover:bg-zinc-800/30 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${config.color}`}></span>
+                                <span className="text-sm font-medium text-white">{config.label}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-sm text-zinc-300 font-mono">{activity.assetName}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-sm text-white font-bold">{activity.price ? `${activity.price} ETH` : '—'}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded ${activity.status === 'completed' ? 'bg-[var(--color-primary-custom)]/10 text-primary' :
+                                  activity.status === 'pending' ? 'bg-yellow-500/10 text-yellow-400' :
+                                    'bg-red-500/10 text-red-400'
+                                }`}>
+                                {activity.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="text-xs text-zinc-500">{formatActivityTime(activity.timestamp)}</span>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              {activity.txHash ? (
+                                <a href={`https://etherscan.io/tx/${activity.txHash}`} target="_blank" rel="noopener noreferrer" className="text-primary text-xs font-bold flex items-center justify-end gap-1 hover:underline">
+                                  View TX <ExternalLink size={14} />
+                                </a>
+                              ) : (
+                                <span className="text-xs text-zinc-600">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 ) : (
                   <div className="py-16 px-6 text-center">
                     <div className="w-16 h-16 rounded-2xl bg-zinc-950/80 border border-[var(--color-panel-border)] flex items-center justify-center mx-auto mb-5">
@@ -928,9 +1201,106 @@ export function EnhancedProfile({
           )}
         </div>
       </div>
+        </div>
 
       {/* Right Sidebar */}
-      <aside className="w-[340px] bg-[var(--color-panel-bg)] flex flex-col border-l border-[var(--color-panel-border)]">
+      {isOwnProfile && (
+      <StudioSidebarShell widthClassName="w-[344px]" className="bg-ui-page border-l-0 p-2.5">
+        {activeTab === 'story' ? (
+          <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto hidden-scrollbar p-5 space-y-5">
+            <div className="rounded-[24px] bg-ui-input border border-ui-border-subtle p-6 space-y-6">
+              <div>
+                <h3 className="text-sm font-bold text-white">Story Settings</h3>
+                <p className="mt-1 text-[11px] leading-4 text-zinc-500">
+                  Configure how your content appears to investors.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-zinc-400">Category</p>
+                  <div className="relative">
+                    <select
+                      value={isStorySettingsEditing ? storyDraftSettings.category : storySettings.category}
+                      onChange={(event) =>
+                        setStoryDraftSettings((prev) => ({ ...prev, category: event.target.value }))
+                      }
+                      disabled={!isStorySettingsEditing}
+                      className="w-full h-[42px] appearance-none rounded-2xl border border-ui-border bg-zinc-950 px-4 pr-9 text-sm text-zinc-300 focus:outline-none focus:border-primary focus:ring-primary/35 disabled:opacity-100 disabled:cursor-default"
+                    >
+                      <option value="Institutional">Institutional</option>
+                      <option value="Retail">Retail</option>
+                      <option value="Mixed">Mixed</option>
+                    </select>
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">⌄</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-zinc-400">Tags</p>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600">#</span>
+                    <input
+                      value={isStorySettingsEditing ? storyDraftSettings.tags : storySettings.tags}
+                      onChange={(event) =>
+                        setStoryDraftSettings((prev) => ({ ...prev, tags: event.target.value }))
+                      }
+                      disabled={!isStorySettingsEditing}
+                      className="w-full h-[42px] rounded-2xl border border-ui-border bg-zinc-950 pl-8 pr-4 text-sm text-zinc-400 focus:outline-none focus:border-primary focus:ring-primary/35 disabled:opacity-100 disabled:cursor-default"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-zinc-800">
+                <button
+                  onClick={handleStorySettingsAction}
+                  className={`w-full h-[43px] rounded-full text-[11px] font-bold uppercase tracking-[0.05em] transition-colors ${
+                    isStorySettingsEditing
+                      ? 'border border-white bg-white text-black hover:bg-zinc-100'
+                      : 'border border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  {isStorySettingsEditing ? 'Save' : 'Edit'}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="px-1 text-[10px] font-bold uppercase tracking-[0.1em] text-white">Content Quality</h3>
+              <div className="rounded-[24px] bg-[rgba(24,24,27,0.3)] p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-400">Completeness</span>
+                  <span className="rounded-lg bg-[rgba(44,194,149,0.1)] px-2 py-0.5 text-[10px] font-bold text-primary">92</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-400">Readability</span>
+                  <span className="rounded-lg bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">74</span>
+                </div>
+                <div className="h-1 rounded-full bg-zinc-800 overflow-hidden">
+                  <div className="h-full w-3/4 bg-[var(--color-primary-custom)]" />
+                </div>
+                <p className="text-[11px] leading-4 text-zinc-500">
+                  Adding more tags could improve discoverability by 15%.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-[24px] bg-[rgba(44,194,149,0.05)] p-4 space-y-3">
+              <div className="flex items-center gap-3 text-primary">
+                <TrendingUpIcon size={18} />
+                <span className="text-xs font-bold uppercase tracking-[0.08em]">AI Optimization</span>
+              </div>
+              <p className="text-[11px] leading-5 text-zinc-400">
+                Optimize this story for professional investors with our GPT-4 powered summary tool.
+              </p>
+              <button className="w-full h-9 rounded-full bg-zinc-900 text-[10px] font-bold uppercase tracking-[0.05em] text-white hover:bg-zinc-800 transition-colors">
+                Optimize Story
+              </button>
+            </div>
+          </div>
+        ) : (
+        <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="p-6 border-b border-[var(--color-panel-border)] bg-gradient-to-b from-white/[0.02] to-transparent">
           <h2 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
@@ -945,11 +1315,11 @@ export function EnhancedProfile({
           {/* Reputation Score - REAL DATA */}
           <div className="text-center space-y-4">
             <div className="relative w-32 h-32 mx-auto flex items-center justify-center">
-              <div 
+              <div
                 className="absolute inset-0 rounded-full border-4 border-zinc-800 p-1"
                 style={{ background: walletIdentity ? getScoreGaugeGradient(walletIdentity.reputation.overallScore) : getScoreGaugeGradient(50) }}
               >
-                <div className="w-full h-full rounded-full bg-[var(--color-panel-bg)] flex flex-col items-center justify-center">
+                <div className="w-full h-full rounded-full bg-[#131313] flex flex-col items-center justify-center">
                   <span className="text-2xl font-black text-white">{walletIdentity?.reputation.overallScore ?? '—'}</span>
                   <span className="text-[10px] text-zinc-500 font-bold uppercase">Rep Score</span>
                 </div>
@@ -961,7 +1331,7 @@ export function EnhancedProfile({
                   {walletIdentity.reputation.levelIcon} {walletIdentity.reputation.level} Level
                 </p>
                 <p className="text-xs text-zinc-400">
-                  {walletIdentity.reputation.averageRating > 0 
+                  {walletIdentity.reputation.averageRating > 0
                     ? `${walletIdentity.reputation.averageRating.toFixed(1)}/5.0 avg from ${walletIdentity.reputation.totalReviews} reviews`
                     : 'No reviews yet'
                   }
@@ -1019,7 +1389,7 @@ export function EnhancedProfile({
                           {rating.fromUsername || `${(rating.fromUserId || '0x0000').slice(0, 6)}...`}
                         </span>
                       </div>
-                      <div className="flex text-[var(--color-primary-custom)]">
+                      <div className="flex text-primary">
                         {Array.from({ length: 5 }).map((_, i) => (
                           <Star
                             key={i}
@@ -1047,7 +1417,7 @@ export function EnhancedProfile({
                         </div>
                         <span className="text-xs font-bold text-white">{review.reviewer}</span>
                       </div>
-                      <div className="flex text-[var(--color-primary-custom)]">
+                      <div className="flex text-primary">
                         {Array.from({ length: 5 }).map((_, i) => (
                           <Star
                             key={i}
@@ -1105,8 +1475,8 @@ export function EnhancedProfile({
                   </span>
                 </div>
                 <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full ${(walletIdentity?.trust.disputeRate ?? 0) > 5 ? 'bg-red-400' : 'bg-[var(--color-primary-custom)]'}`} 
+                  <div
+                    className={`h-full ${(walletIdentity?.trust.disputeRate ?? 0) > 5 ? 'bg-red-400' : 'bg-[var(--color-primary-custom)]'}`}
                     style={{ width: getTrustBarWidth(100 - (walletIdentity?.trust.disputeRate ?? 0)) }}
                   ></div>
                 </div>
@@ -1143,7 +1513,11 @@ export function EnhancedProfile({
             View Verification Audit
           </button>
         </div>
-      </aside>
+        </div>
+        )}
+      </StudioSidebarShell>
+      )}
+      </div>
 
       {/* Edit Profile Modal */}
       {isEditModalOpen && (

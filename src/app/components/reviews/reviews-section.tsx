@@ -144,7 +144,7 @@ export function ReviewsSection({
 
       {/* Rating Breakdown */}
       {reviews.length > 0 && (
-        <div className="p-6 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl">
+        <div className="p-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
           <RatingBreakdown stats={stats} />
         </div>
       )}

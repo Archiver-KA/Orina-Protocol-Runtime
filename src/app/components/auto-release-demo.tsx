@@ -78,7 +78,7 @@ export function AutoReleaseDemo() {
             {scenarios.map((scenario, index) => (
               <div 
                 key={index}
-                className="bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-[rgba(255,255,255,0.08)] rounded-2xl overflow-hidden"
+                className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-hidden"
               >
                 <div className="p-4 border-b border-zinc-800">
                   <h3 className="text-sm font-bold text-white">

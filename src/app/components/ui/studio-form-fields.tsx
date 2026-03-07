@@ -67,9 +67,9 @@ export function StudioInputField({
     return (
       <input
         className={cn(
-          'w-full px-4 py-3 bg-zinc-900/50 border rounded-xl text-sm text-white placeholder-zinc-600 transition-all',
-          'focus:outline-none focus:border-[var(--color-primary-custom)] focus:ring-1 focus:ring-[color:color-mix(in_srgb,var(--color-primary-custom)_50%,transparent)]',
-          invalid ? 'border-red-500/50 focus:border-red-500 focus:ring-red-500/30' : 'border-[var(--color-panel-border)]',
+          'w-full px-4 py-3 bg-ui-input border border-transparent rounded-full text-sm text-white placeholder:text-ui-muted transition-all',
+          'focus:outline-none focus:ring-2 focus:ring-[#2CC295]/35',
+          invalid ? 'focus:ring-red-500/30' : '',
           className,
           inputClassName
         )}
@@ -88,11 +88,11 @@ export function StudioInputField({
 
       <input
         className={cn(
-          'w-full py-3 bg-zinc-900/50 border rounded-xl text-sm text-white placeholder-zinc-600 transition-all',
-          'focus:outline-none focus:border-[var(--color-primary-custom)] focus:ring-1 focus:ring-[color:color-mix(in_srgb,var(--color-primary-custom)_50%,transparent)]',
+          'w-full py-3 bg-ui-input border border-transparent rounded-full text-sm text-white placeholder:text-ui-muted transition-all',
+          'focus:outline-none focus:ring-2 focus:ring-[#2CC295]/35',
           hasLeftSlot ? 'pl-11' : 'pl-4',
           hasRightSlot ? 'pr-12' : 'pr-4',
-          invalid ? 'border-red-500/50 focus:border-red-500 focus:ring-red-500/30' : 'border-[var(--color-panel-border)]',
+          invalid ? 'focus:ring-red-500/30' : '',
           className,
           inputClassName
         )}
@@ -126,9 +126,9 @@ export function StudioTextareaField({
   return (
     <textarea
       className={cn(
-        'w-full px-4 py-3 bg-zinc-900/50 border rounded-xl text-sm text-white placeholder-zinc-600 transition-all resize-none',
-        'focus:outline-none focus:border-[var(--color-primary-custom)] focus:ring-1 focus:ring-[color:color-mix(in_srgb,var(--color-primary-custom)_50%,transparent)]',
-        invalid ? 'border-red-500/50 focus:border-red-500 focus:ring-red-500/30' : 'border-[var(--color-panel-border)]',
+        'w-full px-4 py-3 bg-ui-input border border-transparent rounded-[20px] text-sm text-white placeholder:text-ui-muted transition-all resize-none',
+        'focus:outline-none focus:ring-2 focus:ring-[#2CC295]/35',
+        invalid ? 'focus:ring-red-500/30' : '',
         className
       )}
       {...props}

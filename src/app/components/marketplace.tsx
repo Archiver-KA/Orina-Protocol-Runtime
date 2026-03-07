@@ -149,7 +149,7 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#0f0f11] overflow-hidden relative">
+    <div className="h-full flex flex-col bg-ui-page overflow-hidden relative">
       <style>{`
         div::-webkit-scrollbar { width: 4px; }
         div::-webkit-scrollbar-track { background: transparent; }
@@ -157,125 +157,127 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
       `}</style>
 
       {/* Main Content */}
-      <div className={`flex-1 relative ${viewMode === 'map' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+      <div className={`flex-1 relative flex flex-col ${viewMode === 'map' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
         {/* Secondary Header - View Mode, Stats & Filters */}
-        <div className={`relative z-10 bg-[#0f0f11] px-6 py-3 border-b border-[#27272a] ${viewMode === 'map' ? 'mb-0' : 'mb-6'}`}>
-          <div className="flex items-center justify-between gap-4">
-            {/* Left: View Mode */}
-            <div className="flex items-center bg-zinc-900 p-1 rounded-lg border border-[#27272a] w-fit shrink-0">
-              <button
-                onClick={() => {
-                  setContentMode('assets');
-                }}
-                className={`
-                  flex items-center justify-center px-3 py-2 rounded-md text-xs font-bold transition-all
-                  ${contentMode === 'assets' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}
-                `}
-              >
-                Assets
-              </button>
-              <button
-                onClick={() => {
-                  setContentMode('profiles');
-                  if (viewMode === 'map') setViewMode('grid');
-                }}
-                className={`
-                  flex items-center justify-center px-3 py-2 rounded-md text-xs font-bold transition-all
-                  ${contentMode === 'profiles' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}
-                `}
-              >
-                Profiles
-              </button>
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`
-                  flex items-center justify-center p-2 rounded-md transition-all
-                  ${viewMode === 'grid'
-                    ? 'bg-zinc-800 text-white'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                  }
-                `}
-              >
-                <Grid size={16} />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`
-                  flex items-center justify-center p-2 rounded-md transition-all
-                  ${viewMode === 'list'
-                    ? 'bg-zinc-800 text-white'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                  }
-                `}
-              >
-                <List size={16} />
-              </button>
-              <button
-                onClick={() => setViewMode('map')}
-                disabled={contentMode === 'profiles'}
-                className={`
-                  flex items-center justify-center p-2 rounded-md transition-all
-                  ${viewMode === 'map'
-                    ? 'bg-zinc-800 text-white'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                  }
-                  ${contentMode === 'profiles' ? 'opacity-40 cursor-not-allowed' : ''}
-                `}
-              >
-                <MapIcon size={16} />
-              </button>
-            </div>
-
-            {/* Center: Filters */}
-            <div className="flex-1 flex items-center gap-3">
-              {/* Search */}
-              <div className="relative flex-1 max-w-xs">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={contentMode === 'profiles' ? 'Search profiles...' : 'Search assets...'}
-                  className="w-full pl-9 pr-3 py-2 bg-zinc-900 border border-[var(--color-panel-border)] rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[var(--color-primary-custom)]"
-                />
+        <div className={`relative z-10 px-6 py-3 ${viewMode === 'map' ? 'mb-0' : 'mb-6'}`}>
+          <div className="rounded-[24px] bg-[var(--t-card-bg)] border-0 backdrop-blur-[10px] px-3 py-2">
+            <div className="flex items-center gap-4">
+              {/* Left: View Mode */}
+              <div className="flex items-center gap-[2px] bg-[rgba(255,255,255,0.03)] p-1 rounded-[16px] border-0 w-fit shrink-0">
+                <button
+                  onClick={() => {
+                    setContentMode('assets');
+                  }}
+                  className={`
+                    flex items-center justify-center px-3 py-2 rounded-[12px] text-xs font-bold transition-all
+                    ${contentMode === 'assets' ? 'bg-[rgba(255,255,255,0.08)] text-ui-primary' : 'text-ui-muted hover:text-ui-secondary'}
+                  `}
+                >
+                  Assets
+                </button>
+                <button
+                  onClick={() => {
+                    setContentMode('profiles');
+                    if (viewMode === 'map') setViewMode('grid');
+                  }}
+                  className={`
+                    flex items-center justify-center px-3 py-2 rounded-[12px] text-xs font-bold transition-all
+                    ${contentMode === 'profiles' ? 'bg-[rgba(255,255,255,0.08)] text-ui-primary' : 'text-ui-muted hover:text-ui-secondary'}
+                  `}
+                >
+                  Profiles
+                </button>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`
+                    flex items-center justify-center p-2 rounded-[12px] transition-all
+                    ${viewMode === 'grid'
+                      ? 'bg-[rgba(255,255,255,0.08)] text-ui-primary'
+                      : 'text-ui-muted hover:text-ui-secondary'
+                    }
+                  `}
+                >
+                  <Grid size={16} />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`
+                    flex items-center justify-center p-2 rounded-[12px] transition-all
+                    ${viewMode === 'list'
+                      ? 'bg-[rgba(255,255,255,0.08)] text-ui-primary'
+                      : 'text-ui-muted hover:text-ui-secondary'
+                    }
+                  `}
+                >
+                  <List size={16} />
+                </button>
+                <button
+                  onClick={() => setViewMode('map')}
+                  disabled={contentMode === 'profiles'}
+                  className={`
+                    flex items-center justify-center p-2 rounded-[12px] transition-all
+                    ${viewMode === 'map'
+                      ? 'bg-[rgba(255,255,255,0.08)] text-ui-primary'
+                      : 'text-ui-muted hover:text-ui-secondary'
+                    }
+                    ${contentMode === 'profiles' ? 'opacity-40 cursor-not-allowed' : ''}
+                  `}
+                >
+                  <MapIcon size={16} />
+                </button>
               </div>
 
-              {/* Category */}
-              <div className="w-40">
-                <CustomDropdown
-                  defaultValue={selectedCategory}
-                  onChange={setSelectedCategory}
-                  options={[
-                    { value: 'all', label: 'All Categories' },
-                    ...categories.map(cat => ({ value: cat, label: cat }))
-                  ]}
-                  variant="compact"
-                  className={contentMode === 'profiles' ? 'opacity-50 pointer-events-none' : ''}
-                />
-              </div>
+              {/* Center: Filters */}
+              <div className="flex-1 flex items-center gap-3 min-w-0">
+                {/* Search */}
+                <div className="relative flex-1 max-w-[500px]">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-muted" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={contentMode === 'profiles' ? 'Search profiles...' : 'Search assets...'}
+                    className="w-full pl-9 pr-3 py-2.5 bg-[rgba(18,18,18,0.5)] border border-transparent rounded-full text-sm text-ui-primary placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295] focus:ring-2 focus:ring-[#2CC295]/25 transition-all"
+                  />
+                </div>
 
-              {/* Blockchain */}
-              <div className="w-40">
-                <CustomDropdown
-                  defaultValue={selectedBlockchain}
-                  onChange={setSelectedBlockchain}
-                  options={[
-                    { value: 'all', label: 'All Blockchains' },
-                    ...blockchains.map(chain => ({ value: chain, label: chain }))
-                  ]}
-                  variant="compact"
-                  className={contentMode === 'profiles' ? 'opacity-50 pointer-events-none' : ''}
-                />
-              </div>
+                {/* Category */}
+                <div className="w-[210px] shrink-0">
+                  <CustomDropdown
+                    defaultValue={selectedCategory}
+                    onChange={setSelectedCategory}
+                    options={[
+                      { value: 'all', label: 'All Categories' },
+                      ...categories.map(cat => ({ value: cat, label: cat }))
+                    ]}
+                    variant="compact"
+                    className={contentMode === 'profiles' ? 'opacity-50 pointer-events-none' : ''}
+                  />
+                </div>
 
-              {/* Verified Toggle */}
-              <div className="flex items-center gap-2 shrink-0">
-                <ShieldCheck size={16} className={`transition-colors ${verifiedOnly ? 'text-[var(--color-primary-custom)]' : 'text-zinc-500'}`} />
-                <span className={`text-xs font-bold transition-colors ${verifiedOnly ? 'text-[var(--color-primary-custom)]' : 'text-zinc-500'}`}>Verified</span>
-                <ToggleSwitch
-                  checked={verifiedOnly}
-                  onChange={setVerifiedOnly}
-                />
+                {/* Blockchain */}
+                <div className="w-[210px] shrink-0">
+                  <CustomDropdown
+                    defaultValue={selectedBlockchain}
+                    onChange={setSelectedBlockchain}
+                    options={[
+                      { value: 'all', label: 'All Blockchains' },
+                      ...blockchains.map(chain => ({ value: chain, label: chain }))
+                    ]}
+                    variant="compact"
+                    className={contentMode === 'profiles' ? 'opacity-50 pointer-events-none' : ''}
+                  />
+                </div>
+
+                {/* Verified Toggle */}
+                <div className="flex items-center gap-2 shrink-0 pr-1">
+                  <ShieldCheck size={16} className={`transition-colors ${verifiedOnly ? 'text-primary' : 'text-ui-muted'}`} />
+                  <span className={`text-xs font-bold transition-colors ${verifiedOnly ? 'text-primary' : 'text-ui-muted'}`}>Verified</span>
+                  <ToggleSwitch
+                    checked={verifiedOnly}
+                    onChange={setVerifiedOnly}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -286,12 +288,12 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
         {(contentMode === 'assets' && filteredAssets.length === 0) || (contentMode === 'profiles' && filteredProfiles.length === 0) ? (
           <div className="flex flex-col items-center justify-center py-20 px-8">
             <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center mb-6 border border-[#27272a]">
-              <Search size={40} className="text-zinc-700" />
+              <Search size={40} className="text-ui-muted" />
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">
+            <h3 className="text-xl font-bold text-ui-primary mb-2">
               {contentMode === 'assets' ? 'No assets found' : 'No profiles found'}
             </h3>
-            <p className="text-sm text-zinc-500 text-center max-w-md">
+            <p className="text-sm text-ui-muted text-center max-w-md">
               Try adjusting your filters to see more results.
             </p>
           </div>
@@ -331,38 +333,40 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
         </div>}
 
         {viewMode === 'map' && contentMode === 'assets' && (
-          <div className="absolute inset-x-0 bottom-0 top-[calc(4rem+1px)]">
-            <RealisticWorldMap
-              filteredAssets={filteredAssets.map((asset, index) => ({
-                id: parseInt(asset.id.replace(/\D/g, '')) || index,
-                name: asset.name,
-                collection: asset.category,
-                price: asset.price,
-                usdPrice: asset.priceUSD || '$0',
-                rarity: asset.verified ? 'Legendary' : 'Common',
-                rarityColor: asset.verified ? 'text-[var(--color-primary-custom)]' : 'text-zinc-400',
-                image: asset.image,
-                latitude: (Math.random() * 60) - 30, // Mock latitude -30 to 30
-                longitude: (Math.random() * 360) - 180, // Mock longitude -180 to 180
-                city: asset.tags?.[0] || 'Unknown',
-                seller: {
-                  name: asset.seller.ensName || asset.seller.address.slice(0, 10),
-                  rating: `${asset.seller.reputation}%`
-                },
-                verified: asset.verified
-              }))}
-              onAssetClick={(mapAsset) => {
-                const asset = filteredAssets.find(a => a.name === mapAsset.name);
-                if (asset) {
-                  setSelectedAsset(asset);
-                  setIsModalOpen(true);
-                }
-              }}
-              selectedAssetId={null}
-              onMarkerClick={(id) => {}}
-              verifiedOnly={verifiedOnly}
-              onToggleVerified={setVerifiedOnly}
-            />
+          <div className="flex-1 min-h-0 px-2.5 pb-0 pt-3">
+            <div className="h-full rounded-t-[24px] overflow-hidden">
+              <RealisticWorldMap
+                filteredAssets={filteredAssets.map((asset, index) => ({
+                  id: parseInt(asset.id.replace(/\D/g, '')) || index,
+                  name: asset.name,
+                  collection: asset.category,
+                  price: asset.price,
+                  usdPrice: asset.priceUSD || '$0',
+                  rarity: asset.verified ? 'Legendary' : 'Common',
+                  rarityColor: asset.verified ? 'text-primary' : 'text-ui-secondary',
+                  image: asset.image,
+                  latitude: (Math.random() * 60) - 30, // Mock latitude -30 to 30
+                  longitude: (Math.random() * 360) - 180, // Mock longitude -180 to 180
+                  city: asset.tags?.[0] || 'Unknown',
+                  seller: {
+                    name: asset.seller.ensName || asset.seller.address.slice(0, 10),
+                    rating: `${asset.seller.reputation}%`
+                  },
+                  verified: asset.verified
+                }))}
+                onAssetClick={(mapAsset) => {
+                  const asset = filteredAssets.find(a => a.name === mapAsset.name);
+                  if (asset) {
+                    setSelectedAsset(asset);
+                    setIsModalOpen(true);
+                  }
+                }}
+                selectedAssetId={null}
+                onMarkerClick={(id) => {}}
+                verifiedOnly={verifiedOnly}
+                onToggleVerified={setVerifiedOnly}
+              />
+            </div>
           </div>
         )}
       </div>

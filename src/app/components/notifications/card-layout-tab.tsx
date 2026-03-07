@@ -33,7 +33,7 @@ export function CardLayoutTab() {
   return (
     <div className="space-y-12">
       {/* Header */}
-      <div className="bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-2xl p-6">
+      <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-6">
         <h2 className="text-2xl font-bold text-white mb-2">Card Design System - Complete Collection</h2>
         <p className="text-sm text-zinc-400 mb-4">
           TOÀN BỘ card designs đã được implement trong hệ thống. Chọn variants để so sánh và thống nhất design.
@@ -81,7 +81,7 @@ export function CardLayoutTab() {
               </label>
             </div>
 
-            <div className="w-full max-w-xs text-left bg-[#141417] border border-[#27272a] rounded-2xl overflow-hidden hover:bg-[#1a1a1d] hover:-translate-y-1 transition-all group cursor-pointer">
+            <div className="w-full max-w-xs text-left bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-hidden hover:bg-[#1a1a1d] hover:-translate-y-1 transition-all group cursor-pointer">
               <div className="relative h-48 bg-zinc-800">
                 <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-900 flex items-center justify-center">
                   <Package size={40} className="text-zinc-600" />
@@ -167,7 +167,7 @@ export function CardLayoutTab() {
               </label>
             </div>
 
-            <div className="w-full text-left bg-[#141417] border border-[#27272a] rounded-2xl p-4 flex gap-6 transition-all hover:bg-[#1a1a1d] hover:-translate-y-0.5 group items-center cursor-pointer">
+            <div className="w-full text-left bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-4 flex gap-6 transition-all hover:bg-[#1a1a1d] hover:-translate-y-0.5 group items-center cursor-pointer">
               {/* Image */}
               <div className="w-32 h-32 rounded-xl overflow-hidden flex-shrink-0 bg-zinc-800 relative">
                 <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-900 flex items-center justify-center">
@@ -266,7 +266,7 @@ export function CardLayoutTab() {
             </div>
 
             {/* STANDARDIZED DESIGN */}
-            <div className="w-full max-w-xs bg-[#141417] border border-[#27272a] rounded-2xl overflow-hidden hover:bg-[#1a1a1d] hover:-translate-y-1 transition-all group cursor-pointer flex flex-col">
+            <div className="w-full max-w-xs bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-hidden hover:bg-[#1a1a1d] hover:-translate-y-1 transition-all group cursor-pointer flex flex-col">
               {/* Image */}
               <div className="h-48 bg-zinc-800 relative overflow-hidden">
                 <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-800 flex items-center justify-center">
@@ -338,7 +338,7 @@ export function CardLayoutTab() {
             </div>
 
             {/* STANDARDIZED DESIGN */}
-            <div className="w-full max-w-xs bg-[#141417] border border-[#27272a] rounded-2xl overflow-hidden hover:bg-[#1a1a1d] hover:-translate-y-1 transition-all group cursor-pointer flex flex-col">
+            <div className="w-full max-w-xs bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-hidden hover:bg-[#1a1a1d] hover:-translate-y-1 transition-all group cursor-pointer flex flex-col">
               {/* Image */}
               <div className="h-48 bg-zinc-800 relative overflow-hidden">
                 <div className="w-full h-full bg-gradient-to-br from-purple-900/20 to-zinc-800 flex items-center justify-center">
@@ -390,7 +390,7 @@ export function CardLayoutTab() {
                     <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold mb-0.5">Purchase Value</p>
                     <p className="text-base font-bold text-white">5.8 ETH</p>
                   </div>
-                  <div className="px-3 py-1 bg-zinc-900 border border-[#27272a] rounded-lg">
+                  <div className="px-3 py-1 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg">
                     <span className="text-xs font-bold text-zinc-400">ETH</span>
                   </div>
                 </div>
@@ -414,7 +414,7 @@ export function CardLayoutTab() {
             </div>
 
             {/* STANDARDIZED DESIGN */}
-            <div className="w-full max-w-xs bg-[#141417] border border-[#27272a] rounded-2xl overflow-hidden hover:bg-[#1a1a1d] hover:-translate-y-1 transition-all group cursor-pointer flex flex-col">
+            <div className="w-full max-w-xs bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-hidden hover:bg-[#1a1a1d] hover:-translate-y-1 transition-all group cursor-pointer flex flex-col">
               {/* Image */}
               <div className="h-48 bg-zinc-800 relative overflow-hidden">
                 <div className="w-full h-full bg-gradient-to-br from-blue-900/20 to-zinc-800 flex items-center justify-center">
@@ -499,7 +499,7 @@ export function CardLayoutTab() {
               </label>
             </div>
 
-            <div className="bg-[#141417] border border-[#27272a] rounded-2xl overflow-hidden max-w-4xl">
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-hidden max-w-4xl">
               <div className="p-6 border-b border-[#27272a] flex items-center justify-between">
                 <h3 className="font-bold text-white flex items-center gap-2">
                   <Layers className="text-[#2CC295]" size={20} />

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, Heart, Share2, Eye, Star, ExternalLink, Shield, Clock, TrendingUp, MessageSquare, Maximize2, Activity } from 'lucide-react';
 import { AssetDetails, SimilarAsset } from '@/types/asset';
 import { generateMockAsset, generateSimilarAssets } from '@/utils/mockAssetData';
+import { ASSET_METADATA_CHANGED_EVENT } from '@/utils/assetMetadataSync';
 import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
 import { ShareAssetModal } from './share-asset-modal';
 import { SearchResultCard } from '@/app/components/search-result-card';
@@ -21,6 +22,13 @@ export function AssetDetailsPage({ assetId, onBack, onAssetClick, previousPage }
   const [isFavorited, setIsFavorited] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [, setMetadataRefreshTick] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setMetadataRefreshTick((v) => v + 1);
+    window.addEventListener(ASSET_METADATA_CHANGED_EVENT, refresh as EventListener);
+    return () => window.removeEventListener(ASSET_METADATA_CHANGED_EVENT, refresh as EventListener);
+  }, []);
 
   // Load asset data
   const asset = generateMockAsset(assetId);
@@ -150,7 +158,7 @@ export function AssetDetailsPage({ assetId, onBack, onAssetClick, previousPage }
             </button>
             <button
               onClick={() => setIsShareModalOpen(true)}
-              className="w-10 h-10 rounded-lg bg-zinc-900 border border-[#27272a] text-zinc-500 flex items-center justify-center hover:text-zinc-300 transition-all"
+              className="w-10 h-10 rounded-lg bg-[rgba(255,255,255,0.02)] border-0 text-zinc-500 flex items-center justify-center hover:text-zinc-300 transition-all"
             >
               <Share2 size={18} />
             </button>
@@ -165,7 +173,7 @@ export function AssetDetailsPage({ assetId, onBack, onAssetClick, previousPage }
               {/* Left Column - Image + Info */}
               <div className="lg:col-span-5 space-y-6">
                 {/* Main Image */}
-                <div className="relative aspect-square rounded-3xl bg-zinc-900 border border-[#27272a] overflow-hidden flex items-center justify-center p-8 group">
+                <div className="relative aspect-square rounded-3xl bg-[rgba(255,255,255,0.02)] border-0 overflow-hidden flex items-center justify-center p-8 group">
                   <ImageWithFallback
                     src={mockImages[currentImageIndex]}
                     alt={asset.name}
@@ -199,7 +207,7 @@ export function AssetDetailsPage({ assetId, onBack, onAssetClick, previousPage }
                 </div>
 
                 {/* Contract Info Panel */}
-                <div className="bg-zinc-900 border border-[#27272a] rounded-2xl p-6">
+                <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-6">
                   <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2 uppercase tracking-widest">
                     <Activity size={18} className="text-zinc-500" />
                     Contract Info

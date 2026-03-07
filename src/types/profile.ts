@@ -87,7 +87,7 @@ export interface Badge {
 
 export type ActivityFilter = 'all' | 'mint' | 'purchase' | 'sale' | 'transfer' | 'list' | 'offer';
 
-export type ProfileTab = 'overview' | 'activity' | 'collected' | 'created' | 'favorites' | 'settings';
+export type ProfileTab = 'overview' | 'story' | 'activity' | 'collected' | 'created' | 'favorites' | 'settings';
 
 export interface ProfileStats {
   portfolioValue: number;

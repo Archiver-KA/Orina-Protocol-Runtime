@@ -1,5 +1,6 @@
-import { X, MessageSquare, Star, ArrowRight, CheckCircle } from 'lucide-react';
+import { MessageSquare, Star, ArrowRight, CheckCircle } from 'lucide-react';
 import { useState } from 'react';
+import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 
 interface SellerModalProps {
   isOpen: boolean;
@@ -125,17 +126,12 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/70 backdrop-blur-[10px]"
       onClick={handleOverlayClick}
     >
-      <div className="bg-[#121212] w-full max-w-2xl h-[90vh] rounded-[2.5rem] border border-[#27272a] overflow-hidden shadow-2xl flex flex-col relative">
+      <div className="w-full max-w-2xl h-[90vh] rounded-[24px] border-0 bg-[rgba(255,255,255,0.03)] backdrop-blur-[20px] shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col relative">
         {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-8 right-8 text-zinc-500 hover:text-white transition-colors bg-zinc-800/50 p-1.5 rounded-xl border border-white/5 z-20"
-        >
-          <X size={20} />
-        </button>
+        <StudioModalCloseButton onClick={onClose} className="absolute top-8 right-8 z-20" />
 
         {/* Header Section */}
         <div className="p-10 pb-6 shrink-0">
@@ -144,11 +140,11 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
             <div className="relative mb-4">
               <img
                 alt={seller.name}
-                className="w-24 h-24 rounded-full object-cover border-4 border-[#27272a] shadow-2xl"
+                className="w-24 h-24 rounded-full object-cover border-4 border-white/10 shadow-2xl"
                 src={seller.avatar}
               />
               {seller.isVerified && (
-                <div className="absolute bottom-1 right-1 bg-blue-500 rounded-full p-1 border-4 border-[#121212] flex items-center justify-center">
+                <div className="absolute bottom-1 right-1 bg-[var(--color-primary-custom)] rounded-full p-1 border-4 border-[rgba(18,18,18,0.86)] flex items-center justify-center">
                   <CheckCircle size={12} className="text-white" fill="currentColor" />
                 </div>
               )}
@@ -158,7 +154,7 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
             <div className="flex items-center gap-2 mb-2">
               <h2 className="text-2xl font-extrabold text-white">{seller.name}</h2>
               {seller.isCreator && (
-                <span className="bg-yellow-500/10 text-yellow-500 text-[9px] px-2 py-0.5 rounded uppercase font-bold border border-yellow-500/20 tracking-tighter">
+                <span className="bg-[var(--color-primary-custom)]/10 text-primary text-[9px] px-2 py-0.5 rounded uppercase font-bold border border-[var(--color-primary-custom)]/20 tracking-tighter">
                   Creator
                 </span>
               )}
@@ -166,10 +162,10 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
 
             {/* Action Buttons */}
             <div className="flex items-center gap-4 mt-4">
-              <button className="px-8 py-2.5 bg-zinc-100 hover:bg-white text-black font-bold rounded-xl transition-all text-sm">
+              <button className="px-8 py-2.5 bg-[var(--color-button-primary-bg)] hover:bg-[var(--color-button-primary-bg-hover)] text-[var(--color-button-primary-fg)] font-bold rounded-xl transition-all text-sm">
                 Follow
               </button>
-              <button className="w-11 h-11 bg-[#2CC295]/10 hover:bg-[#2CC295]/20 text-[#2CC295] rounded-xl border border-[#2CC295]/20 flex items-center justify-center transition-all">
+              <button className="w-11 h-11 bg-[var(--color-primary-custom)]/10 hover:bg-[var(--color-primary-custom)]/20 text-primary rounded-xl border border-[var(--color-primary-custom)]/20 flex items-center justify-center transition-all">
                 <MessageSquare size={20} />
               </button>
             </div>
@@ -177,7 +173,7 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
         </div>
 
         {/* Stats Section */}
-        <div className="px-10 py-0 border-t border-[#27272a]/50 bg-zinc-900/10 shrink-0">
+        <div className="px-10 py-0 border-t border-[var(--color-panel-border)] bg-zinc-900/10 shrink-0">
           <div className="grid grid-cols-3 gap-4 py-6">
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 mb-1">
@@ -199,12 +195,12 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
           <p className="text-center text-[10px] text-zinc-600 mb-6 italic">{seller.memberSince}</p>
 
           {/* Tabs */}
-          <div className="flex items-center justify-center gap-8 border-t border-[#27272a]/30">
+          <div className="flex items-center justify-center gap-8 border-t border-[var(--color-panel-border)]/60">
             <button
               onClick={() => setActiveTab('creations')}
               className={`py-4 text-xs uppercase font-bold tracking-widest border-b-2 transition-all ${
                 activeTab === 'creations'
-                  ? 'border-[#2CC295] text-white'
+                  ? 'border-[var(--color-primary-custom)] text-white'
                   : 'border-transparent text-zinc-500 hover:text-zinc-300'
               }`}
             >
@@ -214,7 +210,7 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
               onClick={() => setActiveTab('reviews')}
               className={`py-4 text-xs uppercase font-bold tracking-widest border-b-2 transition-all ${
                 activeTab === 'reviews'
-                  ? 'border-[#2CC295] text-white'
+                  ? 'border-[var(--color-primary-custom)] text-white'
                   : 'border-transparent text-zinc-500 hover:text-zinc-300'
               }`}
             >
@@ -228,14 +224,14 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
           <div className="flex-grow overflow-y-auto custom-scrollbar p-10 pt-8">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xs uppercase font-bold text-zinc-400 tracking-widest">Featured Creations</h3>
-              <span className="text-xs text-[#2CC295] font-medium hover:underline cursor-pointer">View All</span>
+              <span className="text-xs text-primary font-medium hover:underline cursor-pointer">View All</span>
             </div>
 
             <div className="grid grid-cols-3 gap-4 mb-10">
               {featuredNFTs.map((nft) => (
                 <div
                   key={nft.id}
-                  className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] backdrop-blur-xl rounded-2xl p-2 hover:border-[#2CC295] hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                  className="bg-[rgba(255,255,255,0.02)] border border-[var(--color-panel-border)] backdrop-blur-xl rounded-2xl p-2 hover:bg-[rgba(255,255,255,0.04)] hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
                 >
                   <div className="aspect-square rounded-xl overflow-hidden mb-3">
                     <img
@@ -248,7 +244,7 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
                     <p className="text-[10px] font-bold text-white truncate mb-1">{nft.name}</p>
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] text-zinc-500">Price</span>
-                      <span className="text-[10px] font-bold text-[#2CC295]">{nft.price}</span>
+                      <span className="text-[10px] font-bold text-primary">{nft.price}</span>
                     </div>
                   </div>
                 </div>
@@ -256,7 +252,7 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
             </div>
 
             <div className="pb-6">
-              <button className="w-full py-4 bg-[#2CC295] hover:bg-[#2CC295]/90 text-black font-extrabold rounded-2xl transition-all hover:shadow-lg hover:shadow-[#2CC295]/20 text-sm uppercase tracking-widest flex items-center justify-center gap-2">
+              <button className="w-full py-4 bg-[var(--color-button-primary-bg)] hover:bg-[var(--color-button-primary-bg-hover)] text-[var(--color-button-primary-fg)] font-extrabold rounded-2xl transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2">
                 View Full Profile
                 <ArrowRight size={18} />
               </button>
@@ -280,7 +276,7 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
                   onClick={() => setReviewFilter('all')}
                   className={`text-[10px] font-bold uppercase tracking-tighter px-3 py-1 rounded-full transition-colors ${
                     reviewFilter === 'all'
-                      ? 'bg-[#2CC295]/20 text-[#2CC295] border border-[#2CC295]/30'
+                      ? 'bg-[var(--color-primary-custom)]/20 text-primary border border-[var(--color-primary-custom)]/30'
                       : 'hover:bg-zinc-800 text-zinc-500 border border-zinc-800'
                   }`}
                 >
@@ -290,7 +286,7 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
                   onClick={() => setReviewFilter('positive')}
                   className={`text-[10px] font-bold uppercase tracking-tighter px-3 py-1 rounded-full transition-colors ${
                     reviewFilter === 'positive'
-                      ? 'bg-[#2CC295]/20 text-[#2CC295] border border-[#2CC295]/30'
+                      ? 'bg-[var(--color-primary-custom)]/20 text-primary border border-[var(--color-primary-custom)]/30'
                       : 'hover:bg-zinc-800 text-zinc-500 border border-zinc-800'
                   }`}
                 >
@@ -300,7 +296,7 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
                   onClick={() => setReviewFilter('critical')}
                   className={`text-[10px] font-bold uppercase tracking-tighter px-3 py-1 rounded-full transition-colors ${
                     reviewFilter === 'critical'
-                      ? 'bg-[#2CC295]/20 text-[#2CC295] border border-[#2CC295]/30'
+                      ? 'bg-[var(--color-primary-custom)]/20 text-primary border border-[var(--color-primary-custom)]/30'
                       : 'hover:bg-zinc-800 text-zinc-500 border border-zinc-800'
                   }`}
                 >
@@ -313,7 +309,7 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
               {reviews.map((review) => (
                 <div
                   key={review.id}
-                  className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] backdrop-blur-xl rounded-2xl p-5 border-l-4 border-l-[#2CC295]/40"
+                  className="bg-[rgba(255,255,255,0.02)] border border-[var(--color-panel-border)] backdrop-blur-xl rounded-2xl p-5"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">

@@ -104,7 +104,7 @@ export function AnalyticsDashboard() {
           </div>
           <div className="flex items-center gap-4">
             {/* Time Range Selector */}
-            <div className="bg-zinc-900 border border-[#27272a] p-1 rounded-full flex items-center">
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 p-1 rounded-full flex items-center">
               {timeRangeButtons.map((range) => (
                 <button
                   key={range}
@@ -122,7 +122,7 @@ export function AnalyticsDashboard() {
             {/* Export Button */}
             <button 
               onClick={handleExport}
-              className="flex items-center gap-2 bg-zinc-900 border border-[#27272a] px-4 py-2 rounded-lg text-xs font-medium text-white hover:bg-zinc-800 transition-colors"
+              className="flex items-center gap-2 bg-[rgba(255,255,255,0.02)] border-0 px-4 py-2 rounded-lg text-xs font-medium text-white hover:bg-zinc-800 transition-colors"
             >
               <Download size={14} />
               Export
@@ -133,7 +133,7 @@ export function AnalyticsDashboard() {
         {/* Metrics Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
           {/* Current Value */}
-          <div className="bg-zinc-900/30 border border-[#27272a] p-6 rounded-xl">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 p-6 rounded-xl">
             <div className="flex justify-between items-start mb-4">
               <div className="w-10 h-10 bg-[#2CC295]/10 rounded-lg flex items-center justify-center">
                 <span className="material-symbols-outlined text-[#2CC295]">trending_up</span>
@@ -152,7 +152,7 @@ export function AnalyticsDashboard() {
           </div>
 
           {/* Total Profit */}
-          <div className="bg-zinc-900/30 border border-[#27272a] p-6 rounded-xl">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 p-6 rounded-xl">
             <div className="flex justify-between items-start mb-4">
               <div className="w-10 h-10 bg-[#2CC295]/10 rounded-lg flex items-center justify-center">
                 <span className="material-symbols-outlined text-[#2CC295]">payments</span>
@@ -171,7 +171,7 @@ export function AnalyticsDashboard() {
         </div>
 
         {/* Portfolio Value Chart */}
-        <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-8 mb-8">
+        <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-8 mb-8">
           <div className="flex justify-between items-center mb-10">
             <div>
               <h4 className="text-white font-bold">Portfolio Value Over Time</h4>
@@ -241,7 +241,7 @@ export function AnalyticsDashboard() {
         {/* Category Performance & Portfolio Distribution */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Category Performance */}
-          <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-6">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-6">
             <h4 className="text-white font-bold mb-6">Category Performance</h4>
             <div className="flex items-center gap-8">
               {/* Donut Chart */}
@@ -287,7 +287,7 @@ export function AnalyticsDashboard() {
           </div>
 
           {/* Portfolio Distribution */}
-          <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-6">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-6">
             <h4 className="text-white font-bold mb-6">Portfolio Distribution</h4>
             <div className="flex items-center gap-8">
               {/* Donut Chart */}
@@ -324,7 +324,7 @@ export function AnalyticsDashboard() {
         </div>
 
         {/* Insights & Recommendations */}
-        <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-6">
+        <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-6">
           <div className="flex items-center gap-2 mb-6">
             <span className="material-symbols-outlined text-[#2CC295] text-lg">lightbulb</span>
             <h4 className="text-white font-bold text-base">Insights &amp; Recommendations</h4>

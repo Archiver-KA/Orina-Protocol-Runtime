@@ -1,8 +1,8 @@
 import { useConnect, useAccount } from 'wagmi';
-import { X } from 'lucide-react';
 import { WalletProvider, MOCK_REVIEWS } from '@/types/wallet';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 
 interface ConnectWalletModalProps {
   onClose: () => void;
@@ -127,12 +127,7 @@ export function ConnectWalletModal({ onClose, onConnect }: ConnectWalletModalPro
       >
         
         {/* Close Button */}
-        <button 
-          onClick={onClose}
-          className="absolute top-4 right-4 text-zinc-500 hover:text-white transition-colors bg-zinc-800/50 p-1.5 rounded-lg border border-white/5 z-10"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <StudioModalCloseButton onClick={onClose} iconSize={16} className="absolute top-4 right-4 z-10" />
 
         {/* Header */}
         <div className="p-6 pb-3">

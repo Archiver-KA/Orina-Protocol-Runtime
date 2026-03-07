@@ -1,5 +1,5 @@
 import { Bell, X, Settings, Check, TrendingUp, MessageSquare, AlertCircle, Trash2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
 import { NotificationItem } from './notification-item';
@@ -16,6 +16,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
   const [isOpen, setIsOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [filterType, setFilterType] = useState<NotificationType | 'all'>('all');
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const { 
     notifications, 
@@ -29,8 +30,30 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
   const filteredNotifications = filterNotificationsByType(notifications, filterType);
 
   const handleToggle = () => {
-    setIsOpen(!isOpen);
-    setShowSettings(false);
+    if (isOpen) {
+      setIsOpen(false);
+      setShowSettings(false);
+    } else {
+      setIsOpen(true);
+    }
+  };
+
+  const handleMouseEnter = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setIsOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = setTimeout(() => {
+      setIsOpen(false);
+      setShowSettings(false);
+    }, 120);
   };
 
   const handleMarkAllAsRead = () => {
@@ -43,10 +66,13 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
     }
   };
 
-  const handleOverlayClick = () => {
-    setIsOpen(false);
-    setShowSettings(false);
-  };
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
 
   // Filter pills với icons theo HTML template
   const filterOptions: { value: NotificationType | 'all'; label: string }[] = [
@@ -59,24 +85,12 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
 
   return (
     <>
-      {/* Overlay */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-            onClick={handleOverlayClick}
-          />
-        )}
-      </AnimatePresence>
-
       {/* Notification Button */}
-      <div className={`relative ${className}`}>
+      <div className={`relative ${className}`} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
         <button
           onClick={handleToggle}
-          className="relative p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+          onMouseEnter={handleMouseEnter}
+          className="relative w-[43px] h-[43px] flex items-center justify-center bg-[rgba(18,18,18,0.5)] hover:bg-[rgba(18,18,18,0.65)] rounded-[50px] transition-colors"
           title="Notifications"
         >
           <Bell size={20} className="text-zinc-400" />
@@ -96,14 +110,21 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="absolute right-0 top-full mt-2 w-[420px] max-w-[calc(100vw-2rem)] z-50"
+              className="absolute right-0 top-full mt-2 w-[470px] max-w-[calc(100vw-2rem)] z-50"
             >
-              <div className="bg-[var(--color-panel-bg)] border border-[var(--color-panel-border)] rounded-2xl shadow-2xl overflow-hidden">
+              <div
+                className="dropdown-panel rounded-[24px] overflow-hidden"
+                style={{
+                  background: 'rgba(18, 18, 18, 1)',
+                  backdropFilter: 'blur(20px) saturate(140%)',
+                  WebkitBackdropFilter: 'blur(20px) saturate(140%)',
+                }}
+              >
                 {/* Header */}
-                <div className="p-4 border-b border-[var(--color-panel-border)]">
+                <div className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <Bell size={18} className="text-[var(--color-primary-custom)]" />
+                      <Bell size={18} className="text-primary" />
                       <h3 className="text-label font-bold text-white">Notifications</h3>
                       {unreadCount > 0 && (
                         <NotificationBadge count={unreadCount} size="sm" />
@@ -115,8 +136,8 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                       {/* Settings button */}
                       <button
                         onClick={() => setShowSettings(!showSettings)}
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          showSettings ? 'bg-zinc-800 text-white' : 'hover:bg-zinc-800 text-zinc-400'
+                          className={`p-1.5 rounded-lg transition-colors ${
+                          showSettings ? 'bg-[rgba(255,255,255,0.08)] text-white' : 'hover:bg-[rgba(255,255,255,0.06)] text-zinc-400'
                         }`}
                         title="Settings"
                       >
@@ -127,7 +148,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                       {unreadCount > 0 && (
                         <button
                           onClick={handleMarkAllAsRead}
-                          className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-400 transition-colors"
+                          className="p-1.5 hover:bg-[rgba(255,255,255,0.06)] rounded-lg text-zinc-400 transition-colors"
                           title="Mark all as read"
                         >
                           <Check size={16} />
@@ -138,7 +159,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                       {notifications.length > 0 && (
                         <button
                           onClick={handleClearAll}
-                          className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-400 transition-colors"
+                          className="p-1.5 hover:bg-[rgba(255,255,255,0.06)] rounded-lg text-zinc-400 transition-colors"
                           title="Clear all"
                         >
                           <Trash2 size={16} />
@@ -154,10 +175,10 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                         <button
                           key={option.value}
                           onClick={() => setFilterType(option.value)}
-                          className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
+                          className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border-0 ${
                             filterType === option.value
-                              ? 'bg-[color:color-mix(in_srgb,var(--color-primary-custom)_10%,transparent)] text-[var(--color-primary-custom)] border border-[color:color-mix(in_srgb,var(--color-primary-custom)_20%,transparent)]'
-                              : 'bg-zinc-900 text-zinc-400 border border-[var(--color-panel-border)] hover:text-white'
+                              ? 'bg-[rgba(255,255,255,0.08)] text-white'
+                              : 'bg-[rgba(255,255,255,0.04)] text-zinc-400 hover:bg-[rgba(255,255,255,0.05)] hover:text-ui-primary'
                           }`}
                         >
                           {option.label}
@@ -175,7 +196,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="p-4 bg-zinc-900/30 border-b border-[var(--color-panel-border)]"
+                      className="p-4"
                     >
                       <h4 className="text-section-header text-white mb-4">
                         Notification Preferences
@@ -214,7 +235,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                         </label>
 
                         {/* Divider */}
-                        <div className="border-t border-[var(--color-panel-border)] pt-3 mt-3">
+                        <div className="pt-3 mt-3">
                           <p className="text-xs font-bold text-zinc-500 mb-3 uppercase tracking-wider">
                             Notification Types
                           </p>
@@ -307,8 +328,8 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
 
                 {/* Footer - View All Notifications */}
                 {!showSettings && notifications.length > 0 && (
-                  <div className="p-3 border-t border-[var(--color-panel-border)] bg-zinc-900/30">
-                    <button className="w-full text-center text-xs font-bold text-[var(--color-primary-custom)] hover:text-[color:color-mix(in_srgb,var(--color-primary-custom)_82%,black)] transition-colors py-2">
+                  <div className="p-3">
+                    <button className="w-full text-center text-xs font-bold text-primary hover:text-[color:color-mix(in_srgb,var(--color-primary-custom)_82%,black)] transition-colors py-2">
                       View All Notifications
                     </button>
                   </div>

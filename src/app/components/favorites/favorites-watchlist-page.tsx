@@ -16,6 +16,7 @@ import { getMockSellerProfiles, SellerProfileCardData } from '@/utils/mockSeller
 import { createDefaultProfile, loadUserProfile, shortenUserDisplayName } from '@/utils/profileUtils';
 import { getMarketplaceAssetById } from '@/utils/mockMarketplaceData';
 import { generateMockAsset } from '@/utils/mockAssetData';
+import { ASSET_METADATA_CHANGED_EVENT } from '@/utils/assetMetadataSync';
 import { toast } from 'sonner';
 import { StudioPanel } from '@/app/components/ui/studio-panel';
 import { EmptyStateCard } from '@/app/components/ui/empty-state-card';
@@ -62,9 +63,11 @@ export function FavoritesWatchlistPage({
       loadFavoritesData();
     };
     window.addEventListener('focus', refresh);
+    window.addEventListener(ASSET_METADATA_CHANGED_EVENT, refresh as EventListener);
     window.addEventListener('storage', refresh);
     return () => {
       window.removeEventListener('focus', refresh);
+      window.removeEventListener(ASSET_METADATA_CHANGED_EVENT, refresh as EventListener);
       window.removeEventListener('storage', refresh);
     };
   }, [storageUserId]);
@@ -240,44 +243,30 @@ export function FavoritesWatchlistPage({
   };
 
   return (
-    <div className="h-full bg-[#0f0f11] overflow-y-auto custom-scrollbar">
-      <style>{`
-        .ambient-blob {
-          position: absolute;
-          width: 600px;
-          height: 600px;
-          background: radial-gradient(circle, rgba(44, 194, 149, 0.03) 0%, rgba(18, 18, 18, 0) 70%);
-          border-radius: 50%;
-          filter: blur(80px);
-          z-index: 0;
-          pointer-events: none;
-        }
-      `}</style>
-
-      <div className="p-8 space-y-8 relative">
-        <div className="ambient-blob -top-40 -left-40"></div>
-
-        <div className="relative z-10">
+    <div className="h-full bg-ui-page overflow-hidden">
+      <div className="h-full p-2.5 overflow-hidden">
+        <section className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto custom-scrollbar relative z-10">
+          <div className="p-6 space-y-8">
           <StudioPageHeader
             title="Favorites & Following"
             subtitle="Manage your saved assets and followed profiles."
             actions={
               <StudioPillGroup>
-              <StudioPillButton
-                onClick={() => setActiveTab('favorites')}
-                active={activeTab === 'favorites'}
-                className="px-6"
-              >
-                Favorites
-              </StudioPillButton>
-              <StudioPillButton
-                onClick={() => setActiveTab('following')}
-                active={activeTab === 'following'}
-                className="px-6"
-              >
-                Following
-              </StudioPillButton>
-            </StudioPillGroup>
+                <StudioPillButton
+                  onClick={() => setActiveTab('favorites')}
+                  active={activeTab === 'favorites'}
+                  className="px-6"
+                >
+                  Favorites
+                </StudioPillButton>
+                <StudioPillButton
+                  onClick={() => setActiveTab('following')}
+                  active={activeTab === 'following'}
+                  className="px-6"
+                >
+                  Following
+                </StudioPillButton>
+              </StudioPillGroup>
             }
           />
 
@@ -304,7 +293,7 @@ export function FavoritesWatchlistPage({
             />
           </div>
 
-          {activeTab === 'favorites' ? (
+            {activeTab === 'favorites' ? (
             <div>
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Favorites Management</h3>
@@ -350,7 +339,7 @@ export function FavoritesWatchlistPage({
                 </div>
               )}
             </div>
-          ) : (
+            ) : (
             <div>
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Following Profiles</h3>
@@ -382,8 +371,9 @@ export function FavoritesWatchlistPage({
                 </div>
               )}
             </div>
-          )}
-        </div>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );

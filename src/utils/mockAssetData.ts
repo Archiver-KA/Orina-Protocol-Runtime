@@ -1,9 +1,120 @@
 import { AssetDetails, SimilarAsset } from '@/types/asset';
+import { getMarketplaceAssetById } from '@/utils/mockMarketplaceData';
+import { getDeterministicOwnedAssetDetailsById } from '@/utils/testWalletAssetFixtures';
+
+function hashString(input: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function seededUnit(seed: string, salt: string = '0'): number {
+  return (hashString(`${seed}:${salt}`) % 10000) / 10000;
+}
+
+function numericIdFromString(id: string): number {
+  const raw = String(id || '');
+  const direct = Number.parseInt(raw, 10);
+  if (Number.isFinite(direct)) return direct;
+
+  const match = raw.match(/(\d+)(?!.*\d)/);
+  if (match) return Number.parseInt(match[1], 10);
+
+  return hashString(raw) % 1000;
+}
+
+function parseEthAmount(value?: string): number {
+  const parsed = Number.parseFloat(String(value || '').replace(/[^\d.]/g, ''));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function shortAddress(address: string): string {
+  if (!address) return 'Unknown Seller';
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function marketplaceAssetToDetails(id: string): AssetDetails | null {
+  const listing = getMarketplaceAssetById(id);
+  if (!listing) return null;
+
+  const priceEth = parseEthAmount(listing.price);
+  const baseTimestamp = listing.createdAt || Date.now();
+  const sellerName = listing.seller.ensName || shortAddress(listing.seller.address);
+  const rating = typeof listing.seller.reputation === 'number'
+    ? Math.max(3, Math.min(5, listing.seller.reputation / 20))
+    : 4;
+
+  return {
+    id: listing.id,
+    tokenId: listing.tokenId,
+    name: listing.name,
+    description: listing.description || `${listing.name} marketplace listing`,
+    category: listing.category,
+    blockchain: listing.blockchain,
+
+    currentPrice: listing.price,
+    currentPriceUsd: listing.priceUSD || `$${(priceEth * 2500).toLocaleString()}`,
+    floorPrice: `${Math.max(priceEth * 0.9, 0.01).toFixed(2)} ETH`,
+    priceChange24h: (seededUnit(listing.id, 'change') * 20) - 10,
+
+    image: listing.image,
+    images: listing.images?.length ? listing.images : [listing.image],
+
+    properties: [
+      ...generateProperties(listing.category),
+      { trait_type: 'Network', value: `${listing.blockchain} ${listing.network}` },
+      { trait_type: 'Listing Type', value: 'Marketplace' },
+    ],
+
+    views: listing.views,
+    favorites: listing.likes,
+    totalVolume: `${(priceEth * (1 + seededUnit(listing.id, 'vol-mult') * 4)).toFixed(2)} ETH`,
+    totalSales: Math.max(1, Math.round(seededUnit(listing.id, 'sales') * 8)),
+
+    currentOwner: listing.seller.address,
+    creator: listing.seller.address,
+    ownerHistory: [
+      {
+        address: listing.seller.address,
+        timestamp: listing.listedAt || baseTimestamp,
+        price: listing.price,
+        txHash: `0x${hashString(`${listing.id}:list`).toString(16).padStart(8, '0')}...`,
+      },
+    ],
+
+    priceHistory: generatePriceHistory(priceEth.toString(), baseTimestamp, listing.id),
+
+    contractAddress: listing.contractAddress,
+    tokenStandard: 'ERC-721',
+    mintDate: baseTimestamp,
+    lastSale: listing.listedAt,
+
+    verified: !!listing.verified,
+    royalty: 2.5,
+    externalUrl: `https://example.com/marketplace/${listing.id}`,
+    ipfsUrl: `ipfs://mock-marketplace/${listing.id}`,
+    seller: {
+      name: sellerName,
+      address: listing.seller.address,
+    },
+    rating,
+  };
+}
 
 /**
  * Generate mock asset details for demo
  */
 export function generateMockAsset(id: string): AssetDetails {
+  // Phase C2 invariant: owned My Asset fixtures and marketplace listings must stay in separate namespaces.
+  const ownedFixture = getDeterministicOwnedAssetDetailsById(id);
+  if (ownedFixture) return ownedFixture;
+
+  const marketplaceDetails = marketplaceAssetToDetails(id);
+  if (marketplaceDetails) return marketplaceDetails;
+
   const assetTypes = [
     {
       name: 'Luxury Apartment #442',
@@ -52,13 +163,16 @@ export function generateMockAsset(id: string): AssetDetails {
     },
   ];
 
-  const asset = assetTypes[parseInt(id) % assetTypes.length];
+  const numericId = numericIdFromString(id);
+  const asset = assetTypes[numericId % assetTypes.length];
 
   const baseTimestamp = Date.now() - 90 * 24 * 60 * 60 * 1000; // 90 days ago
+  const seed = String(id);
+  const price = parseFloat(asset.price);
 
   return {
     id,
-    tokenId: `${parseInt(id) + 1000}`,
+    tokenId: `${numericId + 1000}`,
     name: asset.name,
     description: asset.description,
     category: asset.category,
@@ -66,8 +180,8 @@ export function generateMockAsset(id: string): AssetDetails {
     
     currentPrice: `${asset.price} ETH`,
     currentPriceUsd: `$${asset.priceUsd}`,
-    floorPrice: `${(parseFloat(asset.price) * 0.85).toFixed(2)} ETH`,
-    priceChange24h: (Math.random() * 20 - 10), // Random -10% to +10%
+    floorPrice: `${(price * 0.85).toFixed(2)} ETH`,
+    priceChange24h: (seededUnit(seed, 'priceChange24h') * 20 - 10),
     
     image: asset.image,
     images: [
@@ -79,10 +193,10 @@ export function generateMockAsset(id: string): AssetDetails {
     
     properties: generateProperties(asset.category),
     
-    views: Math.floor(Math.random() * 10000) + 1000,
-    favorites: Math.floor(Math.random() * 500) + 50,
-    totalVolume: `${(parseFloat(asset.price) * 3.5).toFixed(2)} ETH`,
-    totalSales: Math.floor(Math.random() * 10) + 3,
+    views: Math.floor(seededUnit(seed, 'views') * 10000) + 1000,
+    favorites: Math.floor(seededUnit(seed, 'favorites') * 500) + 50,
+    totalVolume: `${(price * (2 + seededUnit(seed, 'volumeMult') * 3)).toFixed(2)} ETH`,
+    totalSales: Math.floor(seededUnit(seed, 'sales') * 10) + 3,
     
     currentOwner: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
     creator: '0x8a90dE2E3b1c65c0c8b9A7D3F5E6C7D8E9F0A1B2',
@@ -103,10 +217,10 @@ export function generateMockAsset(id: string): AssetDetails {
     // Location from asset definition
     location: asset.location,
     seller: {
-      name: `Seller ${parseInt(id) % 10}`,
+      name: `Seller ${numericId % 10}`,
       address: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
     },
-    rating: Math.random() * 2 + 3, // 3.0 to 5.0
+    rating: seededUnit(seed, 'rating') * 2 + 3,
   };
 }
 
@@ -174,21 +288,23 @@ function generateOwnerHistory(basePrice: string, startTime: number) {
   ];
 }
 
-function generatePriceHistory(basePrice: string, startTime: number) {
+function generatePriceHistory(basePrice: string, startTime: number, seed: string = basePrice) {
   const price = parseFloat(basePrice);
   const ethToUsd = 2500; // Mock conversion rate
   
   const history = [];
   for (let i = 0; i < 90; i += 10) {
     const timestamp = startTime + i * 24 * 60 * 60 * 1000;
-    const variance = 0.9 + Math.random() * 0.2; // 90-110% variance
+    const variance = 0.9 + seededUnit(seed, `priceHistory:${i}`) * 0.2; // 90-110% variance
     const currentPrice = price * variance;
     
     history.push({
       timestamp,
       price: currentPrice,
       priceUsd: currentPrice * ethToUsd,
-      eventType: (i === 0 ? 'mint' : (Math.random() > 0.7 ? 'sale' : 'transfer')) as any,
+      eventType: (i === 0
+        ? 'mint'
+        : (seededUnit(seed, `eventType:${i}`) > 0.7 ? 'sale' : 'transfer')) as any,
     });
   }
   
@@ -202,11 +318,12 @@ export function generateSimilarAssets(currentAssetId: string, count: number = 4)
   const assets = [];
   const categories = ['Real Estate', 'Collectibles', 'Vehicles', 'Art', 'Luxury Goods'];
   const locations = ['Dubai', 'Singapore', 'Tokyo', 'London', 'Paris', 'New York', 'Monaco', 'Hong Kong'];
+  const baseId = numericIdFromString(currentAssetId);
   
   for (let i = 0; i < count; i++) {
-    const id = `${parseInt(currentAssetId) + i + 1}`;
+    const id = `${baseId + i + 1}`;
     const category = categories[i % categories.length];
-    const price = (Math.random() * 5 + 0.5).toFixed(2);
+    const price = (seededUnit(currentAssetId, `similarPrice:${i}`) * 5 + 0.5).toFixed(2);
     
     assets.push({
       id,
@@ -216,7 +333,7 @@ export function generateSimilarAssets(currentAssetId: string, count: number = 4)
       priceUsd: `$${(parseFloat(price) * 2500).toLocaleString()}`,
       category,
       location: locations[i % locations.length], // Add location
-      verified: Math.random() > 0.3, // 70% verified
+      verified: seededUnit(currentAssetId, `similarVerified:${i}`) > 0.3, // ~70% verified
     });
   }
   

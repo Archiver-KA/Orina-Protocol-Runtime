@@ -95,7 +95,7 @@ export function StyleGuide() {
             </div>
             <button 
               onClick={exportJSON}
-              className="bg-zinc-900 border border-[#27272a] px-4 py-2.5 rounded-lg text-xs font-bold text-white hover:bg-zinc-800 transition-all flex items-center gap-2"
+              className="bg-[rgba(255,255,255,0.02)] border-0 px-4 py-2.5 rounded-lg text-xs font-bold text-white hover:bg-zinc-800 transition-all flex items-center gap-2"
             >
               <Download size={16} />
               EXPORT JSON
@@ -121,7 +121,7 @@ export function StyleGuide() {
                 { name: '--accent-red', color: '#EF4444', textColor: 'text-red-500' },
                 { name: '--panel-border', color: '#27272a', textColor: 'text-zinc-400' },
               ].map((item) => (
-                <div key={item.name} className="bg-[#141417] border border-[#27272a] p-4 rounded-2xl">
+                <div key={item.name} className="bg-[rgba(255,255,255,0.02)] border-0 p-4 rounded-2xl">
                   <div 
                     className="w-full h-24 rounded-xl mb-4" 
                     style={{ backgroundColor: item.color }}
@@ -142,7 +142,7 @@ export function StyleGuide() {
               <div className="w-1.5 h-6 bg-[#2CC295] rounded-full"></div>
               <h2 className="text-xl font-bold text-white tracking-tight">03. BUTTON COMPONENTS</h2>
             </div>
-            <div className="bg-[#141417] border border-[#27272a] rounded-2xl p-8">
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-8">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
                 {/* Primary Gradient */}
                 <div className="space-y-6">
@@ -388,7 +388,7 @@ export function StyleGuide() {
                   <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500 flex items-center gap-2">
                     <span className="material-symbols-outlined text-sm">toggle_on</span> Standard Toggles
                   </h2>
-                  <div className="p-6 bg-[#141417] border border-[#27272a] rounded-xl space-y-6">
+                  <div className="p-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl space-y-6">
                     {/* Live Notifications */}
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-zinc-300">Live Notifications</span>
@@ -416,7 +416,7 @@ export function StyleGuide() {
                   </h2>
                   <div className="grid grid-cols-2 gap-4">
                     {/* Checkboxes */}
-                    <div className="p-6 bg-[#141417] border border-[#27272a] rounded-xl space-y-4">
+                    <div className="p-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl space-y-4">
                       <div className="flex items-center gap-3">
                         <input 
                           type="checkbox" 
@@ -435,7 +435,7 @@ export function StyleGuide() {
                     </div>
 
                     {/* Radio Buttons */}
-                    <div className="p-6 bg-[#141417] border border-[#27272a] rounded-xl space-y-4">
+                    <div className="p-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl space-y-4">
                       <div className="flex items-center gap-3">
                         <input 
                           type="radio" 

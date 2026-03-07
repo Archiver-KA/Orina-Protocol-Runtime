@@ -196,29 +196,19 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
   const resultCount = contentMode === 'profiles' ? filteredProfiles.length : filteredResults.length;
 
   return (
-    <div className="h-full flex bg-[#0f0f11] overflow-hidden relative">
+    <div className="h-full bg-ui-page overflow-hidden">
       <style>{`
         div::-webkit-scrollbar { width: 4px; }
         div::-webkit-scrollbar-track { background: transparent; }
         div::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
-        .ambient-blob {
-          position: absolute;
-          width: 600px;
-          height: 600px;
-          background: radial-gradient(circle, rgba(44, 194, 149, 0.03) 0%, rgba(18, 18, 18, 0) 70%);
-          border-radius: 50%;
-          filter: blur(80px);
-          z-index: 0;
-          pointer-events: none;
-        }
       `}</style>
 
-      {/* Ambient Blobs */}
-      <div className="ambient-blob -top-40 -left-40"></div>
-      <div className="ambient-blob -bottom-40 -right-40"></div>
+      <div className="h-full flex overflow-hidden">
+      <div className="flex-1 min-w-0 p-2.5 pr-0 overflow-hidden">
 
       {/* Center Column - Results */}
-      <section className="flex-1 bg-[#0f0f11] overflow-y-auto custom-scrollbar p-8 relative z-10">
+      <section className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto custom-scrollbar relative z-10">
+        <div className="p-6 max-w-5xl mx-auto">
         {/* Header */}
         <StudioPageHeader
           title={
@@ -240,28 +230,28 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
             <StudioPillButton
               onClick={() => setContentMode('assets')}
               active={contentMode === 'assets'}
-              className={contentMode === 'assets' ? 'bg-zinc-800 text-white rounded-lg px-3 py-1.5 shadow-none' : 'text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-lg'}
+              className={contentMode === 'assets' ? 'bg-[rgba(255,255,255,0.08)] text-white rounded-lg px-3 py-1.5 shadow-none' : 'text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-lg'}
             >
               Assets
             </StudioPillButton>
             <StudioPillButton
               onClick={() => setContentMode('profiles')}
               active={contentMode === 'profiles'}
-              className={contentMode === 'profiles' ? 'bg-zinc-800 text-white rounded-lg px-3 py-1.5 shadow-none' : 'text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-lg'}
+              className={contentMode === 'profiles' ? 'bg-[rgba(255,255,255,0.08)] text-white rounded-lg px-3 py-1.5 shadow-none' : 'text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-lg'}
             >
               Profiles
             </StudioPillButton>
             <StudioPillButton
               onClick={() => setViewMode('list')}
               active={viewMode === 'list'}
-              className={viewMode === 'list' ? 'bg-zinc-800 text-white rounded-lg px-3 py-1.5 shadow-none' : 'text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-lg'}
+              className={viewMode === 'list' ? 'bg-[rgba(255,255,255,0.08)] text-white rounded-lg px-3 py-1.5 shadow-none' : 'text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-lg'}
             >
               <List size={18} />
             </StudioPillButton>
             <StudioPillButton
               onClick={() => setViewMode('grid')}
               active={viewMode === 'grid'}
-              className={viewMode === 'grid' ? 'bg-zinc-800 text-white rounded-lg px-3 py-1.5 shadow-none' : 'text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-lg'}
+              className={viewMode === 'grid' ? 'bg-[rgba(255,255,255,0.08)] text-white rounded-lg px-3 py-1.5 shadow-none' : 'text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-lg'}
             >
               <Grid3x3 size={18} />
             </StudioPillButton>
@@ -358,26 +348,29 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
             )}
           </div>
         )}
+        </div>
       </section>
+      </div>
 
       {/* Right Sidebar - Filters */}
-      <StudioSidebarShell className="bg-[#0f0f11]">
+      <StudioSidebarShell widthClassName="w-[344px]" className="bg-ui-page border-l-0 p-2.5">
+        <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
         {/* Header - Fixed */}
-        <StudioSidebarHeader className="bg-[#141417]/60 backdrop-blur-sm">
-          <h2 className="text-white font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
-            <Search className="text-zinc-500" size={18} />
+        <StudioSidebarHeader className="p-5 border-b border-[var(--t-border-subtle)]">
+          <h2 className="text-ui-primary font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
+            <Search className="text-primary" size={18} />
             Search Filters
           </h2>
-          <p className="text-xs text-zinc-500 mt-1">Refine your search results</p>
+          <p className="text-xs text-ui-muted mt-1">Refine your search results</p>
         </StudioSidebarHeader>
 
         {/* Scrollable Content */}
-        <StudioSidebarScroll>
+        <StudioSidebarScroll className="p-4 space-y-4">
           {/* Filters */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Price Range */}
-            <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-4">
+            <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
+              <label className="text-[10px] font-bold text-ui-muted uppercase block mb-4">
                 Price Range (ETH)
               </label>
               <PriceRangeSlider
@@ -398,8 +391,8 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
             </div>
 
             {/* Blockchain */}
-            <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-4">
+            <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
+              <label className="text-[10px] font-bold text-ui-muted uppercase block mb-4">
                 Blockchain
               </label>
               <CustomDropdown
@@ -419,12 +412,12 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
             </div>
 
             {/* Status */}
-            <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-4">
+            <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
+              <label className="text-[10px] font-bold text-ui-muted uppercase block mb-4">
                 Status
               </label>
               <div className="space-y-3">
-                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-zinc-900/30 transition-colors">
+                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-white/[0.04] transition-colors">
                   <span className="text-sm text-zinc-400 group-hover:text-white transition-colors">
                     Verified Only
                   </span>
@@ -433,7 +426,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                     onChange={(checked) => setFilters({ ...filters, verifiedOnly: checked })}
                   />
                 </label>
-                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-zinc-900/30 transition-colors">
+                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-white/[0.04] transition-colors">
                   <span className="text-sm text-zinc-400 group-hover:text-white transition-colors">
                     On Sale
                   </span>
@@ -442,7 +435,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                     onChange={() => {}}
                   />
                 </label>
-                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-zinc-900/30 transition-colors">
+                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-white/[0.04] transition-colors">
                   <span className="text-sm text-zinc-400 group-hover:text-white transition-colors">
                     New Drops
                   </span>
@@ -455,8 +448,8 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
             </div>
 
             {/* Categories */}
-            <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-4">
+            <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
+              <label className="text-[10px] font-bold text-ui-muted uppercase block mb-4">
                 Categories
               </label>
               <div className="flex flex-wrap gap-2">
@@ -473,7 +466,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                       px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors
                       ${filters.categories.includes(category)
                         ? 'bg-[#2CC295]/10 text-[#2CC295] border-[#2CC295]/20'
-                        : 'bg-zinc-900 text-zinc-400 border-[#27272a] hover:bg-zinc-800'
+                        : 'bg-[rgba(18,18,18,0.5)] text-zinc-400 border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.06)]'
                       }
                     `}
                   >
@@ -488,9 +481,9 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
           </div>
 
           {/* Market Trends */}
-          <div className="pt-6 border-t border-[#27272a]">
+          <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-[11px] uppercase font-bold text-zinc-500">Market Trends</h2>
+              <h2 className="text-[11px] uppercase font-bold text-ui-muted">Market Trends</h2>
               <span className="text-[10px] text-[#2CC295] bg-[#2CC295]/10 px-2 py-0.5 rounded font-bold uppercase">
                 Live
               </span>
@@ -509,10 +502,10 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                 </div>
                 {/* Mini Chart */}
                 <div className="mt-4 flex items-end gap-1 h-12">
-                  <div className="flex-1 bg-zinc-800 rounded-t-sm" style={{ height: '40%' }}></div>
-                  <div className="flex-1 bg-zinc-800 rounded-t-sm" style={{ height: '60%' }}></div>
-                  <div className="flex-1 bg-zinc-800 rounded-t-sm" style={{ height: '50%' }}></div>
-                  <div className="flex-1 bg-zinc-800 rounded-t-sm" style={{ height: '80%' }}></div>
+                  <div className="flex-1 bg-[rgba(255,255,255,0.08)] rounded-t-sm" style={{ height: '40%' }}></div>
+                  <div className="flex-1 bg-[rgba(255,255,255,0.08)] rounded-t-sm" style={{ height: '60%' }}></div>
+                  <div className="flex-1 bg-[rgba(255,255,255,0.08)] rounded-t-sm" style={{ height: '50%' }}></div>
+                  <div className="flex-1 bg-[rgba(255,255,255,0.08)] rounded-t-sm" style={{ height: '80%' }}></div>
                   <div className="flex-1 bg-[#2CC295] rounded-t-sm" style={{ height: '95%' }}></div>
                   <div className="flex-1 bg-[#2CC295] rounded-t-sm" style={{ height: '100%' }}></div>
                 </div>
@@ -520,6 +513,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
             </div>
           </div>
         </StudioSidebarScroll>
+        </div>
       </StudioSidebarShell>
 
       {/* Product Modal */}
@@ -529,6 +523,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
           onClose={() => setIsModalOpen(false)}
         />
       )}
+      </div>
     </div>
   );
 }

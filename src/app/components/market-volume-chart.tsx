@@ -1,21 +1,24 @@
 export function MarketVolumeChart() {
   return (
-    <div className="bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-[rgba(255,255,255,0.08)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] rounded-2xl p-6">
+    <div
+      className="bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] p-6 backdrop-blur-[10px]"
+      style={{ backgroundColor: 'rgba(255, 255, 255, 0.02)' }}
+    >
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h3 className="text-lg font-bold text-white">Market Volume &amp; Revenue</h3>
-          <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">
+          <h3 className="text-lg font-bold text-ui-primary">Market Volume &amp; Revenue</h3>
+          <p className="text-xs text-ui-muted uppercase tracking-widest mt-1">
             Aggregate across 8 chains
           </p>
         </div>
         <div className="flex gap-4">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-[#2CC295]"></div>
-            <span className="text-xs font-medium text-zinc-400">Volume</span>
+            <span className="text-xs font-medium text-ui-secondary">Volume</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-zinc-600"></div>
-            <span className="text-xs font-medium text-zinc-400">Revenue</span>
+            <div className="w-3 h-3 rounded-full bg-[var(--t-text-muted)]"></div>
+            <span className="text-xs font-medium text-ui-secondary">Revenue</span>
           </div>
         </div>
       </div>
@@ -40,7 +43,7 @@ export function MarketVolumeChart() {
             ></path>
           </svg>
         </div>
-        <div className="absolute bottom-0 left-0 right-0 flex justify-between text-[10px] text-zinc-600 uppercase font-mono py-2">
+        <div className="absolute bottom-0 left-0 right-0 flex justify-between text-[10px] text-ui-muted uppercase font-mono py-2">
           <span>00:00</span>
           <span>04:00</span>
           <span>08:00</span>

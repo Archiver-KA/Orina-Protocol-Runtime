@@ -66,7 +66,7 @@ export function ProfileSearchCard({ profile, viewMode: _viewMode, onViewProfile,
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={handleCardKeyDown}
-      className="group w-full rounded-xl overflow-hidden border border-white/10 bg-white/[0.02] backdrop-blur-xl shadow-[0_10px_30px_rgba(0,0,0,0.25)] hover:border-[color:color-mix(in_srgb,var(--color-primary-custom)_25%,transparent)] transition-all cursor-pointer"
+      className="group w-full rounded-2xl overflow-hidden border-0 bg-[rgba(255,255,255,0.02)] backdrop-blur-[6px] hover:bg-[#1a1a1d] transition-all cursor-pointer"
     >
       <div className="relative h-32 w-full">
         {profile.bannerUrl ? (

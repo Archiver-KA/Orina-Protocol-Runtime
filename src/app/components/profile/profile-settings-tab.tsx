@@ -49,7 +49,7 @@ export function ProfileSettingsTab({ profile, onSave }: ProfileSettingsTabProps)
   return (
     <div className="max-w-3xl space-y-8">
       {/* Notifications */}
-      <div className="p-6 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl">
+      <div className="p-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 bg-orange-500/10 rounded-lg">
             <Bell size={20} className="text-orange-500" />
@@ -95,7 +95,7 @@ export function ProfileSettingsTab({ profile, onSave }: ProfileSettingsTabProps)
       </div>
 
       {/* Privacy */}
-      <div className="p-6 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl">
+      <div className="p-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 bg-blue-500/10 rounded-lg">
             <Lock size={20} className="text-blue-500" />
@@ -129,7 +129,7 @@ export function ProfileSettingsTab({ profile, onSave }: ProfileSettingsTabProps)
       </div>
 
       {/* Display */}
-      <div className="p-6 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl">
+      <div className="p-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 bg-purple-500/10 rounded-lg">
             <Palette size={20} className="text-purple-500" />

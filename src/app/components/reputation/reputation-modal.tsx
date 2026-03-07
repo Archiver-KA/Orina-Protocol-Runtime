@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Shield, Star, TrendingUp, Clock, AlertCircle, CheckCircle, Users, Award } from 'lucide-react';
+import { Shield, Star, TrendingUp, Clock, AlertCircle, CheckCircle, Users, Award } from 'lucide-react';
 import { ReputationScore, Rating } from '@/types/reputation';
 import { 
   getLevelInfo, 
@@ -13,6 +13,7 @@ import {
 } from '@/utils/reputationUtils';
 import { motion } from 'motion/react';
 import { formatDistanceToNow } from 'date-fns';
+import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 
 interface ReputationModalProps {
   score: ReputationScore;
@@ -48,12 +49,7 @@ export function ReputationModal({ score, ratings, onClose }: ReputationModalProp
               <p className="text-sm text-zinc-500">Detailed trust & performance metrics</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
-          >
-            <X size={20} className="text-zinc-400" />
-          </button>
+          <StudioModalCloseButton onClick={onClose} />
         </div>
 
         {/* Tabs */}
@@ -356,7 +352,7 @@ function BreakdownTab({ score }: { score: ReputationScore }) {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: idx * 0.1 }}
-            className="p-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl"
+            className="p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl"
           >
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
@@ -410,7 +406,7 @@ function RatingsTab({ ratings }: { ratings: Rating[] }) {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: idx * 0.05 }}
-          className="p-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl"
+          className="p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl"
         >
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3">
@@ -556,7 +552,7 @@ function MetricCard({
   subtitle: string;
 }) {
   return (
-    <div className="p-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl">
+    <div className="p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
       <div className="flex items-center gap-2 mb-2">
         <Icon size={16} className={iconColor} />
         <span className="text-xs text-zinc-500 uppercase tracking-wider font-bold">

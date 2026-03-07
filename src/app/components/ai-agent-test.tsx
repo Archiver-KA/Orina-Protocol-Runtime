@@ -169,7 +169,7 @@ export function AIAgentTest({ sellerAddress }: AIAgentTestProps) {
         </div>
         <div className="flex items-center gap-2">
           <button
-            className="px-3 py-1.5 bg-zinc-900 border border-[#27272a] rounded-lg text-[10px] text-zinc-400 hover:text-white hover:border-[#2CC295]/30 transition-colors uppercase font-bold tracking-wider"
+            className="px-3 py-1.5 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg text-[10px] text-zinc-400 hover:text-white hover:border-[#2CC295]/30 transition-colors uppercase font-bold tracking-wider"
             onClick={() => {
               setMessages([]);
             }}
@@ -196,7 +196,7 @@ export function AIAgentTest({ sellerAddress }: AIAgentTestProps) {
         {/* Date Divider - Show when there are messages */}
         {messages.length > 0 && (
           <div className="flex justify-center">
-            <span className="text-[10px] px-3 py-1 bg-zinc-900 border border-[#27272a] rounded-full text-zinc-500 uppercase tracking-widest font-bold">
+            <span className="text-[10px] px-3 py-1 bg-[rgba(255,255,255,0.02)] border-0 rounded-full text-zinc-500 uppercase tracking-widest font-bold">
               Today
             </span>
           </div>

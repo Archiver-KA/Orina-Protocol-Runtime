@@ -1,8 +1,10 @@
-import { X, Send, ArrowRight, Lightbulb } from 'lucide-react';
+import { Send, ArrowRight, Lightbulb } from 'lucide-react';
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { useAccount } from 'wagmi';
-import { findOrCreateConversation, addMessageToConversation } from '@/utils/conversationUtils';
+import * as MessagesClient from '@/utils/messagesClient';
+import { toast } from 'sonner';
+import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 
 interface QuickMessageModalProps {
   recipientName: string;
@@ -31,52 +33,46 @@ export function QuickMessageModal({
     if (!message.trim() || isSending || !currentUserAddress) return;
 
     setIsSending(true);
-    
-    // Find or create conversation (using current user's address)
-    const { conversation } = findOrCreateConversation(
-      currentUserAddress,
-      recipientAddress,
-      recipientName,
-      recipientAvatar
-    );
-    
-    setConversationId(conversation.id);
-    
-    // Add message to conversation
-    addMessageToConversation(currentUserAddress, conversation.id, message.trim(), 'me');
-    
-    // Trigger storage event for Messages page to reload
-    window.dispatchEvent(new Event('storage'));
-    
-    // Simulate sending delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    setIsSending(false);
-    setMessageSent(true);
 
-    // Auto-close after 1 second and navigate to full conversation
-    setTimeout(() => {
-      onViewFullConversation(conversation.id);
-      onClose();
-    }, 1000);
+    try {
+      const result = await MessagesClient.sendMessage(
+        currentUserAddress,
+        recipientAddress,
+        message.trim()
+      );
+
+      setConversationId(result.conversation.id);
+      setIsSending(false);
+      setMessageSent(true);
+
+      setTimeout(() => {
+        onViewFullConversation(result.conversation.id);
+        onClose();
+      }, 1000);
+    } catch (error) {
+      console.error('[QuickMessageModal] Failed to send message:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to send message');
+      setIsSending(false);
+    }
   };
 
-  const handleViewFullConversation = () => {
+  const handleViewFullConversation = async () => {
     if (!currentUserAddress) return;
-    
-    // Find or create conversation without message
-    const { conversation } = findOrCreateConversation(
-      currentUserAddress,
-      recipientAddress,
-      recipientName,
-      recipientAvatar
-    );
-    
-    // Trigger storage event for Messages page to reload
-    window.dispatchEvent(new Event('storage'));
-    
-    onViewFullConversation(conversation.id);
-    onClose();
+
+    try {
+      const conversation = await MessagesClient.createConversation(
+        currentUserAddress,
+        recipientAddress,
+        recipientName
+      );
+
+      setConversationId(conversation.id);
+      onViewFullConversation(conversation.id);
+      onClose();
+    } catch (error) {
+      console.error('[QuickMessageModal] Failed to open conversation:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to open conversation');
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -117,12 +113,7 @@ export function QuickMessageModal({
                 <p className="text-[10px] text-zinc-500 font-mono">{truncatedAddress}</p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#27272a] bg-zinc-900/50 hover:bg-zinc-800 transition-colors"
-            >
-              <X size={18} className="text-zinc-400" />
-            </button>
+            <StudioModalCloseButton onClick={onClose} iconSize={18} className="w-8 h-8 rounded-lg border border-[#27272a] bg-zinc-900/50" />
           </div>
         </div>
 
@@ -153,7 +144,7 @@ export function QuickMessageModal({
                   placeholder="Type your message here..."
                   rows={6}
                   disabled={isSending}
-                  className="w-full px-4 py-3 bg-zinc-900/50 border border-[#27272a] rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#2CC295] focus:ring-1 focus:ring-[#2CC295]/50 transition-all resize-none disabled:opacity-50"
+                  className="w-full px-4 py-3 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#2CC295] focus:ring-1 focus:ring-[#2CC295]/50 transition-all resize-none disabled:opacity-50"
                   autoFocus
                 />
                 <p className="text-[10px] text-zinc-500 mt-2">
@@ -181,7 +172,7 @@ export function QuickMessageModal({
               </div>
 
               {/* Quick Tip */}
-              <div className="flex items-start gap-3 p-4 bg-zinc-900/30 border border-[#27272a] rounded-lg">
+              <div className="flex items-start gap-3 p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg">
                 <Lightbulb size={14} className="text-[#2CC295] mt-0.5 flex-shrink-0" />
                 <p className="text-[11px] text-zinc-400 leading-relaxed">
                   <span className="text-zinc-300 font-bold">Quick Tip:</span> This seller may have an AI Agent enabled that can respond instantly to common questions about their assets.

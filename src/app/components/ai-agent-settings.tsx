@@ -109,18 +109,18 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <Bot className="text-[#2CC295]" size={20} />
+          <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-3">
+            <Bot className="text-[#2CC295]" size={18} />
             AI Agent for Messages
           </h3>
-          <p className="text-sm text-zinc-500 mt-1">
+          <p className="text-sm text-zinc-500 mt-2">
             Let AI handle customer inquiries automatically in Messages
           </p>
         </div>
       </div>
 
       {/* Enable Toggle */}
-      <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-5">
+      <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-5">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2">
@@ -163,7 +163,7 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
               value={agentName}
               onChange={(e) => setAgentName(e.target.value)}
               placeholder="e.g., Tesla Sales Assistant, Property Bot"
-              className="w-full bg-zinc-900 border border-[#27272a] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#2CC295]/50"
+              className="w-full bg-[rgba(255,255,255,0.02)] border-0 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#2CC295]/50"
             />
             <p className="text-xs text-zinc-500 mt-1">
               This name will be shown to customers in Messages
@@ -206,7 +206,7 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
           </div>
 
           {/* Auto Reply */}
-          <div className="bg-zinc-900/50 border border-[#27272a] rounded-lg p-4">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-lg p-4">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -233,7 +233,7 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
               onChange={(e) => setGreetingMessage(e.target.value)}
               placeholder="Leave empty to use default greeting..."
               rows={3}
-              className="w-full bg-zinc-900 border border-[#27272a] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#2CC295]/50 resize-none"
+              className="w-full bg-[rgba(255,255,255,0.02)] border-0 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#2CC295]/50 resize-none"
             />
             <p className="text-xs text-zinc-500 mt-1">
               Custom message when AI first greets customers
@@ -258,7 +258,7 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
         <button
           onClick={handleSave}
           disabled={saving || !enabled || !agentName.trim()}
-          className="flex-1 px-4 py-2.5 bg-[#2CC295] text-black rounded-lg text-sm font-bold hover:bg-[#2CC295]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="flex-1 px-4 py-2.5 bg-[#2CC295] text-black rounded-full text-sm font-bold hover:bg-[#25a67d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {saving ? (
             <>
@@ -280,17 +280,17 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
       {enabled && (
         <>
           <div className="grid grid-cols-3 gap-4 pt-4">
-            <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-4">
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
               <MessageSquare className="text-[#2CC295] mb-2" size={16} />
               <div className="text-xs text-zinc-400 uppercase font-bold">Response Time</div>
               <div className="text-lg font-bold text-white mt-1">Instant</div>
             </div>
-            <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-4">
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
               <Zap className="text-[#2CC295] mb-2" size={16} />
               <div className="text-xs text-zinc-400 uppercase font-bold">Availability</div>
               <div className="text-lg font-bold text-white mt-1">24/7</div>
             </div>
-            <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-4">
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
               <Settings className="text-[#2CC295] mb-2" size={16} />
               <div className="text-xs text-zinc-400 uppercase font-bold">Mode</div>
               <div className="text-lg font-bold text-white mt-1 capitalize">{behavior}</div>
@@ -301,7 +301,7 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
           {onNavigateToTest && config && (
             <button
               onClick={onNavigateToTest}
-              className="w-full px-4 py-3 bg-zinc-900 border-2 border-[#2CC295] text-[#2CC295] rounded-lg text-sm font-bold hover:bg-[#2CC295]/10 transition-colors flex items-center justify-center gap-2"
+              className="w-full px-4 py-3 bg-[rgba(255,255,255,0.05)] border border-[#2CC295]/40 text-[#2CC295] rounded-full text-sm font-bold hover:bg-[#2CC295]/10 transition-colors flex items-center justify-center gap-2"
             >
               <Bot size={18} />
               Test AI Agent in Chat

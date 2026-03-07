@@ -28,9 +28,9 @@ export function StudioTxStatePanel({
     variant === 'success'
       ? {
           box: 'bg-[color:color-mix(in_srgb,var(--color-primary-custom)_10%,transparent)] border-[color:color-mix(in_srgb,var(--color-primary-custom)_35%,transparent)]',
-          title: 'text-[var(--color-primary-custom)]',
+          title: 'text-primary',
           desc: 'text-[color:color-mix(in_srgb,var(--color-primary-custom)_70%,white_0%)]/70',
-          icon: <CheckCircle2 className="text-[var(--color-primary-custom)] flex-shrink-0 mt-0.5" size={20} />,
+          icon: <CheckCircle2 className="text-primary flex-shrink-0 mt-0.5" size={20} />,
         }
       : variant === 'error'
         ? {

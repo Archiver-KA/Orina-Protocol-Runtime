@@ -94,11 +94,11 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <Key className="text-[#2CC295]" size={20} />
+          <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-3">
+            <Key className="text-[#2CC295]" size={18} />
             API Keys for AI Agents
           </h3>
-          <p className="text-sm text-zinc-500 mt-1">
+          <p className="text-sm text-zinc-500 mt-2">
             Enable AI agents to manage your marketplace listings automatically
           </p>
         </div>
@@ -107,7 +107,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
             setShowCreateForm(!showCreateForm);
             setGeneratedKey(null);
           }}
-          className="px-4 py-2 bg-[#2CC295] text-black font-bold text-xs rounded-lg hover:bg-[#2CC295]/90 transition-colors flex items-center gap-2"
+          className="px-4 py-2 bg-[#2CC295] hover:bg-[#25a67d] text-black font-bold text-xs rounded-full transition-colors flex items-center gap-2"
         >
           {showCreateForm ? (
             <>
@@ -144,7 +144,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
       {/* Stats Overview */}
       {apiKeys.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-4">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
             <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold uppercase mb-2">
               <Activity size={12} />
               Total Requests
@@ -153,7 +153,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
             <div className="text-[10px] text-zinc-500 mt-1">Last 30 days</div>
           </div>
 
-          <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-4">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
             <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold uppercase mb-2">
               <TrendingUp size={12} />
               Success Rate
@@ -162,7 +162,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
             <div className="text-[10px] text-zinc-500 mt-1">Average across all keys</div>
           </div>
 
-          <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-4">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
             <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold uppercase mb-2">
               <Shield size={12} />
               Active Keys
@@ -176,7 +176,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
       {/* API Keys List */}
       <div className="space-y-4">
         {apiKeys.length === 0 ? (
-          <div className="bg-zinc-900/30 border border-[#27272a] rounded-xl p-8 text-center">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-8 text-center">
             <Key className="mx-auto text-zinc-600 mb-3" size={32} />
             <h4 className="text-white font-bold mb-2">No API Keys Yet</h4>
             <p className="text-sm text-zinc-500 mb-4">
@@ -184,7 +184,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
             </p>
             <button
               onClick={() => setShowCreateForm(true)}
-              className="px-4 py-2 bg-zinc-800 border border-[#27272a] text-white rounded-lg text-xs font-bold hover:border-[#2CC295]/50 transition-colors"
+              className="px-4 py-2 bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-white rounded-full text-xs font-bold transition-colors"
             >
               Create First Key
             </button>
@@ -367,7 +367,7 @@ function CreateAPIKeyForm({
   };
 
   return (
-    <div className="bg-zinc-900/30 border border-[#27272a] rounded-2xl w-full">
+    <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl w-full">
       {!generatedKey ? (
         <>
           {/* Header */}
@@ -393,7 +393,7 @@ function CreateAPIKeyForm({
                 value={keyName}
                 onChange={(e) => setKeyName(e.target.value)}
                 placeholder="e.g., ChatGPT Agent, Production Bot"
-                className="w-full bg-zinc-900 border border-[#27272a] rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#2CC295]/50"
+                className="w-full bg-[rgba(255,255,255,0.02)] border-0 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#2CC295]/50"
               />
             </div>
 
@@ -406,7 +406,7 @@ function CreateAPIKeyForm({
                 {(['read', 'write', 'mint', 'delete'] as APIKeyPermission[]).map((permission) => (
                   <label
                     key={permission}
-                    className="flex items-center gap-3 p-3 bg-zinc-900/50 border border-[#27272a] rounded-lg cursor-pointer hover:border-[#2CC295]/30 transition-colors"
+                    className="flex items-center gap-3 p-3 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg cursor-pointer hover:border-[#2CC295]/30 transition-colors"
                   >
                     <input
                       type="checkbox"
@@ -453,7 +453,7 @@ function CreateAPIKeyForm({
           <div className="p-6 border-t border-[#27272a] flex items-center gap-3">
             <button
               onClick={onCancel}
-              className="flex-1 px-4 py-2.5 bg-zinc-900 border border-[#27272a] text-white rounded-lg text-sm font-bold hover:bg-zinc-800 transition-colors"
+              className="flex-1 px-4 py-2.5 bg-[rgba(255,255,255,0.02)] border-0 text-white rounded-lg text-sm font-bold hover:bg-zinc-800 transition-colors"
             >
               Cancel
             </button>
@@ -481,7 +481,7 @@ function CreateAPIKeyForm({
 
           {/* Generated Key Display */}
           <div className="p-6 space-y-4">
-            <div className="bg-zinc-900 border border-[#27272a] rounded-lg p-4">
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-lg p-4">
               <div className="text-xs font-bold text-zinc-400 uppercase mb-2">Your API Key</div>
               <code className="text-sm text-white font-mono break-all block mb-3">
                 {generatedKey.key}

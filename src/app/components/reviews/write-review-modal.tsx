@@ -5,6 +5,7 @@ import { Review } from '@/types/review';
 import { validateReviewForm, generateReviewId } from '@/utils/reviewUtils';
 import { StarRating } from './star-rating';
 import { toast } from 'sonner';
+import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 
 interface WriteReviewModalProps {
   isOpen: boolean;
@@ -124,7 +125,7 @@ export function WriteReviewModal({
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.2 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-[#141417] w-full max-w-2xl rounded-2xl border border-zinc-800 overflow-hidden shadow-2xl"
+          className="bg-[rgba(255,255,255,0.02)] w-full max-w-2xl rounded-2xl border-0 overflow-hidden shadow-2xl"
         >
           {/* Header */}
           <div className="p-6 border-b border-zinc-800">
@@ -135,12 +136,7 @@ export function WriteReviewModal({
                 </h2>
                 <p className="text-sm text-zinc-400 mt-1">{assetName}</p>
               </div>
-              <button
-                onClick={handleClose}
-                className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
-              >
-                <X size={20} className="text-zinc-400" />
-              </button>
+              <StudioModalCloseButton onClick={handleClose} />
             </div>
           </div>
 

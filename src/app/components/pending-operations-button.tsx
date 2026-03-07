@@ -111,7 +111,7 @@ export function PendingOperationsButton({ walletAddress }: PendingOperationsButt
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-[#141417] border border-[#27272a] rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+              className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
             >
               {/* Header */}
               <div className="p-6 border-b border-[#27272a]">
@@ -139,7 +139,7 @@ export function PendingOperationsButton({ walletAddress }: PendingOperationsButt
                 {operations.map((operation) => (
                   <div
                     key={operation.id}
-                    className="bg-zinc-900/50 border border-[#27272a] rounded-xl p-4 hover:border-[#2CC295]/30 transition-all"
+                    className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4 hover:border-[#2CC295]/30 transition-all"
                   >
                     <div className="flex items-start gap-4">
                       {/* Icon */}

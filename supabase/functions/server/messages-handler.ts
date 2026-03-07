@@ -112,6 +112,17 @@ export async function createOrGetConversation(
 }
 
 /**
+ * Create/get a conversation without sending a message
+ */
+export async function createConversation(
+  sender: string,
+  receiver: string,
+  displayName?: string
+): Promise<Conversation> {
+  return createOrGetConversation(sender, receiver, displayName);
+}
+
+/**
  * Send a message
  */
 export async function sendMessage(
@@ -248,6 +259,31 @@ export async function deleteConversation(
 // ============================================================================
 // HTTP Handlers
 // ============================================================================
+
+/**
+ * POST /messages/conversation
+ * Body: { sender, receiver, displayName? }
+ */
+export async function handleCreateConversation(c: Context) {
+  try {
+    const body = await c.req.json();
+    const { sender, receiver, displayName } = body;
+
+    if (!sender || !receiver) {
+      return c.json({ error: 'Missing sender or receiver' }, 400);
+    }
+
+    const conversation = await createConversation(sender, receiver, displayName);
+
+    return c.json({
+      success: true,
+      conversation,
+    });
+  } catch (error) {
+    console.error('[Messages] Create conversation error:', error);
+    return c.json({ error: 'Failed to create conversation', details: error.message }, 500);
+  }
+}
 
 /**
  * POST /messages/send

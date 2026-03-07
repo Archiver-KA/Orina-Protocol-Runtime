@@ -72,7 +72,7 @@ export function LeftSidebar({ activePage, setActivePage, collapsed, onToggle }: 
               
               {/* Tooltip for collapsed state */}
               {collapsed && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-zinc-900 border border-[#27272a] rounded-lg text-xs text-white whitespace-nowrap invisible opacity-0 pointer-events-none group-hover:visible group-hover:opacity-100 transition-opacity z-50">
+                <div className="absolute left-full ml-2 px-2 py-1 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg text-xs text-white whitespace-nowrap invisible opacity-0 pointer-events-none group-hover:visible group-hover:opacity-100 transition-opacity z-50">
                   {item.label}
                 </div>
               )}
@@ -101,7 +101,7 @@ export function LeftSidebar({ activePage, setActivePage, collapsed, onToggle }: 
           
           {/* Tooltip for collapsed state */}
           {collapsed && (
-            <div className="absolute left-full ml-2 px-2 py-1 bg-zinc-900 border border-[#27272a] rounded-lg text-xs text-white whitespace-nowrap invisible opacity-0 pointer-events-none group-hover:visible group-hover:opacity-100 transition-opacity z-50">
+            <div className="absolute left-full ml-2 px-2 py-1 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg text-xs text-white whitespace-nowrap invisible opacity-0 pointer-events-none group-hover:visible group-hover:opacity-100 transition-opacity z-50">
               Expand sidebar
             </div>
           )}

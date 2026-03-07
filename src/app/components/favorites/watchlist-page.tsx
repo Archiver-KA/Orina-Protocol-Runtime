@@ -12,6 +12,7 @@ import {
   updateWatchlistItem,
 } from '@/utils/favoritesUtils';
 import { generateMockAsset } from '@/utils/mockAssetData';
+import { ASSET_METADATA_CHANGED_EVENT } from '@/utils/assetMetadataSync';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -41,9 +42,11 @@ export function WatchlistPage({
   useEffect(() => {
     const refresh = () => loadWatchlistData();
     window.addEventListener('orina:favorites-changed', refresh as EventListener);
+    window.addEventListener(ASSET_METADATA_CHANGED_EVENT, refresh as EventListener);
     window.addEventListener('storage', refresh as EventListener);
     return () => {
       window.removeEventListener('orina:favorites-changed', refresh as EventListener);
+      window.removeEventListener(ASSET_METADATA_CHANGED_EVENT, refresh as EventListener);
       window.removeEventListener('storage', refresh as EventListener);
     };
   }, [currentUserId]);
@@ -153,7 +156,7 @@ export function WatchlistPage({
       {/* Stats Cards */}
       {watchlist.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="p-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl">
+          <div className="p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-zinc-500">Watching</span>
               <Eye size={16} className="text-[#2CC295]" />
@@ -161,7 +164,7 @@ export function WatchlistPage({
             <p className="text-2xl font-bold text-white">{stats.totalWatching}</p>
           </div>
 
-          <div className="p-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl">
+          <div className="p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-zinc-500">Active Alerts</span>
               <Bell size={16} className="text-orange-500" />
@@ -169,7 +172,7 @@ export function WatchlistPage({
             <p className="text-2xl font-bold text-white">{stats.activeAlerts}</p>
           </div>
 
-          <div className="p-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl">
+          <div className="p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-zinc-500">Price Up</span>
               <TrendingUp size={16} className="text-green-500" />
@@ -177,7 +180,7 @@ export function WatchlistPage({
             <p className="text-2xl font-bold text-green-400">{stats.priceChanges.up}</p>
           </div>
 
-          <div className="p-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl">
+          <div className="p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-zinc-500">Price Down</span>
               <TrendingDown size={16} className="text-red-500" />
@@ -199,7 +202,7 @@ export function WatchlistPage({
           </p>
         </div>
       ) : (
-        <div className="bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl overflow-hidden">
+        <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>

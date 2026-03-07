@@ -19,25 +19,16 @@
   -webkit-font-smoothing: antialiased;
 }
 
-/* Custom scrollbar styles - Global standard (Asset Details) */
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: #27272a transparent;
+/* Hide visual scrollbar while preserving scroll interaction */
+.custom-scrollbar,
+.hidden-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 10px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #3a3a3d;
+.custom-scrollbar::-webkit-scrollbar,
+.hidden-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }

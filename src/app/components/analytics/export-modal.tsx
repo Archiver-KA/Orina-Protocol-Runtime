@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { X, Download, FileJson, FileText } from 'lucide-react';
+import { Download, FileJson, FileText } from 'lucide-react';
 import { TimeRange, ExportData } from '@/types/analytics';
 import { downloadJSON, downloadCSV } from '@/utils/analyticsUtils';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
+import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 
 interface ExportModalProps {
   exportData: ExportData;
@@ -51,12 +52,7 @@ export function ExportModal({ exportData, onClose }: ExportModalProps) {
               <p className="text-sm text-zinc-500">Download your data</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
-          >
-            <X size={20} className="text-zinc-400" />
-          </button>
+          <StudioModalCloseButton onClick={onClose} />
         </div>
 
         {/* Content */}

@@ -186,13 +186,22 @@ async function hydratePostsFromSupabase(): Promise<void> {
     mapped.forEach((post, idx) => setLocalSupabaseId('community_post', postMapKey(post.id), rows[idx].id));
 
     const existing = loadAllPosts();
-    const remoteIds = new Set(mapped.map((p) => p.id));
+    const existingById = new Map(existing.map((post) => [post.id, post] as const));
+    const mappedWithLocalPreference = mapped.map((remotePost) => {
+      const localPost = existingById.get(remotePost.id);
+      if (!localPost) return remotePost;
+
+      const remoteTs = remotePost.updatedAt || remotePost.createdAt || 0;
+      const localTs = localPost.updatedAt || localPost.createdAt || 0;
+      return localTs > remoteTs ? localPost : remotePost;
+    });
+    const remoteIds = new Set(mappedWithLocalPreference.map((p) => p.id));
     const localOnly = existing.filter(
       (post) =>
         !getLocalSupabaseId('community_post', postMapKey(post.id)) &&
         !remoteIds.has(post.id)
     );
-    const merged = [...mapped, ...localOnly].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const merged = [...mappedWithLocalPreference, ...localOnly].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
     localStorage.setItem(POSTS_KEY, JSON.stringify(merged));
     dispatchSyncEvent(COMMUNITY_SYNC_EVENT);

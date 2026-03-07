@@ -372,6 +372,16 @@ interface SearchResultCardProps {
 export function SearchResultCard({
   asset, viewMode, onLike, onClick, isLiked = false,
 }: SearchResultCardProps) {
+  const isFractionalListing =
+    typeof asset.availableSlots === 'number' && typeof asset.totalSlots === 'number';
+  const isNftListing = !isFractionalListing;
+  const badgeLabel = isFractionalListing ? 'RWA' : 'NFT';
+  const badgeClass = isFractionalListing
+    ? 'text-[#2CC295] border border-[#2CC295]/30'
+    : 'text-[#7DD3FC] border border-[#7DD3FC]/30';
+  const accentTextClass = isFractionalListing ? 'text-[#2CC295]' : 'text-[#7DD3FC]';
+  const accentBgClass = isFractionalListing ? 'bg-[#2CC295]/8' : 'bg-[#7DD3FC]/8';
+  const accentBorderClass = isFractionalListing ? 'border-[#2CC295]/30' : 'border-[#7DD3FC]/30';
 
   const getListingDuration = () => {
     if (!asset.expiresAt) return asset.listingDuration || 'No expiry';
@@ -398,13 +408,13 @@ export function SearchResultCard({
     return (
       <div
         onClick={handleClick}
-        className="w-full max-w-xs text-left bg-[#141417] border border-[#27272a] rounded-2xl overflow-visible hover:bg-[#1a1a1d] hover:-translate-y-1 transition-all group cursor-pointer"
+        className="w-full max-w-xs text-left bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-visible hover:bg-[#1a1a1d] hover:-translate-y-1 transition-all group cursor-pointer"
       >
         <div className="relative aspect-square">
           <div className="absolute inset-0 rounded-t-2xl overflow-hidden bg-zinc-800">
             <ImageWithFallback src={asset.image} alt={asset.name} className="w-full h-full object-cover" />
-            <div className="absolute top-2 left-2 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full text-[9px] font-bold text-[#2CC295] border border-[#2CC295]/30 uppercase tracking-wider">
-              RWA
+            <div className={`absolute top-2 left-2 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+              {badgeLabel}
             </div>
           </div>
           <div className="absolute bottom-2 right-2 z-10">
@@ -417,9 +427,14 @@ export function SearchResultCard({
             <Heart size={16} className={isLiked ? 'fill-red-500 text-red-500' : ''} />
           </button>
 
-          <div className="flex items-center gap-1 mb-2">
-            <span className="text-[10px] font-medium text-[#2CC295] uppercase tracking-wider">{asset.category}</span>
-            {asset.seller?.verified && <Shield size={12} className="text-[#2CC295] fill-[#2CC295]" />}
+          <div className="flex items-center gap-1.5 mb-2">
+            <span className={`text-[10px] font-medium uppercase tracking-wider ${accentTextClass}`}>{asset.category}</span>
+            {asset.seller?.verified && <Shield size={12} className={`${accentTextClass} ${isFractionalListing ? 'fill-[#2CC295]' : 'fill-[#7DD3FC]'}`} />}
+            {isNftListing && (
+              <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-[0.14em] ${accentBgClass} ${accentTextClass} border ${accentBorderClass}`}>
+                1 / 1
+              </span>
+            )}
           </div>
 
           <h3 className="text-sm font-bold text-white mb-2 line-clamp-1 pr-10">{asset.name}</h3>
@@ -439,6 +454,9 @@ export function SearchResultCard({
               {asset.availableSlots !== undefined && asset.totalSlots !== undefined && (
                 <p className="text-sm font-bold text-[#2CC295] mt-1">{asset.availableSlots} / {asset.totalSlots}</p>
               )}
+              {isNftListing && (
+                <p className={`text-xs font-bold mt-1 ${accentTextClass}`}>Token #{asset.tokenId}</p>
+              )}
             </div>
           </div>
 
@@ -456,12 +474,12 @@ export function SearchResultCard({
   return (
     <div
       onClick={handleClick}
-      className="w-full text-left bg-[#141417] border border-[#27272a] rounded-2xl p-4 flex gap-6 transition-all hover:bg-[#1a1a1d] hover:-translate-y-0.5 group items-center cursor-pointer"
+      className="w-full text-left bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-4 flex gap-6 transition-all hover:bg-[#1a1a1d] hover:-translate-y-0.5 group items-center cursor-pointer"
     >
       <div className="w-[180px] aspect-square rounded-xl flex-shrink-0 bg-zinc-800 relative overflow-hidden">
         <ImageWithFallback src={asset.image} alt={asset.name} className="w-full h-full object-cover rounded-xl" />
-        <div className="absolute top-2 left-2 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full text-[9px] font-bold text-[#2CC295] border border-[#2CC295]/30 uppercase tracking-wider">
-          RWA
+        <div className={`absolute top-2 left-2 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+          {badgeLabel}
         </div>
         <div className="absolute bottom-2 right-2 z-10">
           <ChainBadge chain={asset.blockchain} size={16} variant="overlay" />
@@ -469,9 +487,14 @@ export function SearchResultCard({
       </div>
 
       <div className="flex-1 flex flex-col justify-center min-w-0">
-        <div className="flex items-center gap-1.5 mb-1">
-          <span className="text-[10px] font-medium text-[#2CC295] uppercase tracking-wider">{asset.category}</span>
-          {asset.seller?.verified && <Shield size={12} className="text-[#2CC295] fill-[#2CC295]" />}
+        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+          <span className={`text-[10px] font-medium uppercase tracking-wider ${accentTextClass}`}>{asset.category}</span>
+          {asset.seller?.verified && <Shield size={12} className={`${accentTextClass} ${isFractionalListing ? 'fill-[#2CC295]' : 'fill-[#7DD3FC]'}`} />}
+          {isNftListing && (
+            <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-[0.14em] ${accentBgClass} ${accentTextClass} border ${accentBorderClass}`}>
+              Token #{asset.tokenId}
+            </span>
+          )}
         </div>
         <h3 className="text-lg font-bold text-white mb-2 pr-12 truncate">{asset.name}</h3>
         <div className="mb-3">
@@ -501,6 +524,12 @@ export function SearchResultCard({
           <div className="text-right">
             <p className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest mb-0.5">Available</p>
             <p className="text-sm font-bold text-[#2CC295]">{asset.availableSlots} / {asset.totalSlots}</p>
+          </div>
+        )}
+        {isNftListing && (
+          <div className="text-right">
+            <p className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest mb-0.5">Edition</p>
+            <p className={`text-sm font-bold ${accentTextClass}`}>1 / 1 NFT</p>
           </div>
         )}
         <ChainBadge chain={asset.blockchain} size={20} variant="inline" />

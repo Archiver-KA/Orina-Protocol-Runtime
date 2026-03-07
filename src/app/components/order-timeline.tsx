@@ -86,7 +86,7 @@ export function OrderTimeline({ events, chainId = 11155111 }: OrderTimelineProps
               </div>
 
               {/* Content */}
-              <div className="flex-1 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-[rgba(255,255,255,0.08)] rounded-xl p-4">
+              <div className="flex-1 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-2">
                   <div>

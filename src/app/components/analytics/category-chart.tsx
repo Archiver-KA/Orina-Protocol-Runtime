@@ -61,7 +61,7 @@ export function CategoryChart({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
-      className="p-6 bg-[linear-gradient(180deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_100%),#141417] border border-zinc-800 rounded-xl"
+      className="p-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl"
     >
       {title && (
         <h3 className="text-heading-sm font-bold text-white mb-4">{title}</h3>

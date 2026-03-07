@@ -24,7 +24,7 @@ export function StudioTransientState({
   const tone =
     variant === 'success'
       ? {
-          text: 'text-[var(--color-primary-custom)]',
+          text: 'text-primary',
           border: 'border-[color:color-mix(in_srgb,var(--color-primary-custom)_35%,transparent)]',
           bg: 'bg-[color:color-mix(in_srgb,var(--color-primary-custom)_10%,transparent)]',
         }

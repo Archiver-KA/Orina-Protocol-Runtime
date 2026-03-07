@@ -1,4 +1,4 @@
-import svgPaths from "@/imports/svg-y3s4ijjc4m";
+import svgPaths from "@/app/components/avatars/avatar-paths";
 
 // Avatar 1 - Purple girl with blue shirt
 export function Avatar1({ className = "" }: { className?: string }) {

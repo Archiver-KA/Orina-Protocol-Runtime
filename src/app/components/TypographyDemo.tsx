@@ -19,7 +19,7 @@ export function TypographyDemo() {
         {/* Headings */}
         <section className="space-y-6">
           <div className="text-section-header text-zinc-500">Headings (text-h1 through text-h6)</div>
-          <div className="space-y-6 bg-[#141417] border border-[#27272a] rounded-2xl p-8">
+          <div className="space-y-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-8">
             <div className="space-y-2">
               <h1 className="text-h1 text-white">Heading 1 - 60px Bold</h1>
               <code className="text-caption text-[#2CC295]">.text-h1</code>
@@ -55,7 +55,7 @@ export function TypographyDemo() {
         {/* Body Text */}
         <section className="space-y-6">
           <div className="text-section-header text-zinc-500">Body Text (text-body-lg, md, sm)</div>
-          <div className="space-y-6 bg-[#141417] border border-[#27272a] rounded-2xl p-8">
+          <div className="space-y-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-8">
             <div className="space-y-2">
               <p className="text-body-lg text-white">
                 Body Large (18px) - The quick brown fox jumps over the lazy dog. This is ideal for important paragraphs and introductory text that needs more emphasis.
@@ -83,7 +83,7 @@ export function TypographyDemo() {
         <section className="space-y-6">
           <div className="text-section-header text-zinc-500">Labels & Micro Text</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-6 bg-[#141417] border border-[#27272a] rounded-2xl p-8">
+            <div className="space-y-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-8">
               <div className="space-y-2">
                 <div className="text-label text-white">Label (12px Medium)</div>
                 <code className="text-caption text-[#2CC295]">.text-label</code>
@@ -103,7 +103,7 @@ export function TypographyDemo() {
               </div>
             </div>
 
-            <div className="space-y-6 bg-[#141417] border border-[#27272a] rounded-2xl p-8">
+            <div className="space-y-6 bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-8">
               <div className="space-y-2">
                 <div className="text-section-header text-white">Section Header</div>
                 <code className="text-caption text-[#2CC295]">.text-section-header</code>
@@ -124,7 +124,7 @@ export function TypographyDemo() {
           <div className="text-section-header text-zinc-500">Practical Examples</div>
           
           {/* Card Example */}
-          <div className="bg-[#141417] border border-[#27272a] rounded-2xl overflow-hidden">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-hidden">
             <div className="p-6 space-y-4">
               <div className="text-section-header text-[#2CC295]">Market Overview</div>
               <h3 className="text-h3 text-white">Asset Portfolio</h3>
@@ -159,7 +159,7 @@ export function TypographyDemo() {
           </div>
 
           {/* Form Example */}
-          <div className="bg-[#141417] border border-[#27272a] rounded-2xl p-6 space-y-4">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-6 space-y-4">
             <h4 className="text-h4 text-white">Create New Asset</h4>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -188,7 +188,7 @@ export function TypographyDemo() {
           </div>
 
           {/* Table Example */}
-          <div className="bg-[#141417] border border-[#27272a] rounded-2xl overflow-hidden">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-hidden">
             <table className="w-full">
               <thead className="bg-zinc-900/50 border-b border-[#27272a]">
                 <tr>
@@ -232,14 +232,14 @@ export function TypographyDemo() {
         <section className="space-y-6">
           <div className="text-section-header text-zinc-500">Color Combinations</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-[#141417] border border-[#27272a] rounded-2xl p-6 space-y-3">
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-6 space-y-3">
               <h5 className="text-h6 text-white">Primary Heading</h5>
               <p className="text-body-md text-zinc-300">Body text in zinc-300</p>
               <p className="text-body-sm text-zinc-400">Secondary text in zinc-400</p>
               <p className="text-caption text-zinc-500">Metadata in zinc-500</p>
             </div>
 
-            <div className="bg-[#141417] border border-[#27272a] rounded-2xl p-6 space-y-3">
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-6 space-y-3">
               <h5 className="text-h6 text-[#2CC295]">Teal Accent Heading</h5>
               <p className="text-body-md text-white">White body text</p>
               <p className="text-label font-mono text-[#2CC295]">0x71C7...976F</p>
@@ -251,7 +251,7 @@ export function TypographyDemo() {
         {/* Glass Badges & Tags */}
         <section className="space-y-6">
           <div className="text-section-header text-zinc-500">Glass Badges & Tags (Glassmorphism Design)</div>
-          <div className="bg-[#141417] border border-[#27272a] rounded-2xl p-8 space-y-8">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-8 space-y-8">
             
             {/* Type Badges */}
             <div>

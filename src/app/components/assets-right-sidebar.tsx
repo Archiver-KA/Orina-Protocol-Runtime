@@ -44,7 +44,7 @@ const TOP_ASSETS = [
 
 function TypeBadge({ type }: { type: string }) {
   const config: Record<string, { bg: string; text: string; border: string }> = {
-    RWA: { bg: 'bg-[#2CC295]/10', text: 'text-[#2CC295]', border: 'border-[#2CC295]/20' },
+    RWA: { bg: 'bg-[#2CC295]/10', text: 'text-primary', border: 'border-[#2CC295]/20' },
     Receipt: { bg: 'bg-purple-500/10', text: 'text-purple-300', border: 'border-purple-400/20' },
     NFT: { bg: 'bg-blue-500/10', text: 'text-blue-300', border: 'border-blue-400/20' },
   };
@@ -66,31 +66,32 @@ export function AssetsRightSidebar() {
   const nftValuePercent = 100 - rwaValuePercent - receiptValuePercent;
 
   return (
-    <StudioSidebarShell>
-      {/* Header - Fixed */}
-      <StudioSidebarHeader>
-        <h2 className="text-white font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
-          <PieChart className="text-[#2CC295]" size={18} />
-          Asset Manager
-        </h2>
-        <p className="text-xs text-zinc-500 mt-1">Portfolio overview & analytics</p>
-      </StudioSidebarHeader>
+    <StudioSidebarShell widthClassName="w-full" className="bg-ui-page border-l-0 p-2.5">
+      <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+        {/* Header - Fixed */}
+        <StudioSidebarHeader className="p-5 border-b border-[var(--t-border-subtle)]">
+          <h2 className="text-ui-primary font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
+            <PieChart className="text-primary" size={18} />
+            Asset Manager
+          </h2>
+          <p className="text-xs text-ui-muted mt-1">Portfolio overview & analytics</p>
+        </StudioSidebarHeader>
 
-      {/* Scrollable Content */}
-      <StudioSidebarScroll>
+        {/* Scrollable Content */}
+        <StudioSidebarScroll className="p-4 space-y-4">
         
         {/* Portfolio Summary */}
         <StudioPanel className="rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[11px] uppercase font-bold text-zinc-500 tracking-wider">Portfolio Value</h3>
-            <TrendingUp className="text-[#2CC295]" size={14} />
+            <h3 className="text-[11px] uppercase font-bold text-ui-muted tracking-wider">Portfolio Value</h3>
+            <TrendingUp className="text-primary" size={14} />
           </div>
           <div className="mb-1">
-            <span className="text-2xl font-bold text-white">{PORTFOLIO.totalValue}</span>
+            <span className="text-2xl font-bold text-ui-primary">{PORTFOLIO.totalValue}</span>
           </div>
           <div className="flex items-center gap-2 mb-5">
-            <span className="text-[10px] font-mono text-zinc-500">{PORTFOLIO.totalETH}</span>
-            <span className="text-[10px] font-bold text-[#2CC295]">{PORTFOLIO.weeklyChange}</span>
+            <span className="text-[10px] font-mono text-ui-muted">{PORTFOLIO.totalETH}</span>
+            <span className="text-[10px] font-bold text-primary">{PORTFOLIO.weeklyChange}</span>
           </div>
 
           {/* Type Distribution Bars */}
@@ -99,16 +100,16 @@ export function AssetsRightSidebar() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2">
-                  <Sparkles size={11} className="text-[#2CC295]" />
-                  <span className="text-[10px] font-bold text-zinc-300 uppercase tracking-wider">{PORTFOLIO.rwa.label}</span>
+                  <Sparkles size={11} className="text-primary" />
+                  <span className="text-[10px] font-bold text-ui-secondary uppercase tracking-wider">{PORTFOLIO.rwa.label}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono text-zinc-500">{PORTFOLIO.rwa.count}</span>
-                  <span className="text-[10px] font-bold text-zinc-400">{rwaPercent}%</span>
+                  <span className="text-[10px] font-mono text-ui-muted">{PORTFOLIO.rwa.count}</span>
+                  <span className="text-[10px] font-bold text-ui-secondary">{rwaPercent}%</span>
                 </div>
               </div>
               <StudioProgressBar value={rwaPercent} variant="success" />
-              <p className="text-[9px] font-mono text-zinc-600 mt-1">{PORTFOLIO.rwa.valueETH.toFixed(1)} ETH · {rwaValuePercent}% of value</p>
+              <p className="text-[9px] font-mono text-ui-muted mt-1">{PORTFOLIO.rwa.valueETH.toFixed(1)} ETH · {rwaValuePercent}% of value</p>
             </div>
 
             {/* Receipts */}
@@ -116,15 +117,15 @@ export function AssetsRightSidebar() {
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2">
                   <Package size={11} className="text-purple-400" />
-                  <span className="text-[10px] font-bold text-zinc-300 uppercase tracking-wider">{PORTFOLIO.receipts.label}</span>
+                  <span className="text-[10px] font-bold text-ui-secondary uppercase tracking-wider">{PORTFOLIO.receipts.label}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono text-zinc-500">{PORTFOLIO.receipts.count}</span>
-                  <span className="text-[10px] font-bold text-zinc-400">{receiptPercent}%</span>
+                  <span className="text-[10px] font-mono text-ui-muted">{PORTFOLIO.receipts.count}</span>
+                  <span className="text-[10px] font-bold text-ui-secondary">{receiptPercent}%</span>
                 </div>
               </div>
               <StudioProgressBar value={receiptPercent} variant="purple" />
-              <p className="text-[9px] font-mono text-zinc-600 mt-1">{PORTFOLIO.receipts.valueETH.toFixed(1)} ETH · {receiptValuePercent}% of value</p>
+              <p className="text-[9px] font-mono text-ui-muted mt-1">{PORTFOLIO.receipts.valueETH.toFixed(1)} ETH · {receiptValuePercent}% of value</p>
             </div>
 
             {/* NFTs */}
@@ -132,15 +133,15 @@ export function AssetsRightSidebar() {
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2">
                   <ShoppingBag size={11} className="text-blue-400" />
-                  <span className="text-[10px] font-bold text-zinc-300 uppercase tracking-wider">{PORTFOLIO.nfts.label}</span>
+                  <span className="text-[10px] font-bold text-ui-secondary uppercase tracking-wider">{PORTFOLIO.nfts.label}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono text-zinc-500">{PORTFOLIO.nfts.count}</span>
-                  <span className="text-[10px] font-bold text-zinc-400">{nftPercent}%</span>
+                  <span className="text-[10px] font-mono text-ui-muted">{PORTFOLIO.nfts.count}</span>
+                  <span className="text-[10px] font-bold text-ui-secondary">{nftPercent}%</span>
                 </div>
               </div>
               <StudioProgressBar value={nftPercent} variant="info" />
-              <p className="text-[9px] font-mono text-zinc-600 mt-1">{PORTFOLIO.nfts.valueETH.toFixed(1)} ETH · {nftValuePercent}% of value</p>
+              <p className="text-[9px] font-mono text-ui-muted mt-1">{PORTFOLIO.nfts.valueETH.toFixed(1)} ETH · {nftValuePercent}% of value</p>
             </div>
           </div>
         </StudioPanel>
@@ -148,8 +149,8 @@ export function AssetsRightSidebar() {
         {/* Donut Chart - By Type */}
         <StudioPanel className="rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[11px] uppercase font-bold text-zinc-500 tracking-wider">Allocation</h3>
-            <BarChart3 className="text-[#2CC295]" size={14} />
+            <h3 className="text-[11px] uppercase font-bold text-ui-muted tracking-wider">Allocation</h3>
+            <BarChart3 className="text-primary" size={14} />
           </div>
 
           <div className="flex flex-col items-center">
@@ -165,10 +166,10 @@ export function AssetsRightSidebar() {
                   )`
                 }}
               />
-              <div className="absolute inset-5 bg-[#141417] rounded-full flex flex-col items-center justify-center border border-[#27272a]">
-                <span className="text-[9px] text-zinc-500 font-bold uppercase">Total</span>
-                <span className="text-lg font-bold text-white">{TOTAL_ASSETS}</span>
-                <span className="text-[8px] text-zinc-600">assets</span>
+              <div className="absolute inset-[15px] bg-[#171717] rounded-full flex flex-col items-center justify-center border border-ui-border-subtle">
+                <span className="text-[9px] text-ui-muted font-bold uppercase">Total</span>
+                <span className="text-lg font-bold text-ui-primary">{TOTAL_ASSETS}</span>
+                <span className="text-[8px] text-ui-muted">assets</span>
               </div>
             </div>
 
@@ -178,28 +179,28 @@ export function AssetsRightSidebar() {
                 left={
                   <div className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-sm bg-[#2CC295]" />
-                    <span className="text-[10px] font-medium text-zinc-400">RWA Minted</span>
+                    <span className="text-[10px] font-medium text-ui-secondary">RWA Minted</span>
                   </div>
                 }
-                right={<span className="text-[10px] font-bold text-zinc-300">{rwaValuePercent}%</span>}
+                right={<span className="text-[10px] font-bold text-ui-secondary">{rwaValuePercent}%</span>}
               />
               <StudioMetricRow
                 left={
                   <div className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-sm bg-purple-500" />
-                    <span className="text-[10px] font-medium text-zinc-400">Receipts</span>
+                    <span className="text-[10px] font-medium text-ui-secondary">Receipts</span>
                   </div>
                 }
-                right={<span className="text-[10px] font-bold text-zinc-300">{receiptValuePercent}%</span>}
+                right={<span className="text-[10px] font-bold text-ui-secondary">{receiptValuePercent}%</span>}
               />
               <StudioMetricRow
                 left={
                   <div className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-sm bg-blue-500" />
-                    <span className="text-[10px] font-medium text-zinc-400">NFT Owned</span>
+                    <span className="text-[10px] font-medium text-ui-secondary">NFT Owned</span>
                   </div>
                 }
-                right={<span className="text-[10px] font-bold text-zinc-300">{nftValuePercent}%</span>}
+                right={<span className="text-[10px] font-bold text-ui-secondary">{nftValuePercent}%</span>}
               />
             </div>
           </div>
@@ -216,11 +217,11 @@ export function AssetsRightSidebar() {
                 <StudioPanel key={cat.name} className="rounded-xl px-3.5 py-2.5 flex items-center justify-between group hover:border-[rgba(255,255,255,0.15)] transition-colors">
                   <div className="flex items-center gap-2.5">
                     <Icon size={12} style={{ color: cat.color }} />
-                    <span className="text-[10px] font-medium text-zinc-300">{cat.name}</span>
+                    <span className="text-[10px] font-medium text-ui-secondary">{cat.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono text-zinc-600">{cat.count}</span>
-                    <span className="text-[9px] font-bold text-zinc-500">{pct}%</span>
+                    <span className="text-[10px] font-mono text-ui-muted">{cat.count}</span>
+                    <span className="text-[9px] font-bold text-ui-muted">{pct}%</span>
                   </div>
                 </StudioPanel>
               );
@@ -239,20 +240,20 @@ export function AssetsRightSidebar() {
               <StudioPanel key={asset.name} className="rounded-xl p-3 group hover:border-[rgba(255,255,255,0.15)] transition-colors">
                 <StudioListItem
                   left={
-                    <div className="w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-500">
+                    <div className="w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-ui-muted">
                       #{i + 1}
                     </div>
                   }
                   center={
                     <div>
-                      <p className="text-[11px] font-bold text-white truncate">{asset.name}</p>
+                      <p className="text-[11px] font-bold text-ui-primary truncate">{asset.name}</p>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <TypeBadge type={asset.type} />
-                        <span className="text-[9px] text-zinc-600">{asset.category}</span>
+                        <span className="text-[9px] text-ui-muted">{asset.category}</span>
                       </div>
                     </div>
                   }
-                  right={<span className="text-[10px] font-bold text-white whitespace-nowrap">{asset.value}</span>}
+                  right={<span className="text-[10px] font-bold text-ui-primary whitespace-nowrap">{asset.value}</span>}
                 />
               </StudioPanel>
             ))}
@@ -262,19 +263,19 @@ export function AssetsRightSidebar() {
         {/* Network Gas */}
         <StudioPanel className="rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[11px] uppercase font-bold text-zinc-500">Network Gas</h3>
-            <Fuel className="text-[#2CC295]" size={14} />
+            <h3 className="text-[11px] uppercase font-bold text-ui-muted">Network Gas</h3>
+            <Fuel className="text-primary" size={14} />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 bg-zinc-950 rounded-xl border border-[#27272a]">
-              <p className="text-[10px] text-zinc-500 uppercase mb-1">Low</p>
-              <p className="text-lg font-bold text-white">
-                12 <span className="text-[10px] text-zinc-600 font-mono">GWEI</span>
+            <div className="p-3 bg-ui-input rounded-xl border-0">
+              <p className="text-[10px] text-ui-muted uppercase mb-1">Low</p>
+              <p className="text-lg font-bold text-ui-primary">
+                12 <span className="text-[10px] text-ui-muted font-mono">GWEI</span>
               </p>
             </div>
             <div className="p-3 bg-[#2CC295]/10 rounded-xl border border-[#2CC295]/20">
-              <p className="text-[10px] text-[#2CC295] uppercase mb-1">Fast</p>
-              <p className="text-lg font-bold text-[#2CC295]">
+              <p className="text-[10px] text-primary uppercase mb-1">Fast</p>
+              <p className="text-lg font-bold text-primary">
                 28 <span className="text-[10px] opacity-60 font-mono">GWEI</span>
               </p>
             </div>
@@ -283,22 +284,22 @@ export function AssetsRightSidebar() {
 
         {/* Active Listings Quick Stats */}
         <StudioPanel className="rounded-2xl p-5">
-          <h3 className="text-[11px] uppercase font-bold text-zinc-500 tracking-wider mb-4">Listing Status</h3>
+          <h3 className="text-[11px] uppercase font-bold text-ui-muted tracking-wider mb-4">Listing Status</h3>
           <div className="space-y-3">
             <StudioMetricRow
               left={
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#2CC295] animate-pulse" />
-                  <span className="text-[10px] font-medium text-zinc-400">Active Listings</span>
+                  <span className="text-[10px] font-medium text-ui-secondary">Active Listings</span>
                 </div>
               }
-              right={<span className="text-[10px] font-bold text-[#2CC295]">5</span>}
+              right={<span className="text-[10px] font-bold text-primary">5</span>}
             />
             <StudioMetricRow
               left={
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                  <span className="text-[10px] font-medium text-zinc-400">Sold Out</span>
+                  <span className="text-[10px] font-medium text-ui-secondary">Sold Out</span>
                 </div>
               }
               right={<span className="text-[10px] font-bold text-red-400">1</span>}
@@ -307,7 +308,7 @@ export function AssetsRightSidebar() {
               left={
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                  <span className="text-[10px] font-medium text-zinc-400">Non-Transferable</span>
+                  <span className="text-[10px] font-medium text-ui-secondary">Non-Transferable</span>
                 </div>
               }
               right={<span className="text-[10px] font-bold text-orange-400">{PORTFOLIO.receipts.count}</span>}
@@ -316,33 +317,34 @@ export function AssetsRightSidebar() {
               left={
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                  <span className="text-[10px] font-medium text-zinc-400">Transferable NFTs</span>
+                  <span className="text-[10px] font-medium text-ui-secondary">Transferable NFTs</span>
                 </div>
               }
               right={<span className="text-[10px] font-bold text-blue-400">{PORTFOLIO.nfts.count}</span>}
             />
           </div>
         </StudioPanel>
-      </StudioSidebarScroll>
+        </StudioSidebarScroll>
 
-      {/* Footer */}
-      <StudioSidebarFooter>
-        <div className="flex items-center justify-between">
-          <span className="text-[9px] font-bold text-zinc-500 uppercase">Sync Status</span>
-          <StudioStatusBadge variant="success" className="border-0 bg-transparent p-0 text-[9px]">
-            In Sync
-          </StudioStatusBadge>
-        </div>
-        <div className="p-2.5 bg-zinc-900 rounded-lg border border-[#27272a] group cursor-pointer hover:border-[#2CC295]/40 transition-colors">
-          <div className="w-2 h-2 rounded-full bg-[#2CC295] shadow-[0_0_8px_rgba(44,194,149,0.4)] mb-1.5"></div>
-          <div className="flex justify-between items-center gap-2">
-            <span className="text-[9px] font-bold text-white uppercase tracking-tighter">
-              Blockchain: BSC Testnet
-            </span>
-            <ChevronRight className="text-zinc-500 group-hover:text-zinc-300 transition-colors" size={14} />
+        {/* Footer */}
+        <StudioSidebarFooter className="border-t border-[var(--t-border-subtle)] p-4 bg-transparent backdrop-blur-0 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-bold text-ui-muted uppercase">Sync Status</span>
+            <StudioStatusBadge variant="success" className="border-0 bg-transparent p-0 text-[9px]">
+              In Sync
+            </StudioStatusBadge>
           </div>
-        </div>
-      </StudioSidebarFooter>
+          <div className="p-2.5 bg-ui-input rounded-lg border-0 group cursor-pointer hover:bg-ui-input-focus transition-colors">
+            <div className="w-2 h-2 rounded-full bg-[#2CC295] shadow-[0_0_8px_rgba(44,194,149,0.4)] mb-1.5"></div>
+            <div className="flex justify-between items-center gap-2">
+              <span className="text-[9px] font-bold text-ui-primary uppercase tracking-tighter">
+                Blockchain: BSC Testnet
+              </span>
+              <ChevronRight className="text-ui-muted group-hover:text-ui-secondary transition-colors" size={14} />
+            </div>
+          </div>
+        </StudioSidebarFooter>
+      </div>
     </StudioSidebarShell>
   );
 }

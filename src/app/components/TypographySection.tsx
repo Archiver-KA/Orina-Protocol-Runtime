@@ -10,7 +10,7 @@ export function TypographySection() {
         {/* Font Family */}
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-[#2CC295] uppercase tracking-[0.2em]">Font Family</h3>
-          <div className="bg-[#141417] border border-[#27272a] rounded-2xl p-8">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-8">
             <div className="space-y-6">
               <div>
                 <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold mb-2">Primary Font</p>
@@ -26,7 +26,7 @@ export function TypographySection() {
         {/* Heading Scales */}
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-[#2CC295] uppercase tracking-[0.2em]">Heading Scale</h3>
-          <div className="bg-[#141417] border border-[#27272a] rounded-2xl p-8 space-y-8">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-8 space-y-8">
             <div className="space-y-2">
               <div className="flex items-baseline justify-between border-b border-white/5 pb-2">
                 <span className="text-6xl font-bold text-white tracking-tight">Heading 1</span>
@@ -75,7 +75,7 @@ export function TypographySection() {
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-[#2CC295] uppercase tracking-[0.2em]">Body & Labels</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-[#141417] border border-[#27272a] rounded-2xl p-8 space-y-6">
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-8 space-y-6">
               <div className="space-y-2">
                 <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold">Body Large</p>
                 <p className="text-lg text-white leading-relaxed">
@@ -101,7 +101,7 @@ export function TypographySection() {
               </div>
             </div>
 
-            <div className="bg-[#141417] border border-[#27272a] rounded-2xl p-8 space-y-6">
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-8 space-y-6">
               <div className="space-y-2">
                 <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold">Label</p>
                 <p className="text-xs text-white font-medium">
@@ -140,7 +140,7 @@ export function TypographySection() {
         {/* Font Weights */}
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-[#2CC295] uppercase tracking-[0.2em]">Font Weights</h3>
-          <div className="bg-[#141417] border border-[#27272a] rounded-2xl p-8">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
               <div className="flex items-baseline justify-between border-b border-white/5 pb-3">
                 <span className="text-2xl text-white font-light">Light 300</span>
@@ -173,7 +173,7 @@ export function TypographySection() {
         {/* Text Styles */}
         <div className="space-y-4">
           <h3 className="text-sm font-bold text-[#2CC295] uppercase tracking-[0.2em]">Text Styles & Cases</h3>
-          <div className="bg-[#141417] border border-[#27272a] rounded-2xl p-8">
+          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-4">
                 <div className="space-y-2">

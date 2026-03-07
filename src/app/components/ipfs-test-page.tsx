@@ -147,7 +147,7 @@ export function IPFSTestPage() {
 
           <div className="space-y-8">
             {/* Single Upload Test */}
-            <div className="bg-[#141417] border border-zinc-800 rounded-2xl p-6">
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-6">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 bg-[#2CC295]/20 rounded-xl flex items-center justify-center">
                   <ImageIcon className="text-[#2CC295]" size={20} />
@@ -193,7 +193,7 @@ export function IPFSTestPage() {
             </div>
 
             {/* Multiple Upload Test */}
-            <div className="bg-[#141417] border border-zinc-800 rounded-2xl p-6">
+            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-6">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center">
                   <Images className="text-blue-400" size={20} />

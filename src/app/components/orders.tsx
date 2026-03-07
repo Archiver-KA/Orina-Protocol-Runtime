@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, CheckCircle, XCircle, Package, User, Store, Info, Check, Timer, ExternalLink } from 'lucide-react';
+import { Search, CheckCircle, XCircle, Package, User, Store, Info, Check, Timer, ExternalLink, AlertTriangle } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { formatEther } from 'viem';
+import { AnimatePresence, motion } from 'motion/react';
+import { createPortal } from 'react-dom';
 import { formatAddress } from '@/utils/format';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { DurationPicker } from '@/app/components/duration-picker';
@@ -9,12 +11,190 @@ import { ConfirmDeliveryModal } from '@/app/components/confirm-delivery-modal';
 import { OpenDisputeModal } from '@/app/components/open-dispute-modal';
 import { DisputeResolutionModal } from '@/app/components/dispute-resolution-modal';
 import { OrderDetailsModal } from '@/app/components/order-details-modal';
+import { AssetThumb } from '@/app/components/asset-thumb';
 import { StudioStatsCard } from '@/app/components/ui/studio-stats-card';
 import { StudioSidebarShell, StudioSidebarHeader, StudioSidebarScroll, StudioSidebarFooter } from '@/app/components/ui/studio-sidebar';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { StudioStatusBadge } from '@/app/components/ui/studio-status-badge';
 import { StudioProgressBar } from '@/app/components/ui/studio-progress-bar';
 import { StudioTimelineItem } from '@/app/components/ui/studio-list-parts';
+
+const TEAL = '#2CC295';
+
+function NetworkIconEth() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <polygon points="12,2 20,12 12,22 4,12" stroke={TEAL} strokeWidth="1.5" fill="rgba(44,194,149,0.15)" />
+      <line x1="12" y1="2" x2="12" y2="22" stroke={TEAL} strokeWidth="1" />
+      <line x1="4" y1="12" x2="20" y2="12" stroke={TEAL} strokeWidth="1" opacity="0.5" />
+    </svg>
+  );
+}
+
+function NetworkIconPolygon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <polygon points="12,3 21,8.5 21,15.5 12,21 3,15.5 3,8.5" stroke="#a855f7" strokeWidth="1.5" fill="rgba(168,85,247,0.15)" />
+    </svg>
+  );
+}
+
+function NetworkIconArbitrum() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke="#a855f7" strokeWidth="1.5" fill="rgba(168,85,247,0.15)" />
+      <path d="M8 16l4-8 4 8" stroke="#a855f7" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function NetworkIconSolana() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="5" width="18" height="3" rx="1.5" fill="#f97316" />
+      <rect x="3" y="10.5" width="14" height="3" rx="1.5" fill="#f97316" />
+      <rect x="3" y="16" width="18" height="3" rx="1.5" fill="#f97316" />
+    </svg>
+  );
+}
+
+function NetworkIconBNB() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" fill="rgba(234,179,8,0.15)" stroke="#eab308" strokeWidth="1.5" />
+      <text x="12" y="16" textAnchor="middle" fontSize="8" fill="#eab308" fontWeight="bold">BNB</text>
+    </svg>
+  );
+}
+
+const NETWORK_OPTIONS = [
+  { value: 'all', label: 'All Networks' },
+  { value: 'eth', label: 'Ethereum Mainnet', icon: <NetworkIconEth />, tag: 'EVM' },
+  { value: 'poly', label: 'Polygon', icon: <NetworkIconPolygon /> },
+  { value: 'arb', label: 'Arbitrum One', icon: <NetworkIconArbitrum /> },
+  { value: 'sol', label: 'Solana', icon: <NetworkIconSolana /> },
+  { value: 'bnb', label: 'BNB Chain', icon: <NetworkIconBNB />, tag: 'EVM' },
+];
+
+type OrderActionNoticeTone = 'success' | 'warning' | 'danger';
+
+interface OrderActionNoticeState {
+  id: number;
+  title: string;
+  description: string;
+  assetName: string;
+  assetImage: string;
+  assetValueEth: string;
+  tone: OrderActionNoticeTone;
+}
+
+function OrderActionNoticeModal({
+  notice,
+  onClose,
+}: {
+  notice: OrderActionNoticeState | null;
+  onClose: () => void;
+}) {
+  if (!notice || typeof document === 'undefined') return null;
+
+  const toneStyles = {
+    success: {
+      iconBg: 'bg-[#2CC295]/20',
+      iconBorder: 'border-[#2CC295]/30',
+      iconText: 'text-[#2CC295]',
+      pulse: 'border-[#2CC295]',
+      bar: 'bg-[#2CC295]',
+      trailing: <Check className="text-[#2CC295]" size={18} />,
+      icon: <Check className="text-[#2CC295]" size={44} strokeWidth={3} />,
+    },
+    warning: {
+      iconBg: 'bg-amber-500/20',
+      iconBorder: 'border-amber-500/30',
+      iconText: 'text-amber-400',
+      pulse: 'border-amber-500',
+      bar: 'bg-amber-500',
+      trailing: <AlertTriangle className="text-amber-400" size={18} />,
+      icon: <AlertTriangle className="text-amber-400" size={44} strokeWidth={3} />,
+    },
+    danger: {
+      iconBg: 'bg-red-500/20',
+      iconBorder: 'border-red-500/30',
+      iconText: 'text-red-400',
+      pulse: 'border-red-500',
+      bar: 'bg-red-500',
+      trailing: <XCircle className="text-red-400" size={18} />,
+      icon: <XCircle className="text-red-400" size={44} strokeWidth={2.5} />,
+    },
+  }[notice.tone];
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[78] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+      onClick={onClose}
+    >
+      <AnimatePresence>
+        <motion.div
+          key={notice.id}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          transition={{ duration: 0.25 }}
+          className="bg-[rgba(18,18,18,0.9)] border-0 rounded-[24px] shadow-2xl max-w-md w-full overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="p-12 flex flex-col items-center justify-center space-y-6 text-center">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.1, type: 'spring', stiffness: 220 }}
+              className="relative"
+            >
+              <div className={`w-24 h-24 rounded-full ${toneStyles.iconBg} border-4 ${toneStyles.iconBorder} flex items-center justify-center`}>
+                {toneStyles.icon}
+              </div>
+              <motion.div
+                initial={{ scale: 1, opacity: 0.5 }}
+                animate={{ scale: 1.5, opacity: 0 }}
+                transition={{ duration: 1, repeat: Infinity }}
+                className={`absolute inset-0 rounded-full border-2 ${toneStyles.pulse}`}
+              />
+            </motion.div>
+
+            <div className="space-y-2">
+              <h3 className="text-4xl font-bold text-white leading-tight">{notice.title}</h3>
+              <p className="text-sm text-zinc-400">{notice.description}</p>
+            </div>
+
+            <div className="w-full p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg">
+              <div className="flex items-center gap-3">
+                <AssetThumb
+                  src={notice.assetImage}
+                  alt="Product"
+                  className="w-12 h-12 rounded-lg bg-zinc-800 border border-[#27272a] shrink-0"
+                />
+                <div className="flex-1 text-left min-w-0">
+                  <p className="text-xs font-bold text-white leading-tight truncate">{notice.assetName}</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">{notice.assetValueEth} ETH</p>
+                </div>
+                {toneStyles.trailing}
+              </div>
+            </div>
+
+            <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: '0%' }}
+                animate={{ width: '100%' }}
+                transition={{ duration: 1.5, ease: 'linear' }}
+                className={`h-full ${toneStyles.bar}`}
+              />
+            </div>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    </div>,
+    document.body,
+  );
+}
 
 // Mock orders matching the HTML design
 const mockOrders = [
@@ -24,6 +204,7 @@ const mockOrders = [
     seller: '0x742d35Cc6634C0532925' as `0x${string}`,
     assetId: BigInt(15),
     assetName: 'Urban Property Token #15',
+    network: 'eth',
     assetImage: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=400&fit=crop',
     amount: BigInt(1),
     grossPrice: BigInt('2100000000000000000'), // 2.10 ETH
@@ -55,6 +236,7 @@ const mockOrders = [
     seller: '0x3Bf9a7c2e4d1f92a' as `0x${string}`,
     assetId: BigInt(12),
     assetName: 'Project Genesis #12',
+    network: 'eth',
     assetImage: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=400&h=400&fit=crop',
     amount: BigInt(1),
     grossPrice: BigInt('1450000000000000000'), // 1.45 ETH
@@ -86,6 +268,7 @@ const mockOrders = [
     seller: '0x6Bf9a7c2e4d1f92b' as `0x${string}`,
     assetId: BigInt(22),
     assetName: 'Gold Reserve Certificate #22',
+    network: 'arb',
     assetImage: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?w=400&h=400&fit=crop',
     amount: BigInt(10),
     grossPrice: BigInt('3200000000000000000'), // 3.2 ETH
@@ -119,6 +302,7 @@ const mockOrders = [
     seller: '0x6Bf9a7c2e4d1f92b' as `0x${string}`,
     assetId: BigInt(27),
     assetName: 'Vintage Watch Collection #27',
+    network: 'poly',
     assetImage: 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=400&h=400&fit=crop',
     amount: BigInt(1),
     grossPrice: BigInt('4500000000000000000'), // 4.5 ETH
@@ -152,6 +336,7 @@ const mockOrders = [
     seller: '0x3Bf9a7c2e4d1f92a' as `0x${string}`,
     assetId: BigInt(8),
     assetName: 'Digital Art Collection #8',
+    network: 'bnb',
     assetImage: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&h=400&fit=crop',
     amount: BigInt(1),
     grossPrice: BigInt('880000000000000000'), // 0.88 ETH
@@ -186,6 +371,7 @@ interface OrdersProps {
 export function Orders({ onNavigateToPage }: OrdersProps) {
   const { address, isConnected } = useAccount();
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedNetwork, setSelectedNetwork] = useState('all');
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState(mockOrders[0]);
   const [showDurationPicker, setShowDurationPicker] = useState(false);
@@ -194,6 +380,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   const [showOpenDisputeModal, setShowOpenDisputeModal] = useState(false);
   const [showDisputeResolutionModal, setShowDisputeResolutionModal] = useState(false);
   const [showOrderDetailsModal, setShowOrderDetailsModal] = useState(false);
+  const [actionNotice, setActionNotice] = useState<OrderActionNoticeState | null>(null);
 
   // Auto-update timers
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -202,9 +389,35 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
     return () => clearInterval(timer);
   }, []);
 
+  const showActionNotice = (
+    tone: OrderActionNoticeTone,
+    title: string,
+    description: string,
+    orderForNotice: (typeof mockOrders)[number],
+  ) => {
+    const id = Date.now();
+    setActionNotice({
+      id,
+      tone,
+      title,
+      description,
+      assetName: orderForNotice.assetName,
+      assetImage: orderForNotice.assetImage,
+      assetValueEth: formatEther(orderForNotice.grossPrice),
+    });
+
+    window.setTimeout(() => {
+      setActionNotice((current) => (current?.id === id ? null : current));
+    }, 1500);
+  };
+
   // Filter orders
   const filteredOrders = useMemo(() => {
     let filtered = mockOrders;
+
+    if (selectedNetwork !== 'all') {
+      filtered = filtered.filter(o => o.network === selectedNetwork);
+    }
 
     if (selectedFilter !== 'all') {
       const state = parseInt(selectedFilter);
@@ -212,14 +425,14 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
     }
 
     if (searchQuery) {
-      filtered = filtered.filter(o => 
+      filtered = filtered.filter(o =>
         o.orderId.toString().includes(searchQuery) ||
         o.assetName.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
     return filtered;
-  }, [searchQuery, selectedFilter]);
+  }, [searchQuery, selectedFilter, selectedNetwork]);
 
   // Stats
   const stats = useMemo(() => ({
@@ -265,6 +478,10 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   const handleDurationConfirm = (days: number, targetDate: Date) => {
     console.log('Seller confirmed with delivery time:', days, 'days, target:', targetDate);
     // TODO: Call smart contract sellerConfirm with estDeliverySeconds = days * 24 * 60 * 60
+    const order = mockOrders.find((o) => o.orderId === confirmingOrderId);
+    if (order) {
+      showActionNotice('success', 'Seller Confirmed!', 'Delivery duration has been set. Redirecting to orders...', order);
+    }
     setShowDurationPicker(false);
     setConfirmingOrderId(null);
   };
@@ -301,6 +518,10 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   const handleDisputeConfirm = () => {
     console.log('Buyer opened dispute for order:', selectedOrder.orderId.toString());
     // TODO: Call smart contract openDispute(orderId)
+    const order = mockOrders.find((o) => o.orderId === selectedOrder.orderId);
+    if (order) {
+      showActionNotice('warning', 'Dispute Opened', 'Arbiter notified and escrow is now frozen.', order);
+    }
     setShowOpenDisputeModal(false);
   };
 
@@ -320,6 +541,10 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   const handleResolutionConfirm = () => {
     console.log('Dispute resolved for order:', selectedOrder.orderId.toString());
     // TODO: Call smart contract resolveDispute(orderId)
+    const order = mockOrders.find((o) => o.orderId === selectedOrder.orderId);
+    if (order) {
+      showActionNotice('success', 'Dispute Resolved', 'Settlement has been finalized for this dispute.', order);
+    }
     setShowDisputeResolutionModal(false);
   };
 
@@ -331,12 +556,40 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   const handleBuyerConfirmOrder = (orderId: bigint) => {
     console.log('Buyer confirming order (Sig 2 + Pay):', orderId.toString());
     // TODO: Call smart contract buyerConfirm(orderId) - This will trigger Sig 2 and payment
+    const order = mockOrders.find((o) => o.orderId === orderId);
+    if (order) {
+      showActionNotice('success', 'Order Confirmed!', 'Buyer signature submitted. Proceeding to payment...', order);
+    }
   };
 
   // Handle buyer cancel order
   const handleBuyerCancelOrder = (orderId: bigint) => {
     console.log('Buyer canceling order:', orderId.toString());
     // TODO: Call smart contract cancelOrder(orderId)
+    const order = mockOrders.find((o) => o.orderId === orderId);
+    if (order) {
+      showActionNotice('warning', 'Order Cancelled', 'Order has been cancelled and escrow flow stopped.', order);
+    }
+  };
+
+  // Handle seller reject order
+  const handleSellerRejectOrder = (orderId: bigint) => {
+    console.log('Seller rejecting order:', orderId.toString());
+    // TODO: Call smart contract sellerReject(orderId)
+    const order = mockOrders.find((o) => o.orderId === orderId);
+    if (order) {
+      showActionNotice('danger', 'Order Rejected', 'Proposal rejected by seller. Redirecting to orders...', order);
+    }
+  };
+
+  // Handle confirm release (auto-release path)
+  const handleConfirmRelease = (orderId: bigint) => {
+    console.log('Confirm release for order:', orderId.toString());
+    // TODO: Call smart contract autoRelease(orderId) / finalize path
+    const order = mockOrders.find((o) => o.orderId === orderId);
+    if (order) {
+      showActionNotice('success', 'Release Confirmed!', 'Escrow settlement finalized for this order.', order);
+    }
   };
 
   // Progress ring calculation
@@ -357,24 +610,32 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   return (
     <>
       {/* Main Content */}
-      <section className="bg-[#0f0f11] overflow-y-auto hidden-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <section className="bg-ui-page overflow-y-auto hidden-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         <style>{`
           .hidden-scrollbar::-webkit-scrollbar { display: none; }
         `}</style>
         <div className="p-8">
           {/* Header */}
-          <div className="flex items-center justify-end mb-8">
-            <div className="flex gap-3 w-full max-w-2xl">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+          <div className="flex items-center justify-start mb-8">
+            <div className="flex w-full flex-wrap lg:flex-nowrap gap-3">
+              <div className="relative flex-1 min-w-[280px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-muted" size={18} />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search by Order ID..."
-                  className="bg-[var(--color-panel-bg)] border border-[var(--color-panel-border)] rounded-lg pl-10 pr-4 py-2 text-sm w-full focus:ring-[var(--color-primary-custom)] focus:border-[var(--color-primary-custom)] text-white"
+                  className="bg-ui-input border border-ui-border rounded-full pl-10 pr-4 py-2 text-sm w-full focus:ring-primary/35 focus:border-primary text-ui-primary"
                 />
               </div>
+              <CustomDropdown
+                options={NETWORK_OPTIONS}
+                defaultValue={selectedNetwork}
+                onChange={(value) => setSelectedNetwork(value)}
+                variant="compact"
+                splitRightPane={false}
+                className="min-w-[210px] shrink-0"
+              />
               <CustomDropdown
                 options={[
                   { value: 'all', label: 'Filter Status' },
@@ -386,7 +647,8 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                 defaultValue={selectedFilter}
                 onChange={(value) => setSelectedFilter(value)}
                 variant="compact"
-                className="min-w-[160px] shrink-0"
+                splitRightPane={false}
+                className="min-w-[180px] shrink-0"
               />
             </div>
           </div>
@@ -396,27 +658,23 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
             <StudioStatsCard
               label="Total Orders"
               value={stats.total.toLocaleString()}
-              className="bg-zinc-900/30 border-[#27272a]"
+              className="bg-[var(--t-card-bg)] border-0 backdrop-blur-[10px]"
             />
             <StudioStatsCard
               label="Active Escrow"
               value={stats.active}
-              className="bg-zinc-900/30 border-[#27272a] overflow-hidden relative"
-            >
-              <div className="absolute top-0 left-0 w-12 h-12 border-l-2 border-t-2 border-[var(--color-primary-custom)] rounded-tl-2xl pointer-events-none"></div>
-            </StudioStatsCard>
+              className="bg-[var(--t-card-bg)] border-0 backdrop-blur-[10px]"
+            />
             <StudioStatsCard
               label="Completed"
               value={stats.completed.toLocaleString()}
-              className="bg-zinc-900/30 border-[#27272a]"
+              className="bg-[var(--t-card-bg)] border-0 backdrop-blur-[10px]"
             />
             <StudioStatsCard
               label="Volume (ETH)"
               value={stats.volume.toFixed(2)}
-              className="bg-zinc-900/30 border-[#27272a] overflow-hidden relative"
-            >
-              <div className="absolute top-0 left-0 w-12 h-12 border-l-2 border-t-2 border-[#F7DC7F] rounded-tl-2xl pointer-events-none"></div>
-            </StudioStatsCard>
+              className="bg-[var(--t-card-bg)] border-0 backdrop-blur-[10px]"
+            />
           </div>
 
           {/* Orders List */}
@@ -425,8 +683,10 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
               <div
                 key={order.orderId.toString()}
                 onClick={() => setSelectedOrder(order)}
-                className={`bg-zinc-900/30 border border-[#27272a] rounded-2xl overflow-hidden cursor-pointer transition-all ${
-                  selectedOrder.orderId === order.orderId ? 'ring-2 ring-[var(--color-primary-custom)]' : ''
+                className={`bg-[var(--t-card-bg)] border-0 rounded-[24px] backdrop-blur-[10px] overflow-hidden cursor-pointer transition-all duration-200 ${
+                  selectedOrder.orderId === order.orderId
+                    ? 'shadow-[0_0_0_1px_rgba(44,194,149,0.2),0_8px_18px_rgba(44,194,149,0.025)]'
+                    : 'hover:shadow-[0_8px_18px_rgba(44,194,149,0.02)]'
                 }`}
               >
                 <div className="p-6">
@@ -444,7 +704,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                             strokeWidth="3"
                           />
                           <circle
-                            className={order.state === 1 ? 'stroke-[var(--color-primary-custom)]' : 'stroke-[#F7DC7F]'}
+                            className={order.state === 1 ? 'stroke-primary' : 'stroke-[#F7DC7F]'}
                             cx="18"
                             cy="18"
                             fill="none"
@@ -453,7 +713,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                             strokeLinecap="round"
                             strokeDasharray="100"
                             strokeDashoffset={getProgressDashOffset(order.progress)}
-                            style={{ 
+                            style={{
                               transition: 'stroke-dashoffset 0.35s',
                               transform: 'rotate(-90deg)',
                               transformOrigin: '50% 50%'
@@ -461,7 +721,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                           />
                         </svg>
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <span className={`text-[8px] font-bold ${order.state === 1 ? 'text-[var(--color-primary-custom)]' : 'text-[#F7DC7F]'}`}>
+                          <span className={`text-[8px] font-bold ${order.state === 1 ? 'text-primary' : 'text-[#F7DC7F]'}`}>
                             {order.progress}%
                           </span>
                         </div>
@@ -469,7 +729,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
 
                       <div>
                         <div className="flex items-center gap-3">
-                          <span className="text-base font-bold text-white font-mono">
+                          <span className="text-base font-bold text-ui-primary font-mono">
                             #ORD-{order.orderId.toString()}
                           </span>
                           <StudioStatusBadge
@@ -477,35 +737,35 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                               order.state === 0
                                 ? 'warning'
                                 : order.state === 1
-                                ? 'success'
-                                : order.state === 2
-                                ? 'danger'
-                                : order.state === 3
-                                ? 'info'
-                                : 'muted'
+                                  ? 'success'
+                                  : order.state === 2
+                                    ? 'danger'
+                                    : order.state === 3
+                                      ? 'info'
+                                      : 'muted'
                             }
                             size="sm"
                             className="px-2 py-0.5 text-[10px]"
                           >
-                            {order.state === 0 
-                              ? 'Pending Confirm' 
-                              : order.state === 1 
-                              ? 'Paid' 
-                              : order.state === 2
-                              ? 'Disputed'
-                              : order.state === 3
-                              ? 'Finalized'
-                              : 'Cancelled'}
+                            {order.state === 0
+                              ? 'Pending Confirm'
+                              : order.state === 1
+                                ? 'Paid'
+                                : order.state === 2
+                                  ? 'Disputed'
+                                  : order.state === 3
+                                    ? 'Finalized'
+                                    : 'Cancelled'}
                           </StudioStatusBadge>
                         </div>
                       </div>
                     </div>
 
                     <div className="text-right">
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">
+                      <p className="text-[10px] font-bold text-ui-muted uppercase mb-1">
                         Order Value
                       </p>
-                      <p className="text-2xl font-black text-white">
+                      <p className="text-2xl font-black text-ui-primary">
                         {formatEther(order.grossPrice)} ETH
                       </p>
                     </div>
@@ -514,24 +774,24 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                   <div className="flex flex-col gap-4">
                     {/* Buyer and Seller Address Boxes */}
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center gap-3 p-3 bg-zinc-900 border border-[#27272a] rounded-xl">
+                      <div className="flex items-center gap-3 p-3 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
                         <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
                           <User className="text-blue-400" size={16} />
                         </div>
                         <div>
-                          <p className="text-[9px] uppercase font-bold text-zinc-600">Buyer</p>
-                          <p className="text-xs font-mono text-zinc-300">
+                          <p className="text-[9px] uppercase font-bold text-ui-muted">Buyer</p>
+                          <p className="text-xs font-mono text-ui-secondary">
                             {formatAddress(order.buyer)}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 p-3 bg-zinc-900 border border-[#27272a] rounded-xl">
+                      <div className="flex items-center gap-3 p-3 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
                         <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0">
                           <Store className="text-purple-400" size={16} />
                         </div>
                         <div>
-                          <p className="text-[9px] uppercase font-bold text-zinc-600">Seller</p>
-                          <p className="text-xs font-mono text-zinc-300">
+                          <p className="text-[9px] uppercase font-bold text-ui-muted">Seller</p>
+                          <p className="text-xs font-mono text-ui-secondary">
                             {formatAddress(order.seller)}
                           </p>
                         </div>
@@ -541,8 +801,8 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                     {/* Asset Name with Countdown */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Package size={16} className="text-zinc-500" />
-                        <span className="text-sm font-semibold text-zinc-300">{order.assetName}</span>
+                        <Package size={16} className="text-ui-muted" />
+                        <span className="text-sm font-semibold text-ui-secondary">{order.assetName}</span>
                       </div>
                       {/* Countdown Timer */}
                       {(() => {
@@ -552,23 +812,23 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                           <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950/40 backdrop-blur-sm shrink-0">
                             <div className="flex items-center gap-2">
                               <div className="flex flex-col items-center w-6">
-                                <span className="text-sm font-bold text-white leading-none tabular-nums">{days.toString().padStart(2, '0')}</span>
-                                <span className="text-[7px] font-bold text-zinc-600 uppercase tracking-tighter mt-0.5">Days</span>
+                                <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{days.toString().padStart(2, '0')}</span>
+                                <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Days</span>
                               </div>
-                              <div className="text-zinc-700 font-bold text-[10px] leading-none">:</div>
+                              <div className="text-ui-muted font-bold text-[10px] leading-none">:</div>
                               <div className="flex flex-col items-center w-6">
-                                <span className="text-sm font-bold text-white leading-none tabular-nums">{hours.toString().padStart(2, '0')}</span>
-                                <span className="text-[7px] font-bold text-zinc-600 uppercase tracking-tighter mt-0.5">Hrs</span>
+                                <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{hours.toString().padStart(2, '0')}</span>
+                                <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Hrs</span>
                               </div>
-                              <div className="text-zinc-700 font-bold text-[10px] leading-none">:</div>
+                              <div className="text-ui-muted font-bold text-[10px] leading-none">:</div>
                               <div className="flex flex-col items-center w-6">
-                                <span className="text-sm font-bold text-white leading-none tabular-nums">{mins.toString().padStart(2, '0')}</span>
-                                <span className="text-[7px] font-bold text-zinc-600 uppercase tracking-tighter mt-0.5">Min</span>
+                                <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{mins.toString().padStart(2, '0')}</span>
+                                <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Min</span>
                               </div>
-                              <div className="text-zinc-700 font-bold text-[10px] leading-none">:</div>
+                              <div className="text-ui-muted font-bold text-[10px] leading-none">:</div>
                               <div className="flex flex-col items-center w-6">
-                                <span className="text-sm font-bold text-white leading-none tabular-nums">{secs.toString().padStart(2, '0')}</span>
-                                <span className="text-[7px] font-bold text-zinc-600 uppercase tracking-tighter mt-0.5">Sec</span>
+                                <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{secs.toString().padStart(2, '0')}</span>
+                                <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Sec</span>
                               </div>
                             </div>
                           </div>
@@ -586,7 +846,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                         }}
                         variant="secondary"
                         size="sm"
-                        className="text-[10px] px-3 py-1.5 text-zinc-400 hover:text-white"
+                        className="text-[10px] px-3 py-1.5 text-ui-secondary hover:text-ui-primary"
                         leftIcon={<Info size={12} />}
                       >
                         Details
@@ -622,6 +882,10 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                               </>
                             ) : (
                               <StudioActionButton
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleConfirmRelease(order.orderId);
+                                }}
                                 variant="primary"
                                 size="sm"
                                 className="text-[10px] px-4 py-1.5 hover:opacity-90"
@@ -636,9 +900,13 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                             {!order.sellerConfirmed ? (
                               <>
                                 <StudioActionButton
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSellerRejectOrder(order.orderId);
+                                  }}
                                   variant="secondary"
                                   size="sm"
-                                  className="text-[10px] px-3 py-1.5 text-zinc-400"
+                                  className="text-[10px] px-3 py-1.5 text-ui-secondary"
                                   leftIcon={<XCircle size={12} />}
                                 >
                                   Reject
@@ -665,7 +933,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                                   }}
                                   variant="secondary"
                                   size="sm"
-                                  className="text-[10px] px-3 py-1.5 text-zinc-400"
+                                  className="text-[10px] px-3 py-1.5 text-ui-secondary"
                                   leftIcon={<XCircle size={12} />}
                                 >
                                   Cancel Order
@@ -709,170 +977,178 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
       </section>
 
       {/* Right Sidebar - Order Summary */}
-      <StudioSidebarShell>
-        <StudioSidebarHeader>
-          <h2 className="text-white font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
-            <CheckCircle className="text-[var(--color-primary-custom)]" size={18} />
-            Order Summary
-          </h2>
-          <p className="text-xs text-zinc-500 mt-1">EIP-712 Signature Status</p>
-        </StudioSidebarHeader>
+      <StudioSidebarShell widthClassName="w-full" className="bg-ui-page border-l-0 p-2.5">
+        <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+          <StudioSidebarHeader className="p-5 border-b border-[var(--t-border-subtle)]">
+            <h2 className="text-ui-primary font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
+              <CheckCircle className="text-primary" size={18} />
+              Order Summary
+            </h2>
+            <p className="text-xs text-ui-muted mt-1">EIP-712 Signature Status</p>
+          </StudioSidebarHeader>
 
-        <StudioSidebarScroll>
-          {/* Signature Status */}
-          <div className="p-5 bg-[var(--color-panel-bg)] border border-[var(--color-panel-border)] rounded-2xl space-y-5 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.5)]">
+          <StudioSidebarScroll className="p-4 space-y-4">
+            {/* Signature Status */}
+            <div
+              className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px] space-y-5"
+              style={{ backgroundColor: 'rgba(255, 255, 255, 0.02)' }}
+            >
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${selectedOrder.signatures.buyer1 ? 'bg-primary' : 'border border-zinc-700'
+                      }`}>
+                      {selectedOrder.signatures.buyer1 ? (
+                        <Check size={12} className="text-black font-bold" />
+                      ) : (
+                        <span className="text-[10px] font-bold text-ui-muted">1</span>
+                      )}
+                    </div>
+                    <span className={`text-xs font-semibold ${selectedOrder.signatures.buyer1 ? 'text-ui-primary' : 'text-ui-muted'}`}>
+                      Buyer Sig 1
+                    </span>
+                  </div>
+                  {selectedOrder.signatures.buyer1 && (
+                    <span className="text-[10px] font-mono text-ui-muted">0x...f2</span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${selectedOrder.signatures.seller ? 'bg-primary' : 'border border-zinc-700'
+                      }`}>
+                      {selectedOrder.signatures.seller ? (
+                        <Check size={12} className="text-black font-bold" />
+                      ) : (
+                        <span className="text-[10px] font-bold text-ui-muted">2</span>
+                      )}
+                    </div>
+                    <span className={`text-xs font-semibold ${selectedOrder.signatures.seller ? 'text-ui-primary' : 'text-ui-muted'}`}>
+                      Seller Sig
+                    </span>
+                  </div>
+                  {!selectedOrder.signatures.seller && (
+                    <StudioStatusBadge variant="muted">PENDING</StudioStatusBadge>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${selectedOrder.signatures.buyer2 ? 'bg-primary' : 'border border-zinc-700'
+                      }`}>
+                      {selectedOrder.signatures.buyer2 ? (
+                        <Check size={12} className="text-black font-bold" />
+                      ) : (
+                        <span className="text-[10px] font-bold text-ui-muted">3</span>
+                      )}
+                    </div>
+                    <span className={`text-xs font-semibold ${selectedOrder.signatures.buyer2 ? 'text-ui-primary' : 'text-ui-muted'}`}>
+                      Buyer Sig 2
+                    </span>
+                  </div>
+                  {!selectedOrder.signatures.buyer2 && (
+                    <StudioStatusBadge variant="muted">WAITING</StudioStatusBadge>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-[var(--t-border-subtle)]">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">Process Confidence</span>
+                  <span className="text-[10px] font-bold text-primary">{selectedOrder.progress}%</span>
+                </div>
+                <StudioProgressBar
+                  value={selectedOrder.progress}
+                  variant="success"
+                  trackClassName="bg-zinc-900"
+                />
+              </div>
+            </div>
+
+            {/* History Feed */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                    selectedOrder.signatures.buyer1 ? 'bg-[var(--color-primary-custom)]' : 'border border-zinc-700'
-                  }`}>
-                    {selectedOrder.signatures.buyer1 ? (
-                      <Check size={12} className="text-black font-bold" />
-                    ) : (
-                      <span className="text-[10px] font-bold text-zinc-500">1</span>
-                    )}
-                  </div>
-                  <span className={`text-xs font-semibold ${selectedOrder.signatures.buyer1 ? 'text-white' : 'text-zinc-500'}`}>
-                    Buyer Sig 1
-                  </span>
-                </div>
-                {selectedOrder.signatures.buyer1 && (
-                  <span className="text-[10px] font-mono text-zinc-500">0x...f2</span>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                    selectedOrder.signatures.seller ? 'bg-[var(--color-primary-custom)]' : 'border border-zinc-700'
-                  }`}>
-                    {selectedOrder.signatures.seller ? (
-                      <Check size={12} className="text-black font-bold" />
-                    ) : (
-                      <span className="text-[10px] font-bold text-zinc-500">2</span>
-                    )}
-                  </div>
-                  <span className={`text-xs font-semibold ${selectedOrder.signatures.seller ? 'text-white' : 'text-zinc-500'}`}>
-                    Seller Sig
-                  </span>
-                </div>
-                {!selectedOrder.signatures.seller && (
-                  <StudioStatusBadge variant="muted">PENDING</StudioStatusBadge>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                    selectedOrder.signatures.buyer2 ? 'bg-[var(--color-primary-custom)]' : 'border border-zinc-700'
-                  }`}>
-                    {selectedOrder.signatures.buyer2 ? (
-                      <Check size={12} className="text-black font-bold" />
-                    ) : (
-                      <span className="text-[10px] font-bold text-zinc-500">3</span>
-                    )}
-                  </div>
-                  <span className={`text-xs font-semibold ${selectedOrder.signatures.buyer2 ? 'text-white' : 'text-zinc-500'}`}>
-                    Buyer Sig 2
-                  </span>
-                </div>
-                {!selectedOrder.signatures.buyer2 && (
-                  <StudioStatusBadge variant="muted">WAITING</StudioStatusBadge>
-                )}
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-[#27272a]">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-[10px] font-bold text-zinc-500 uppercase">Process Confidence</span>
-                <span className="text-[10px] font-bold text-[var(--color-primary-custom)]">{selectedOrder.progress}%</span>
-              </div>
-              <StudioProgressBar
-                value={selectedOrder.progress}
-                variant="success"
-                trackClassName="bg-zinc-900"
-              />
-            </div>
-          </div>
-
-          {/* History Feed */}
-          <div className="space-y-4">
-            <h3 className="text-[11px] uppercase tracking-widest font-black text-zinc-600 px-2">History Feed</h3>
-            <div className="space-y-4 px-2">
-              {selectedOrder.state === 1 && (
-                <>
-                  <StudioTimelineItem
-                    tone="success"
-                    title="Funds Deposited"
-                    description={`${formatEther(selectedOrder.grossPrice)} ETH sent to Escrow`}
-                    timestamp="2 mins ago"
-                  />
-                  <StudioTimelineItem
-                    tone="muted"
-                    title="Buyer Signed (EIP-712)"
-                    description="Signature Hash: 0x92...11"
-                    timestamp="5 mins ago"
-                  />
-                </>
-              )}
-              <StudioTimelineItem
-                tone="muted"
-                title="Order Proposed"
-                description={`Creation by ${formatAddress(selectedOrder.buyer)}`}
-                timestamp="12 mins ago"
-                showConnector={false}
-              />
-
-              {/* Product Information */}
-              <div className="mt-4 p-4 bg-zinc-900/50 rounded-xl border border-[#27272a]">
-                <p className="text-[10px] font-bold text-zinc-500 uppercase mb-2 tracking-wider">Product Information</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg bg-zinc-800 border border-[#27272a] overflow-hidden">
-                    <img
-                      alt="Product"
-                      className="w-full h-full object-cover"
-                      src={selectedOrder.assetImage}
+              <h3 className="text-[11px] uppercase tracking-widest font-black text-ui-muted px-2">History Feed</h3>
+              <div className="space-y-4 px-2">
+                {selectedOrder.state === 1 && (
+                  <>
+                    <StudioTimelineItem
+                      tone="success"
+                      title="Funds Deposited"
+                      description={`${formatEther(selectedOrder.grossPrice)} ETH sent to Escrow`}
+                      timestamp="2 mins ago"
                     />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-white">{selectedOrder.assetName}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] text-zinc-500">Qty:</span>
-                      <span className="text-[10px] font-mono font-bold text-[var(--color-primary-custom)]">
-                        {selectedOrder.amount.toString()}.0
-                      </span>
-                      <span className="text-[10px] text-zinc-500 ml-1">Price:</span>
-                      <span className="text-[10px] font-mono font-bold text-white">
-                        {formatEther(selectedOrder.grossPrice)} ETH
-                      </span>
+                    <StudioTimelineItem
+                      tone="muted"
+                      title="Buyer Signed (EIP-712)"
+                      description="Signature Hash: 0x92...11"
+                      timestamp="5 mins ago"
+                    />
+                  </>
+                )}
+                <StudioTimelineItem
+                  tone="muted"
+                  title="Order Proposed"
+                  description={`Creation by ${formatAddress(selectedOrder.buyer)}`}
+                  timestamp="12 mins ago"
+                  showConnector={false}
+                />
+
+                {/* Product Information */}
+                <div className="mt-4 p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
+                  <p className="text-[10px] font-bold text-ui-muted uppercase mb-2 tracking-wider">Product Information</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-lg bg-zinc-800/40 border-0 overflow-hidden">
+                      <img
+                        alt="Product"
+                        className="w-full h-full object-cover"
+                        src={selectedOrder.assetImage}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-ui-primary">{selectedOrder.assetName}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-ui-muted">Qty:</span>
+                        <span className="text-[10px] font-mono font-bold text-primary">
+                          {selectedOrder.amount.toString()}.0
+                        </span>
+                        <span className="text-[10px] text-ui-muted ml-1">Price:</span>
+                        <span className="text-[10px] font-mono font-bold text-ui-primary">
+                          {formatEther(selectedOrder.grossPrice)} ETH
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </StudioSidebarScroll>
+          </StudioSidebarScroll>
 
-        {/* Footer */}
-        <StudioSidebarFooter className="mt-auto p-5 bg-[var(--color-panel-bg)] space-y-4">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-[10px] font-bold text-zinc-500 uppercase">Node Health</span>
-            <span className="text-[10px] font-black text-[var(--color-primary-custom)] flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary-custom)]"></span>
-              <StudioStatusBadge variant="success" className="border-0 bg-transparent p-0 text-[10px]">
-                SYNCED
-              </StudioStatusBadge>
-            </span>
-          </div>
-          <StudioActionButton
-            className="w-full py-2.5 rounded-xl text-[11px] uppercase tracking-wider"
-            leftIcon={<ExternalLink size={14} />}
-          >
-            View on Etherscan
-          </StudioActionButton>
-        </StudioSidebarFooter>
+          {/* Footer */}
+          <StudioSidebarFooter className="border-t border-[var(--t-border-subtle)] p-4 bg-transparent backdrop-blur-0 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-ui-muted uppercase">Node Health</span>
+              <span className="text-[10px] font-black text-primary flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                <StudioStatusBadge variant="success" className="border-0 bg-transparent p-0 text-[10px]">
+                  SYNCED
+                </StudioStatusBadge>
+              </span>
+            </div>
+            <StudioActionButton
+              className="w-full py-2.5 rounded-xl text-[11px] uppercase tracking-wider"
+              leftIcon={<ExternalLink size={14} />}
+            >
+              View on Etherscan
+            </StudioActionButton>
+          </StudioSidebarFooter>
+        </div>
       </StudioSidebarShell>
+
+      {/* Action Notification Modal */}
+      <OrderActionNoticeModal
+        notice={actionNotice}
+        onClose={() => setActionNotice(null)}
+      />
 
       {/* Duration Picker Modal */}
       {showDurationPicker && (

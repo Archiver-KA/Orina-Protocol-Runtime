@@ -28,6 +28,41 @@ type CommunityNotifyRequest = {
   actorName?: string | null;
 };
 
+type AssetMetadataSeedMediaItem = {
+  mediaType?: 'image' | 'video' | 'document';
+  url?: string;
+  sortOrder?: number;
+  metadata?: Record<string, unknown>;
+};
+
+type AssetMetadataSeedItem = {
+  assetUid?: string;
+  title?: string;
+  slug?: string | null;
+  category?: string | null;
+  subcategory?: string | null;
+  description?: string | null;
+  coverImageUrl?: string | null;
+  galleryImages?: string[];
+  attributes?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  contractAddress?: string | null;
+  tokenId?: string | null;
+  chainId?: number | null;
+  isActive?: boolean;
+  media?: AssetMetadataSeedMediaItem[];
+  tags?: string[];
+};
+
+type AssetMetadataSeedRequest = {
+  assetItems?: AssetMetadataSeedItem[];
+  client?: {
+    app?: string;
+    phase?: string;
+    requestedAt?: string;
+  };
+};
+
 type DbProfileRow = {
   id: string;
   wallet_address: string;
@@ -41,12 +76,44 @@ type DbWalletSessionRow = {
   revoked_at: string | null;
 };
 
+type DbAssetCatalogRow = {
+  id: string;
+  asset_uid: string;
+};
+
+type DbAssetTagRow = {
+  id: string;
+  tag: string;
+};
+
 type VerificationMode =
   | 'dev_trust_client_session'
   | 'wallet_session_row';
 
 function normalizeAddress(address: string): string {
   return address.toLowerCase();
+}
+
+function normalizeAssetUid(value: string): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizeTag(value: string): string {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-_]/g, '')
+    .slice(0, 64);
+}
+
+function normalizeSlug(value: string): string {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
 }
 
 function isValidWalletAddress(address: string): boolean {
@@ -438,13 +505,72 @@ router.post('/community-notify', async (c) => {
   try {
     const supabase = getServiceSupabaseClient();
     const targetProfile = await resolveOrCreateProfile(supabase, targetWalletAddress);
+    const rawMetadata =
+      body.metadata && typeof body.metadata === 'object'
+        ? { ...(body.metadata as Record<string, unknown>) }
+        : {};
+    const normalizedEventCode = String(
+      (rawMetadata as any).eventCode ||
+      (rawMetadata as any).event_code ||
+      'community_event'
+    )
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9:_-]+/g, '_')
+      .slice(0, 120) || 'community_event';
 
     const payload = {
-      ...(body.metadata || {}),
+      ...rawMetadata,
+      eventCode: normalizedEventCode,
+      event_code: normalizedEventCode,
+      sourceId,
+      source_id: sourceId,
       actorWalletAddress: body.actorWalletAddress ? normalizeAddress(String(body.actorWalletAddress)) : null,
       actorName: body.actorName || null,
       delivered_by: 'h1_bridge_service_role',
     };
+
+    const { data: existingRows, error: existingLookupError } = await supabase
+      .from('notifications')
+      .select('id,user_id,source_id,created_at,is_read')
+      .eq('user_id', targetProfile.id)
+      .eq('source_type', 'atp2_app_v1')
+      .eq('source_id', sourceId)
+      .limit(1);
+
+    if (existingLookupError) {
+      throw new Error(`notifications lookup failed: ${existingLookupError.message}`);
+    }
+
+    const existing = (existingRows?.[0] as any) || null;
+    if (existing?.id) {
+      const { data: updatedRows, error: updateError } = await supabase
+        .from('notifications')
+        .update({
+          title,
+          body: message,
+          payload,
+          // Preserve read-state on dedupe updates to avoid unread resurrection after user action.
+          is_read: !!existing.is_read,
+          read_at: existing.is_read ? new Date().toISOString() : null,
+        })
+        .eq('id', existing.id)
+        .select('id,user_id,source_id,created_at')
+        .limit(1);
+
+      if (updateError) {
+        throw new Error(`notifications dedupe update failed: ${updateError.message}`);
+      }
+
+      return c.json({
+        ok: true,
+        deduped: true,
+        targetWalletAddress,
+        profileId: targetProfile.id,
+        sourceId,
+        row: updatedRows?.[0] || existing,
+      });
+    }
 
     const { data, error } = await supabase
       .from('notifications')
@@ -477,6 +603,216 @@ router.post('/community-notify', async (c) => {
     console.error('[H1 Bridge] community-notify failed:', error);
     return c.json(
       { error: error instanceof Error ? error.message : 'community-notify failed' },
+      500
+    );
+  }
+});
+
+router.post('/asset-metadata-seed', async (c) => {
+  let body: AssetMetadataSeedRequest;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  if (!isEnabled('ATP2_ENABLE_SUPABASE_AUTH_CLAIM_BRIDGE')) {
+    return c.json({ error: 'Bridge is disabled' }, 501);
+  }
+
+  const rawItems = Array.isArray(body.assetItems) ? body.assetItems : [];
+  if (rawItems.length === 0) {
+    return c.json({ ok: true, rows: [], count: 0 });
+  }
+  if (rawItems.length > 100) {
+    return c.json({ error: 'Too many assetItems (max 100)' }, 400);
+  }
+
+  const normalizedItems = rawItems
+    .map((item) => {
+      const assetUid = normalizeAssetUid(String(item.assetUid || ''));
+      const title = String(item.title || '').trim();
+      if (!assetUid || !title) return null;
+
+      const media = (Array.isArray(item.media) ? item.media : [])
+        .map((m, index) => ({
+          media_type: (m.mediaType === 'video' || m.mediaType === 'document' ? m.mediaType : 'image') as 'image' | 'video' | 'document',
+          url: String(m.url || '').trim(),
+          sort_order: Number.isFinite(Number(m.sortOrder)) ? Math.max(0, Math.floor(Number(m.sortOrder))) : index,
+          metadata: (m.metadata && typeof m.metadata === 'object') ? m.metadata : {},
+        }))
+        .filter((m) => !!m.url);
+
+      const tags = Array.from(
+        new Set((Array.isArray(item.tags) ? item.tags : []).map((t) => normalizeTag(String(t || ''))).filter(Boolean))
+      );
+
+      return {
+        asset_uid: assetUid,
+        title,
+        slug: normalizeSlug(String(item.slug || `${assetUid}-${title}`)) || assetUid,
+        category: item.category ? String(item.category).trim() : null,
+        subcategory: item.subcategory ? String(item.subcategory).trim() : null,
+        description: item.description ? String(item.description) : null,
+        cover_image_url: item.coverImageUrl ? String(item.coverImageUrl) : null,
+        gallery_images: Array.isArray(item.galleryImages) ? item.galleryImages.filter((x) => typeof x === 'string') : [],
+        attributes: (item.attributes && typeof item.attributes === 'object') ? item.attributes : {},
+        metadata: (item.metadata && typeof item.metadata === 'object') ? item.metadata : {},
+        contract_address: item.contractAddress ? String(item.contractAddress) : null,
+        token_id: item.tokenId ? String(item.tokenId) : null,
+        chain_id: Number.isFinite(Number(item.chainId)) ? Number(item.chainId) : null,
+        is_active: !!item.isActive,
+        media,
+        tags,
+      };
+    })
+    .filter(Boolean) as Array<{
+      asset_uid: string;
+      title: string;
+      slug: string;
+      category: string | null;
+      subcategory: string | null;
+      description: string | null;
+      cover_image_url: string | null;
+      gallery_images: string[];
+      attributes: Record<string, unknown>;
+      metadata: Record<string, unknown>;
+      contract_address: string | null;
+      token_id: string | null;
+      chain_id: number | null;
+      is_active: boolean;
+      media: Array<{ media_type: 'image' | 'video' | 'document'; url: string; sort_order: number; metadata: Record<string, unknown> }>;
+      tags: string[];
+    }>;
+
+  if (normalizedItems.length === 0) {
+    return c.json({ error: 'No valid assetItems after normalization' }, 400);
+  }
+
+  try {
+    const supabase = getServiceSupabaseClient();
+
+    const { data: upsertedAssets, error: assetUpsertError } = await supabase
+      .from('assets_catalog')
+      .upsert(
+        normalizedItems.map((item) => ({
+          asset_uid: item.asset_uid,
+          title: item.title,
+          slug: item.slug,
+          category: item.category,
+          subcategory: item.subcategory,
+          description: item.description,
+          cover_image_url: item.cover_image_url,
+          gallery_images: item.gallery_images,
+          attributes: item.attributes,
+          metadata: {
+            ...(item.metadata || {}),
+            seeded_by: 'h1_bridge_asset_metadata_seed',
+            seeded_at: new Date().toISOString(),
+          },
+          contract_address: item.contract_address,
+          token_id: item.token_id,
+          chain_id: item.chain_id,
+          is_active: item.is_active,
+        })),
+        { onConflict: 'asset_uid' }
+      )
+      .select('id,asset_uid');
+
+    if (assetUpsertError) {
+      throw new Error(`assets_catalog upsert failed: ${assetUpsertError.message}`);
+    }
+
+    const assetRows = (upsertedAssets || []) as DbAssetCatalogRow[];
+    const assetIdByUid = new Map(assetRows.map((row) => [normalizeAssetUid(row.asset_uid), row.id]));
+
+    // Tags upsert + lookup
+    const allTags = Array.from(
+      new Set(normalizedItems.flatMap((item) => item.tags))
+    );
+    let tagIdByTag = new Map<string, string>();
+    if (allTags.length > 0) {
+      const { error: tagsUpsertError } = await supabase
+        .from('asset_tags')
+        .upsert(allTags.map((tag) => ({ tag })), { onConflict: 'tag', ignoreDuplicates: true });
+      if (tagsUpsertError) {
+        throw new Error(`asset_tags upsert failed: ${tagsUpsertError.message}`);
+      }
+      const { data: tagRows, error: tagSelectError } = await supabase
+        .from('asset_tags')
+        .select('id,tag')
+        .in('tag', allTags);
+      if (tagSelectError) {
+        throw new Error(`asset_tags select failed: ${tagSelectError.message}`);
+      }
+      tagIdByTag = new Map(((tagRows || []) as DbAssetTagRow[]).map((row) => [row.tag, row.id]));
+    }
+
+    for (const item of normalizedItems) {
+      const assetId = assetIdByUid.get(item.asset_uid);
+      if (!assetId) continue;
+
+      const { error: mediaDeleteError } = await supabase
+        .from('asset_media')
+        .delete()
+        .eq('asset_id', assetId);
+      if (mediaDeleteError) {
+        throw new Error(`asset_media delete failed for ${item.asset_uid}: ${mediaDeleteError.message}`);
+      }
+
+      if (item.media.length > 0) {
+        const { error: mediaInsertError } = await supabase
+          .from('asset_media')
+          .insert(
+            item.media.map((m) => ({
+              asset_id: assetId,
+              media_type: m.media_type,
+              url: m.url,
+              sort_order: m.sort_order,
+              metadata: m.metadata,
+            }))
+          );
+        if (mediaInsertError) {
+          throw new Error(`asset_media insert failed for ${item.asset_uid}: ${mediaInsertError.message}`);
+        }
+      }
+
+      const { error: mapDeleteError } = await supabase
+        .from('asset_tag_map')
+        .delete()
+        .eq('asset_id', assetId);
+      if (mapDeleteError) {
+        throw new Error(`asset_tag_map delete failed for ${item.asset_uid}: ${mapDeleteError.message}`);
+      }
+
+      const tagRows = item.tags
+        .map((tag) => {
+          const tagId = tagIdByTag.get(tag);
+          return tagId ? { asset_id: assetId, tag_id: tagId } : null;
+        })
+        .filter(Boolean);
+      if (tagRows.length > 0) {
+        const { error: mapInsertError } = await supabase
+          .from('asset_tag_map')
+          .insert(tagRows as Array<{ asset_id: string; tag_id: string }>);
+        if (mapInsertError) {
+          throw new Error(`asset_tag_map insert failed for ${item.asset_uid}: ${mapInsertError.message}`);
+        }
+      }
+    }
+
+    return c.json({
+      ok: true,
+      count: normalizedItems.length,
+      rows: normalizedItems.map((item) => ({
+        assetUid: item.asset_uid,
+        assetId: assetIdByUid.get(item.asset_uid) || null,
+      })),
+    });
+  } catch (error) {
+    console.error('[H1 Bridge] asset-metadata-seed failed:', error);
+    return c.json(
+      { error: error instanceof Error ? error.message : 'asset-metadata-seed failed' },
       500
     );
   }

@@ -1,6 +1,8 @@
 import { FavoriteAsset, WatchlistItem, WatchlistAlert, FavoriteSortOption, FavoritesStats, WatchlistStats } from '@/types/favorites';
 import { AssetDetails } from '@/types/asset';
 import { getMarketplaceAssetById } from '@/utils/mockMarketplaceData';
+import { getTestWalletMyAssets } from '@/utils/testWalletAssetFixtures';
+import { ensureAssetMetadataSeedForIds } from '@/utils/assetMetadataSync';
 import { isGuestModeForced } from '@/utils/guestMode';
 import {
   dispatchSyncEvent,
@@ -106,6 +108,52 @@ function readLocalArraySafe<T>(key: string): T[] {
   }
 }
 
+function seedDeterministicFavoritesForTestWallet(walletAddress: string): FavoriteAsset[] | null {
+  const fixture = getTestWalletMyAssets(walletAddress);
+  if (!fixture?.favoriteListingAssetIds?.length) return null;
+  const key = getFavoritesKey(walletAddress);
+  const existing = readLocalArraySafe<FavoriteAsset>(key);
+  if (existing.length > 0) return existing;
+
+  const baseTs = Date.parse('2026-02-25T00:00:00Z');
+  const seeded = fixture.favoriteListingAssetIds.map((assetId, index) => ({
+    assetId,
+    userId: walletKey(walletAddress),
+    addedAt: baseTs + index * 60_000,
+  }));
+
+  try {
+    localStorage.setItem(key, JSON.stringify(seeded));
+    return seeded;
+  } catch {
+    return seeded;
+  }
+}
+
+function seedDeterministicWatchlistForTestWallet(walletAddress: string): WatchlistItem[] | null {
+  const fixture = getTestWalletMyAssets(walletAddress);
+  if (!fixture?.watchlistListingAssetIds?.length) return null;
+  const key = getWatchlistKey(walletAddress);
+  const existing = readLocalArraySafe<WatchlistItem>(key);
+  if (existing.length > 0) return existing;
+
+  const baseTs = Date.parse('2026-02-25T01:00:00Z');
+  const seeded = fixture.watchlistListingAssetIds.map((assetId, index) => ({
+    id: `twf_watch_${walletKey(walletAddress)}_${assetId}`,
+    assetId,
+    userId: walletKey(walletAddress),
+    addedAt: baseTs + index * 60_000,
+    notes: `Fixture watchlist ${index + 1}`,
+  }));
+
+  try {
+    localStorage.setItem(key, JSON.stringify(seeded));
+    return seeded;
+  } catch {
+    return seeded;
+  }
+}
+
 function mergeFavoritesPreferLocal(localItems: FavoriteAsset[], remoteItems: FavoriteAsset[]): FavoriteAsset[] {
   const byAssetId = new Map<string, FavoriteAsset>();
 
@@ -146,7 +194,23 @@ async function ensureRemoteAssetId(assetId: string): Promise<string | null> {
     }
   } catch (error) {
     console.debug('[Favorites] Asset lookup failed:', error);
-    return null;
+  }
+
+  // C2.3: hardened RLS blocks client writes to assets_*; seed via bridge (service_role) first.
+  try {
+    await ensureAssetMetadataSeedForIds([assetUid]);
+    const rows = await restSelect<DbAssetRow>(
+      'assets_catalog',
+      toQuery({ select: 'id,asset_uid,title,category,subcategory', asset_uid: encodeEq(assetUid), limit: '1' })
+    );
+    const seeded = rows[0];
+    if (seeded?.id) {
+      setLocalSupabaseId('asset', assetUid, seeded.id);
+      setLocalSupabaseId('asset_rev', seeded.id, assetUid);
+      return seeded.id;
+    }
+  } catch (error) {
+    console.debug('[Favorites] Asset seed bridge skipped:', error);
   }
 
   const marketplace = getMarketplaceAssetById(assetUid);
@@ -534,6 +598,11 @@ export function loadFavorites(walletAddress: string): FavoriteAsset[] {
     const key = getFavoritesKey(walletAddress);
     const stored = localStorage.getItem(key);
     if (!stored) {
+      const seeded = seedDeterministicFavoritesForTestWallet(walletAddress);
+      if (seeded) {
+        if (walletAddress) void hydrateFavoritesFromSupabase(walletAddress);
+        return seeded;
+      }
       if (walletAddress) void hydrateFavoritesFromSupabase(walletAddress);
       return [];
     }
@@ -641,6 +710,11 @@ export function loadWatchlist(walletAddress: string): WatchlistItem[] {
     const key = getWatchlistKey(walletAddress);
     const stored = localStorage.getItem(key);
     if (!stored) {
+      const seeded = seedDeterministicWatchlistForTestWallet(walletAddress);
+      if (seeded) {
+        if (walletAddress) void hydrateWatchlistFromSupabase(walletAddress);
+        return seeded;
+      }
       if (walletAddress) void hydrateWatchlistFromSupabase(walletAddress);
       return [];
     }

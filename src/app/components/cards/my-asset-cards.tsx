@@ -55,7 +55,7 @@ export function MyAssetRwaCard({
   onManage: (asset: MyAssetRwa) => void;
 }) {
   return (
-    <StudioPanel className="rounded-2xl overflow-hidden transition-all group flex flex-col hover:bg-[#1a1a1d]">
+    <StudioPanel className="rounded-[24px] overflow-hidden transition-all duration-200 group flex flex-col backdrop-blur-[10px] hover:shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
       <div className="relative aspect-square overflow-hidden bg-black">
         <img
           src={asset.image}
@@ -82,42 +82,42 @@ export function MyAssetRwaCard({
 
       <div className="p-4 flex flex-col flex-1">
         <div className="flex items-center gap-1.5 mb-2">
-          <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">
+          <span className="text-[10px] text-ui-muted uppercase tracking-wider font-bold">
             {asset.category}
           </span>
         </div>
 
-        <h3 className="font-bold text-white mb-3 line-clamp-1">{asset.name}</h3>
+        <h3 className="font-bold text-ui-primary mb-3 line-clamp-1">{asset.name}</h3>
 
         <div className="space-y-2 mb-3">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">
+            <span className="text-[9px] text-ui-muted uppercase font-bold tracking-widest">
               Available / Total:
             </span>
-            <span className="text-zinc-300 font-medium">
+            <span className="text-ui-secondary font-medium">
               {asset.availableAmount} / {asset.totalAmount}
             </span>
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">
+            <span className="text-[9px] text-ui-muted uppercase font-bold tracking-widest">
               Min Price:
             </span>
-            <span className="text-white font-bold">{asset.minPrice}</span>
+            <span className="text-ui-primary font-bold">{asset.minPrice}</span>
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">
+            <span className="text-[9px] text-ui-muted uppercase font-bold tracking-widest">
               Minted:
             </span>
-            <span className="text-zinc-400">{asset.mintedDate}</span>
+            <span className="text-ui-secondary">{asset.mintedDate}</span>
           </div>
         </div>
 
         <div className="flex-1" />
 
-        <div className="pt-3 border-t border-[var(--color-panel-border)] mt-auto">
+        <div className="pt-3 border-t border-ui-border-subtle mt-auto">
           <button
             onClick={() => onManage(asset)}
-            className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-[var(--color-panel-border)] rounded-lg text-xs font-bold text-white transition-colors flex items-center justify-center gap-2"
+            className="w-full h-[45px] px-5 bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] border-0 rounded-full text-xs font-bold text-ui-primary transition-colors flex items-center justify-center gap-2"
           >
             <Eye size={14} />
             Manage Asset
@@ -138,7 +138,7 @@ export function MyAssetReceiptCard({
   return (
     <StudioPanel
       onClick={() => onOpen(asset.id)}
-      className="rounded-2xl overflow-hidden hover:border-purple-400/40 transition-all group cursor-pointer flex flex-col"
+      className="rounded-[24px] overflow-hidden transition-all duration-200 group cursor-pointer flex flex-col backdrop-blur-[10px] hover:shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
     >
       <div className="relative aspect-square overflow-hidden bg-black">
         <img
@@ -163,45 +163,45 @@ export function MyAssetReceiptCard({
 
       <div className="p-4 flex flex-col flex-1">
         <div className="flex items-center gap-1.5 mb-2">
-          <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">
+          <span className="text-[10px] text-ui-muted uppercase tracking-wider font-bold">
             {asset.category}
           </span>
         </div>
 
-        <h3 className="font-bold text-white mb-3 line-clamp-1">{asset.name}</h3>
+        <h3 className="font-bold text-ui-primary mb-3 line-clamp-1">{asset.name}</h3>
 
         <div className="space-y-2 mb-3">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">
+            <span className="text-[9px] text-ui-muted uppercase font-bold tracking-widest">
               Order ID:
             </span>
-            <span className="text-zinc-400 font-medium">{asset.orderId}</span>
+            <span className="text-ui-secondary font-medium">{asset.orderId}</span>
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">
+            <span className="text-[9px] text-ui-muted uppercase font-bold tracking-widest">
               Purchase Date:
             </span>
-            <span className="text-zinc-400">{asset.purchaseDate}</span>
+            <span className="text-ui-secondary">{asset.purchaseDate}</span>
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">
+            <span className="text-[9px] text-ui-muted uppercase font-bold tracking-widest">
               Seller:
             </span>
-            <span className="text-zinc-400 font-medium">{asset.seller}</span>
+            <span className="text-ui-secondary font-medium">{asset.seller}</span>
           </div>
         </div>
 
         <div className="flex-1" />
 
-        <div className="flex items-center justify-between pt-3 border-t border-[var(--color-panel-border)] mt-auto">
+        <div className="flex items-center justify-between pt-3 border-t border-ui-border-subtle mt-auto">
           <div>
-            <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold mb-0.5">
+            <p className="text-[9px] text-ui-muted uppercase tracking-widest font-bold mb-0.5">
               Purchase Value
             </p>
-            <p className="text-base font-bold text-white">{asset.purchaseValue}</p>
+            <p className="text-base font-bold text-ui-primary">{asset.purchaseValue}</p>
           </div>
-          <div className="px-3 py-1 bg-zinc-900 border border-[var(--color-panel-border)] rounded-lg">
-            <span className="text-xs font-bold text-zinc-400">{asset.blockchain}</span>
+          <div className="px-3 py-1 bg-[rgba(255,255,255,0.05)] border-0 rounded-full">
+            <span className="text-xs font-bold text-ui-secondary">{asset.blockchain}</span>
           </div>
         </div>
       </div>
@@ -219,7 +219,7 @@ export function MyAssetNftCard({
   onListForSale: (asset: MyAssetNft) => void;
 }) {
   return (
-    <StudioPanel className="rounded-2xl overflow-hidden hover:border-blue-400/40 transition-all group flex flex-col">
+    <StudioPanel className="rounded-[24px] overflow-hidden transition-all duration-200 group flex flex-col backdrop-blur-[10px] hover:shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
       <div className="relative aspect-square overflow-hidden bg-black">
         <img
           src={asset.image}
@@ -243,40 +243,40 @@ export function MyAssetNftCard({
 
       <div className="p-4 flex flex-col flex-1">
         <div className="flex items-center gap-1.5 mb-2">
-          <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">
+          <span className="text-[10px] text-ui-muted uppercase tracking-wider font-bold">
             {asset.category}
           </span>
         </div>
 
-        <h3 className="font-bold text-white mb-3 line-clamp-1">{asset.name}</h3>
+        <h3 className="font-bold text-ui-primary mb-3 line-clamp-1">{asset.name}</h3>
 
         <div className="space-y-2 mb-3">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">
+            <span className="text-[9px] text-ui-muted uppercase font-bold tracking-widest">
               Current Price:
             </span>
-            <span className="text-white font-bold">{asset.currentPrice}</span>
+            <span className="text-ui-primary font-bold">{asset.currentPrice}</span>
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">
+            <span className="text-[9px] text-ui-muted uppercase font-bold tracking-widest">
               Floor Price:
             </span>
-            <span className="text-zinc-400">{asset.floorPrice}</span>
+            <span className="text-ui-secondary">{asset.floorPrice}</span>
           </div>
         </div>
 
         <div className="flex-1" />
 
-        <div className="pt-3 border-t border-[var(--color-panel-border)] flex gap-2 mt-auto">
+        <div className="pt-3 border-t border-ui-border-subtle flex gap-2 mt-auto">
           <button
             onClick={() => onTransfer(asset)}
-            className="flex-1 py-2.5 bg-[var(--color-primary-custom)] hover:bg-[color:color-mix(in_srgb,var(--color-primary-custom)_90%,black)] text-black rounded-lg text-xs font-bold transition-colors"
+            className="flex-1 h-[45px] px-4 bg-[var(--color-primary-custom)] hover:bg-[color:color-mix(in_srgb,var(--color-primary-custom)_90%,black)] text-black rounded-full text-xs font-bold transition-colors"
           >
             Transfer
           </button>
           <button
             onClick={() => onListForSale(asset)}
-            className="flex-1 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-[var(--color-panel-border)] text-white rounded-lg text-xs font-bold transition-colors"
+            className="flex-1 h-[45px] px-4 bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] border-0 text-ui-primary rounded-full text-xs font-bold transition-colors"
           >
             List for Sale
           </button>

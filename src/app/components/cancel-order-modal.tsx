@@ -1,4 +1,4 @@
-import { X, AlertCircle, XCircle, CheckCircle2, Shield, DollarSign } from 'lucide-react';
+import { AlertCircle, XCircle, CheckCircle2, Shield, DollarSign } from 'lucide-react';
 import { formatEther } from 'viem';
 import { formatAddress } from '@/utils/format';
 import { useCancelOrder } from '@/hooks/useOrders';
@@ -8,7 +8,7 @@ import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indic
 import { StudioTxStatePanel } from '@/app/components/ui/studio-tx-state-panel';
 import { StudioNoticePanel } from '@/app/components/ui/studio-notice-panel';
 import { StudioFieldHint, StudioFieldLabel, StudioTextareaField } from '@/app/components/ui/studio-form-fields';
-import { StudioModalBody, StudioModalFooter, StudioModalHeader, StudioModalPanel, StudioModalShell } from '@/app/components/ui/studio-modal';
+import { StudioModalBody, StudioModalCloseButton, StudioModalFooter, StudioModalHeader, StudioModalPanel, StudioModalShell } from '@/app/components/ui/studio-modal';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 
@@ -119,15 +119,11 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
               <p className="text-xs text-zinc-500">Order #{order.orderId.toString()}</p>
             </div>
           </div>
-          <StudioActionButton
+          <StudioModalCloseButton
             onClick={onClose}
             disabled={txStatus === 'pending' || txStatus === 'confirming'}
-            size="icon"
-            variant="ghost"
-            className="text-zinc-500 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <X size={20} />
-          </StudioActionButton>
+            className="disabled:opacity-50 disabled:cursor-not-allowed"
+          />
         </div>
         </StudioModalHeader>
 

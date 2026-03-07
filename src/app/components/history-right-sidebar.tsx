@@ -83,7 +83,7 @@ export function HistoryRightSidebar() {
               <AssetThumb
                 src="https://source.unsplash.com/100x100/?cyberpunk,nft,digital"
                 alt="Top NFT"
-                className="w-12 h-12 rounded-lg bg-zinc-900 border border-[#27272a]"
+                className="w-12 h-12 rounded-lg bg-[rgba(255,255,255,0.02)] border-0"
               />
             }
             center={

@@ -46,9 +46,9 @@ export function StudioNoticePanel({
           : variant === 'success'
             ? {
                 box: 'bg-[color:color-mix(in_srgb,var(--color-primary-custom)_10%,transparent)] border-[color:color-mix(in_srgb,var(--color-primary-custom)_35%,transparent)]',
-                title: 'text-[var(--color-primary-custom)]',
+                title: 'text-primary',
                 body: 'text-[color:color-mix(in_srgb,var(--color-primary-custom)_70%,white_0%)]/80',
-                icon: <Info className="text-[var(--color-primary-custom)] flex-shrink-0 mt-0.5" size={compact ? 16 : 20} />,
+                icon: <Info className="text-primary flex-shrink-0 mt-0.5" size={compact ? 16 : 20} />,
               }
             : {
                 box: 'bg-zinc-950/30 border-zinc-800',

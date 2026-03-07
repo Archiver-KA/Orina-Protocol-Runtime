@@ -20,9 +20,17 @@ export const NotificationItem = forwardRef<HTMLDivElement, NotificationItemProps
     if (!notification.read) {
       markAsRead(notification.id);
     }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('orina:notification-action', {
+          detail: { notification },
+        })
+      );
+    }
     if (notification.actionUrl) {
       console.log('Navigate to:', notification.actionUrl);
     }
+    onClose?.();
   };
 
   const handleDelete = (e: MouseEvent) => {
@@ -35,50 +43,43 @@ export const NotificationItem = forwardRef<HTMLDivElement, NotificationItemProps
     switch (type) {
       case 'order':
         return {
-          icon: <ShoppingCart size={20} />,
+          icon: <ShoppingCart size={16} />,
           iconColor: 'text-orange-400',
-          borderColor: 'border-l-orange-400',
         };
       case 'message':
         return {
-          icon: <MessageSquare size={20} />,
+          icon: <MessageSquare size={16} />,
           iconColor: 'text-[#2CC295]',
-          borderColor: 'border-l-[#2CC295]',
         };
       case 'system':
         return {
-          icon: <SettingsIcon size={20} />,
+          icon: <SettingsIcon size={16} />,
           iconColor: 'text-blue-400',
-          borderColor: 'border-l-blue-400',
         };
       case 'success':
         return {
-          icon: <CheckCircle size={20} />,
+          icon: <CheckCircle size={16} />,
           iconColor: 'text-[#2CC295]',
-          borderColor: 'border-l-[#2CC295]',
         };
       case 'warning':
         return {
-          icon: <AlertTriangle size={20} />,
+          icon: <AlertTriangle size={16} />,
           iconColor: 'text-[#f59e0b]',
-          borderColor: 'border-l-[#f59e0b]',
         };
       case 'error':
         return {
-          icon: <XCircle size={20} />,
+          icon: <XCircle size={16} />,
           iconColor: 'text-[#ef4444]',
-          borderColor: 'border-l-[#ef4444]',
         };
       default:
         return {
-          icon: <Bell size={20} />,
+          icon: <Bell size={16} />,
           iconColor: 'text-blue-400',
-          borderColor: 'border-l-blue-400',
         };
     }
   };
 
-  const { icon, iconColor, borderColor } = getIconAndColor(notification.type);
+  const { icon, iconColor } = getIconAndColor(notification.type);
 
   return (
     <motion.div
@@ -89,25 +90,16 @@ export const NotificationItem = forwardRef<HTMLDivElement, NotificationItemProps
       exit={{ opacity: 0, x: 20 }}
       transition={{ duration: 0.2 }}
       onClick={handleClick}
-      className={`
-        relative group
-        bg-zinc-900 border-l-4 ${borderColor} rounded-r-lg
-        p-4 mx-3 my-2
-        shadow-[0_4px_12px_rgba(0,0,0,0.15)]
-        hover:bg-zinc-800/80
-        transition-all
-        cursor-pointer
-        ${!notification.read ? 'ring-1 ring-[#2CC295]/20' : ''}
-      `}
+      className={`relative group w-full text-left px-4 py-3 border-b border-[var(--color-panel-border)]/50 hover:bg-[rgba(255,255,255,0.05)] transition-colors cursor-pointer ${
+        !notification.read ? 'bg-[var(--color-primary-custom)]/5' : ''
+      }`}
     >
-      {/* Unread indicator dot - positioned at top-right */}
-      {!notification.read && (
-        <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#2CC295] rounded-full shadow-[0_0_8px_rgba(44,194,149,0.6)]" />
-      )}
-
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-3">
+        {!notification.read && (
+          <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 bg-[var(--color-primary-custom)]" />
+        )}
         {/* Icon */}
-        <div className="mt-1">
+        <div className="mt-0.5">
           <div className={iconColor}>
             {icon}
           </div>
@@ -115,15 +107,15 @@ export const NotificationItem = forwardRef<HTMLDivElement, NotificationItemProps
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <h4 className="text-white text-sm font-bold">
+          <h4 className="text-white text-xs font-bold truncate">
             {notification.title}
           </h4>
-          <p className="text-zinc-500 text-xs mt-1 leading-relaxed">
+          <p className="text-zinc-400 text-[11px] mt-0.5 line-clamp-2">
             {notification.message}
           </p>
 
           {/* Metadata */}
-          <div className="flex items-center gap-3 mt-2 text-[10px] text-zinc-600">
+          <div className="flex items-center gap-3 mt-1 text-[10px] text-zinc-600">
             <span>{formatRelativeTime(notification.timestamp)}</span>
             
             {notification.metadata?.orderId && (
@@ -143,9 +135,9 @@ export const NotificationItem = forwardRef<HTMLDivElement, NotificationItemProps
         {/* Close button */}
         <button
           onClick={handleDelete}
-          className="text-zinc-600 hover:text-white transition-colors flex-shrink-0"
+          className="text-zinc-600 hover:text-white transition-colors flex-shrink-0 mt-0.5"
         >
-          <X size={16} />
+          <X size={14} />
         </button>
       </div>
     </motion.div>

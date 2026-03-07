@@ -1,5 +1,7 @@
-import type { HTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react';
+import { X } from 'lucide-react';
 import { cn } from '@/app/components/ui/utils';
+import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 
 interface StudioModalBackdropProps extends HTMLAttributes<HTMLDivElement> {
   onBackdropClick?: () => void;
@@ -12,7 +14,7 @@ export function StudioModalBackdrop({
 }: StudioModalBackdropProps) {
   return (
     <div
-      className={cn('absolute inset-0 bg-black/80 backdrop-blur-sm', className)}
+      className={cn('absolute inset-0 bg-black/70 backdrop-blur-[10px]', className)}
       onClick={onBackdropClick}
       {...props}
     />
@@ -42,8 +44,8 @@ export function StudioModalPanel({ className, children, ...props }: StudioModalP
   return (
     <div
       className={cn(
-        'w-full max-h-[90vh] overflow-hidden flex flex-col rounded-2xl',
-        'bg-[linear-gradient(180deg,var(--color-panel-highlight)_0%,rgba(255,255,255,0)_100%),var(--color-panel-surface)] border border-[var(--color-panel-border-soft)] shadow-[0_8px_32px_rgba(0,0,0,0.4)]',
+        'w-full max-h-[90vh] overflow-hidden flex flex-col rounded-[24px]',
+        'bg-[rgba(255,255,255,0.03)] border-0 backdrop-blur-[20px] shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)]',
         className
       )}
       {...props}
@@ -59,7 +61,7 @@ interface StudioModalHeaderProps extends HTMLAttributes<HTMLDivElement> {
 
 export function StudioModalHeader({ className, children, ...props }: StudioModalHeaderProps) {
   return (
-    <div className={cn('p-6 border-b border-[var(--color-panel-border)]', className)} {...props}>
+    <div className={cn('p-6 border-b border-ui-border-subtle', className)} {...props}>
       {children}
     </div>
   );
@@ -97,10 +99,34 @@ interface StudioModalFooterProps extends HTMLAttributes<HTMLDivElement> {
 export function StudioModalFooter({ className, children, ...props }: StudioModalFooterProps) {
   return (
     <div
-      className={cn('p-6 border-t border-[var(--color-panel-border)] flex gap-3', className)}
+      className={cn('p-6 border-t border-ui-border-subtle flex gap-3', className)}
       {...props}
     >
       {children}
     </div>
+  );
+}
+
+interface StudioModalCloseButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  iconSize?: number;
+}
+
+export function StudioModalCloseButton({
+  className,
+  iconSize = 20,
+  ...props
+}: StudioModalCloseButtonProps) {
+  return (
+    <StudioActionButton
+      type="button"
+      size="icon"
+      variant="secondary"
+      className={cn('text-zinc-500 hover:text-white', className)}
+      aria-label="Close modal"
+      title="Close"
+      {...props}
+    >
+      <X size={iconSize} />
+    </StudioActionButton>
   );
 }

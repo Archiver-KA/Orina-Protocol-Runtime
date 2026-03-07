@@ -4,6 +4,7 @@ import { MainContent } from '@/app/components/main-content';
 import { RightSidebar } from '@/app/components/right-sidebar';
 import { Orders } from '@/app/components/orders';
 import { Marketplace } from '@/app/components/marketplace';
+import { MarketInsights } from '@/app/components/market-insights';
 import { Minting } from '@/app/components/minting';
 import { MintingRightSidebar } from '@/app/components/minting-right-sidebar';
 import { Assets } from '@/app/components/assets';
@@ -29,9 +30,9 @@ import { WalletModals } from '@/app/components/wallet/wallet-modals';
 import { StyleGuide } from '@/app/pages/StyleGuide';
 import { IPFSTestPage } from '@/app/components/ipfs-test-page';
 import { PublicHomePage } from '@/app/components/public-home-page';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Web3Provider } from '@/providers/Web3Provider';
-import { NotificationProvider } from '@/contexts/NotificationContext';
+import { NotificationProvider, useNotifications } from '@/contexts/NotificationContext';
 import { WalletModalProvider } from '@/contexts/WalletModalContext';
 import { UserProvider } from '@/contexts/UserContext';
 import { WalletConnectionStatus } from '@/app/components/wallet-connection-status';
@@ -42,12 +43,15 @@ import { cleanupAllStaleSellerProfiles } from '@/utils/cleanupSellerProfiles';
 import { useAccessMode } from '@/hooks/useAccessMode';
 import { useAccessGuard } from '@/hooks/useAccessGuard';
 import { useCommandPalette } from '@/hooks/useCommandPalette';
+import { getConversations as getChatConversations } from '@/utils/messagesClient';
+import { buildNotificationSourceId } from '@/utils/notifications';
+import { shortenUserDisplayName } from '@/utils/profileUtils';
 
 // Inner component that uses wagmi hooks (must be inside Web3Provider)
-function AppContent({ 
-  activePage, 
-  setActivePage, 
-  sidebarCollapsed, 
+function AppContent({
+  activePage,
+  setActivePage,
+  sidebarCollapsed,
   setSidebarCollapsed,
   selectedAssetId,
   searchQuery,
@@ -63,10 +67,14 @@ function AppContent({
 }: any) {
   // Initialize user data when wallet connects (must be inside Web3Provider)
   useUserInitialization();
-  
+  const { addNotification } = useNotifications();
+
   const { isGuest, effectiveConnectedAddress, canAccessPage, resolvePageForMode } = useAccessMode();
   const accessGuard = useAccessGuard(setActivePage);
   const connectedAddress = effectiveConnectedAddress;
+  const chatNotificationPollInFlightRef = useRef(false);
+  const chatNotificationBaselineReadyRef = useRef(false);
+  const chatUnreadSnapshotRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     const nextPage = resolvePageForMode(activePage);
@@ -80,6 +88,101 @@ function AppContent({
       setActivePage('overview');
     }
   }, [effectiveConnectedAddress, activePage, setActivePage]);
+
+  useEffect(() => {
+    chatNotificationBaselineReadyRef.current = false;
+    chatUnreadSnapshotRef.current = {};
+  }, [connectedAddress]);
+
+  useEffect(() => {
+    if (!connectedAddress || isGuest || typeof window === 'undefined') return;
+
+    let cancelled = false;
+    const normalizedAddress = connectedAddress.toLowerCase();
+
+    const pollChatNotifications = async (force: boolean = false) => {
+      if (cancelled) return;
+      if (!force && document.hidden) return;
+      if (chatNotificationPollInFlightRef.current) return;
+
+      // Avoid duplicate chat notifications while the Messages page already runs its own chat polling/emit logic.
+      // Reset baseline so the first poll after leaving Messages becomes a fresh baseline (no backfill spam).
+      if (activePage === 'messages') {
+        chatNotificationBaselineReadyRef.current = false;
+        chatUnreadSnapshotRef.current = {};
+        return;
+      }
+
+      chatNotificationPollInFlightRef.current = true;
+      try {
+        const conversations = await getChatConversations(connectedAddress);
+        if (cancelled) return;
+
+        const nextUnreadSnapshot: Record<string, number> = {};
+
+        for (const conv of conversations) {
+          const conversationId = String(conv.id || '');
+          if (!conversationId) continue;
+
+          const unread = Number(conv.unreadCount?.[normalizedAddress] || 0);
+          nextUnreadSnapshot[conversationId] = unread;
+
+          if (!chatNotificationBaselineReadyRef.current) continue;
+
+          const prevUnread = Number(chatUnreadSnapshotRef.current[conversationId] || 0);
+          if (unread <= prevUnread || unread <= 0) continue;
+
+          const otherAddress =
+            (Array.isArray(conv.participants)
+              ? conv.participants.find((p) => String(p).toLowerCase() !== normalizedAddress)
+              : '') || '';
+          const actorName =
+            String(conv.displayName || '').trim() ||
+            (otherAddress ? shortenUserDisplayName(otherAddress) : 'New contact');
+          const lastMessage = String(conv.lastMessage || '').trim() || 'Sent you a message';
+          const lastMessageTime = String(conv.lastMessageTime || conv.createdAt || Date.now());
+
+          addNotification('message', 'New Message', `${actorName}: ${lastMessage}`, {
+            sourceId: buildNotificationSourceId('chat:message:new', [conversationId, lastMessageTime]),
+            eventCode: 'chat:message:new',
+            conversationId,
+            actorAddress: otherAddress ? otherAddress.toLowerCase() : undefined,
+            actorName,
+            action: 'open_chat_thread',
+            actionPage: 'messages',
+          } as any);
+        }
+
+        chatUnreadSnapshotRef.current = nextUnreadSnapshot;
+        chatNotificationBaselineReadyRef.current = true;
+      } catch (error) {
+        console.debug('[App] Chat notification poll error:', error);
+      } finally {
+        chatNotificationPollInFlightRef.current = false;
+      }
+    };
+
+    void pollChatNotifications(true);
+
+    const intervalId = window.setInterval(() => {
+      void pollChatNotifications(false);
+    }, 2500);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        void pollChatNotifications(true);
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      chatNotificationPollInFlightRef.current = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [activePage, addNotification, connectedAddress, isGuest]);
 
   const guardedSetActivePage = (page: string) => {
     if (canAccessPage(page)) {
@@ -113,7 +216,7 @@ function AppContent({
     return (
       <>
         <Toaster position="top-right" theme="dark" />
-        <div className="h-screen bg-[#0f0f11] text-zinc-300 font-['Inter',sans-serif] overflow-hidden flex flex-col">
+        <div className="h-screen bg-ui-page text-ui-secondary overflow-hidden flex flex-col">
           <Navbar activePage={activePage} setActivePage={guardedSetActivePage} onSearch={handleSearch} isGuest={isGuest} />
           <div className="flex-1 min-h-0">
             <PublicHomePage />
@@ -127,74 +230,90 @@ function AppContent({
   return (
     <>
       <Toaster position="top-right" theme="dark" />
-      <div className="h-screen bg-[#0f0f11] text-zinc-300 font-['Inter',sans-serif] overflow-hidden flex flex-col">
-        <Navbar activePage={activePage} setActivePage={guardedSetActivePage} onSearch={handleSearch} isGuest={isGuest} />
-        <main className={isGuest ? 'flex-1 overflow-hidden' : `flex-1 overflow-hidden grid transition-all duration-300 ${getGridLayout()}`} style={isGuest ? undefined : {
-          gridTemplateColumns: sidebarCollapsed 
-            ? (activePage === 'marketplace' || activePage === 'messages' || activePage === 'profile' || activePage === 'settings' || activePage === 'ai-agent-test' || activePage === 'notification-demo' || activePage === 'asset-details' || activePage === 'favorites' || activePage === 'watchlist' || activePage === 'bulk-demo' || activePage === 'wallet-demo' || activePage === 'search' || activePage === 'style-guide' || activePage === 'ipfs-test'
-                ? '64px 1fr' 
-                : '64px 1fr 320px')
-            : (activePage === 'marketplace' || activePage === 'messages' || activePage === 'profile' || activePage === 'settings' || activePage === 'ai-agent-test' || activePage === 'notification-demo' || activePage === 'asset-details' || activePage === 'favorites' || activePage === 'watchlist' || activePage === 'bulk-demo' || activePage === 'wallet-demo' || activePage === 'search' || activePage === 'style-guide' || activePage === 'ipfs-test'
-                ? '180px 1fr' 
-                : '180px 1fr 320px')
-        }}>
-          {!isGuest && <LeftSidebar activePage={activePage} setActivePage={guardedSetActivePage} collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} isGuest={isGuest} />}
-          {activePage === 'overview' && <MainContent />}
-          {activePage === 'orders' && <Orders onNavigateToPage={guardedSetActivePage} />}
-          {activePage === 'marketplace' && <Marketplace onNavigateToPage={guardedSetActivePage} onNavigateToUserProfile={guardedNavigateToUserProfile} />}
-          {activePage === 'minting' && <Minting />}
-          {activePage === 'assets' && <Assets />}
-          {activePage === 'community' && <Community onNavigateToUserProfile={guardedNavigateToUserProfile} />}
-          {activePage === 'messages' && <Messages onNavigateToUserProfile={guardedNavigateToUserProfile} initialConversationId={selectedConversationId} />}
-          {activePage === 'profile' && (
-            <EnhancedProfile 
-              key={`profile-${selectedProfileAddress || connectedAddress}`}
-              address={selectedProfileAddress || effectiveConnectedAddress}
-              onNavigateToAsset={handleNavigateToAsset}
-              onNavigateToMessages={guardedNavigateToMessages}
-            />
-          )}
-          {activePage === 'history' && <History />}
-          {!isGuest && activePage === 'overview' && <RightSidebar />}
-          {!isGuest && activePage === 'minting' && <MintingRightSidebar />}
-          {!isGuest && activePage === 'assets' && <AssetsRightSidebar />}
-          {!isGuest && activePage === 'community' && <CommunityRightSidebar />}
-          {!isGuest && activePage === 'history' && <HistoryRightSidebar />}
-          {activePage === 'settings' && <Settings onNavigateToPage={guardedSetActivePage} />}
-          {activePage === 'ai-agent-test' && <AIAgentTest sellerAddress="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb" />}
-          {activePage === 'notification-demo' && <NotificationDemo />}
-          {activePage === 'asset-details' && (
-            <AssetDetailsPage 
-              assetId={selectedAssetId} 
-              onBack={handleBackFromAssetDetails}
-              onAssetClick={handleNavigateToAsset}
-              previousPage={previousPage}
-            />
-          )}
-          {activePage === 'search' && (
-            <SearchPage 
-              initialQuery={searchQuery}
-              onNavigateToAsset={handleNavigateToAsset}
-            />
-          )}
-          {activePage === 'favorites' && (
-            <FavoritesWatchlistPage 
-              onNavigateToAsset={handleNavigateToAsset}
-              onNavigateToUserProfile={guardedNavigateToUserProfile}
-            />
-          )}
-          {activePage === 'watchlist' && (
-            <FavoritesWatchlistPage 
-              onNavigateToAsset={handleNavigateToAsset}
-              onNavigateToUserProfile={guardedNavigateToUserProfile}
-            />
-          )}
-          {activePage === 'bulk-demo' && <BulkOperationsDemo />}
-          {activePage === 'wallet-demo' && <WalletDemo />}
-          {activePage === 'style-guide' && <StyleGuide />}
-          {activePage === 'ipfs-test' && <IPFSTestPage />}
-          <WalletConnectionStatus />
-        </main>
+      {/* Outer: flex-row so sidebar spans full height */}
+      <div className="h-screen bg-ui-page text-ui-secondary overflow-hidden flex flex-row">
+        {/* Left: Native Bar (full height) */}
+        {!isGuest && (
+          <LeftSidebar
+            activePage={activePage}
+            setActivePage={guardedSetActivePage}
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+            isGuest={isGuest}
+          />
+        )}
+
+        {/* Right: Navbar on top + Content below */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          <Navbar activePage={activePage} setActivePage={guardedSetActivePage} onSearch={handleSearch} isGuest={isGuest} />
+
+          <main
+            className={isGuest ? 'flex-1 overflow-hidden bg-ui-page text-ui-secondary' : 'flex-1 overflow-hidden bg-ui-page text-ui-secondary'}
+            style={!isGuest ? {
+              display: 'grid',
+              gridTemplateColumns: (['marketplace', 'market-insights', 'messages', 'profile', 'settings', 'ai-agent-test', 'notification-demo', 'asset-details', 'favorites', 'watchlist', 'bulk-demo', 'wallet-demo', 'search', 'style-guide', 'ipfs-test'].includes(activePage))
+                ? '1fr'
+                : '1fr 344px',
+            } : undefined}
+          >
+            {activePage === 'overview' && <MainContent />}
+            {activePage === 'orders' && <Orders onNavigateToPage={guardedSetActivePage} />}
+            {activePage === 'marketplace' && <Marketplace onNavigateToPage={guardedSetActivePage} onNavigateToUserProfile={guardedNavigateToUserProfile} />}
+            {activePage === 'market-insights' && <MarketInsights />}
+            {activePage === 'minting' && <Minting />}
+            {activePage === 'assets' && <Assets />}
+            {activePage === 'community' && <Community onNavigateToUserProfile={guardedNavigateToUserProfile} />}
+            {activePage === 'messages' && <Messages onNavigateToUserProfile={guardedNavigateToUserProfile} initialConversationId={selectedConversationId} />}
+            {activePage === 'profile' && (
+              <EnhancedProfile
+                key={`profile-${selectedProfileAddress || connectedAddress}`}
+                address={selectedProfileAddress || effectiveConnectedAddress}
+                onNavigateToAsset={handleNavigateToAsset}
+                onNavigateToMessages={guardedNavigateToMessages}
+              />
+            )}
+            {activePage === 'history' && <History />}
+            {!isGuest && activePage === 'overview' && <RightSidebar />}
+            {!isGuest && activePage === 'minting' && <MintingRightSidebar />}
+            {!isGuest && activePage === 'assets' && <AssetsRightSidebar />}
+            {!isGuest && activePage === 'community' && <CommunityRightSidebar />}
+            {!isGuest && activePage === 'history' && <HistoryRightSidebar />}
+            {activePage === 'settings' && <Settings onNavigateToPage={guardedSetActivePage} />}
+            {activePage === 'ai-agent-test' && <AIAgentTest sellerAddress="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb" />}
+            {activePage === 'notification-demo' && <NotificationDemo />}
+            {activePage === 'asset-details' && (
+              <AssetDetailsPage
+                assetId={selectedAssetId}
+                onBack={handleBackFromAssetDetails}
+                onAssetClick={handleNavigateToAsset}
+                previousPage={previousPage}
+              />
+            )}
+            {activePage === 'search' && (
+              <SearchPage
+                initialQuery={searchQuery}
+                onNavigateToAsset={handleNavigateToAsset}
+              />
+            )}
+            {activePage === 'favorites' && (
+              <FavoritesWatchlistPage
+                onNavigateToAsset={handleNavigateToAsset}
+                onNavigateToUserProfile={guardedNavigateToUserProfile}
+              />
+            )}
+            {activePage === 'watchlist' && (
+              <FavoritesWatchlistPage
+                onNavigateToAsset={handleNavigateToAsset}
+                onNavigateToUserProfile={guardedNavigateToUserProfile}
+              />
+            )}
+            {activePage === 'bulk-demo' && <BulkOperationsDemo />}
+            {activePage === 'wallet-demo' && <WalletDemo />}
+            {activePage === 'style-guide' && <StyleGuide />}
+            {activePage === 'ipfs-test' && <IPFSTestPage />}
+            <WalletConnectionStatus />
+          </main>
+        </div>
       </div>
 
       {/* Command Palette (⌘K) */}
@@ -233,11 +352,50 @@ export default function App() {
     setActivePage(page);
   };
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleNotificationAction = (event: Event) => {
+      const customEvent = event as CustomEvent<{ notification?: any }>;
+      const notification = customEvent.detail?.notification;
+      if (!notification) return;
+
+      const metadata = notification.metadata || {};
+      const eventCode = String(metadata.eventCode || '');
+      const action = String(metadata.action || '');
+      const actionPage = String(metadata.actionPage || '');
+      const isChatNotification =
+        notification.type === 'message' ||
+        actionPage === 'messages' ||
+        action === 'open_chat_thread' ||
+        eventCode.startsWith('chat:');
+
+      if (!isChatNotification) return;
+
+      const conversationId =
+        typeof metadata.conversationId === 'string' && metadata.conversationId.trim()
+          ? metadata.conversationId.trim()
+          : null;
+      const actorAddress =
+        typeof metadata.actorAddress === 'string' && metadata.actorAddress.trim()
+          ? metadata.actorAddress.trim()
+          : null;
+
+      setSelectedConversationId(conversationId || actorAddress || null);
+      setActivePage('messages');
+    };
+
+    window.addEventListener('orina:notification-action', handleNotificationAction as EventListener);
+    return () => {
+      window.removeEventListener('orina:notification-action', handleNotificationAction as EventListener);
+    };
+  }, []);
+
   // 🧹 CLEANUP: Run comprehensive seller profile cleanup on app startup
   useEffect(() => {
     console.log('🚀 [App] Starting up - running seller profile cleanup...');
     const report = cleanupAllStaleSellerProfiles();
-    
+
     if (report.totalCleaned > 0) {
       console.log('✅ [App] Cleanup complete - removed', report.totalCleaned, 'stale profiles');
     } else {
@@ -300,7 +458,7 @@ export default function App() {
       console.error('❌ [Navigation] Invalid wallet address:', walletAddress);
       return;
     }
-    
+
     console.log('👤 [Navigation] Navigating to profile:', walletAddress);
     setPreviousPage(activePage);
     setSelectedProfileAddress(walletAddress);
@@ -309,15 +467,15 @@ export default function App() {
 
   // Determine grid layout based on page and sidebar state
   const getGridLayout = () => {
-    const sidebarWidth = sidebarCollapsed ? '64px' : '180px';
-    
+    const sidebarWidth = sidebarCollapsed ? '88px' : '248px';
+
     // Pages without right sidebar (search has its own right sidebar built-in)
-    if (activePage === 'marketplace' || activePage === 'messages' || activePage === 'profile' || activePage === 'settings' || activePage === 'ai-agent-test' || activePage === 'notification-demo' || activePage === 'asset-details' || activePage === 'favorites' || activePage === 'watchlist' || activePage === 'bulk-demo' || activePage === 'wallet-demo' || activePage === 'search' || activePage === 'style-guide' || activePage === 'ipfs-test') {
+    if (activePage === 'marketplace' || activePage === 'market-insights' || activePage === 'messages' || activePage === 'profile' || activePage === 'settings' || activePage === 'ai-agent-test' || activePage === 'notification-demo' || activePage === 'asset-details' || activePage === 'favorites' || activePage === 'watchlist' || activePage === 'bulk-demo' || activePage === 'wallet-demo' || activePage === 'search' || activePage === 'style-guide' || activePage === 'ipfs-test') {
       return `grid-cols-[${sidebarWidth}_1fr]`;
     }
-    
+
     // Pages with right sidebar (all 320px)
-    return `grid-cols-[${sidebarWidth}_1fr_320px]`;
+    return `grid-cols-[${sidebarWidth}_1fr_344px]`;
   };
 
   return (

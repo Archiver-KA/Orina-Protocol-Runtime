@@ -1,4 +1,4 @@
-import { X, ShoppingCart } from 'lucide-react';
+import { ShoppingCart } from 'lucide-react';
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { useCreateOrder } from '@/hooks/useOrders';
@@ -7,7 +7,7 @@ import { formatEther, parseEther } from 'viem';
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { StudioTxStatePanel } from '@/app/components/ui/studio-tx-state-panel';
 import { StudioFieldHint, StudioFieldLabel, StudioInputField, StudioNumberField } from '@/app/components/ui/studio-form-fields';
-import { StudioModalBackdrop, StudioModalPanel, StudioModalShell } from '@/app/components/ui/studio-modal';
+import { StudioModalBackdrop, StudioModalCloseButton, StudioModalPanel, StudioModalShell } from '@/app/components/ui/studio-modal';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 
@@ -123,14 +123,7 @@ export function CreateOrderModal({ isOpen, onClose, asset }: CreateOrderModalPro
                 <p className="text-xs text-zinc-500">Purchase asset #{asset.id.toString()}</p>
               </div>
             </div>
-            <StudioActionButton
-              onClick={onClose}
-              size="icon"
-              variant="ghost"
-              className="hover:bg-zinc-800 text-zinc-500 hover:text-white"
-            >
-              <X className="text-zinc-500" size={20} />
-            </StudioActionButton>
+            <StudioModalCloseButton onClick={onClose} />
           </div>
 
           {/* Transaction Status */}
