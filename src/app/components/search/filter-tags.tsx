@@ -67,7 +67,7 @@ export function FilterTags({ filters, onRemoveFilter, onClearAll }: FilterTagsPr
 
   return (
     <div className="flex items-center gap-4">
-      <h2 className="text-zinc-500 font-bold text-[11px] uppercase tracking-widest shrink-0">
+      <h2 className="text-ui-muted font-bold text-[11px] uppercase tracking-widest shrink-0">
         Active Filters:
       </h2>
       <div className="flex flex-wrap gap-2 items-center">
@@ -91,7 +91,7 @@ export function FilterTags({ filters, onRemoveFilter, onClearAll }: FilterTagsPr
         {tags.length > 1 && (
           <button
             onClick={onClearAll}
-            className="text-[10px] text-zinc-500 hover:text-[#2CC295] transition-colors uppercase font-bold tracking-widest ml-2"
+            className="text-[10px] text-ui-muted hover:text-[#2CC295] transition-colors uppercase font-bold tracking-widest ml-2"
           >
             Clear All
           </button>

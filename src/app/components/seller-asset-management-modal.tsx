@@ -69,7 +69,7 @@ export function SellerAssetManagementModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+        className="studio-portal-backdrop fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
@@ -79,14 +79,14 @@ export function SellerAssetManagementModal({
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           transition={{ type: 'spring', duration: 0.3 }}
-          className="relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
+          className="studio-modal-theme studio-glass-modal relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border border-ui-border-subtle bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           <style>{`
             .hidden-scrollbar::-webkit-scrollbar { display: none; }
           `}</style>
 
-          <div className="shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
+          <div className="studio-glass-header shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <h1 className="text-lg font-bold text-white tracking-tight truncate">Manage Asset</h1>
@@ -95,19 +95,19 @@ export function SellerAssetManagementModal({
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
+                <span className="studio-glass-chip h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
                   Token ID #{asset.id.slice(-4)}
                 </span>
                 <span
                   className={`h-7 px-3 inline-flex items-center rounded-full border text-[9px] font-bold uppercase tracking-widest ${
                     asset.status.toLowerCase() === 'active'
                       ? 'bg-[#2CC295]/15 border-[#2CC295]/30 text-[#2CC295]'
-                      : 'bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)] text-zinc-400'
+                      : 'studio-glass-chip bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)] text-zinc-400'
                   }`}
                 >
                   {asset.status}
                 </span>
-                <StudioModalCloseButton onClick={onClose} />
+                <StudioModalCloseButton onClick={onClose} className="studio-glass-secondary" />
               </div>
             </div>
           </div>
@@ -116,18 +116,18 @@ export function SellerAssetManagementModal({
             <div className="h-full p-5 md:p-6 pt-4 relative z-10">
               <div className="w-full h-full max-w-[860px] mx-auto flex flex-col lg:flex-row justify-center items-start gap-6 px-0 md:px-2">
                 <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
-                  <div className="relative w-full aspect-square max-w-full bg-[rgba(24,24,27,0.5)] rounded-[24px] overflow-hidden">
+                  <div className="studio-glass-surface relative w-full aspect-square max-w-full bg-[rgba(24,24,27,0.5)] rounded-[24px] overflow-hidden">
                     <img
                       src={asset.image}
                       alt={asset.name}
                       className="w-full h-full object-cover opacity-80"
                     />
-                    <div className="absolute left-[17px] top-[17px] flex items-center gap-1 px-2 py-1 bg-black/60 border border-white/10 backdrop-blur-[6px] rounded-[6px]">
+                    <div className="studio-glass-chip absolute left-[17px] top-[17px] flex items-center gap-1 px-2 py-1 bg-black/60 border border-white/10 backdrop-blur-[6px] rounded-[6px]">
                       <Shield size={10} className="text-[#2CC295]" />
                       <span className="text-[9px] leading-[14px] font-bold uppercase text-[#2CC295]">Verified</span>
                     </div>
-                    <div className="absolute right-[17px] top-[13px] px-2 py-[2.5px] bg-black/60 border border-white/10 backdrop-blur-[6px] rounded-[6px]">
-                      <span className="text-[9px] leading-[14px] font-bold uppercase text-[#A1A1AA]">
+                    <div className="studio-glass-chip absolute right-[17px] top-[13px] px-2 py-[2.5px] bg-black/60 border border-white/10 backdrop-blur-[6px] rounded-[6px]">
+                      <span className="text-[9px] leading-[14px] font-bold uppercase text-zinc-400">
                         {asset.category}
                       </span>
                     </div>
@@ -135,13 +135,13 @@ export function SellerAssetManagementModal({
 
                   <div className="flex items-center gap-3">
                     <div className="flex -space-x-2">
-                      <span className="w-8 h-8 rounded-full bg-[#27272A] border-2 border-[#141417] text-[10px] font-bold text-[#D4D4D8] inline-flex items-center justify-center">
+                      <span className="studio-glass-chip w-8 h-8 rounded-full bg-[#27272A] border-2 border-[#141417] text-[10px] font-bold text-zinc-300 inline-flex items-center justify-center">
                         1
                       </span>
-                      <span className="w-8 h-8 rounded-full bg-[#3F3F46] border-2 border-[#141417] text-[10px] font-bold text-[#D4D4D8] inline-flex items-center justify-center">
+                      <span className="studio-glass-chip w-8 h-8 rounded-full bg-[#3F3F46] border-2 border-[#141417] text-[10px] font-bold text-zinc-300 inline-flex items-center justify-center">
                         2
                       </span>
-                      <span className="w-8 h-8 rounded-full bg-[#52525B] border-2 border-[#141417] text-[10px] font-bold text-[#D4D4D8] inline-flex items-center justify-center">
+                      <span className="studio-glass-chip w-8 h-8 rounded-full bg-[#52525B] border-2 border-[#141417] text-[10px] font-bold text-zinc-300 inline-flex items-center justify-center">
                         3
                       </span>
                       <span className="w-8 h-8 rounded-full bg-[#2CC295] border-2 border-[#141417] text-[10px] font-bold text-black inline-flex items-center justify-center">
@@ -162,7 +162,7 @@ export function SellerAssetManagementModal({
                 </div>
 
                 <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-6 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-3">
+                  <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-3">
                     <div className="grid grid-cols-4 gap-2">
                       <TabButton
                         label="Overview"
@@ -224,7 +224,7 @@ function TabButton({
       className={`h-10 rounded-full border text-[9px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-1 ${
         isActive
           ? 'bg-[#2CC295]/10 border-[#2CC295]/30 text-[#2CC295]'
-          : 'bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.06)] text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+          : 'studio-glass-chip bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.06)] text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
       }`}
     >
       {icon}
@@ -243,7 +243,7 @@ function StatTile({
   valueClassName?: string;
 }) {
   return (
-    <div className="bg-[rgba(24,24,27,0.4)] rounded-[16px] p-3">
+    <div className="studio-glass-subsurface bg-[rgba(24,24,27,0.4)] rounded-[16px] p-3">
       <p className="text-[8px] text-zinc-500 uppercase tracking-widest font-bold mb-1 leading-tight">{label}</p>
       <p className={`text-sm font-bold text-white leading-tight ${valueClassName ?? ''}`}>{value}</p>
     </div>
@@ -259,7 +259,7 @@ function OverviewTab({
 }) {
   return (
     <div className="space-y-6">
-      <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
+      <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Asset Information</h3>
           <Shield size={14} className="text-[#2CC295]" />
@@ -272,7 +272,7 @@ function OverviewTab({
         </div>
       </div>
 
-      <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
+      <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
         <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A] mb-4">Live Snapshot</h3>
         <div className="grid grid-cols-2 gap-4">
           <MiniStat icon={<DollarSign size={14} className="text-[#2CC295]" />} label="Revenue" value="47.5 ETH" />
@@ -282,7 +282,7 @@ function OverviewTab({
         </div>
       </div>
 
-      <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 h-40 flex items-center justify-center">
+      <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 h-40 flex items-center justify-center">
         <div className="text-center">
           <TrendingUp size={36} className="text-zinc-700 mx-auto mb-3" />
           <p className="text-xs text-zinc-500">Sales chart coming soon</p>
@@ -307,7 +307,7 @@ function ActiveTab() {
   return (
     <div className="space-y-4">
       {orders.map((order) => (
-        <div key={order.id} className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-4">
+        <div key={order.id} className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-bold text-white">{order.id}</p>
@@ -348,7 +348,7 @@ function HistoryTab() {
   return (
     <div className="space-y-4">
       {sales.map((sale) => (
-        <div key={sale.id} className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
+        <div key={sale.id} className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs font-bold text-white">{sale.id}</p>
@@ -378,7 +378,7 @@ function ManageTab({ asset }: { asset: SellerAsset }) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
+      <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
         <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Listing Settings</h3>
         <div>
           <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Min Price per Unit</label>
@@ -387,7 +387,7 @@ function ManageTab({ asset }: { asset: SellerAsset }) {
               type="text"
               value={minPrice}
               onChange={(e) => setMinPrice(e.target.value)}
-              className="flex-1 h-[45px] px-4 bg-zinc-950 border border-[#27272a] rounded-full text-white text-sm focus:outline-none focus:border-[#2CC295]"
+              className="studio-glass-input flex-1 h-[45px] px-4 bg-zinc-950 border border-[#27272a] rounded-full text-white text-sm focus:outline-none focus:border-[#2CC295]"
               placeholder="2.5 ETH"
             />
             <button className="h-[45px] px-6 rounded-full bg-[#2CC295] text-black text-sm font-bold tracking-tight hover:brightness-110 transition-all">
@@ -407,7 +407,7 @@ function ManageTab({ asset }: { asset: SellerAsset }) {
         </button>
       </div>
 
-      <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-3">
+      <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-3">
         <div className="flex items-center gap-2">
           <AlertCircle size={14} className="text-red-400" />
           <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-red-400">Danger Zone</h3>
@@ -440,7 +440,7 @@ function MiniStat({
   value: string;
 }) {
   return (
-    <div className="bg-[rgba(255,255,255,0.02)] rounded-xl p-4">
+    <div className="studio-glass-subsurface bg-[rgba(255,255,255,0.02)] rounded-xl p-4">
       <div className="flex items-center gap-2 mb-2">
         {icon}
         <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold">{label}</p>

@@ -86,15 +86,15 @@ export function QuickMessageModal({
   const truncatedAddress = `${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-6)}`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div className="studio-portal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="w-full max-w-lg bg-[#0f0f11] border border-[#27272a] rounded-xl shadow-2xl overflow-hidden"
+        className="studio-modal-theme studio-glass-modal w-full max-w-lg bg-ui-card border border-ui-border-subtle rounded-xl shadow-2xl overflow-hidden"
       >
         {/* Header */}
-        <div className="p-6 border-b border-[#27272a] bg-zinc-900/30">
+        <div className="studio-glass-header p-6 border-b border-ui-border-subtle bg-zinc-900/30">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               {recipientAvatar ? (
@@ -113,7 +113,7 @@ export function QuickMessageModal({
                 <p className="text-[10px] text-zinc-500 font-mono">{truncatedAddress}</p>
               </div>
             </div>
-            <StudioModalCloseButton onClick={onClose} iconSize={18} className="w-8 h-8 rounded-lg border border-[#27272a] bg-zinc-900/50" />
+            <StudioModalCloseButton onClick={onClose} iconSize={18} className="studio-glass-secondary w-8 h-8 rounded-lg border border-ui-border-subtle bg-zinc-900/50" />
           </div>
         </div>
 
@@ -144,7 +144,7 @@ export function QuickMessageModal({
                   placeholder="Type your message here..."
                   rows={6}
                   disabled={isSending}
-                  className="w-full px-4 py-3 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#2CC295] focus:ring-1 focus:ring-[#2CC295]/50 transition-all resize-none disabled:opacity-50"
+                  className="studio-glass-input w-full px-4 py-3 bg-[rgba(255,255,255,0.02)] border border-ui-border-subtle rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#2CC295] focus:ring-1 focus:ring-[#2CC295]/50 transition-all resize-none disabled:opacity-50"
                   autoFocus
                 />
                 <p className="text-[10px] text-zinc-500 mt-2">
@@ -164,7 +164,7 @@ export function QuickMessageModal({
                 </button>
                 <button
                   onClick={handleViewFullConversation}
-                  className="p-3 bg-zinc-900/50 hover:bg-zinc-800 border border-[#27272a] text-white rounded-xl transition-colors"
+                  className="studio-glass-secondary p-3 bg-zinc-900/50 hover:bg-zinc-800 border border-ui-border-subtle text-white rounded-xl transition-colors"
                   title="View Full Conversation"
                 >
                   <ArrowRight size={18} />
@@ -172,7 +172,7 @@ export function QuickMessageModal({
               </div>
 
               {/* Quick Tip */}
-              <div className="flex items-start gap-3 p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg">
+              <div className="studio-glass-surface flex items-start gap-3 p-4 bg-[rgba(255,255,255,0.02)] border border-ui-border-subtle rounded-lg">
                 <Lightbulb size={14} className="text-[#2CC295] mt-0.5 flex-shrink-0" />
                 <p className="text-[11px] text-zinc-400 leading-relaxed">
                   <span className="text-zinc-300 font-bold">Quick Tip:</span> This seller may have an AI Agent enabled that can respond instantly to common questions about their assets.

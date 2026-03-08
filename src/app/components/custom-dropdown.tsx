@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, ReactNode } from 'react';
+import { useState, useRef, useEffect, ReactNode, CSSProperties } from 'react';
 import { ChevronDown, Check, LucideIcon } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 type DropdownOptionObject = {
   value: string;
@@ -22,6 +23,9 @@ interface CustomDropdownProps {
   splitRightPane?: boolean;
   triggerClassName?: string;
   menuClassName?: string;
+  openOnHover?: boolean;
+  triggerStyle?: CSSProperties;
+  disableDefaultTriggerTone?: boolean;
 }
 
 export function CustomDropdown({ 
@@ -35,11 +39,17 @@ export function CustomDropdown({
   placeholder = 'Select an option',
   splitRightPane = false,
   triggerClassName,
-  menuClassName
+  menuClassName,
+  openOnHover = true,
+  triggerStyle,
+  disableDefaultTriggerTone = false,
 }: CustomDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selected, setSelected] = useState(defaultValue || defaultOption || '');
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ✅ Sync selected state when defaultValue changes (e.g., wallet switch reloads settings)
   useEffect(() => {
@@ -50,7 +60,10 @@ export function CustomDropdown({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const clickedTrigger = dropdownRef.current?.contains(target);
+      const clickedMenu = menuRef.current?.contains(target);
+      if (!clickedTrigger && !clickedMenu) {
         setIsOpen(false);
       }
     };
@@ -58,6 +71,50 @@ export function CustomDropdown({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || !dropdownRef.current || typeof window === 'undefined') {
+      setMenuPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      if (!dropdownRef.current) return;
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const gap = 8;
+      const menuHeight = menuRef.current?.offsetHeight ?? 0;
+      let top = rect.bottom + gap;
+      let left = rect.left;
+      const width = rect.width;
+
+      if (top + menuHeight > window.innerHeight - 8 && rect.top - menuHeight - gap >= 8) {
+        top = rect.top - menuHeight - gap;
+      }
+
+      if (left + width > window.innerWidth - 8) {
+        left = Math.max(8, window.innerWidth - width - 8);
+      }
+
+      setMenuPosition({ top, left, width });
+    };
+
+    updatePosition();
+    const rafId = window.requestAnimationFrame(updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [isOpen, options.length]);
 
   const getLabel = (option: DropdownOption): string => {
     return typeof option === 'string' ? option : option.label;
@@ -87,14 +144,56 @@ export function CustomDropdown({
     }
   };
 
+  const handleOpen = () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    setIsOpen(true);
+  };
+
+  const handleDelayedClose = () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => setIsOpen(false), 120);
+  };
+
+  const portalMenu = (content: ReactNode) => {
+    if (!isOpen || !menuPosition || typeof document === 'undefined') return null;
+
+    return createPortal(
+      <div
+        ref={menuRef}
+        className="fixed"
+        style={{
+          top: menuPosition.top,
+          left: menuPosition.left,
+          width: menuPosition.width,
+          zIndex: 99999,
+        }}
+        onMouseEnter={openOnHover ? handleOpen : undefined}
+        onMouseLeave={openOnHover ? handleDelayedClose : undefined}
+      >
+        {content}
+      </div>,
+      document.body
+    );
+  };
+
   // Compact variant for Settings and Swap
   if (variant === 'compact') {
+    const compactToneClass = disableDefaultTriggerTone
+      ? ''
+      : 'bg-ui-input border border-ui-border-subtle hover:bg-ui-input-focus';
+
     return (
-      <div ref={dropdownRef} className={`relative ${className || 'w-full'}`}>
+      <div
+        ref={dropdownRef}
+        className={`relative overflow-visible ${isOpen ? 'z-[9999]' : ''} ${className || 'w-full'}`}
+        onMouseEnter={openOnHover ? handleOpen : undefined}
+        onMouseLeave={openOnHover ? handleDelayedClose : undefined}
+      >
         {/* Dropdown Button - Compact Style */}
         <button
-          onClick={() => setIsOpen(!isOpen)}
-          className={`relative overflow-hidden w-full h-[43px] flex items-center justify-between gap-2 px-4 bg-[rgba(255,255,255,0.03)] rounded-full text-sm text-ui-primary hover:bg-[rgba(255,255,255,0.05)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35 ${triggerClassName || ''}`}
+          onClick={() => setIsOpen(openOnHover ? true : !isOpen)}
+          className={`relative overflow-hidden w-full h-[43px] flex items-center justify-between gap-2 px-4 rounded-full text-sm text-ui-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35 ${compactToneClass} ${triggerClassName || ''}`}
+          style={triggerStyle}
         >
           <div className="relative z-10 min-w-0 flex items-center gap-2">
             {selectedOptionObject?.icon && (
@@ -114,9 +213,9 @@ export function CustomDropdown({
         </button>
 
         {/* Dropdown Menu - Compact Style with Style Guide specs */}
-        {isOpen && (
+        {portalMenu(
           <div 
-            className={`absolute top-full left-0 right-0 mt-2 dropdown-panel rounded-[24px] overflow-hidden z-[9999] ${menuClassName || ''}`}
+            className={`dropdown-panel rounded-[24px] overflow-hidden ${menuClassName || ''}`}
           >
             {options.map((option, index) => {
               const optionObject = getOptionObject(option);
@@ -133,8 +232,8 @@ export function CustomDropdown({
                     isSelected 
                       ? hasVisualMeta
                         ? 'bg-[rgba(44,194,149,0.16)] text-ui-primary'
-                        : 'bg-[rgba(255,255,255,0.08)] text-white'
-                      : 'text-ui-secondary hover:bg-[rgba(255,255,255,0.05)] hover:text-ui-primary'
+                        : 'bg-[var(--t-surface-10)] text-ui-primary'
+                      : 'text-ui-secondary hover:bg-[var(--t-surface-5)] hover:text-ui-primary'
                   }`}
                 >
                   <div className="min-w-0 flex items-center gap-2.5">
@@ -160,11 +259,17 @@ export function CustomDropdown({
 
   // Default variant - Updated with Style Guide typography
   return (
-    <div ref={dropdownRef} className={`relative ${className || 'w-40'}`}>
+    <div
+      ref={dropdownRef}
+      className={`relative overflow-visible ${isOpen ? 'z-[9999]' : ''} ${className || 'w-40'}`}
+      onMouseEnter={openOnHover ? handleOpen : undefined}
+      onMouseLeave={openOnHover ? handleDelayedClose : undefined}
+    >
       {/* Dropdown Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => setIsOpen(openOnHover ? true : !isOpen)}
         className={`relative overflow-hidden w-full h-[43px] flex items-center justify-between gap-2 px-4 bg-[rgba(255,255,255,0.03)] rounded-full text-sm text-ui-secondary hover:text-ui-primary hover:bg-[rgba(255,255,255,0.05)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35 ${triggerClassName || ''}`}
+        style={triggerStyle}
       >
         <div className="flex items-center gap-2 truncate relative z-10">
           {icon && (() => { const Icon = icon; return <Icon size={14} className="text-ui-muted flex-shrink-0" />; })()}
@@ -185,9 +290,9 @@ export function CustomDropdown({
       </button>
 
       {/* Dropdown Menu - Style Guide compliant */}
-      {isOpen && (
+      {portalMenu(
         <div 
-          className={`absolute top-full left-0 right-0 mt-2 dropdown-panel rounded-[24px] overflow-hidden z-50 ${menuClassName || ''}`}
+          className={`dropdown-panel rounded-[24px] overflow-hidden ${menuClassName || ''}`}
         >
           {options.map((option, index) => {
             const optionObject = getOptionObject(option);
@@ -204,8 +309,8 @@ export function CustomDropdown({
                   isSelected
                     ? hasVisualMeta
                       ? 'bg-[rgba(44,194,149,0.16)] text-ui-primary'
-                      : 'bg-[rgba(255,255,255,0.08)] text-white'
-                    : 'text-ui-secondary hover:bg-[rgba(255,255,255,0.05)] hover:text-ui-primary'
+                      : 'bg-[var(--t-surface-10)] text-ui-primary'
+                    : 'text-ui-secondary hover:bg-[var(--t-surface-5)] hover:text-ui-primary'
                 }`}
               >
                 <div className="min-w-0 flex items-center gap-2.5">

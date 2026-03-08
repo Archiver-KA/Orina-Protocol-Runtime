@@ -13,6 +13,7 @@ import {
   StudioModalPanel,
 } from '@/app/components/ui/studio-modal';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
+import { useTheme } from '@/app/contexts/ThemeContext';
 
 interface ListForSaleModalProps {
   isOpen: boolean;
@@ -25,6 +26,8 @@ interface ListForSaleModalProps {
 }
 
 export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalProps) {
+  const { theme } = useTheme();
+  const [isLightTheme, setIsLightTheme] = useState(theme === 'light');
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [duration, setDuration] = useState('7');
@@ -58,7 +61,71 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+
+    const detectTheme = () => {
+      const attrTheme = root.getAttribute('data-theme') || '';
+      const hasLightClass = root.classList.contains('light');
+      const pageBgVar = getComputedStyle(root).getPropertyValue('--t-page-bg').trim().toLowerCase();
+      const inferredByVar =
+        pageBgVar.includes('eef1f4') ||
+        pageBgVar.includes('238, 241, 244');
+
+      const resolvedLight = theme === 'light' || attrTheme === 'light' || hasLightClass || inferredByVar;
+      setIsLightTheme(resolvedLight);
+    };
+
+    detectTheme();
+    const observer = new MutationObserver(detectTheme);
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
+    return () => observer.disconnect();
+  }, [theme, isOpen]);
+
   if (!isOpen || !asset || typeof document === 'undefined') return null;
+
+  const lightBackdropStyle = isLightTheme
+    ? {
+        background:
+          'radial-gradient(circle at top, rgba(255, 255, 255, 0.5) 0%, rgba(226, 232, 240, 0.38) 42%, rgba(15, 23, 42, 0.28) 100%)',
+        backdropFilter: 'blur(16px) saturate(140%)',
+        WebkitBackdropFilter: 'blur(16px) saturate(140%)',
+      }
+    : undefined;
+
+  const lightPanelStyle = isLightTheme
+    ? {
+        background:
+          'linear-gradient(145deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.5))',
+        border: '1px solid rgba(255, 255, 255, 0.52)',
+        boxShadow:
+          '0 32px 80px -36px rgba(15, 23, 42, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.72)',
+        backdropFilter: 'blur(24px) saturate(165%)',
+        WebkitBackdropFilter: 'blur(24px) saturate(165%)',
+        opacity: 1,
+      }
+    : undefined;
+
+  const lightSurfaceStyle = isLightTheme
+    ? {
+        background:
+          'linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.3))',
+        borderColor: 'rgba(255, 255, 255, 0.42)',
+        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.58)',
+        backdropFilter: 'blur(18px) saturate(150%)',
+        WebkitBackdropFilter: 'blur(18px) saturate(150%)',
+      }
+    : undefined;
+
+  const lightInfoNoticeStyle = isLightTheme
+    ? {
+        background:
+          'linear-gradient(180deg, rgba(219, 234, 254, 0.72), rgba(219, 234, 254, 0.5))',
+        borderColor: 'rgba(96, 165, 250, 0.34)',
+        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.64)',
+      }
+    : undefined;
 
   const modalContent = (
     <AnimatePresence>
@@ -67,6 +134,7 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[120] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+        style={lightBackdropStyle}
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
@@ -79,13 +147,16 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
           className="relative z-[1] w-full max-w-2xl h-[calc(100dvh-3rem)]"
           onClick={(e) => e.stopPropagation()}
         >
-          <StudioModalPanel className="max-w-2xl h-[calc(100dvh-3rem)]">
+          <StudioModalPanel
+            className="list-for-sale-theme max-w-2xl h-[calc(100dvh-3rem)]"
+            style={lightPanelStyle}
+          >
             {/* Header */}
             <StudioModalHeader className="p-6 md:p-8 border-b-0 pb-3 md:pb-4">
             <div className="flex items-start justify-between mb-3 md:mb-4">
               <div>
-                <h2 className="text-lg font-bold text-white tracking-tight mb-1">List for Sale</h2>
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Create a marketplace listing for this asset</p>
+                <h2 className="text-lg font-bold text-ui-primary tracking-tight mb-1">List for Sale</h2>
+                <p className="text-[10px] text-ui-muted uppercase tracking-widest">Create a marketplace listing for this asset</p>
               </div>
               <StudioModalCloseButton onClick={onClose} />
             </div>
@@ -94,21 +165,26 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
             <StudioModalBody className="p-6 md:p-8 pt-0">
 
             {/* Asset Preview */}
-            <div className="flex items-center gap-4 p-4 bg-[rgba(255,255,255,0.03)] border-0 rounded-[20px] mb-5 md:mb-6 backdrop-blur-[8px]">
+            <div
+              className={`lsf-surface flex items-center gap-4 p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-[20px] mb-5 md:mb-6 backdrop-blur-[8px] ${
+                isLightTheme ? '!bg-[#F3F5F8] !border-[var(--t-border-subtle)]' : ''
+              }`}
+              style={lightSurfaceStyle}
+            >
               <AssetThumb
                 src={asset.image}
                 alt={asset.name}
                 className="w-16 h-16 rounded-lg"
               />
               <div className="flex-1">
-                <p className="text-base font-bold tracking-tight text-white">{asset.name}</p>
-                <p className="text-[10px] uppercase tracking-widest text-zinc-500">Token ID: {asset.id}</p>
+                <p className="text-base font-bold tracking-tight text-ui-primary">{asset.name}</p>
+                <p className="text-[10px] uppercase tracking-widest text-ui-muted">Token ID: {asset.id}</p>
               </div>
             </div>
 
             {/* Price per Unit */}
             <div className="mb-6">
-              <StudioFieldLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">
+              <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
                 Price per Unit (ETH)
               </StudioFieldLabel>
               <StudioNumberField
@@ -117,8 +193,11 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
                 placeholder="0.00"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="p-4"
-                rightSlot={<span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">ETH</span>}
+                className={`lsf-input p-4 text-base md:text-lg font-semibold !bg-[var(--t-surface-5)] !border !border-ui-border-subtle ${
+                  isLightTheme ? '!bg-[#F3F5F8] !border-[var(--t-border-subtle)]' : ''
+                }`}
+                style={lightSurfaceStyle}
+                rightSlot={<span className="text-[10px] font-bold uppercase tracking-widest text-ui-muted">ETH</span>}
               />
               {price && parseFloat(price) > 0 && (
                 <StudioFieldHint>
@@ -129,25 +208,36 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
 
             {/* Quantity */}
             <div className="mb-6">
-              <StudioFieldLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">
+              <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
                 Quantity
               </StudioFieldLabel>
-              <div className="rounded-[24px] bg-ui-input p-4 flex items-center justify-between gap-4">
+              <div
+                className={`lsf-surface rounded-[24px] bg-[var(--t-surface-5)] border border-ui-border-subtle p-4 flex items-center justify-between gap-4 ${
+                  isLightTheme ? '!bg-[#F3F5F8] !border-[var(--t-border-subtle)]' : ''
+                }`}
+                style={lightSurfaceStyle}
+              >
                 <button
                   type="button"
                   onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
-                  className="w-12 h-12 rounded-[14px] bg-[rgba(255,255,255,0.04)] text-zinc-300 text-2xl leading-none flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+                  className={`lsf-surface w-12 h-12 rounded-[14px] bg-[var(--t-surface-5)] border border-ui-border-subtle text-ui-secondary text-2xl leading-none flex items-center justify-center hover:bg-[var(--t-surface-10)] transition-colors ${
+                    isLightTheme ? '!bg-[#F3F5F8] !border-[var(--t-border-subtle)] hover:!bg-[#ECEFF3]' : ''
+                  }`}
+                  style={lightSurfaceStyle}
                 >
                   -
                 </button>
                 <div className="flex-1 text-center">
-                  <p className="text-5xl font-bold text-white leading-none">{quantity}</p>
-                  <p className="text-sm text-zinc-500 mt-2">of {maxQuantity} available</p>
+                  <p className="text-5xl font-bold text-ui-primary leading-none">{quantity}</p>
+                  <p className="text-sm text-ui-muted mt-2">of {maxQuantity} available</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setQuantity((prev) => Math.min(maxQuantity, prev + 1))}
-                  className="w-12 h-12 rounded-[14px] bg-[rgba(255,255,255,0.04)] text-zinc-300 text-2xl leading-none flex items-center justify-center hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+                  className={`lsf-surface w-12 h-12 rounded-[14px] bg-[var(--t-surface-5)] border border-ui-border-subtle text-ui-secondary text-2xl leading-none flex items-center justify-center hover:bg-[var(--t-surface-10)] transition-colors ${
+                    isLightTheme ? '!bg-[#F3F5F8] !border-[var(--t-border-subtle)] hover:!bg-[#ECEFF3]' : ''
+                  }`}
+                  style={lightSurfaceStyle}
                 >
                   +
                 </button>
@@ -159,7 +249,7 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
 
             {/* Listing Duration */}
             <div className="mb-6">
-              <label className="text-[10px] text-zinc-500 uppercase font-bold mb-2 block">
+              <label className="text-[10px] text-ui-muted uppercase font-bold mb-2 block">
                 Listing Duration
               </label>
               <div className="grid grid-cols-5 gap-2">
@@ -167,11 +257,14 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
                   <button
                     key={option.value}
                     onClick={() => setDuration(option.value)}
-                    className={`p-3 rounded-full border-0 text-xs font-bold transition-all ${
+                    className={`p-3 rounded-full border text-xs font-bold transition-all ${
                       duration === option.value
-                        ? 'bg-[#2CC295] text-black'
-                        : 'bg-[rgba(255,255,255,0.04)] text-zinc-400 hover:text-white hover:bg-[rgba(255,255,255,0.08)]'
+                        ? 'bg-[#2CC295] border-[#2CC295] text-black'
+                        : `lsf-surface bg-[var(--t-surface-5)] border-ui-border-subtle text-ui-secondary hover:text-ui-primary hover:bg-[var(--t-surface-10)] ${
+                            isLightTheme ? '!bg-[#F3F5F8] !border-[var(--t-border-subtle)] hover:!bg-[#ECEFF3]' : ''
+                          }`
                     }`}
+                    style={duration !== option.value ? lightSurfaceStyle : undefined}
                   >
                     {option.label}
                   </button>
@@ -185,13 +278,13 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[10px] text-[#2CC295] uppercase font-bold mb-1">Total Earnings</p>
-                    <p className="text-xl font-bold text-white">
+                    <p className="text-xl font-bold text-ui-primary">
                       {(parseFloat(price) * quantity).toFixed(4)} ETH
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Marketplace Fee (2.5%)</p>
-                    <p className="text-sm font-bold text-zinc-400">
+                    <p className="text-[10px] text-ui-muted uppercase font-bold mb-1">Marketplace Fee (2.5%)</p>
+                    <p className="text-sm font-bold text-ui-secondary">
                       {(parseFloat(price) * quantity * 0.025).toFixed(4)} ETH
                     </p>
                   </div>
@@ -203,10 +296,22 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
             <StudioNoticePanel
               variant="info"
               className="rounded-xl mb-6 border-blue-500/20"
-              icon={<Clock size={16} className="text-blue-400 mt-0.5 flex-shrink-0" />}
-              title="Listing Information"
+              style={lightInfoNoticeStyle}
+              icon={
+                <Clock
+                  size={16}
+                  className={`${isLightTheme ? 'text-sky-700' : 'text-blue-400'} mt-0.5 flex-shrink-0`}
+                />
+              }
+              title={
+                <span className={isLightTheme ? 'text-sky-800' : undefined}>
+                  Listing Information
+                </span>
+              }
             >
-              Your asset will be listed on the marketplace for {durationOptions.find(o => o.value === duration)?.label.toLowerCase()}. You can cancel the listing at any time.
+              <span className={isLightTheme ? 'text-slate-700' : undefined}>
+                Your asset will be listed on the marketplace for {durationOptions.find(o => o.value === duration)?.label.toLowerCase()}. You can cancel the listing at any time.
+              </span>
             </StudioNoticePanel>
 
             </StudioModalBody>
@@ -217,7 +322,10 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
                 onClick={onClose}
                 variant="secondary"
                 size="lg"
-                className="flex-1 text-sm font-bold tracking-tight"
+                className={`lsf-surface flex-1 text-sm font-bold tracking-tight ${
+                  isLightTheme ? '!bg-[#F3F5F8] !border !border-[var(--t-border-subtle)] hover:!bg-[#ECEFF3]' : ''
+                }`}
+                style={lightSurfaceStyle}
               >
                 Cancel
               </StudioActionButton>

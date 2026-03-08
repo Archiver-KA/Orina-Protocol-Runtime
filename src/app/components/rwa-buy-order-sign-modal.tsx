@@ -217,7 +217,7 @@ export function RwaBuyOrderSignModal({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className={`fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 ${
-          transparentBackdrop ? 'bg-transparent backdrop-blur-[10px]' : 'bg-black/70 backdrop-blur-[10px]'
+          transparentBackdrop ? 'bg-transparent backdrop-blur-[10px]' : 'studio-portal-backdrop bg-black/70 backdrop-blur-[10px]'
         }`}
         onClick={handleOverlayClick}
       >
@@ -227,9 +227,9 @@ export function RwaBuyOrderSignModal({
           exit={{ opacity: 0, scale: 0.98, y: 8 }}
           transition={{ duration: 0.22 }}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-[700px] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden"
+          className="studio-modal-theme studio-glass-modal w-full max-w-[700px] rounded-[2rem] border border-ui-border-subtle bg-ui-card backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden"
         >
-          <div className="px-6 md:px-8 py-6 border-b border-[rgba(255,255,255,0.06)] flex items-start justify-between gap-4">
+          <div className="studio-glass-header px-6 md:px-8 py-6 border-b border-[rgba(255,255,255,0.06)] flex items-start justify-between gap-4">
             <div>
               <h3 className="text-2xl font-bold text-white">Set Delivery Time</h3>
               <p className="text-sm text-zinc-400 mt-1">
@@ -241,21 +241,21 @@ export function RwaBuyOrderSignModal({
 
           <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-5">
             <div className="space-y-4">
-              <div className="rounded-2xl border-0 bg-[rgba(255,255,255,0.02)] p-3">
+              <div className="studio-glass-surface rounded-2xl border border-ui-border-subtle bg-[rgba(255,255,255,0.02)] p-3">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-lg font-bold text-white">{calendarTitle}</p>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
-                      className="w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white inline-flex items-center justify-center"
+                      className="studio-glass-secondary w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white inline-flex items-center justify-center"
                     >
                       <ChevronLeft size={16} />
                     </button>
                     <button
                       type="button"
                       onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
-                      className="w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white inline-flex items-center justify-center"
+                      className="studio-glass-secondary w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white inline-flex items-center justify-center"
                     >
                       <ChevronRight size={16} />
                     </button>
@@ -303,7 +303,7 @@ export function RwaBuyOrderSignModal({
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-2xl border-0 bg-[rgba(255,255,255,0.02)] p-4">
+              <div className="studio-glass-surface rounded-2xl border border-ui-border-subtle bg-[rgba(255,255,255,0.02)] p-4">
                 <p className="text-[10px] font-bold tracking-[0.18em] text-zinc-500 uppercase mb-3">Order Summary</p>
                 <div className="mb-3 rounded-xl border border-[rgba(255,255,255,0.06)] overflow-hidden">
                   <div className="px-3 py-2.5 bg-[rgba(255,255,255,0.02)] border-b border-[rgba(255,255,255,0.06)]">

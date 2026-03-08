@@ -7,7 +7,7 @@
  */
 
 import { Heart, Eye, TrendingUp, Clock, Shield } from 'lucide-react';
-import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect, useCallback, useLayoutEffect, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { MarketplaceAsset } from '@/app/types/asset';
 import { ImageWithFallback } from './figma/ImageWithFallback';
@@ -374,14 +374,18 @@ export function SearchResultCard({
 }: SearchResultCardProps) {
   const isFractionalListing =
     typeof asset.availableSlots === 'number' && typeof asset.totalSlots === 'number';
-  const isNftListing = !isFractionalListing;
   const badgeLabel = isFractionalListing ? 'RWA' : 'NFT';
   const badgeClass = isFractionalListing
-    ? 'text-[#2CC295] border border-[#2CC295]/30'
-    : 'text-[#7DD3FC] border border-[#7DD3FC]/30';
-  const accentTextClass = isFractionalListing ? 'text-[#2CC295]' : 'text-[#7DD3FC]';
-  const accentBgClass = isFractionalListing ? 'bg-[#2CC295]/8' : 'bg-[#7DD3FC]/8';
-  const accentBorderClass = isFractionalListing ? 'border-[#2CC295]/30' : 'border-[#7DD3FC]/30';
+    ? 'border-[#2CC295]/20 bg-[#2CC295]/18 text-[#2CC295]'
+    : 'border-[#A855F7]/18 bg-[#A855F7]/18 text-[#A855F7]';
+  const availabilityValue = isFractionalListing
+    ? `${asset.availableSlots} / ${asset.totalSlots}`
+    : `Token #${asset.tokenId}`;
+  const availabilityLabel = isFractionalListing ? 'Available' : 'Edition';
+  const metricLabelClass = 'text-[10px] font-bold uppercase tracking-[0.08em] text-ui-muted';
+  const footerMetricClass = 'flex items-center gap-1.5 text-[12px] font-medium text-ui-secondary';
+  const containerClass =
+    'search-result-card-shell group w-full cursor-pointer overflow-hidden rounded-[24px] bg-[var(--t-surface-2)] text-left transition-all duration-200 hover:-translate-y-1 hover:bg-[var(--t-surface-5)] hover:shadow-[0_18px_40px_rgba(0,0,0,0.18)]';
 
   const getListingDuration = () => {
     if (!asset.expiresAt) return asset.listingDuration || 'No expiry';
@@ -400,139 +404,171 @@ export function SearchResultCard({
     return num.toString();
   };
 
-  const handleClick = () => { onClick?.(asset.id); };
-  const handleLike = (e: React.MouseEvent) => { e.stopPropagation(); onLike?.(asset.id); };
+  const handleClick = () => {
+    onClick?.(asset.id);
+  };
 
-  // === GRID VIEW ===
+  const handleLike = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    onLike?.(asset.id);
+  };
+
+  const interactionButtonClass =
+    'flex h-7 w-7 items-center justify-center rounded-none border-0 bg-transparent p-0 text-ui-secondary transition-colors hover:bg-transparent hover:text-ui-primary';
+
+  const categoryRow = (
+    <div className="flex min-w-0 items-center gap-2">
+      <span className="truncate text-[11px] font-bold uppercase tracking-[0.1em] text-ui-muted">
+        {asset.category}
+      </span>
+      {asset.seller?.verified && <Shield size={13} className="shrink-0 text-primary" />}
+    </div>
+  );
+
+  const media = (
+    <div className="relative h-[240px] overflow-hidden bg-black">
+      <ImageWithFallback src={asset.image} alt={asset.name} className="h-full w-full object-cover" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
+      <div
+        className={`absolute left-3 top-3 inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] backdrop-blur-md ${badgeClass}`}
+      >
+        {badgeLabel}
+      </div>
+      <div className="absolute bottom-3 right-3 z-10">
+        <ChainBadge chain={asset.blockchain} size={18} variant="overlay" />
+      </div>
+    </div>
+  );
+
+  const pricePanel = (
+    <div>
+      <p className={metricLabelClass}>Price</p>
+      <p className="mt-1 text-[28px] font-bold leading-none text-ui-primary">{asset.price}</p>
+      {asset.priceUSD && <p className="mt-2 text-xs text-ui-muted">{asset.priceUSD}</p>}
+    </div>
+  );
+
+  const availabilityPanel = (
+    <div>
+      <p className={metricLabelClass}>Ending In</p>
+      <div className="mt-1 flex items-center gap-1.5 lg:justify-end">
+        <Clock size={12} className="text-primary" />
+        <p className="text-[15px] font-bold leading-[1.5] text-primary">{getListingDuration()}</p>
+      </div>
+      <p className={`${metricLabelClass} mt-3`}>{availabilityLabel}</p>
+      <p className={`mt-1 text-base font-bold ${isFractionalListing ? 'text-primary' : 'text-ui-primary'}`}>
+        {availabilityValue}
+      </p>
+    </div>
+  );
+
+  const availabilityPanelCompact = (
+    <div className="min-w-0">
+      <p className={metricLabelClass}>Ending In</p>
+      <div className="mt-1 flex items-center gap-1.5">
+        <Clock size={12} className="text-primary" />
+        <p className="text-[15px] font-bold leading-[1.5] text-primary">{getListingDuration()}</p>
+      </div>
+      <p className={`${metricLabelClass} mt-2`}>{availabilityLabel}</p>
+      <p className={`mt-1 text-sm font-bold ${isFractionalListing ? 'text-primary' : 'text-ui-primary'}`}>
+        {availabilityValue}
+      </p>
+    </div>
+  );
+
+  const footer = (
+    <>
+      <div className={footerMetricClass}>
+        <Eye size={14} />
+        <span>{formatNumber(asset.views)}</span>
+      </div>
+      <div className={footerMetricClass}>
+        <Heart size={14} />
+        <span>{formatNumber(asset.likes)}</span>
+      </div>
+      {asset.rank && (
+        <div className={footerMetricClass}>
+          <TrendingUp size={14} />
+          <span>Rnk {asset.rank}</span>
+        </div>
+      )}
+    </>
+  );
+
   if (viewMode === 'grid') {
     return (
-      <div
-        onClick={handleClick}
-        className="w-full max-w-xs text-left bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-visible hover:bg-[#1a1a1d] hover:-translate-y-1 transition-all group cursor-pointer"
-      >
-        <div className="relative aspect-square">
-          <div className="absolute inset-0 rounded-t-2xl overflow-hidden bg-zinc-800">
-            <ImageWithFallback src={asset.image} alt={asset.name} className="w-full h-full object-cover" />
-            <div className={`absolute top-2 left-2 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
-              {badgeLabel}
-            </div>
-          </div>
-          <div className="absolute bottom-2 right-2 z-10">
-            <ChainBadge chain={asset.blockchain} size={16} variant="overlay" />
-          </div>
-        </div>
+      <div onClick={handleClick} className={`${containerClass} flex h-full flex-col`}>
+        {media}
 
-        <div className="p-4 relative">
-          <button onClick={handleLike} className="absolute top-4 right-4 w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 transition-all">
-            <Heart size={16} className={isLiked ? 'fill-red-500 text-red-500' : ''} />
-          </button>
-
-          <div className="flex items-center gap-1.5 mb-2">
-            <span className={`text-[10px] font-medium uppercase tracking-wider ${accentTextClass}`}>{asset.category}</span>
-            {asset.seller?.verified && <Shield size={12} className={`${accentTextClass} ${isFractionalListing ? 'fill-[#2CC295]' : 'fill-[#7DD3FC]'}`} />}
-            {isNftListing && (
-              <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-[0.14em] ${accentBgClass} ${accentTextClass} border ${accentBorderClass}`}>
-                1 / 1
-              </span>
-            )}
+        <div className="search-result-info-area flex flex-1 flex-col px-5 pb-5 pt-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            {categoryRow}
+            <button onClick={handleLike} className={interactionButtonClass}>
+              <Heart size={16} className={isLiked ? 'fill-red-500 text-red-500' : ''} />
+            </button>
           </div>
 
-          <h3 className="text-sm font-bold text-white mb-2 line-clamp-1 pr-10">{asset.name}</h3>
+          <h3 className="mb-4 line-clamp-1 text-[18px] font-bold leading-[1.3] text-ui-primary">
+            {asset.name}
+          </h3>
 
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <p className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest mb-0.5">Price</p>
-              <p className="text-base font-bold text-white">{asset.price}</p>
-              {asset.priceUSD && <p className="text-xs text-zinc-500">{asset.priceUSD}</p>}
-            </div>
-            <div className="text-right">
-              <p className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest mb-0.5">Ending In</p>
-              <div className="flex items-center gap-1.5 text-white justify-end">
-                <Clock size={14} className="text-[#2CC295]" />
-                <p className="text-sm font-bold">{getListingDuration()}</p>
-              </div>
-              {asset.availableSlots !== undefined && asset.totalSlots !== undefined && (
-                <p className="text-sm font-bold text-[#2CC295] mt-1">{asset.availableSlots} / {asset.totalSlots}</p>
-              )}
-              {isNftListing && (
-                <p className={`text-xs font-bold mt-1 ${accentTextClass}`}>Token #{asset.tokenId}</p>
-              )}
-            </div>
+          <div className="mb-4 flex items-start justify-between gap-6">
+            <div className="min-w-0">{pricePanel}</div>
+            <div className="shrink-0 text-right">{availabilityPanel}</div>
           </div>
 
-          <div className="flex items-center justify-between text-zinc-500 text-xs">
-            <div className="flex items-center gap-1"><Eye size={14} /><span>{formatNumber(asset.views)}</span></div>
-            <div className="flex items-center gap-1"><Heart size={14} /><span>{formatNumber(asset.likes)}</span></div>
-            {asset.rank && <div className="flex items-center gap-1"><TrendingUp size={14} /><span>Rnk {asset.rank}</span></div>}
+          <div className="mt-auto flex items-center gap-5">
+            {footer}
           </div>
         </div>
       </div>
     );
   }
 
-  // === LIST VIEW ===
   return (
-    <div
-      onClick={handleClick}
-      className="w-full text-left bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-4 flex gap-6 transition-all hover:bg-[#1a1a1d] hover:-translate-y-0.5 group items-center cursor-pointer"
-    >
-      <div className="w-[180px] aspect-square rounded-xl flex-shrink-0 bg-zinc-800 relative overflow-hidden">
-        <ImageWithFallback src={asset.image} alt={asset.name} className="w-full h-full object-cover rounded-xl" />
-        <div className={`absolute top-2 left-2 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+    <div onClick={handleClick} className={`${containerClass} flex flex-col lg:h-[240px] lg:flex-row`}>
+      <div className="relative h-[240px] shrink-0 overflow-hidden bg-black lg:h-full lg:w-[395px]">
+        <ImageWithFallback src={asset.image} alt={asset.name} className="h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
+        <div
+          className={`absolute left-3 top-3 inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] backdrop-blur-md ${badgeClass}`}
+        >
           {badgeLabel}
         </div>
-        <div className="absolute bottom-2 right-2 z-10">
-          <ChainBadge chain={asset.blockchain} size={16} variant="overlay" />
+        <div className="absolute bottom-3 right-3 z-10">
+          <ChainBadge chain={asset.blockchain} size={18} variant="overlay" />
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col justify-center min-w-0">
-        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-          <span className={`text-[10px] font-medium uppercase tracking-wider ${accentTextClass}`}>{asset.category}</span>
-          {asset.seller?.verified && <Shield size={12} className={`${accentTextClass} ${isFractionalListing ? 'fill-[#2CC295]' : 'fill-[#7DD3FC]'}`} />}
-          {isNftListing && (
-            <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-[0.14em] ${accentBgClass} ${accentTextClass} border ${accentBorderClass}`}>
-              Token #{asset.tokenId}
-            </span>
-          )}
+      <div className="search-result-info-area flex min-w-0 flex-1 flex-col px-5 pb-5 pt-5 lg:h-full lg:px-6 lg:py-5">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          {categoryRow}
+          <button onClick={handleLike} className={interactionButtonClass}>
+            <Heart size={16} className={isLiked ? 'fill-red-500 text-red-500' : ''} />
+          </button>
         </div>
-        <h3 className="text-lg font-bold text-white mb-2 pr-12 truncate">{asset.name}</h3>
-        <div className="mb-3">
-          <p className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Price</p>
-          <span className="text-base font-bold text-white">{asset.price}</span>
-          {asset.priceUSD && <p className="text-xs text-zinc-500 mt-0.5">{asset.priceUSD}</p>}
-        </div>
-        <div className="flex items-center gap-5 text-zinc-500 mt-1">
-          <div className="flex items-center gap-1.5"><Eye size={18} /><span className="text-xs font-medium">{formatNumber(asset.views)}</span></div>
-          <div className="flex items-center gap-1.5"><Heart size={18} /><span className="text-xs font-medium">{formatNumber(asset.likes)}</span></div>
-          {asset.rank && <div className="flex items-center gap-1.5"><TrendingUp size={18} /><span className="text-xs font-medium">Rnk {asset.rank}</span></div>}
-        </div>
-      </div>
 
-      <div className="flex-shrink-0 flex flex-col items-end justify-center gap-3 relative">
-        <button onClick={handleLike} className="w-10 h-10 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 transition-all">
-          <Heart size={20} className={isLiked ? 'fill-red-500 text-red-500' : ''} />
-        </button>
-        <div className="text-right">
-          <p className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Ending In</p>
-          <div className="flex items-center gap-1.5 text-white justify-end">
-            <Clock size={14} className="text-[#2CC295]" />
-            <p className="text-sm font-bold">{getListingDuration()}</p>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <h3 className="line-clamp-1 text-[20px] font-bold leading-[1.25] text-ui-primary">
+              {asset.name}
+            </h3>
+            <p className="mt-2 line-clamp-2 max-w-[30rem] text-sm leading-6 text-ui-secondary">
+              {asset.description || 'Verified marketplace listing with on-chain ownership metadata and live market activity.'}
+            </p>
+          </div>
+
+          <div className="shrink-0 lg:min-w-[140px] lg:text-right">
+            {pricePanel}
           </div>
         </div>
-        {asset.availableSlots !== undefined && asset.totalSlots !== undefined && (
-          <div className="text-right">
-            <p className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest mb-0.5">Available</p>
-            <p className="text-sm font-bold text-[#2CC295]">{asset.availableSlots} / {asset.totalSlots}</p>
+
+        <div className="mt-auto flex flex-col gap-4 pt-4 lg:flex-row lg:items-end lg:justify-between lg:pt-0">
+          {availabilityPanelCompact}
+          <div className="flex flex-wrap items-center gap-5">
+            {footer}
           </div>
-        )}
-        {isNftListing && (
-          <div className="text-right">
-            <p className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest mb-0.5">Edition</p>
-            <p className={`text-sm font-bold ${accentTextClass}`}>1 / 1 NFT</p>
-          </div>
-        )}
-        <ChainBadge chain={asset.blockchain} size={20} variant="inline" />
+        </div>
       </div>
     </div>
   );

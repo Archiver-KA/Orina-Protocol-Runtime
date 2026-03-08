@@ -3,16 +3,15 @@
  */
 
 /**
- * Format wallet address to short format (0x12345...abc)
+ * Format wallet address to short format (0x742d...9c4F)
  * @param address - Full wallet address
- * @returns Formatted address with first 5 and last 3 characters
+ * @returns Formatted address with first 4 hex chars and last 4 chars
  */
 export function formatWalletAddress(address: string): string {
   if (!address) return '';
   if (address.length <= 10) return address;
   
-  // Return format: 0x12345...abc (5 chars after 0x + ... + 3 chars)
-  return `${address.slice(0, 7)}...${address.slice(-3)}`;
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
 /**
@@ -85,8 +84,9 @@ export function generateRandomAvatarSeed(address: string): void {
 /**
  * Get default username for a wallet address
  * @param address - Wallet address
- * @returns Formatted username
+ * @returns Handle-like username derived from wallet address
  */
 export function getDefaultUsername(address: string): string {
-  return formatWalletAddress(address);
+  if (!address) return '';
+  return `@${address.slice(2, 10)}`;
 }

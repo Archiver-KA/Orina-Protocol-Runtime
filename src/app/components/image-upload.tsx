@@ -222,7 +222,7 @@ export function ImageUpload({
   return (
     <div className={className}>
       {label && (
-        <label className="block text-sm font-bold text-zinc-400 mb-2 uppercase tracking-wider">
+        <label className="block text-sm font-bold text-ui-muted mb-2 uppercase tracking-wider">
           {label}
         </label>
       )}
@@ -233,8 +233,8 @@ export function ImageUpload({
             ? 'border-red-500/50 bg-red-500/5'
             : uploadStatus === 'success'
             ? 'border-[#2CC295]/50 bg-[#2CC295]/5'
-            : 'border-[#27272a] bg-zinc-950/30'
-        } ${isUploading ? 'cursor-wait' : 'cursor-pointer'} hover:border-zinc-700 hover:bg-zinc-950/50 transition-all ${styles.preview} overflow-hidden group`}
+            : 'border-ui-border-subtle bg-ui-input'
+        } ${isUploading ? 'cursor-wait' : 'cursor-pointer'} hover:border-[#2CC295] hover:bg-ui-input-focus transition-all ${styles.preview} overflow-hidden group`}
         onClick={() => !isUploading && fileInputRef.current?.click()}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
@@ -272,12 +272,12 @@ export function ImageUpload({
               )}
               
               {/* Overlay with Upload icon to replace */}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/70 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+              <div className="absolute inset-0 bg-transparent group-hover:bg-ui-dropdown transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
                 <div className="flex flex-col items-center gap-2">
-                  <div className="w-12 h-12 bg-zinc-900 rounded-xl flex items-center justify-center">
-                    <Upload className="text-[#2CC295]" size={24} />
+                  <div className="w-12 h-12 bg-ui-input rounded-xl flex items-center justify-center">
+                    <Upload className="text-primary" size={24} />
                   </div>
-                  <p className="text-white text-xs font-medium">Change Image</p>
+                  <p className="text-ui-primary text-xs font-medium">Change Image</p>
                 </div>
               </div>
 
@@ -312,21 +312,21 @@ export function ImageUpload({
                 <>
                   {variant === 'avatar' ? (
                     <>
-                      <div className="w-12 h-12 bg-zinc-900 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                      <div className="w-12 h-12 bg-ui-input rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                         <Upload className="text-primary" size={24} />
                       </div>
-                      <p className="text-sm font-medium text-white">Upload Photo</p>
+                      <p className="text-sm font-medium text-ui-primary">Upload Photo</p>
                     </>
                   ) : (
                     <>
-                      <div className="w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                      <div className="w-16 h-16 bg-ui-input rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                         <Upload className="text-primary" size={28} />
                       </div>
-                      <p className="text-white font-medium mb-1">Drag and drop or click to upload</p>
+                      <p className="text-ui-primary font-medium mb-1">Drag and drop or click to upload</p>
                     </>
                   )}
                   {description && (
-                    <p className="text-xs text-zinc-500 mt-1">{description}</p>
+                    <p className="text-xs text-ui-muted mt-1">{description}</p>
                   )}
                 </>
               )}

@@ -10,6 +10,7 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import ReactMapGL, { MapRef as ReactMapGLRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { useTheme } from '@/app/contexts/ThemeContext';
 
 export interface MapRef {
   easeTo: (options: { pitch?: number; duration?: number }) => void;
@@ -48,6 +49,7 @@ export const Map = forwardRef<MapRef, MapProps>(
     ref
   ) => {
     const mapRef = useRef<ReactMapGLRef>(null);
+    const { theme } = useTheme();
 
     // Expose methods to parent
     useImperativeHandle(ref, () => ({
@@ -57,7 +59,9 @@ export const Map = forwardRef<MapRef, MapProps>(
       getMap: () => mapRef.current?.getMap(),
     }));
 
-    const mapStyle = styles?.dark || DEFAULT_STYLE.dark;
+    const preferredStyle = theme === 'light' ? styles?.light : styles?.dark;
+    const fallbackStyle = theme === 'light' ? styles?.dark : styles?.light;
+    const mapStyle = preferredStyle || fallbackStyle || DEFAULT_STYLE[theme];
 
     return (
       <ReactMapGL

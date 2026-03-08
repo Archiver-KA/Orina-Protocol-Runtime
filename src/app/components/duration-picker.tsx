@@ -110,30 +110,30 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
 
   return (
     <div
-      className="fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+      className="studio-portal-backdrop fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel();
       }}
     >
       <div
         ref={modalRef}
-        className="w-full max-w-[700px] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden"
+        className="studio-modal-theme studio-glass-modal w-full max-w-[700px] rounded-[2rem] border border-ui-border-subtle bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 md:px-8 py-6 border-b border-[rgba(255,255,255,0.06)] flex items-start justify-between gap-4">
+        <div className="studio-glass-header px-6 md:px-8 py-6 border-b border-[rgba(255,255,255,0.06)] flex items-start justify-between gap-4">
           <div>
             <h3 className="text-2xl font-bold text-white">Set Delivery Time</h3>
             <p className="text-sm text-zinc-400 mt-1">
               Confirm order duration and estimated delivery target date.
             </p>
           </div>
-          <StudioModalCloseButton onClick={onCancel} />
+          <StudioModalCloseButton onClick={onCancel} className="studio-glass-secondary" />
         </div>
 
         <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-5">
           {/* Left: Calendar */}
           <div className="space-y-4">
-            <div ref={calendarRef} className="rounded-2xl border-0 bg-[rgba(255,255,255,0.02)] p-3">
+            <div ref={calendarRef} className="studio-glass-surface rounded-2xl border-0 bg-[rgba(255,255,255,0.02)] p-3">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-lg font-bold text-white">{formatMonthYear(currentMonth)}</p>
                 <div className="flex items-center gap-1">
@@ -144,7 +144,7 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
                         new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1),
                       )
                     }
-                    className="w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white inline-flex items-center justify-center"
+                    className="studio-glass-secondary w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white inline-flex items-center justify-center"
                   >
                     <ChevronLeft size={16} />
                   </button>
@@ -155,7 +155,7 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
                         new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1),
                       )
                     }
-                    className="w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white inline-flex items-center justify-center"
+                    className="studio-glass-secondary w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white inline-flex items-center justify-center"
                   >
                     <ChevronRight size={16} />
                   </button>
@@ -207,20 +207,20 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
 
           {/* Right: Summary */}
           <div className="space-y-4">
-            <div className="rounded-2xl border-0 bg-[rgba(255,255,255,0.02)] p-4">
+            <div className="studio-glass-surface rounded-2xl border-0 bg-[rgba(255,255,255,0.02)] p-4">
               <p className="text-[10px] font-bold tracking-[0.18em] text-zinc-500 uppercase mb-3">
                 Order Summary
               </p>
 
-              <div className="mb-3 rounded-xl border border-[rgba(255,255,255,0.06)] overflow-hidden">
-                <div className="px-3 py-2.5 bg-[rgba(255,255,255,0.02)] border-b border-[rgba(255,255,255,0.06)]">
+              <div className="studio-glass-subsurface mb-3 rounded-xl border border-[rgba(255,255,255,0.06)] overflow-hidden">
+                <div className="studio-glass-subsurface px-3 py-2.5 bg-[rgba(255,255,255,0.02)] border-b border-[rgba(255,255,255,0.06)]">
                   <p className="text-[10px] font-bold tracking-[0.18em] text-zinc-500 uppercase">
                     Delivery Duration
                   </p>
                 </div>
 
                 <div className="grid grid-cols-[1fr_auto_1.2fr] items-stretch gap-0">
-                  <div className="px-3 py-3 flex items-center justify-between bg-[rgba(255,255,255,0.02)]">
+                  <div className="studio-glass-subsurface px-3 py-3 flex items-center justify-between bg-[rgba(255,255,255,0.02)]">
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">Days</p>
                       <p className="text-xl font-bold text-white mt-1">{effectiveDays}</p>
@@ -229,14 +229,14 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
                       <button
                         type="button"
                         onClick={() => handleDaysChange(days + 1)}
-                        className="w-7 h-7 rounded-lg border border-white/10 bg-white/5 text-zinc-300 hover:text-white hover:border-white/20 inline-flex items-center justify-center"
+                        className="studio-glass-secondary w-7 h-7 rounded-lg border border-white/10 bg-white/5 text-zinc-300 hover:text-white hover:border-white/20 inline-flex items-center justify-center"
                       >
                         <Plus size={13} />
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDaysChange(days - 1)}
-                        className="w-7 h-7 rounded-lg border border-white/10 bg-white/5 text-zinc-300 hover:text-white hover:border-white/20 inline-flex items-center justify-center"
+                        className="studio-glass-secondary w-7 h-7 rounded-lg border border-white/10 bg-white/5 text-zinc-300 hover:text-white hover:border-white/20 inline-flex items-center justify-center"
                       >
                         <Minus size={13} />
                       </button>
@@ -252,14 +252,14 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
                       </p>
                       <p className="text-lg font-bold text-white mt-1">{formatTargetDate(targetDate)}</p>
                     </div>
-                    <div className="w-9 h-9 rounded-xl border border-white/10 bg-white/5 inline-flex items-center justify-center text-zinc-300">
+                    <div className="studio-glass-secondary w-9 h-9 rounded-xl border border-white/10 bg-white/5 inline-flex items-center justify-center text-zinc-300">
                       <Calendar size={16} />
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-black/20 p-3">
+              <div className="studio-glass-subsurface rounded-xl border border-[rgba(255,255,255,0.06)] bg-black/20 p-3">
                 <p className="text-[11px] text-zinc-400 leading-relaxed">
                   If buyer does not confirm by target date, escrow moves into dispute window before release.
                 </p>

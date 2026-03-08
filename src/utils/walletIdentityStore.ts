@@ -33,9 +33,9 @@ import type { ReputationScore, Rating, TrustBadge } from '@/types/reputation';
 
 // Import from existing subsystems
 import {
+  formatUserDisplayName,
   loadUserProfile,
   loadUserActivities,
-  shortenUserDisplayName,
 } from '@/utils/profileUtils';
 import {
   loadReputationScore,
@@ -355,7 +355,7 @@ export function getWalletIdentity(address: string): WalletIdentity {
   
   const identity: WalletIdentity = {
     address: addr,
-    displayName: profile?.displayName || shortenUserDisplayName(address),
+    displayName: formatUserDisplayName(profile?.displayName, addr),
     username: profile?.username || `@${address.slice(2, 10)}`,
     bio: profile?.bio,
     avatarUrl: profile?.avatarUrl || profile?.avatar,
@@ -393,7 +393,7 @@ function createEmptyIdentity(address: string): WalletIdentity {
   const addr = normalize(address);
   return {
     address: addr,
-    displayName: shortenUserDisplayName(address),
+    displayName: formatUserDisplayName(undefined, addr),
     username: `@${address.slice(2, 10)}`,
     bio: undefined,
     avatarUrl: undefined,
@@ -507,7 +507,7 @@ export function formatResponseTime(hours: number): string {
  */
 export function getScoreGaugeGradient(score: number): string {
   const percent = Math.max(0, Math.min(100, score));
-  return `conic-gradient(from 0deg, #2CC295 0%, #2CC295 ${percent}%, #1f2937 ${percent}%)`;
+  return `conic-gradient(from -90deg, var(--color-primary-custom) 0%, var(--color-primary-custom) ${percent}%, var(--t-surface-10) ${percent}%, var(--t-surface-10) 100%)`;
 }
 
 /**

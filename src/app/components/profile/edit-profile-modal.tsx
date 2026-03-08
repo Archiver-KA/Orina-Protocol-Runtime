@@ -61,7 +61,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[120] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+        className="studio-form-backdrop fixed inset-0 z-[120] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
@@ -74,14 +74,14 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
           className="relative z-[1] w-full max-w-2xl h-[calc(100dvh-3rem)]"
           onClick={(e) => e.stopPropagation()}
         >
-          <StudioModalPanel className="max-w-2xl h-[calc(100dvh-3rem)]">
+          <StudioModalPanel className="studio-form-modal max-w-2xl h-[calc(100dvh-3rem)]">
             <form onSubmit={handleSubmit} className="flex flex-col h-full">
               {/* Header */}
               <StudioModalHeader className="p-6 md:p-8 border-b-0 pb-3 md:pb-4">
                 <div className="flex items-start justify-between mb-3 md:mb-4">
                   <div>
-                    <h2 className="text-lg font-bold text-white tracking-tight mb-1">Edit Profile</h2>
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
+                    <h2 className="text-lg font-bold text-ui-primary tracking-tight mb-1">Edit Profile</h2>
+                    <p className="text-[10px] text-ui-muted uppercase tracking-widest">
                       Update your public profile and social links
                     </p>
                   </div>
@@ -95,7 +95,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
               >
                 {/* Banner Upload */}
-                <div className="p-4 bg-[rgba(255,255,255,0.03)] border-0 rounded-[20px] backdrop-blur-[8px]">
+                <div className="studio-form-surface p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-[20px] backdrop-blur-[8px]">
                   <ImageUpload
                     variant="banner"
                     onUploadSuccess={(image) => {
@@ -113,7 +113,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                 </div>
 
                 {/* Avatar Upload */}
-                <div className="p-4 bg-[rgba(255,255,255,0.03)] border-0 rounded-[20px] backdrop-blur-[8px]">
+                <div className="studio-form-surface p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-[20px] backdrop-blur-[8px]">
                   <ImageUpload
                     variant="avatar"
                     onUploadSuccess={(image) => {
@@ -132,7 +132,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
 
                 {/* Display Name */}
                 <div>
-                  <StudioFieldLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">
+                  <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
                     Display Name
                   </StudioFieldLabel>
                   <StudioInputField
@@ -141,7 +141,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="Your display name"
                     maxLength={50}
-                    className="p-4"
+                    className="studio-form-input p-4"
                   />
                   <StudioFieldHint className="text-[10px]">
                     {displayName.length}/50 characters
@@ -150,7 +150,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
 
                 {/* Username */}
                 <div>
-                  <StudioFieldLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">
+                  <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
                     Username
                   </StudioFieldLabel>
                   <StudioInputField
@@ -161,7 +161,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                     maxLength={30}
                     required
                     leftSlot={<span>@</span>}
-                    className="py-4"
+                    className="studio-form-input py-4"
                   />
                   <StudioFieldHint className="text-[10px]">
                     Letters, numbers, and underscores only
@@ -170,7 +170,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
 
                 {/* Bio */}
                 <div>
-                  <StudioFieldLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">
+                  <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
                     Bio
                   </StudioFieldLabel>
                   <StudioTextareaField
@@ -179,7 +179,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                     placeholder="Tell us about yourself..."
                     maxLength={200}
                     rows={4}
-                    className="p-4"
+                    className="studio-form-input p-4"
                   />
                   <StudioFieldHint className="text-[10px]">
                     {bio.length}/200 characters
@@ -188,12 +188,12 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
 
                 {/* Social Links */}
                 <div className="space-y-4 pt-4 border-t border-ui-border-subtle">
-                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-ui-muted">
                     Social Links
                   </h3>
 
                   <div>
-                    <StudioFieldLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">
+                    <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
                       Twitter
                     </StudioFieldLabel>
                   <StudioInputField
@@ -201,13 +201,13 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                     value={twitter}
                     onChange={(e) => setTwitter(e.target.value)}
                     placeholder="twitter_handle"
-                    leftSlot={<Twitter size={16} className="text-white" />}
-                    className="py-4"
+                    leftSlot={<Twitter size={16} className="text-ui-secondary" />}
+                    className="studio-form-input py-4"
                   />
                   </div>
 
                   <div>
-                    <StudioFieldLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">
+                    <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
                       Discord
                     </StudioFieldLabel>
                   <StudioInputField
@@ -215,13 +215,13 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                     value={discord}
                     onChange={(e) => setDiscord(e.target.value)}
                     placeholder="https://discord.gg/..."
-                    leftSlot={<MessageCircle size={16} className="text-white" />}
-                    className="py-4"
+                    leftSlot={<MessageCircle size={16} className="text-ui-secondary" />}
+                    className="studio-form-input py-4"
                   />
                   </div>
 
                   <div>
-                    <StudioFieldLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">
+                    <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
                       Telegram
                     </StudioFieldLabel>
                   <StudioInputField
@@ -229,13 +229,13 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                     value={telegram}
                     onChange={(e) => setTelegram(e.target.value)}
                     placeholder="https://t.me/..."
-                    leftSlot={<Send size={16} className="text-white" />}
-                    className="py-4"
+                    leftSlot={<Send size={16} className="text-ui-secondary" />}
+                    className="studio-form-input py-4"
                   />
                   </div>
 
                   <div>
-                    <StudioFieldLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">
+                    <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
                       Website
                     </StudioFieldLabel>
                   <StudioInputField
@@ -243,8 +243,8 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                     value={website}
                     onChange={(e) => setWebsite(e.target.value)}
                     placeholder="https://..."
-                    leftSlot={<Globe size={16} className="text-white" />}
-                    className="py-4"
+                    leftSlot={<Globe size={16} className="text-ui-secondary" />}
+                    className="studio-form-input py-4"
                   />
                   </div>
                 </div>
@@ -257,7 +257,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                   onClick={onClose}
                   variant="secondary"
                   size="lg"
-                  className="flex-1 text-sm font-bold tracking-tight"
+                  className="studio-form-secondary flex-1 text-sm font-bold tracking-tight"
                 >
                   Cancel
                 </StudioActionButton>

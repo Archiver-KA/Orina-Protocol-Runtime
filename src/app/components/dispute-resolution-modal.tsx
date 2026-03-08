@@ -48,7 +48,7 @@ interface ChatMessage {
 }
 
 const ARBITER_ADDRESS = '0x0000000000000000000000000000000000000001' as `0x${string}`;
-const BASE_CARD = 'bg-[rgba(24,24,27,0.4)] rounded-[24px]';
+const BASE_CARD = 'studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px]';
 
 const mockMessages: ChatMessage[] = [
   {
@@ -211,7 +211,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+      className="studio-portal-backdrop fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -221,12 +221,12 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ type: 'spring', duration: 0.3 }}
-        className="relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
+        className="studio-modal-theme studio-portal-modal relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <style>{`.hidden-scrollbar::-webkit-scrollbar{display:none;}`}</style>
 
-        <div className="shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
+        <div className="studio-portal-header shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <h1 className="text-lg font-bold text-white tracking-tight truncate">Dispute Resolution</h1>
@@ -235,7 +235,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
+              <span className="studio-portal-chip h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
                 Disputed
               </span>
               <StudioModalCloseButton onClick={onClose} />
@@ -261,7 +261,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
                             {message.content}
                           </div>
                         ) : (
-                          <div className="rounded-xl border border-[rgba(255,255,255,0.08)] bg-black/40 p-3.5 space-y-3">
+                          <div className="studio-portal-subsurface rounded-xl border border-[rgba(255,255,255,0.08)] bg-black/40 p-3.5 space-y-3">
                             <div className="flex items-center justify-between gap-2">
                               <span
                                 className={`h-6 px-2 inline-flex items-center rounded-md border text-[10px] font-bold uppercase tracking-widest ${roleBadgeClasses(message.sender)}`}
@@ -285,7 +285,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
                                       className={`px-2 py-1 rounded-full border ${
                                         message.proposal?.signatures[role]
                                           ? 'bg-[#2CC295]/15 border-[#2CC295]/30 text-[#2CC295]'
-                                          : 'bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.08)] text-zinc-500'
+                                          : 'studio-portal-chip bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.08)] text-zinc-500'
                                       }`}
                                     >
                                       {role}: {message.proposal?.signatures[role] ? 'signed' : 'pending'}
@@ -303,7 +303,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
                                     </button>
                                     <button
                                       onClick={() => rejectProposal(message.id)}
-                                      className="h-10 rounded-full bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-white text-sm font-bold transition-colors"
+                                      className="studio-portal-secondary h-10 rounded-full bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-white text-sm font-bold transition-colors"
                                     >
                                       Reject
                                     </button>
@@ -347,7 +347,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
                             className={`h-10 rounded-lg text-xs font-bold transition-colors ${
                               proposalType === 'buyer_win'
                                 ? 'bg-blue-500/20 border border-blue-500/40 text-blue-300'
-                                : 'bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] text-zinc-400'
+                                : 'studio-portal-subsurface bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] text-zinc-400'
                             }`}
                           >
                             Buyer Win
@@ -357,7 +357,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
                             className={`h-10 rounded-lg text-xs font-bold transition-colors ${
                               proposalType === 'seller_win'
                                 ? 'bg-violet-500/20 border border-violet-500/40 text-violet-300'
-                                : 'bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] text-zinc-400'
+                                : 'studio-portal-subsurface bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] text-zinc-400'
                             }`}
                           >
                             Seller Win
@@ -367,7 +367,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
                             className={`h-10 rounded-lg text-xs font-bold transition-colors ${
                               proposalType === 'split'
                                 ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300'
-                                : 'bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] text-zinc-400'
+                                : 'studio-portal-subsurface bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] text-zinc-400'
                             }`}
                           >
                             Split
@@ -391,7 +391,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
                           </div>
                         )}
 
-                        <div className="h-10 rounded-full bg-black/35 border border-[rgba(255,255,255,0.08)] px-4 flex items-center text-xs text-zinc-300">
+                        <div className="studio-portal-subsurface h-10 rounded-full bg-black/35 border border-[rgba(255,255,255,0.08)] px-4 flex items-center text-xs text-zinc-300">
                           {proposalPreview}
                         </div>
 
@@ -414,7 +414,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
                       placeholder="Type your message..."
-                      className="flex-1 h-11 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-xl px-4 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-[#2CC295]/30 focus:border-[#2CC295]"
+                      className="studio-portal-input flex-1 h-11 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-xl px-4 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-[#2CC295]/30 focus:border-[#2CC295]"
                     />
                     <button
                       onClick={sendMessage}
@@ -426,7 +426,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
                   </div>
                   <button
                     onClick={() => setShowProposalForm((prev) => !prev)}
-                    className="mt-2 w-full h-10 rounded-full bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-white text-xs font-bold uppercase tracking-widest transition-colors"
+                    className="studio-portal-secondary mt-2 w-full h-10 rounded-full bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-white text-xs font-bold uppercase tracking-widest transition-colors"
                   >
                     {showProposalForm ? 'Close Proposal Form' : 'Open Proposal Form'}
                   </button>
@@ -436,7 +436,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
               <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
                 <div className={`${BASE_CARD} p-5 space-y-3`}>
                   <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-zinc-400">Timeline</h3>
-                  <div className="rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 flex items-center justify-between">
+                  <div className="studio-portal-subsurface rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 flex items-center justify-between">
                     <div>
                       <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Remaining</p>
                       <p className="text-sm font-bold text-white">{timeRemaining}</p>
@@ -445,7 +445,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
                   </div>
                   <button
                     onClick={() => setShowExtendRequest(true)}
-                    className="w-full h-10 rounded-full bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-white text-sm font-bold transition-colors"
+                    className="studio-portal-secondary w-full h-10 rounded-full bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-white text-sm font-bold transition-colors"
                   >
                     Request +14 Days
                   </button>
@@ -453,7 +453,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
 
                 <div className={`${BASE_CARD} p-5 space-y-3`}>
                   <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-zinc-400">Order Summary</h3>
-                  <div className="rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 flex items-center gap-3">
+                  <div className="studio-portal-subsurface rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 flex items-center gap-3">
                     <AssetThumb
                       src={order.assetImage}
                       alt={order.assetName}
@@ -484,7 +484,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
                   {order.disputeReason.map((reason, index) => (
                     <div
                       key={`${reason}-${index}`}
-                      className="rounded-lg bg-black/40 border border-[rgba(255,255,255,0.08)] p-2.5 text-xs text-zinc-300"
+                      className="studio-portal-subsurface rounded-lg bg-black/40 border border-[rgba(255,255,255,0.08)] p-2.5 text-xs text-zinc-300"
                     >
                       {reason}
                     </div>
@@ -538,7 +538,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="w-full max-w-md rounded-[24px] border border-[rgba(255,255,255,0.08)] bg-[rgba(18,18,18,0.92)] p-6"
+                className="studio-portal-modal w-full max-w-md rounded-[24px] border border-[rgba(255,255,255,0.08)] bg-[rgba(18,18,18,0.92)] p-6"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-start gap-3 mb-5">
@@ -553,7 +553,7 @@ export function DisputeResolutionModal({ order, currentUser, userRole, onClose }
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => setShowExtendRequest(false)}
-                    className="h-11 rounded-full bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-white text-sm font-bold transition-colors"
+                    className="studio-portal-secondary h-11 rounded-full bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-white text-sm font-bold transition-colors"
                   >
                     Cancel
                   </button>

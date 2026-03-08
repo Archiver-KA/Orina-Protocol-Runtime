@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Command, SearchResult } from '@/types/command';
 import { searchCommands, saveRecentCommand, loadRecentCommands } from '@/utils/commandUtils';
-import { generateMockAsset } from '@/utils/mockAssetData';
 
 /**
  * Hook for command palette functionality
@@ -34,8 +33,6 @@ export function useCommandPalette(
       'nav-favorites': 'favorites',
       'nav-messages': 'messages',
       'nav-history': 'history',
-      'nav-notifications': 'notification-demo',
-      'nav-wallet-demo': 'wallet-demo',
       'action-create-order': 'orders',
       'action-mint-asset': 'minting',
       'settings-profile': 'profile',
@@ -180,31 +177,6 @@ export function useCommandPalette(
         saveRecentCommand('nav-history', 'History');
       },
     },
-    {
-      id: 'nav-notifications',
-      label: 'Notifications',
-      description: 'View notifications',
-      category: 'navigation',
-      keywords: ['alerts', 'updates'],
-      icon: '🔔',
-      action: () => {
-        setActivePage('notification-demo');
-        saveRecentCommand('nav-notifications', 'Notifications');
-      },
-    },
-    {
-      id: 'nav-wallet-demo',
-      label: 'Wallet Demo',
-      description: 'Test wallet connection & transaction flow',
-      category: 'navigation',
-      keywords: ['wallet', 'connect', 'web3', 'metamask', 'transaction'],
-      icon: '👛',
-      action: () => {
-        setActivePage('wallet-demo');
-        saveRecentCommand('nav-wallet-demo', 'Wallet Demo');
-      },
-    },
-
     // Actions
     {
       id: 'action-create-order',
@@ -285,33 +257,6 @@ export function useCommandPalette(
     },
   ].filter(command => isCommandAllowed(command.id)), [setActivePage, onCloseModal, onToggleSidebar, canAccessPage]);
 
-  // Search assets
-  const searchAssets = useCallback((query: string): SearchResult[] => {
-    if (!query.trim()) return [];
-
-    // Generate mock assets for search
-    const assets = Array.from({ length: 20 }, (_, i) => generateMockAsset(`${i + 1}`));
-    
-    return assets
-      .filter(asset => 
-        asset.name.toLowerCase().includes(query.toLowerCase()) ||
-        asset.category.toLowerCase().includes(query.toLowerCase())
-      )
-      .slice(0, 5)
-      .map(asset => ({
-        id: asset.id,
-        type: 'asset' as const,
-        title: asset.name,
-        subtitle: `${asset.price.toFixed(4)} ETH • ${asset.category}`,
-        description: asset.description,
-        icon: '💎',
-        action: () => {
-          setActivePage('asset-details');
-          saveRecentCommand(`asset-${asset.id}`, asset.name);
-        },
-      }));
-  }, [setActivePage]);
-
   // Combined search results
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -332,13 +277,9 @@ export function useCommandPalette(
 
     // Search commands
     const commandResults = searchCommands(searchQuery, commands);
-    
-    // Search assets
-    const assetResults = searchAssets(searchQuery);
-    
-    // Combine and limit results
-    return [...commandResults, ...assetResults].slice(0, 10);
-  }, [searchQuery, commands, searchAssets]);
+
+    return commandResults.slice(0, 10);
+  }, [searchQuery, commands]);
 
   // Keyboard navigation
   useEffect(() => {

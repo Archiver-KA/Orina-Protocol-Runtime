@@ -41,32 +41,32 @@ export function ProductModal({ isOpen, onClose, onNavigateToSeller, product }: P
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/70 backdrop-blur-[10px]"
+      className="studio-portal-backdrop fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/70 backdrop-blur-[10px]"
       onClick={handleOverlayClick}
     >
-      <div className="w-full max-w-5xl max-h-[95vh] md:h-[95vh] rounded-[24px] border-0 bg-[rgba(255,255,255,0.03)] backdrop-blur-[20px] shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col">
+      <div className="studio-modal-theme studio-glass-modal w-full max-w-5xl max-h-[95vh] md:h-[95vh] rounded-[24px] border border-ui-border-subtle bg-ui-card backdrop-blur-[20px] shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col">
         <div className="flex-grow overflow-y-auto custom-scrollbar">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-0 min-h-full">
             {/* Left Column - Image & Properties */}
-            <div className="p-8 bg-zinc-900/30 flex flex-col">
+            <div className="studio-glass-header p-8 bg-[var(--t-surface-2)] flex flex-col">
               {/* Image Preview */}
-              <div className="relative flex-grow flex items-center justify-center p-4 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.1)] backdrop-blur-xl rounded-[2rem] aspect-square overflow-hidden">
+              <div className="studio-glass-surface relative flex-grow flex items-center justify-center p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle backdrop-blur-xl rounded-[2rem] aspect-square overflow-hidden">
                 <img
                   alt={product.name}
                   className="w-full h-full object-contain drop-shadow-[0_0_30px_rgba(44,194,149,0.2)]"
                   src={product.image}
                 />
-                <div className="absolute top-6 right-6 bg-black/40 px-4 py-2 rounded-xl border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur-md">
+                <div className="studio-glass-chip absolute top-6 right-6 bg-[var(--t-surface-10)] px-4 py-2 rounded-xl border border-ui-border-subtle text-[10px] font-bold uppercase tracking-widest text-ui-primary backdrop-blur-md">
                   3D Preview
                 </div>
                 {/* Image Carousel Dots */}
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 px-3 py-2 bg-black/20 backdrop-blur-md rounded-full border border-white/5">
+                <div className="studio-glass-chip absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 px-3 py-2 bg-[var(--t-surface-5)] backdrop-blur-md rounded-full border border-ui-border-subtle">
                   {[0, 1, 2].map((index) => (
                     <button
                       key={index}
                       onClick={() => setCurrentImageIndex(index)}
                       className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                        currentImageIndex === index ? 'bg-white' : 'bg-white/20'
+                        currentImageIndex === index ? 'bg-[var(--color-primary-custom)]' : 'bg-[var(--t-border-medium)]'
                       }`}
                     />
                   ))}
@@ -76,7 +76,7 @@ export function ProductModal({ isOpen, onClose, onNavigateToSeller, product }: P
               {/* Tabs & Properties */}
               <div className="mt-8">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="border-b border-[var(--color-panel-border)] flex-1">
+                  <div className="border-b border-ui-border-subtle flex-1">
                     <div className="flex gap-1">
                       {['Properties', 'History', 'Details'].map((tab) => (
                         <button
@@ -85,7 +85,7 @@ export function ProductModal({ isOpen, onClose, onNavigateToSeller, product }: P
                           className={`flex items-center gap-2 px-6 py-3 font-bold text-sm transition-all relative ${
                             activeTab === tab
                               ? 'text-primary'
-                              : 'text-zinc-400 hover:text-zinc-300'
+                              : 'text-ui-muted hover:text-ui-primary'
                           }`}
                         >
                           {tab}
@@ -99,7 +99,7 @@ export function ProductModal({ isOpen, onClose, onNavigateToSeller, product }: P
                   <button
                     onClick={() => setIsFavorited(!isFavorited)}
                     className={`p-2 transition-colors ml-4 ${
-                      isFavorited ? 'text-primary' : 'text-zinc-500 hover:text-primary'
+                      isFavorited ? 'text-primary' : 'text-ui-muted hover:text-primary'
                     }`}
                   >
                     <Heart size={20} fill={isFavorited ? 'currentColor' : 'none'} />
@@ -109,40 +109,40 @@ export function ProductModal({ isOpen, onClose, onNavigateToSeller, product }: P
                 {/* Tab Content */}
                 {activeTab === 'Properties' && (
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl">
-                      <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Background</p>
-                      <p className="text-xs text-white font-medium">Nebula Mist (Rare)</p>
+                    <div className="studio-glass-surface p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-2xl">
+                      <p className="text-[10px] text-ui-muted uppercase font-bold mb-1">Background</p>
+                      <p className="text-xs text-ui-primary font-medium">Nebula Mist (Rare)</p>
                     </div>
-                    <div className="p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl">
-                      <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Material</p>
-                      <p className="text-xs text-white font-medium">Crystalline Quartz</p>
+                    <div className="studio-glass-surface p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-2xl">
+                      <p className="text-[10px] text-ui-muted uppercase font-bold mb-1">Material</p>
+                      <p className="text-xs text-ui-primary font-medium">Crystalline Quartz</p>
                     </div>
-                    <div className="p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl">
-                      <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Edition</p>
-                      <p className="text-xs text-white font-medium">Limited #442/1000</p>
+                    <div className="studio-glass-surface p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-2xl">
+                      <p className="text-[10px] text-ui-muted uppercase font-bold mb-1">Edition</p>
+                      <p className="text-xs text-ui-primary font-medium">Limited #442/1000</p>
                     </div>
-                    <div className="p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl">
-                      <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Rarity</p>
-                      <p className="text-xs text-white font-medium">Ultra Rare (2%)</p>
+                    <div className="studio-glass-surface p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-2xl">
+                      <p className="text-[10px] text-ui-muted uppercase font-bold mb-1">Rarity</p>
+                      <p className="text-xs text-ui-primary font-medium">Ultra Rare (2%)</p>
                     </div>
                   </div>
                 )}
 
                 {activeTab === 'History' && (
                   <div className="space-y-2">
-                    <div className="p-3 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
+                    <div className="studio-glass-surface p-3 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-xl">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-zinc-400">Listed by Zen_Artist</span>
-                        <span className="text-white font-bold">1.45 ETH</span>
+                        <span className="text-ui-secondary">Listed by Zen_Artist</span>
+                        <span className="text-ui-primary font-bold">1.45 ETH</span>
                       </div>
-                      <p className="text-[10px] text-zinc-600 mt-1">2 days ago</p>
+                      <p className="text-[10px] text-ui-muted mt-1">2 days ago</p>
                     </div>
-                    <div className="p-3 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
+                    <div className="studio-glass-surface p-3 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-xl">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-zinc-400">Minted by Zen_Artist</span>
-                        <span className="text-white font-bold">0.08 ETH</span>
+                        <span className="text-ui-secondary">Minted by Zen_Artist</span>
+                        <span className="text-ui-primary font-bold">0.08 ETH</span>
                       </div>
-                      <p className="text-[10px] text-zinc-600 mt-1">5 days ago</p>
+                      <p className="text-[10px] text-ui-muted mt-1">5 days ago</p>
                     </div>
                   </div>
                 )}
@@ -150,20 +150,20 @@ export function ProductModal({ isOpen, onClose, onNavigateToSeller, product }: P
                 {activeTab === 'Details' && (
                   <div className="space-y-3 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-zinc-500">Contract Address</span>
-                      <span className="text-white font-mono text-xs">0x71C...4f2</span>
+                      <span className="text-ui-muted">Contract Address</span>
+                      <span className="text-ui-primary font-mono text-xs">0x71C...4f2</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-zinc-500">Token ID</span>
-                      <span className="text-white font-mono text-xs">#442</span>
+                      <span className="text-ui-muted">Token ID</span>
+                      <span className="text-ui-primary font-mono text-xs">#442</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-zinc-500">Token Standard</span>
-                      <span className="text-white">ERC-721</span>
+                      <span className="text-ui-muted">Token Standard</span>
+                      <span className="text-ui-primary">ERC-721</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-zinc-500">Blockchain</span>
-                      <span className="text-white">Ethereum</span>
+                      <span className="text-ui-muted">Blockchain</span>
+                      <span className="text-ui-primary">Ethereum</span>
                     </div>
                   </div>
                 )}
@@ -173,15 +173,15 @@ export function ProductModal({ isOpen, onClose, onNavigateToSeller, product }: P
             {/* Right Column - Product Details */}
             <div className="p-10 flex flex-col relative">
               {/* Close Button */}
-              <StudioModalCloseButton onClick={onClose} className="absolute top-8 right-8" />
+              <StudioModalCloseButton onClick={onClose} className="studio-glass-secondary absolute top-8 right-8" />
 
               {/* Badges */}
               <div className="flex gap-2 mb-4">
-                <span className="bg-[rgba(255,255,255,0.06)] text-zinc-200 text-[10px] px-2.5 py-1 rounded-lg uppercase font-bold tracking-tight border border-white/10">
+                <span className="studio-glass-chip bg-[var(--t-surface-5)] text-ui-secondary text-[10px] px-2.5 py-1 rounded-lg uppercase font-bold tracking-tight border border-ui-border-subtle">
                   {product.category}
                 </span>
                 {product.verified && (
-                  <span className="bg-[rgba(255,255,255,0.06)] text-zinc-200 text-[10px] px-2.5 py-1 rounded-lg uppercase font-bold tracking-tight border border-white/10 flex items-center gap-1">
+                  <span className="studio-glass-chip bg-[var(--t-surface-5)] text-ui-secondary text-[10px] px-2.5 py-1 rounded-lg uppercase font-bold tracking-tight border border-ui-border-subtle flex items-center gap-1">
                     <Star size={12} fill="currentColor" />
                     Verified
                   </span>
@@ -189,42 +189,42 @@ export function ProductModal({ isOpen, onClose, onNavigateToSeller, product }: P
               </div>
 
               {/* Product Name */}
-              <h1 className="text-3xl font-extrabold text-white mb-6">{product.name}</h1>
+              <h1 className="text-3xl font-extrabold text-ui-primary mb-6">{product.name}</h1>
 
               {/* Price Box */}
-              <div className="bg-zinc-900/40 rounded-3xl p-6 border border-[var(--color-panel-border)] mb-6">
-                <p className="text-xs text-zinc-500 font-medium mb-2">Current Price</p>
+              <div className="studio-glass-surface bg-[var(--t-surface-5)] rounded-3xl p-6 border border-ui-border-subtle mb-6">
+                <p className="text-xs text-ui-muted font-medium mb-2">Current Price</p>
                 <div className="flex items-baseline gap-3">
-                  <span className="text-3xl font-bold text-white tracking-tight">{product.price}</span>
-                  <span className="text-lg text-zinc-500 font-medium">({product.usdPrice})</span>
+                  <span className="text-3xl font-bold text-ui-primary tracking-tight">{product.price}</span>
+                  <span className="text-lg text-ui-secondary font-medium">({product.usdPrice})</span>
                 </div>
               </div>
 
               {/* Stock Info */}
               <div className="flex items-center gap-2 mb-8 px-1">
-                <Layers className="text-zinc-500" size={18} />
-                <span className="text-sm text-zinc-400">
-                  Stock: <span className="text-white font-bold">{product.stock}</span> available
+                <Layers className="text-ui-muted" size={18} />
+                <span className="text-sm text-ui-secondary">
+                  Stock: <span className="text-ui-primary font-bold">{product.stock}</span> available
                 </span>
               </div>
 
               {/* Seller Info */}
               <div className="mb-10">
-                <label className="text-[10px] uppercase font-bold text-zinc-600 mb-4 block tracking-widest">
+                <label className="text-[10px] uppercase font-bold text-ui-muted mb-4 block tracking-widest">
                   Listed by
                 </label>
                 <div
                   onClick={onNavigateToSeller}
-                  className="flex items-center gap-4 p-4 bg-zinc-900/40 rounded-3xl border border-[var(--color-panel-border)] cursor-pointer hover:border-[var(--color-primary-custom)]/30 transition-all group"
+                  className="studio-glass-surface flex items-center gap-4 p-4 bg-[var(--t-surface-5)] rounded-3xl border border-ui-border-subtle cursor-pointer hover:border-[var(--color-primary-custom)]/30 transition-all group"
                 >
                   <img
                     alt={product.seller.name}
-                    className="w-14 h-14 rounded-2xl object-cover border border-[var(--color-panel-border)] group-hover:border-[var(--color-primary-custom)]/30 transition-colors"
+                    className="w-14 h-14 rounded-2xl object-cover border border-ui-border-subtle group-hover:border-[var(--color-primary-custom)]/30 transition-colors"
                     src={product.seller.avatar}
                   />
                   <div className="flex-grow">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-white font-bold group-hover:text-primary transition-colors">
+                      <span className="text-ui-primary font-bold group-hover:text-primary transition-colors">
                         {product.seller.name}
                       </span>
                       {product.seller.isCreator && (
@@ -232,23 +232,23 @@ export function ProductModal({ isOpen, onClose, onNavigateToSeller, product }: P
                           Creator
                         </span>
                       )}
-                      <div className="flex items-center gap-0.5 ml-1 bg-zinc-800/50 px-1.5 py-0.5 rounded-lg border border-white/5">
+                      <div className="flex items-center gap-0.5 ml-1 bg-[var(--t-surface-10)] px-1.5 py-0.5 rounded-lg border border-ui-border-subtle">
                         <Star className="text-yellow-500" size={12} fill="currentColor" />
-                        <span className="text-[10px] font-bold text-white">{product.seller.rating}</span>
+                        <span className="text-[10px] font-bold text-ui-primary">{product.seller.rating}</span>
                       </div>
                     </div>
-                    <p className="text-xs text-zinc-500">{product.seller.memberSince}</p>
+                    <p className="text-xs text-ui-muted">{product.seller.memberSince}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={(e) => e.stopPropagation()}
-                      className="p-2 bg-zinc-800/50 hover:bg-zinc-700/50 rounded-xl transition-colors border border-white/5"
+                      className="studio-glass-secondary p-2 bg-[var(--t-surface-10)] hover:bg-[var(--t-surface-hover)] rounded-xl transition-colors border border-ui-border-subtle"
                     >
-                      <MessageSquare className="text-zinc-400" size={18} />
+                      <MessageSquare className="text-ui-secondary" size={18} />
                     </button>
                     <button
                       onClick={(e) => e.stopPropagation()}
-                      className="text-xs font-bold text-primary hover:text-white transition-colors bg-[var(--color-primary-custom)]/10 px-4 py-2 rounded-xl border border-[var(--color-primary-custom)]/20"
+                      className="text-xs font-bold text-primary hover:text-[var(--color-button-primary-fg)] transition-colors bg-[var(--color-primary-custom)]/10 px-4 py-2 rounded-xl border border-[var(--color-primary-custom)]/20"
                     >
                       Follow
                     </button>
@@ -258,17 +258,17 @@ export function ProductModal({ isOpen, onClose, onNavigateToSeller, product }: P
 
               {/* Quantity Selector & Buy Button */}
               <div className="space-y-6 mt-auto">
-                <div className="flex items-center justify-between bg-[rgba(255,255,255,0.02)] border-0/50 rounded-2xl p-1.5">
+                <div className="studio-glass-surface flex items-center justify-between bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-2xl p-1.5">
                   <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+                    className="w-10 h-10 flex items-center justify-center text-ui-secondary hover:text-ui-primary transition-colors"
                   >
                     <Minus size={18} />
                   </button>
-                  <span className="text-white font-bold text-sm">{quantity}</span>
+                  <span className="text-ui-primary font-bold text-sm">{quantity}</span>
                   <button
                     onClick={() => setQuantity(quantity + 1)}
-                    className="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+                    className="w-10 h-10 flex items-center justify-center text-ui-secondary hover:text-ui-primary transition-colors"
                   >
                     <Plus size={18} />
                   </button>

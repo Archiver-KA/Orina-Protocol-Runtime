@@ -111,18 +111,18 @@ export function PayOrderModal({ isOpen, onClose, order, onSuccess }: PayOrderMod
   const isBuyer = address?.toLowerCase() === order.buyer.toLowerCase();
 
   return (
-    <StudioModalShell className="bg-black/80 backdrop-blur-sm">
-      <StudioModalPanel className="max-w-lg">
+    <StudioModalShell className="studio-form-backdrop bg-black/80 backdrop-blur-sm">
+      <StudioModalPanel className="studio-form-modal max-w-lg">
         {/* Header */}
-        <StudioModalHeader className="border-b border-zinc-800">
+        <StudioModalHeader className="border-b border-ui-border-subtle">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#2CC295]/20 rounded-lg flex items-center justify-center">
               <TrendingUp className="text-[#2CC295]" size={20} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Pay Order</h2>
-              <p className="text-xs text-zinc-500">Order #{order.orderId.toString()}</p>
+              <h2 className="text-xl font-bold text-ui-primary">Pay Order</h2>
+              <p className="text-xs text-ui-muted">Order #{order.orderId.toString()}</p>
             </div>
           </div>
           <StudioModalCloseButton
@@ -150,31 +150,31 @@ export function PayOrderModal({ isOpen, onClose, order, onSuccess }: PayOrderMod
           )}
 
           {/* Order Summary */}
-          <div className="bg-zinc-950/50 border border-zinc-800 rounded-lg p-4 space-y-3">
-            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Order Details</h3>
+          <div className="studio-form-surface bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg p-4 space-y-3">
+            <h3 className="text-xs font-bold text-ui-muted uppercase tracking-widest mb-3">Order Details</h3>
             
             <div className="flex items-center justify-between">
-              <span className="text-sm text-zinc-400">Asset ID</span>
-              <span className="text-sm text-white font-bold">#{order.assetId.toString()}</span>
+              <span className="text-sm text-ui-secondary">Asset ID</span>
+              <span className="text-sm text-ui-primary font-bold">#{order.assetId.toString()}</span>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm text-zinc-400">Amount</span>
-              <span className="text-sm text-white font-bold">{order.amount.toString()} units</span>
+              <span className="text-sm text-ui-secondary">Amount</span>
+              <span className="text-sm text-ui-primary font-bold">{order.amount.toString()} units</span>
             </div>
 
-            <div className="flex items-center justify-between py-2 border-t border-zinc-800">
-              <span className="text-sm text-zinc-400">Buyer</span>
-              <span className="text-sm text-white font-mono">{formatAddress(order.buyer)}</span>
+            <div className="flex items-center justify-between py-2 border-t border-ui-border-subtle">
+              <span className="text-sm text-ui-secondary">Buyer</span>
+              <span className="text-sm text-ui-primary font-mono">{formatAddress(order.buyer)}</span>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm text-zinc-400">Seller</span>
-              <span className="text-sm text-white font-mono">{formatAddress(order.seller)}</span>
+              <span className="text-sm text-ui-secondary">Seller</span>
+              <span className="text-sm text-ui-primary font-mono">{formatAddress(order.seller)}</span>
             </div>
 
-            <div className="flex items-center justify-between py-2 border-t border-zinc-800">
-              <span className="text-sm text-zinc-400">Payment Deadline</span>
+            <div className="flex items-center justify-between py-2 border-t border-ui-border-subtle">
+              <span className="text-sm text-ui-secondary">Payment Deadline</span>
               <div className="flex items-center gap-2">
                 <Clock size={14} className={isExpired ? 'text-red-400' : 'text-[#2CC295]'} />
                 <span className={`text-sm font-bold font-mono ${isExpired ? 'text-red-400' : 'text-[#2CC295]'}`}>
@@ -187,13 +187,13 @@ export function PayOrderModal({ isOpen, onClose, order, onSuccess }: PayOrderMod
           {/* Payment Amount */}
           <div className="bg-[#2CC295]/10 border border-[#2CC295]/30 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-[#2CC295]/70 uppercase tracking-widest">Total Payment</span>
+              <span className="text-xs font-bold text-[#2CC295] uppercase tracking-widest">Total Payment</span>
               <Shield className="text-[#2CC295]" size={16} />
             </div>
             <div className="text-3xl font-bold text-[#2CC295] font-mono">
               {formatEther(order.grossPrice)} ETH
             </div>
-            <p className="text-xs text-[#2CC295]/60 mt-2">
+            <p className="text-xs text-[#2CC295] mt-2">
               Funds will be held in escrow until delivery is confirmed
             </p>
           </div>
@@ -222,21 +222,21 @@ export function PayOrderModal({ isOpen, onClose, order, onSuccess }: PayOrderMod
           )}
 
           {/* Protocol Info */}
-          <StudioNoticePanel variant="neutral" compact icon={<Shield className="text-zinc-600 flex-shrink-0 mt-0.5" size={14} />}>
-            <strong className="text-zinc-400">Escrow Protection:</strong> Your payment will be held securely in the smart contract.
+          <StudioNoticePanel variant="neutral" compact icon={<Shield className="text-ui-muted flex-shrink-0 mt-0.5" size={14} />}>
+            <strong className="text-ui-secondary">Escrow Protection:</strong> Your payment will be held securely in the smart contract.
             {' '}The seller has until <strong>{new Date(Number(order.autoReleaseAt) * 1000).toLocaleString()}</strong> to confirm delivery.
             {' '}If not confirmed, funds will be automatically released to the seller.
           </StudioNoticePanel>
         </StudioModalBody>
 
         {/* Footer Actions */}
-        <StudioModalFooter className="border-t border-zinc-800">
+        <StudioModalFooter className="border-t border-ui-border-subtle">
           <StudioActionButton
             onClick={onClose}
             disabled={txStatus === 'pending' || txStatus === 'confirming'}
             variant="secondary"
             size="lg"
-            className="flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="studio-form-secondary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </StudioActionButton>

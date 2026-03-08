@@ -20,6 +20,58 @@ import { exchangeWalletAuthForSupabaseClaimSession, isSupabaseAuthClaimBridgeEna
 const ACTIVITIES_KEY = 'studio_user_activities';
 const PROFILE_SYNC_EVENT = 'orina:profile-changed';
 const PROFILE_SYNC_IN_FLIGHT = new Set<string>();
+const DISPLAY_NAME_PREVIEW_LIMIT = 15;
+
+function getLegacyShortUserDisplayName(address: string): string {
+  if (!address) return '';
+  return `${address.slice(0, 5)}...${address.slice(-3)}`;
+}
+
+function getLegacyWalletDisplayName(address: string): string {
+  if (!address) return '';
+  return `${address.slice(0, 7)}...${address.slice(-3)}`;
+}
+
+export function isDefaultWalletDisplayName(displayName?: string | null, address?: string | null): boolean {
+  const trimmedName = String(displayName || '').trim();
+  const normalizedAddress = normalizeAddress(String(address || ''));
+  if (!trimmedName || !normalizedAddress) return false;
+
+  const supportedVariants = [
+    normalizedAddress,
+    shortenAddress(normalizedAddress),
+    getLegacyShortUserDisplayName(normalizedAddress),
+    getLegacyWalletDisplayName(normalizedAddress),
+  ];
+
+  return supportedVariants.some((value) => value.toLowerCase() === trimmedName.toLowerCase());
+}
+
+export function truncateDisplayName(displayName?: string | null, maxLength: number = DISPLAY_NAME_PREVIEW_LIMIT): string {
+  const trimmedName = String(displayName || '').trim();
+  if (!trimmedName) return '';
+  if (trimmedName.length <= maxLength) return trimmedName;
+  return `${trimmedName.slice(0, maxLength)}...`;
+}
+
+export function formatUserDisplayName(
+  displayName?: string | null,
+  address?: string | null,
+  maxLength: number = DISPLAY_NAME_PREVIEW_LIMIT
+): string {
+  const trimmedName = String(displayName || '').trim();
+  const normalizedAddress = normalizeAddress(String(address || ''));
+
+  if (!trimmedName) {
+    return normalizedAddress ? shortenAddress(normalizedAddress) : '';
+  }
+
+  if (normalizedAddress && isDefaultWalletDisplayName(trimmedName, normalizedAddress)) {
+    return shortenAddress(normalizedAddress);
+  }
+
+  return truncateDisplayName(trimmedName, maxLength);
+}
 
 /**
  * ✅ NEW: Get profile storage key from address
@@ -46,8 +98,13 @@ function normalizeUserProfileShape(address: string, raw: Partial<UserProfile> | 
   const usernameValue = typeof (parsed as any).username === 'string' && (parsed as any).username.trim()
     ? (parsed as any).username
     : `@${normalizedAddress.slice(2, 10)}`;
-  const displayNameValue = typeof (parsed as any).displayName === 'string' && (parsed as any).displayName.trim()
-    ? (parsed as any).displayName
+  const rawDisplayNameValue = typeof (parsed as any).displayName === 'string'
+    ? (parsed as any).displayName.trim()
+    : '';
+  const displayNameValue = rawDisplayNameValue
+    ? (isDefaultWalletDisplayName(rawDisplayNameValue, normalizedAddress)
+      ? shortenUserDisplayName(normalizedAddress)
+      : rawDisplayNameValue)
     : shortenUserDisplayName(normalizedAddress);
 
   return {
@@ -891,8 +948,7 @@ export function shortenAddress(address: string): string {
  */
 export function shortenUserDisplayName(address: string): string {
   if (!address) return '';
-  // Format: 0x8a1...2f3 (5 chars + ... + 3 chars)
-  return `${address.slice(0, 5)}...${address.slice(-3)}`;
+  return shortenAddress(address);
 }
 
 /**

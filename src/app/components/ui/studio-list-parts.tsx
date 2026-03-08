@@ -45,28 +45,28 @@ export function StudioTimelineItem({
 
   const titleClass =
     tone === 'success'
-      ? 'text-white'
+      ? 'text-ui-primary'
       : tone === 'warning'
         ? 'text-[#F7DC7F]'
-        : tone === 'danger'
-          ? 'text-orange-300'
-          : tone === 'info'
+      : tone === 'danger'
+        ? 'text-orange-300'
+      : tone === 'info'
             ? 'text-blue-300'
-            : 'text-zinc-400';
+            : 'text-ui-secondary';
 
   return (
     <div
       className={cn(
         'relative pl-6',
-        showConnector ? 'border-l border-zinc-800 pb-4' : '',
+        showConnector ? 'border-l border-ui-border-subtle pb-4' : '',
         className
       )}
       {...props}
     >
       <div className={cn('absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full', dotClass)} />
       <p className={cn('text-xs font-bold', titleClass)}>{title}</p>
-      {description ? <p className="text-[10px] text-zinc-500 mt-1">{description}</p> : null}
-      {timestamp ? <p className="text-[9px] font-mono text-zinc-600 mt-1">{timestamp}</p> : null}
+      {description ? <p className="text-[10px] text-ui-muted mt-1">{description}</p> : null}
+      {timestamp ? <p className="text-[9px] font-mono text-ui-muted mt-1">{timestamp}</p> : null}
     </div>
   );
 }

@@ -90,10 +90,10 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
         <button
           onClick={handleToggle}
           onMouseEnter={handleMouseEnter}
-          className="relative w-[43px] h-[43px] flex items-center justify-center bg-[rgba(18,18,18,0.5)] hover:bg-[rgba(18,18,18,0.65)] rounded-[50px] transition-colors"
+          className="group relative w-[43px] h-[43px] flex items-center justify-center bg-[rgba(18,18,18,0.5)] hover:bg-[rgba(18,18,18,0.65)] rounded-[50px] transition-colors"
           title="Notifications"
         >
-          <Bell size={20} className="text-zinc-400" />
+          <Bell size={20} className="text-zinc-400 group-hover:text-zinc-200 transition-colors" />
           
           {unreadCount > 0 && (
             <div className="absolute -top-1 -right-1">
@@ -178,7 +178,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                           className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border-0 ${
                             filterType === option.value
                               ? 'bg-[rgba(255,255,255,0.08)] text-white'
-                              : 'bg-[rgba(255,255,255,0.04)] text-zinc-400 hover:bg-[rgba(255,255,255,0.05)] hover:text-ui-primary'
+                              : 'bg-[rgba(255,255,255,0.04)] text-zinc-400 hover:bg-[rgba(255,255,255,0.05)] hover:text-white'
                           }`}
                         >
                           {option.label}

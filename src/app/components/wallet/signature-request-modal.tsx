@@ -57,9 +57,9 @@ export function SignatureRequestModal({ data, onSign, onCancel }: SignatureReque
       }}
     >
       <div
-        className="w-full max-w-[440px] rounded-[2.5rem] border border-[#27272a] overflow-hidden flex flex-col relative"
+        className="studio-modal-theme w-full max-w-[440px] rounded-[2.5rem] border border-ui-border-subtle overflow-hidden flex flex-col relative"
         style={{
-          background: 'rgba(20, 20, 23, 0.9)',
+          background: 'var(--t-card-bg)',
           backdropFilter: 'blur(30px)',
           boxShadow: '0 32px 64px -16px rgba(0,0,0,0.6)',
         }}
@@ -125,8 +125,8 @@ export function SignatureRequestModal({ data, onSign, onCancel }: SignatureReque
             <div
               className="rounded-2xl p-5 h-44 overflow-y-auto custom-scrollbar font-mono text-[11px] text-zinc-400 leading-relaxed"
               style={{
-                background: 'rgba(0, 0, 0, 0.4)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
+                background: 'var(--t-input-bg)',
+                border: '1px solid var(--t-border-subtle)',
               }}
             >
               <pre className="whitespace-pre-wrap">{messageJson}</pre>

@@ -122,7 +122,7 @@ export function ConnectWalletModal({ onClose, onConnect }: ConnectWalletModalPro
     >
       {/* Modal */}
       <div 
-        className="bg-[#121212] w-full max-w-sm rounded-3xl border border-[#27272a] overflow-hidden shadow-2xl flex flex-col relative max-h-[85vh]"
+        className="studio-modal-theme bg-ui-card w-full max-w-sm rounded-3xl border border-ui-border-subtle overflow-hidden shadow-2xl flex flex-col relative max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
         

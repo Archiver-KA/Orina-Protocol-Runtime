@@ -237,7 +237,7 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder={contentMode === 'profiles' ? 'Search profiles...' : 'Search assets...'}
-                    className="w-full pl-9 pr-3 py-2.5 bg-[rgba(18,18,18,0.5)] border border-transparent rounded-full text-sm text-ui-primary placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295] focus:ring-2 focus:ring-[#2CC295]/25 transition-all"
+                    className="w-full pl-9 pr-3 py-2.5 bg-ui-input border border-ui-border-subtle rounded-full text-sm text-ui-primary placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295] focus:ring-2 focus:ring-[#2CC295]/25 transition-all"
                   />
                 </div>
 

@@ -63,7 +63,7 @@ export function SetPriceAlertModal({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.9 }}
           transition={{ duration: 0.2 }}
-          className="w-full max-w-md bg-[#141417] border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden"
+          className="studio-modal-theme w-full max-w-md bg-ui-card border border-ui-border-subtle rounded-2xl shadow-2xl overflow-hidden"
         >
           <form onSubmit={handleSubmit}>
             {/* Header */}

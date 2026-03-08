@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, type ReactNode } from 'react';
 import { TrendingUp, Package, Sparkles, ShoppingBag, Grid3x3 } from 'lucide-react';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { useAccount } from 'wagmi';
@@ -249,11 +249,103 @@ const mockDigitalNFTs = [
 ];
 
 type AssetTab = 'All Assets' | 'RWA Minted' | 'Receipts' | 'NFT Owned';
+type AnyAsset = MyAssetRwa | MyAssetReceipt | MyAssetNft;
+
+function parseEthLikeValue(raw: string) {
+  const numeric = Number.parseFloat(raw.replace(/[^0-9.]/g, ''));
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function getAssetSortValue(asset: AnyAsset) {
+  switch (asset.type) {
+    case 'RWA':
+      return parseEthLikeValue(asset.minPrice);
+    case 'Receipt':
+      return parseEthLikeValue(asset.purchaseValue);
+    case 'NFT':
+      return parseEthLikeValue(asset.currentPrice);
+    default:
+      return 0;
+  }
+}
+
+function getAssetSortDate(asset: AnyAsset) {
+  switch (asset.type) {
+    case 'RWA':
+      return Date.parse(asset.mintedDate) || 0;
+    case 'Receipt':
+      return Date.parse(asset.purchaseDate) || 0;
+    case 'NFT':
+      return 0;
+    default:
+      return 0;
+  }
+}
+
+function sortAssets<T extends AnyAsset>(items: T[], sortBy: string): T[] {
+  const next = [...items];
+
+  switch (sortBy) {
+    case 'Value: High to Low':
+      return next.sort((a, b) => getAssetSortValue(b) - getAssetSortValue(a));
+    case 'Value: Low to High':
+      return next.sort((a, b) => getAssetSortValue(a) - getAssetSortValue(b));
+    case 'A-Z':
+      return next.sort((a, b) => a.name.localeCompare(b.name));
+    case 'Z-A':
+      return next.sort((a, b) => b.name.localeCompare(a.name));
+    case 'Recent':
+    default:
+      return next.sort((a, b) => getAssetSortDate(b) - getAssetSortDate(a));
+  }
+}
+
+function AssetSectionHeader({
+  step,
+  title,
+  description,
+}: {
+  step: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[#2CC295]/30 bg-[#2CC295]/15">
+          <span className="text-[12px] font-bold leading-[18px] text-primary">{step}</span>
+        </div>
+        <h2 className="text-[20px] font-bold leading-[30px] text-ui-primary">{title}</h2>
+      </div>
+      <p className="pl-11 text-[13px] leading-5 text-ui-secondary">
+        {description}
+      </p>
+    </div>
+  );
+}
+
+function AssetSection({
+  step,
+  title,
+  description,
+  children,
+}: {
+  step: string;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-7">
+      <AssetSectionHeader step={step} title={title} description={description} />
+      {children}
+    </section>
+  );
+}
 
 export function Assets() {
   const [activeTab, setActiveTab] = useState<AssetTab>('All Assets');
   const [sortBy, setSortBy] = useState('Recent');
-  type AnyAsset = MyAssetRwa | MyAssetReceipt | MyAssetNft;
   const [selectedAsset, setSelectedAsset] = useState<AnyAsset | null>(null);
   const [isSellerModalOpen, setIsSellerModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -277,22 +369,17 @@ export function Assets() {
   const totalRWA = rwaAssets.length;
   const totalReceipts = receiptAssets.length;
   const totalNFTs = nftAssets.length;
-  const totalAssets = totalRWA + totalReceipts + totalNFTs;
+  const sortedRwaAssets = useMemo(() => sortAssets(rwaAssets, sortBy), [rwaAssets, sortBy]);
+  const sortedReceiptAssets = useMemo(() => sortAssets(receiptAssets, sortBy), [receiptAssets, sortBy]);
+  const sortedNftAssets = useMemo(() => sortAssets(nftAssets, sortBy), [nftAssets, sortBy]);
 
-  // Filter assets based on active tab
-  const displayAssets = useMemo(() => {
-    switch (activeTab) {
-      case 'RWA Minted':
-        return rwaAssets;
-      case 'Receipts':
-        return receiptAssets;
-      case 'NFT Owned':
-        return nftAssets;
-      case 'All Assets':
-      default:
-        return [...rwaAssets, ...receiptAssets, ...nftAssets];
-    }
-  }, [activeTab, nftAssets, receiptAssets, rwaAssets]);
+  const showRwaSection = activeTab === 'All Assets' || activeTab === 'RWA Minted';
+  const showReceiptSection = activeTab === 'All Assets' || activeTab === 'Receipts';
+  const showNftSection = activeTab === 'All Assets' || activeTab === 'NFT Owned';
+  const hasVisibleAssets =
+    (showRwaSection && sortedRwaAssets.length > 0) ||
+    (showReceiptSection && sortedReceiptAssets.length > 0) ||
+    (showNftSection && sortedNftAssets.length > 0);
 
   return (
     <div className="assets-page-shell h-full flex flex-col overflow-hidden relative bg-ui-page">
@@ -301,9 +388,9 @@ export function Assets() {
           isolation: isolate;
         }
         .assets-page-shell .dropdown-panel {
-          background: rgba(18, 18, 18, 0.96) !important;
+          background: var(--t-dropdown-glass-bg) !important;
           backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          border: 1px solid var(--t-border-subtle);
           z-index: 9999 !important;
         }
       `}</style>
@@ -464,22 +551,25 @@ export function Assets() {
           </div>
         </StudioPanel>
 
-        {/* Assets Grid */}
-        <div className="relative z-[10] grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 pb-20">
-          {displayAssets.length === 0 ? (
-            <div className="col-span-full">
-              <EmptyStateCard
-                icon={<Package size={30} className="text-ui-muted" />}
-                title="No assets found"
-                description="Start by minting RWA or purchasing NFTs"
-                className="py-16 px-6 text-center"
-              />
-            </div>
-          ) : (
-            displayAssets.map((asset) => {
-              // Render different card types based on asset type
-              if (asset.type === 'RWA') {
-                return (
+        {/* Asset Sections */}
+        <div className="relative z-[10] space-y-20 pb-20">
+          {!hasVisibleAssets && (
+            <EmptyStateCard
+              icon={<Package size={30} className="text-ui-muted" />}
+              title="No assets found"
+              description="Start by minting RWA or purchasing NFTs"
+              className="py-16 px-6 text-center"
+            />
+          )}
+
+          {showRwaSection && sortedRwaAssets.length > 0 && (
+            <AssetSection
+              step="01"
+              title="RWA Asset Cards"
+              description="On-chain real-world assets with ownership status, available supply, minimum price, and seller management action."
+            >
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {sortedRwaAssets.map((asset) => (
                   <MyAssetRwaCard
                     key={asset.id}
                     asset={asset}
@@ -488,9 +578,19 @@ export function Assets() {
                       setIsSellerModalOpen(true);
                     }}
                   />
-                );
-              } else if (asset.type === 'Receipt') {
-                return (
+                ))}
+              </div>
+            </AssetSection>
+          )}
+
+          {showReceiptSection && sortedReceiptAssets.length > 0 && (
+            <AssetSection
+              step="02"
+              title="Receipt NFT Cards"
+              description="Purchase receipts minted on-chain as non-transferable proof of completed acquisition and settlement."
+            >
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {sortedReceiptAssets.map((asset) => (
                   <MyAssetReceiptCard
                     key={asset.id}
                     asset={asset}
@@ -499,9 +599,19 @@ export function Assets() {
                       setIsReceiptDetailModalOpen(true);
                     }}
                   />
-                );
-              } else if (asset.type === 'NFT') {
-                return (
+                ))}
+              </div>
+            </AssetSection>
+          )}
+
+          {showNftSection && sortedNftAssets.length > 0 && (
+            <AssetSection
+              step="03"
+              title="Digital NFT Cards"
+              description="On-chain digital assets with current pricing, floor pricing, transfer action, and secondary sale listing flow."
+            >
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {sortedNftAssets.map((asset) => (
                   <MyAssetNftCard
                     key={asset.id}
                     asset={asset}
@@ -514,12 +624,9 @@ export function Assets() {
                       setIsListForSaleModalOpen(true);
                     }}
                   />
-                );
-              }
-
-              // Fallback
-              return null;
-            })
+                ))}
+              </div>
+            </AssetSection>
           )}
         </div>
       </div>

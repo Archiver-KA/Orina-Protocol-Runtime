@@ -85,7 +85,7 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+        className="studio-portal-backdrop fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
@@ -95,12 +95,12 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           transition={{ type: 'spring', duration: 0.3 }}
-          className="relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
+          className="studio-modal-theme studio-portal-modal relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           <style>{`.hidden-scrollbar::-webkit-scrollbar{display:none;}`}</style>
 
-          <div className="shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
+          <div className="studio-portal-header shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <h1 className="text-lg font-bold text-white tracking-tight truncate">Order Details</h1>
@@ -109,7 +109,7 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
+                <span className="studio-portal-chip h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
                   Qty {order.amount.toString()}
                 </span>
                 <span className="h-7 px-3 inline-flex items-center bg-[#2CC295]/15 rounded-full border border-[#2CC295]/30 text-[9px] font-bold text-[#2CC295] uppercase tracking-widest">
@@ -124,12 +124,12 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
             <div className="h-full p-5 md:p-6 pt-4 relative z-10">
               <div className="w-full h-full max-w-[860px] mx-auto flex flex-col lg:flex-row justify-center items-start gap-6 px-0 md:px-2">
                 <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
                     <div className="flex items-center gap-2 mb-3">
                       <Package size={14} className="text-[#2CC295]" />
                       <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Product Information</h3>
                     </div>
-                    <div className="rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 flex items-center gap-3">
+                    <div className="studio-portal-subsurface rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 flex items-center gap-3">
                       <AssetThumb
                         src={order.assetImage}
                         alt={order.assetName}
@@ -144,12 +144,12 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
                     </div>
                   </div>
 
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
                     <div className="flex items-center gap-2 mb-3">
                       <MapPin size={14} className="text-[#2CC295]" />
                       <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Shipping Address</h3>
                     </div>
-                    <div className="rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 space-y-1.5">
+                    <div className="studio-portal-subsurface rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 space-y-1.5">
                       <p className="text-sm font-semibold text-white">{shippingAddress.name}</p>
                       <p className="text-xs text-zinc-400">{shippingAddress.street}</p>
                       <p className="text-xs text-zinc-400">
@@ -165,12 +165,12 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
                     </div>
                   </div>
 
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
                     <div className="flex items-center gap-2 mb-3">
                       <Clock size={14} className="text-[#2CC295]" />
                       <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Order Timeline</h3>
                     </div>
-                    <div className="rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 space-y-3">
+                    <div className="studio-portal-subsurface rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-xs font-semibold text-white">Order Proposed</p>
@@ -209,12 +209,12 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
                 </div>
 
                 <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
                     <div className="flex items-center gap-2 mb-3">
                       <DollarSign size={14} className="text-[#2CC295]" />
                       <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Price Breakdown</h3>
                     </div>
-                    <div className="rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 space-y-2.5">
+                    <div className="studio-portal-subsurface rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-zinc-400">Gross Price</span>
                         <span className="text-sm font-mono font-bold text-white">{formatEther(order.grossPrice)} ETH</span>
@@ -242,9 +242,9 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
                     </div>
                   </div>
 
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3">
+                      <div className="studio-portal-subsurface rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3">
                         <div className="flex items-center gap-2 mb-3">
                           <div className="w-7 h-7 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
                             <User className="text-blue-400" size={14} />
@@ -258,7 +258,7 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
                         </button>
                       </div>
 
-                      <div className="rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3">
+                      <div className="studio-portal-subsurface rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3">
                         <div className="flex items-center gap-2 mb-3">
                           <div className="w-7 h-7 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
                             <Store className="text-violet-300" size={14} />
@@ -274,12 +274,12 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
                     </div>
                   </div>
 
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
                     <div className="flex items-center gap-2 mb-3">
                       <Hash size={14} className="text-[#2CC295]" />
                       <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Blockchain Information</h3>
                     </div>
-                    <div className="rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 space-y-2.5">
+                    <div className="studio-portal-subsurface rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] text-zinc-500">Order ID</span>
                         <span className="text-xs font-mono text-white">#{order.orderId.toString()}</span>
@@ -299,12 +299,12 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
                     </div>
                   </div>
 
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
                     <div className="flex items-center gap-2 mb-3">
                       <Receipt size={14} className="text-[#2CC295]" />
                       <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Settlement Summary</h3>
                     </div>
-                    <div className="rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 text-xs text-zinc-400 leading-relaxed">
+                    <div className="studio-portal-subsurface rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 text-xs text-zinc-400 leading-relaxed">
                       This order will settle according to on-chain state transition and fee snapshot at execution time.
                     </div>
                   </div>

@@ -1,4 +1,4 @@
-import { Search, Grid, List, SlidersHorizontal, X, Grid3x3 } from 'lucide-react';
+import { Search, List, Grid3x3 } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
@@ -7,10 +7,9 @@ import { FilterTags } from './filter-tags';
 import { SearchResultCard } from '@/app/components/search-result-card';
 import { ProfileSearchCard } from '@/app/components/profile-search-card';
 import { PriceRangeSlider } from './price-range-slider';
-import { SearchFilters, SearchResult } from '@/types/search';
+import { SearchFilters } from '@/types/search';
 import { MarketplaceAsset } from '@/app/types/asset';
-import { getDefaultFilters, filterResults, saveSearchToHistory, countActiveFilters } from '@/utils/searchUtils';
-import { generateMockSearchResults } from '@/utils/mockSearchData';
+import { getDefaultFilters, filterMarketplaceResults, getMarketplacePriceRange, saveSearchToHistory, countActiveFilters } from '@/utils/searchUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { AssetDetailsModal } from '@/app/components/asset-details-modal';
@@ -22,34 +21,7 @@ import { StudioPageHeader } from '@/app/components/ui/studio-page-header';
 import { StudioPillGroup, StudioPillButton } from '@/app/components/ui/studio-pill-group';
 import { StudioSidebarShell, StudioSidebarHeader, StudioSidebarScroll } from '@/app/components/ui/studio-sidebar';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
-
-// Adapter function: Convert SearchResult to MarketplaceAsset
-const searchResultToMarketplaceAsset = (result: SearchResult): MarketplaceAsset => {
-  return {
-    id: result.id,
-    tokenId: result.id,
-    contractAddress: '0x0000000000000000000000000000000000000000',
-    name: result.name,
-    category: result.category,
-    description: result.description,
-    image: result.image,
-    seller: {
-      address: '0x742d35Cc6634C0532925a3b844Bc9e7595f9c4F',
-      verified: result.verified,
-    },
-    price: result.price,
-    priceUSD: result.priceUsd,
-    currency: 'ETH',
-    listedAt: result.mintDate,
-    views: result.views,
-    likes: result.favorites,
-    verified: result.verified,
-    blockchain: result.blockchain as 'Ethereum' | 'Polygon' | 'Arbitrum' | 'Base' | 'BSC',
-    network: 'mainnet',
-    createdAt: result.mintDate,
-    updatedAt: Date.now(),
-  };
-};
+import { MOCK_MARKETPLACE_ASSETS, getAllBlockchains as getMarketplaceBlockchains, getAllCategories as getMarketplaceCategories } from '@/utils/mockMarketplaceData';
 
 interface SearchPageProps {
   initialQuery?: string;
@@ -88,13 +60,15 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
     }
   }, [initialQuery]);
 
-  // Load all results
-  const allResults = useMemo(() => generateMockSearchResults(), []);
+  const marketplaceAssets = useMemo(() => MOCK_MARKETPLACE_ASSETS, []);
+  const marketplaceCategories = useMemo(() => getMarketplaceCategories(), []);
+  const marketplaceBlockchains = useMemo(() => getMarketplaceBlockchains(), []);
+  const marketplacePriceRange = useMemo(() => getMarketplacePriceRange(marketplaceAssets), [marketplaceAssets]);
 
   // Filter results
-  const filteredResults = useMemo(() => {
-    return filterResults(allResults, filters);
-  }, [allResults, filters]);
+  const filteredAssets = useMemo(() => {
+    return filterMarketplaceResults(marketplaceAssets, filters);
+  }, [marketplaceAssets, filters]);
 
   const filteredProfiles = useMemo(() => {
     const q = filters.query.trim().toLowerCase();
@@ -126,10 +100,6 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
     const favorites = loadFavorites(address);
     setLikedAssets(new Set(favorites.map((fav) => fav.assetId)));
   }, [address]);
-
-  const handleFiltersChange = (newFilters: SearchFilters) => {
-    setFilters(newFilters);
-  };
 
   const handleRemoveFilter = (key: string, value?: any) => {
     let newFilters = { ...filters };
@@ -182,9 +152,9 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
   };
 
   const handleAssetClick = (assetId: string) => {
-    const result = filteredResults.find(r => r.id === assetId);
-    if (result) {
-      setSelectedAsset(searchResultToMarketplaceAsset(result));
+    const asset = marketplaceAssets.find((item) => item.id === assetId);
+    if (asset) {
+      setSelectedAsset(asset);
       setIsModalOpen(true);
     }
   };
@@ -193,21 +163,21 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
     setSellerProfiles(getMockSellerProfiles());
   };
 
-  const resultCount = contentMode === 'profiles' ? filteredProfiles.length : filteredResults.length;
+  const resultCount = contentMode === 'profiles' ? filteredProfiles.length : filteredAssets.length;
 
   return (
-    <div className="h-full bg-ui-page overflow-hidden">
+    <div className="search-page-theme h-full bg-ui-page overflow-hidden">
       <style>{`
         div::-webkit-scrollbar { width: 4px; }
         div::-webkit-scrollbar-track { background: transparent; }
-        div::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
+        div::-webkit-scrollbar-thumb { background: var(--t-border-medium); border-radius: 10px; }
       `}</style>
 
       <div className="h-full flex overflow-hidden">
       <div className="flex-1 min-w-0 p-2.5 pr-0 overflow-hidden">
 
       {/* Center Column - Results */}
-      <section className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto custom-scrollbar relative z-10">
+      <section className="h-full overflow-y-auto custom-scrollbar relative z-10">
         <div className="p-6 max-w-5xl mx-auto">
         {/* Header */}
         <StudioPageHeader
@@ -230,28 +200,28 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
             <StudioPillButton
               onClick={() => setContentMode('assets')}
               active={contentMode === 'assets'}
-              className={contentMode === 'assets' ? 'bg-[rgba(255,255,255,0.08)] text-white rounded-lg px-3 py-1.5 shadow-none' : 'text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-lg'}
+              className={contentMode === 'assets' ? 'bg-[var(--t-surface-10)] text-ui-primary rounded-lg px-3 py-1.5 shadow-none' : 'text-ui-muted hover:text-ui-primary px-3 py-1.5 rounded-lg'}
             >
               Assets
             </StudioPillButton>
             <StudioPillButton
               onClick={() => setContentMode('profiles')}
               active={contentMode === 'profiles'}
-              className={contentMode === 'profiles' ? 'bg-[rgba(255,255,255,0.08)] text-white rounded-lg px-3 py-1.5 shadow-none' : 'text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-lg'}
+              className={contentMode === 'profiles' ? 'bg-[var(--t-surface-10)] text-ui-primary rounded-lg px-3 py-1.5 shadow-none' : 'text-ui-muted hover:text-ui-primary px-3 py-1.5 rounded-lg'}
             >
               Profiles
             </StudioPillButton>
             <StudioPillButton
               onClick={() => setViewMode('list')}
               active={viewMode === 'list'}
-              className={viewMode === 'list' ? 'bg-[rgba(255,255,255,0.08)] text-white rounded-lg px-3 py-1.5 shadow-none' : 'text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-lg'}
+              className={viewMode === 'list' ? 'bg-[var(--t-surface-10)] text-ui-primary rounded-lg px-3 py-1.5 shadow-none' : 'text-ui-muted hover:text-ui-primary px-3 py-1.5 rounded-lg'}
             >
               <List size={18} />
             </StudioPillButton>
             <StudioPillButton
               onClick={() => setViewMode('grid')}
               active={viewMode === 'grid'}
-              className={viewMode === 'grid' ? 'bg-[rgba(255,255,255,0.08)] text-white rounded-lg px-3 py-1.5 shadow-none' : 'text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-lg'}
+              className={viewMode === 'grid' ? 'bg-[var(--t-surface-10)] text-ui-primary rounded-lg px-3 py-1.5 shadow-none' : 'text-ui-muted hover:text-ui-primary px-3 py-1.5 rounded-lg'}
             >
               <Grid3x3 size={18} />
             </StudioPillButton>
@@ -263,8 +233,8 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
         <div className="flex flex-col gap-5 mb-10">
           {/* Result Count */}
           <div className="flex items-center">
-            <div className="text-zinc-400 text-sm">
-              <span className="text-white font-bold">{resultCount}</span> results
+            <div className="text-ui-secondary text-sm">
+              <span className="text-ui-primary font-bold">{resultCount}</span> results
               {filters.query && (
                 <>
                   {' '}for <span className="text-[#2CC295] font-medium">"{filters.query}"</span>
@@ -284,10 +254,10 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
         </div>
 
         {/* Results */}
-        {(contentMode === 'assets' && filteredResults.length === 0) || (contentMode === 'profiles' && filteredProfiles.length === 0) ? (
+        {(contentMode === 'assets' && filteredAssets.length === 0) || (contentMode === 'profiles' && filteredProfiles.length === 0) ? (
           // Empty State
           <EmptyStateCard
-            icon={<Search size={30} className="text-zinc-700" />}
+            icon={<Search size={30} className="text-ui-muted" />}
             title={contentMode === 'assets' ? 'No results found' : 'No profiles found'}
             description={
               filters.query
@@ -317,20 +287,20 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
           `}>
             {contentMode === 'assets' ? (
               <AnimatePresence mode="popLayout">
-                {filteredResults.map((result) => (
+                {filteredAssets.map((asset) => (
                   <motion.div
-                    key={result.id}
+                    key={asset.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9 }}
                     transition={{ duration: 0.3 }}
                   >
                     <SearchResultCard
-                      asset={searchResultToMarketplaceAsset(result)}
+                      asset={asset}
                       viewMode={viewMode}
                       onLike={handleLike}
                       onClick={handleAssetClick}
-                      isLiked={likedAssets.has(result.id)}
+                      isLiked={likedAssets.has(asset.id)}
                     />
                   </motion.div>
                 ))}
@@ -374,11 +344,11 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                 Price Range (ETH)
               </label>
               <PriceRangeSlider
-                min={0.01}
-                max={10}
+                min={marketplacePriceRange.min}
+                max={marketplacePriceRange.max}
                 value={[
-                  filters.priceRange.min ?? 0.01,
-                  filters.priceRange.max ?? 10
+                  filters.priceRange.min ?? marketplacePriceRange.min,
+                  filters.priceRange.max ?? marketplacePriceRange.max
                 ]}
                 onChange={(value) => {
                   setFilters({
@@ -396,15 +366,13 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                 Blockchain
               </label>
               <CustomDropdown
-                defaultValue={filters.blockchains[0] || 'ethereum'}
+                defaultValue={filters.blockchains[0] || 'all'}
                 onChange={(value) => {
-                  setFilters({ ...filters, blockchains: [value] });
+                  setFilters({ ...filters, blockchains: value === 'all' ? [] : [value] });
                 }}
                 options={[
-                  { value: 'ethereum', label: 'Ethereum Mainnet' },
-                  { value: 'polygon', label: 'Polygon' },
-                  { value: 'arbitrum', label: 'Arbitrum One' },
-                  { value: 'optimism', label: 'Optimism' },
+                  { value: 'all', label: 'All Blockchains' },
+                  ...marketplaceBlockchains.map((blockchain) => ({ value: blockchain, label: blockchain })),
                 ]}
                 variant="compact"
                 className="w-full"
@@ -417,8 +385,8 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                 Status
               </label>
               <div className="space-y-3">
-                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-white/[0.04] transition-colors">
-                  <span className="text-sm text-zinc-400 group-hover:text-white transition-colors">
+                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-[var(--t-surface-hover)] transition-colors">
+                  <span className="text-sm text-ui-secondary group-hover:text-ui-primary transition-colors">
                     Verified Only
                   </span>
                   <ToggleSwitch
@@ -426,8 +394,8 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                     onChange={(checked) => setFilters({ ...filters, verifiedOnly: checked })}
                   />
                 </label>
-                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-white/[0.04] transition-colors">
-                  <span className="text-sm text-zinc-400 group-hover:text-white transition-colors">
+                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-[var(--t-surface-hover)] transition-colors">
+                  <span className="text-sm text-ui-secondary group-hover:text-ui-primary transition-colors">
                     On Sale
                   </span>
                   <ToggleSwitch
@@ -435,8 +403,8 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                     onChange={() => {}}
                   />
                 </label>
-                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-white/[0.04] transition-colors">
-                  <span className="text-sm text-zinc-400 group-hover:text-white transition-colors">
+                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-[var(--t-surface-hover)] transition-colors">
+                  <span className="text-sm text-ui-secondary group-hover:text-ui-primary transition-colors">
                     New Drops
                   </span>
                   <ToggleSwitch
@@ -453,7 +421,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                 Categories
               </label>
               <div className="flex flex-wrap gap-2">
-                {['collectibles', 'art', 'music', 'virtual-worlds'].map((category) => (
+                {marketplaceCategories.map((category) => (
                   <button
                     key={category}
                     onClick={() => {
@@ -466,14 +434,11 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                       px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors
                       ${filters.categories.includes(category)
                         ? 'bg-[#2CC295]/10 text-[#2CC295] border-[#2CC295]/20'
-                        : 'bg-[rgba(18,18,18,0.5)] text-zinc-400 border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.06)]'
+                        : 'bg-ui-input text-ui-secondary border-ui-border-subtle hover:bg-[var(--t-surface-hover)]'
                       }
                     `}
                   >
-                    {category === 'collectibles' ? 'Collectibles' :
-                     category === 'art' ? 'Art' :
-                     category === 'music' ? 'Music' :
-                     'Virtual Worlds'}
+                    {category}
                   </button>
                 ))}
               </div>
@@ -489,10 +454,10 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
               </span>
             </div>
             <div className="space-y-4">
-              <StudioPanel className="p-4 rounded-xl">
-                <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Floor Price Trend</p>
+              <StudioPanel className="p-4 rounded-xl bg-[var(--t-surface-5)]">
+                <p className="text-[10px] font-bold text-ui-muted uppercase mb-1">Floor Price Trend</p>
                 <div className="flex items-end justify-between">
-                  <span className="text-xl font-bold text-white">1.12 ETH</span>
+                  <span className="text-xl font-bold text-ui-primary">1.12 ETH</span>
                   <span className="text-xs text-[#2CC295] font-bold flex items-center gap-1">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
@@ -502,10 +467,10 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                 </div>
                 {/* Mini Chart */}
                 <div className="mt-4 flex items-end gap-1 h-12">
-                  <div className="flex-1 bg-[rgba(255,255,255,0.08)] rounded-t-sm" style={{ height: '40%' }}></div>
-                  <div className="flex-1 bg-[rgba(255,255,255,0.08)] rounded-t-sm" style={{ height: '60%' }}></div>
-                  <div className="flex-1 bg-[rgba(255,255,255,0.08)] rounded-t-sm" style={{ height: '50%' }}></div>
-                  <div className="flex-1 bg-[rgba(255,255,255,0.08)] rounded-t-sm" style={{ height: '80%' }}></div>
+                  <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '40%' }}></div>
+                  <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '60%' }}></div>
+                  <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '50%' }}></div>
+                  <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '80%' }}></div>
                   <div className="flex-1 bg-[#2CC295] rounded-t-sm" style={{ height: '95%' }}></div>
                   <div className="flex-1 bg-[#2CC295] rounded-t-sm" style={{ height: '100%' }}></div>
                 </div>

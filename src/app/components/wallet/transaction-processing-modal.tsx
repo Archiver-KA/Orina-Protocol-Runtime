@@ -12,10 +12,10 @@ export function TransactionProcessingModal({ transactionHash }: TransactionProce
       }}
     >
       <div
-        className="w-full max-w-[480px] rounded-[2.5rem] overflow-hidden flex flex-col items-center"
+        className="studio-modal-theme w-full max-w-[480px] rounded-[2.5rem] overflow-hidden flex flex-col items-center"
         style={{
-          background: 'rgba(20, 20, 23, 0.7)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          background: 'var(--t-card-bg)',
+          border: '1px solid var(--t-border-subtle)',
           backdropFilter: 'blur(30px)',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
         }}

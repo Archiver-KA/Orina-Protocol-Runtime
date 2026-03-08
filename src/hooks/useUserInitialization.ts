@@ -7,7 +7,7 @@ import { useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { useUser } from '@/contexts/UserContext';
 import { getAvatarTypeForAddress, getDefaultUsername } from '@/utils/avatarUtils';
-import { loadUserProfile } from '@/utils/profileUtils';
+import { loadUserProfile, shortenUserDisplayName } from '@/utils/profileUtils';
 import { migrateConversationsToAddressBased } from '@/utils/conversationUtils';
 import { migrateFavoritesToAddressBased } from '@/utils/favoritesUtils';
 import { migrateNotificationsToAddressBased } from '@/utils/notifications';
@@ -95,18 +95,20 @@ export function useUserInitialization() {
         if (!hasExistingProfile) {
           const avatarType = getAvatarTypeForAddress(address);
           const defaultUsername = getDefaultUsername(address);
+          const defaultDisplayName = shortenUserDisplayName(address);
           
           updateUserData({
             address,
             avatarType,
             username: defaultUsername,
-            displayName: defaultUsername,
+            displayName: defaultDisplayName,
             // Keep other fields undefined until user sets them
           });
           
           console.log(`[Orina] 🆕 Initialized new user: ${address}`);
           console.log(`[Orina] Default avatar: ${avatarType}`);
           console.log(`[Orina] Default username: ${defaultUsername}`);
+          console.log(`[Orina] Default display name: ${defaultDisplayName}`);
         }
         
         // Mark this address as initialized

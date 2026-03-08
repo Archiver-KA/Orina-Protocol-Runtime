@@ -7,7 +7,7 @@ interface PillSegmentedToggleProps {
 
 export function PillSegmentedToggle({ options, value, onChange, className = '' }: PillSegmentedToggleProps) {
   return (
-    <div className={`inline-flex w-full p-1 bg-ui-pill backdrop-blur-md rounded-full gap-1 ${className}`}>
+    <div className={`inline-flex w-full p-1 bg-ui-pill backdrop-blur-md rounded-full gap-1 border border-ui-border-subtle ${className}`}>
       {options.map((option) => {
         const isActive = value === option;
         return (
@@ -15,10 +15,10 @@ export function PillSegmentedToggle({ options, value, onChange, className = '' }
             key={option}
             onClick={() => onChange(option)}
             className={`
-              relative flex-1 min-w-0 px-4 py-2.5 text-sm font-bold rounded-full transition-all duration-200 ease-out
+              relative flex-1 min-w-0 px-4 py-2.5 text-sm font-bold rounded-full border transition-all duration-200 ease-out
               ${isActive 
-                ? 'bg-[#2CC295] text-black' 
-                : 'text-ui-secondary hover:text-ui-primary hover:bg-[rgba(255,255,255,0.05)]'
+                ? 'bg-[#2CC295] text-black border-[#2CC295]'
+                : 'bg-ui-input text-ui-secondary border-ui-border-subtle hover:text-ui-primary hover:bg-ui-input-focus'
               }
             `}
           >

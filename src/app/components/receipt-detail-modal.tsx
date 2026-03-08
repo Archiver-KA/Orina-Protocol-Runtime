@@ -54,7 +54,7 @@ export function ReceiptDetailModal({ receiptId, isOpen, onClose }: ReceiptDetail
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+        className="studio-portal-backdrop fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
@@ -65,7 +65,7 @@ export function ReceiptDetailModal({ receiptId, isOpen, onClose }: ReceiptDetail
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ type: "spring", duration: 0.3 }}
-        className="relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
+        className="studio-modal-theme studio-glass-modal relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border border-ui-border-subtle bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <style>{`
@@ -84,7 +84,7 @@ export function ReceiptDetailModal({ receiptId, isOpen, onClose }: ReceiptDetail
         `}</style>
 
         {/* Fixed Header */}
-        <div className="shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
+        <div className="studio-glass-header shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <h1 className="text-lg font-bold text-white tracking-tight truncate">{receiptData.assetName}</h1>
@@ -93,13 +93,13 @@ export function ReceiptDetailModal({ receiptId, isOpen, onClose }: ReceiptDetail
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
+              <span className="studio-glass-chip h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
                 Token ID {receiptData.tokenId}
               </span>
-              <span className="h-7 px-3 inline-flex items-center bg-[#2CC295]/15 rounded-full border border-[#2CC295]/30 text-[9px] font-bold text-[#2CC295] uppercase tracking-widest">
+              <span className="studio-glass-chip h-7 px-3 inline-flex items-center bg-[#2CC295]/15 rounded-full border border-[#2CC295]/30 text-[9px] font-bold text-[#2CC295] uppercase tracking-widest">
                 {receiptData.status}
               </span>
-              <StudioModalCloseButton onClick={onClose} />
+              <StudioModalCloseButton onClick={onClose} className="studio-glass-secondary" />
             </div>
           </div>
         </div>
@@ -110,26 +110,26 @@ export function ReceiptDetailModal({ receiptId, isOpen, onClose }: ReceiptDetail
             <div className="w-full h-full max-w-[860px] mx-auto flex flex-col lg:flex-row justify-center items-start gap-6 px-0 md:px-2">
               {/* Left Column (hidden scrollbar, independent scroll) */}
               <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
-                <div className="relative w-[350px] h-[350px] max-w-full bg-[rgba(24,24,27,0.5)] rounded-[24px] overflow-hidden">
+                <div className="studio-glass-surface relative w-[350px] h-[350px] max-w-full bg-[rgba(24,24,27,0.5)] rounded-[24px] overflow-hidden">
                   <img
                     alt="Asset"
                     className="w-full h-full object-cover opacity-80"
                     src={receiptData.image}
                   />
-                  <div className="absolute left-[17px] top-[17px] flex items-center gap-1 px-2 py-1 bg-black/60 border border-white/10 backdrop-blur-[6px] rounded-[6px]">
+                  <div className="studio-glass-chip absolute left-[17px] top-[17px] flex items-center gap-1 px-2 py-1 bg-black/60 border border-white/10 backdrop-blur-[6px] rounded-[6px]">
                     <Shield size={10} className="text-[#2CC295]" />
                     <span className="text-[9px] leading-[14px] font-bold uppercase text-[#2CC295]">Verified</span>
                   </div>
-                  <div className="absolute right-[17px] top-[13px] px-2 py-[2.5px] bg-black/60 border border-white/10 backdrop-blur-[6px] rounded-[6px]">
-                    <span className="text-[9px] leading-[14px] font-bold uppercase text-[#A1A1AA]">{receiptData.status}</span>
+                  <div className="studio-glass-chip absolute right-[17px] top-[13px] px-2 py-[2.5px] bg-black/60 border border-white/10 backdrop-blur-[6px] rounded-[6px]">
+                    <span className="text-[9px] leading-[14px] font-bold uppercase text-zinc-400">{receiptData.status}</span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
                   <div className="flex -space-x-2">
-                    <span className="w-8 h-8 rounded-full bg-[#27272A] border-2 border-[#141417] text-[10px] font-bold text-[#D4D4D8] inline-flex items-center justify-center">1</span>
-                    <span className="w-8 h-8 rounded-full bg-[#3F3F46] border-2 border-[#141417] text-[10px] font-bold text-[#D4D4D8] inline-flex items-center justify-center">2</span>
-                    <span className="w-8 h-8 rounded-full bg-[#52525B] border-2 border-[#141417] text-[10px] font-bold text-[#D4D4D8] inline-flex items-center justify-center">3</span>
+                    <span className="studio-glass-chip w-8 h-8 rounded-full bg-[#27272A] border-2 border-[#141417] text-[10px] font-bold text-zinc-300 inline-flex items-center justify-center">1</span>
+                    <span className="studio-glass-chip w-8 h-8 rounded-full bg-[#3F3F46] border-2 border-[#141417] text-[10px] font-bold text-zinc-300 inline-flex items-center justify-center">2</span>
+                    <span className="studio-glass-chip w-8 h-8 rounded-full bg-[#52525B] border-2 border-[#141417] text-[10px] font-bold text-zinc-300 inline-flex items-center justify-center">3</span>
                     <span className="w-8 h-8 rounded-full bg-[#2CC295] border-2 border-[#141417] text-[10px] font-bold text-black inline-flex items-center justify-center">11</span>
                   </div>
                   <span className="text-[10px] leading-[15px] font-medium text-[#71717A]">15 Transactions</span>
@@ -138,7 +138,7 @@ export function ReceiptDetailModal({ receiptId, isOpen, onClose }: ReceiptDetail
 
               {/* Right Column */}
               <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-6 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
-                <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
+                <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
                   <div className="mx-auto w-[152px] h-[152px] bg-white rounded-[24px] p-3 shadow-[0_0_20px_rgba(255,255,255,0.1)]">
                     <img alt="QR Code" className="w-full h-full" src={receiptData.qrCode} />
                   </div>
@@ -148,7 +148,7 @@ export function ReceiptDetailModal({ receiptId, isOpen, onClose }: ReceiptDetail
                   </p>
                 </div>
 
-                <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-6">
+                <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-6">
                   <div className="flex items-center justify-between">
                     <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Fractional Ownership</h3>
                     <span className="text-[10px] font-bold uppercase tracking-[1px] text-[#2CC295]">Live Distribution</span>
@@ -184,7 +184,7 @@ export function ReceiptDetailModal({ receiptId, isOpen, onClose }: ReceiptDetail
                   </div>
                 </div>
 
-                <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
+                <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Custodian Entity</h3>
                     <CheckCircle size={12} className="text-[#52525B]" />
@@ -199,7 +199,7 @@ export function ReceiptDetailModal({ receiptId, isOpen, onClose }: ReceiptDetail
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between bg-black/40 border border-[rgba(255,255,255,0.05)] rounded px-2 py-2">
+                    <div className="studio-glass-subsurface flex items-center justify-between bg-black/40 border border-[rgba(255,255,255,0.05)] rounded px-2 py-2">
                       <span className="font-mono text-[10px] text-[#71717A] truncate">{receiptData.custodian.address}</span>
                       <button className="text-[#52525B] hover:text-white transition-colors">
                         <Copy size={12} />
@@ -216,7 +216,7 @@ export function ReceiptDetailModal({ receiptId, isOpen, onClose }: ReceiptDetail
                   </div>
                 </div>
 
-                <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
+                <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Asset Birth Log</h3>
                     <Terminal className="text-[#52525B]" size={14} />
@@ -224,15 +224,15 @@ export function ReceiptDetailModal({ receiptId, isOpen, onClose }: ReceiptDetail
                   <div className="space-y-3 font-mono">
                     <div className="flex justify-between border-b border-[rgba(255,255,255,0.05)] pb-3">
                       <span className="text-[10px] text-[#71717A]">MINT TIME</span>
-                      <span className="text-[10px] text-[#D4D4D8]">{receiptData.mintDate}</span>
+                      <span className="text-[10px] text-zinc-300">{receiptData.mintDate}</span>
                     </div>
                     <div className="flex justify-between border-b border-[rgba(255,255,255,0.05)] pb-3">
                       <span className="text-[10px] text-[#71717A]">BLOCK HEIGHT</span>
-                      <span className="text-[10px] text-[#D4D4D8]">{receiptData.blockHeight}</span>
+                      <span className="text-[10px] text-zinc-300">{receiptData.blockHeight}</span>
                     </div>
                     <div className="space-y-1 pt-1">
                       <span className="text-[9px] uppercase text-[#71717A]">Contract Hash</span>
-                      <div className="flex items-center justify-between gap-2 bg-black/40 border border-[rgba(255,255,255,0.05)] rounded px-2 py-2">
+                      <div className="studio-glass-subsurface flex items-center justify-between gap-2 bg-black/40 border border-[rgba(255,255,255,0.05)] rounded px-2 py-2">
                         <span className="text-[9px] text-[#2CC295] truncate">{receiptData.contractHash}</span>
                         <button className="text-[#71717A] hover:text-white transition-colors">
                           <Copy size={12} />

@@ -61,7 +61,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
   if (typeof document === 'undefined') return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]">
+    <div className="studio-portal-backdrop fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]">
       <AnimatePresence mode="wait">
         {!isSuccess ? (
           <motion.div
@@ -70,7 +70,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
+            className="studio-modal-theme studio-portal-modal confirm-delivery-theme relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <style>{`
@@ -78,7 +78,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
             `}</style>
 
             {/* Fixed Header */}
-            <div className="shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
+            <div className="studio-portal-header shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <h2 className="text-lg font-bold text-white tracking-tight truncate">Confirm Delivery</h2>
@@ -87,7 +87,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
+                  <span className="studio-portal-chip h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
                     Order #{order.orderId.toString().slice(-6)}
                   </span>
                   <span className="h-7 px-3 inline-flex items-center bg-[#2CC295]/15 rounded-full border border-[#2CC295]/30 text-[9px] font-bold text-[#2CC295] uppercase tracking-widest">
@@ -105,7 +105,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                   {/* Left Column */}
                   <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
                     {/* Product Info */}
-                    <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
+                    <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
                       <div className="flex items-center gap-4">
                         <AssetThumb
                           src={order.assetImage}
@@ -123,7 +123,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                     </div>
 
                     {/* Summary */}
-                    <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-4">
+                    <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-4">
                       <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Finalization Summary</h4>
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
@@ -138,7 +138,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                     </div>
 
                     {/* What happens next */}
-                    <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
+                    <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
                       <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">What Happens Next</h4>
                       <div className="space-y-3">
                         <div className="flex items-start gap-3">
@@ -181,7 +181,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                   {/* Right Column */}
                   <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
                     {/* Rating & Review */}
-                    <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
+                    <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
                       <div className="flex items-center gap-2">
                         <Star className="text-[#2CC295] fill-[#2CC295]" size={16} />
                         <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Rate Your Experience</h4>
@@ -216,14 +216,14 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                           onChange={(e) => setReview(e.target.value)}
                           placeholder="Share your experience..."
                           maxLength={500}
-                          className="w-full h-24 px-4 py-3 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-xl text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-[#2CC295]/30 focus:border-[#2CC295] resize-none"
+                          className="studio-portal-input confirm-delivery-input-flat w-full h-24 px-4 py-3 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-xl text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-[#2CC295]/30 focus:border-[#2CC295] resize-none"
                         />
                         <p className="text-[9px] text-zinc-600 font-mono mt-2 text-right">{review.length}/500</p>
                       </div>
                     </div>
 
                     {/* Warning */}
-                    <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
+                    <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
                       <div className="flex items-start gap-2 mb-3">
                         <AlertTriangle className="text-orange-400 shrink-0 mt-0.5" size={16} />
                         <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">
@@ -239,7 +239,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                     <div className="grid grid-cols-2 gap-3 pt-1">
                       <button
                         onClick={onCancel}
-                        className="h-12 px-6 bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-white font-bold text-base rounded-full transition-colors"
+                        className="studio-portal-secondary h-12 px-6 bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-white font-bold text-base rounded-full transition-colors"
                       >
                         Cancel
                       </button>
@@ -262,7 +262,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ duration: 0.3 }}
-            className="bg-[rgba(18,18,18,0.9)] border-0 rounded-[24px] shadow-2xl max-w-md w-full overflow-hidden"
+            className="studio-modal-theme studio-portal-modal bg-[rgba(18,18,18,0.9)] border-0 rounded-[24px] shadow-2xl max-w-md w-full overflow-hidden"
           >
             <div className="p-12 flex flex-col items-center justify-center space-y-6 text-center">
               {/* Success Icon */}
@@ -293,7 +293,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
               </div>
 
               {/* Order Summary */}
-              <div className="w-full p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg">
+              <div className="studio-portal-subsurface w-full p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg">
                 <div className="flex items-center gap-3">
                   <AssetThumb
                     src={order.assetImage}

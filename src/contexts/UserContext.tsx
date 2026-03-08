@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { getAvatarTypeForAddress, getDefaultUsername } from '@/utils/avatarUtils';
 import type { AvatarType } from '@/utils/avatarUtils';
-import { loadUserProfile, shortenUserDisplayName } from '@/utils/profileUtils';
+import { loadUserProfile, isDefaultWalletDisplayName, shortenUserDisplayName } from '@/utils/profileUtils';
 
 declare global {
   interface Window {
@@ -40,8 +40,11 @@ function normalizeUserDataShape(raw: any): UserData {
   const username = typeof raw.username === 'string' && raw.username.trim()
     ? raw.username
     : (address ? getDefaultUsername(address) : undefined);
-  const displayName = typeof raw.displayName === 'string' && raw.displayName.trim()
-    ? raw.displayName
+  const rawDisplayName = typeof raw.displayName === 'string' ? raw.displayName.trim() : '';
+  const displayName = rawDisplayName
+    ? (address && isDefaultWalletDisplayName(rawDisplayName, address)
+      ? shortenUserDisplayName(address)
+      : rawDisplayName)
     : (address ? shortenUserDisplayName(address) : undefined);
 
   return {

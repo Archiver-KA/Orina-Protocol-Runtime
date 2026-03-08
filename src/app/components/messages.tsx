@@ -1,10 +1,8 @@
-import { Search, Smile, Paperclip, Send, Copy, Diamond, Coins, Zap, Flag, ArrowRight, Bot, Sparkles, Star, Plus, AlertTriangle, X } from 'lucide-react';
+import { Search, Smile, Paperclip, Send, Copy, Diamond, Coins, Zap, Flag, ArrowRight, Bot, Star, Plus, AlertTriangle, X } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { getAvatarByUserId } from '@/app/components/user-avatars';
-import { AIAgentClient } from '@/utils/aiAgentClient';
-import { AIAgentTest } from '@/app/components/ai-agent-test';
-import { shortenUserDisplayName } from '@/utils/profileUtils';
+import { formatUserDisplayName, shortenUserDisplayName } from '@/utils/profileUtils';
 import { useUser } from '@/contexts/UserContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { NewConversationModal } from '@/app/components/new-conversation-modal';
@@ -41,29 +39,7 @@ const CHAT_CONVERSATIONS_POLL_BACKOFF_MAX_MS = 12000;
 const CHAT_MESSAGES_POLL_BACKOFF_BASE_MS = 800;
 const CHAT_MESSAGES_POLL_BACKOFF_MAX_MS = 8000;
 
-// Default conversations (keep only AI Agent test tab; legacy mock user chats removed for C6 cleanup)
-const defaultConversations = [
-  {
-    id: 'ai-agent',
-    address: 'AI Agent Test',
-    displayName: 'AI Agent Test',
-    AvatarComponent: null, // Will use Bot icon
-    lastMessage: 'Test your AI Agent responses here',
-    timestamp: 'Test Mode',
-    online: true,
-    unread: 0,
-    isAIAgent: true,
-    userInfo: {
-      displayName: 'AI Agent Test',
-      role: 'AI Sales Assistant',
-      walletAddress: null,
-      mutualHoldings: [],
-      interactionHistory: [
-        { event: 'Test Mode Active', date: 'Live Testing', isRecent: true }
-      ]
-    }
-  }
-];
+const defaultConversations: any[] = [];
 
 const defaultMessages: any[] = [];
 
@@ -88,11 +64,10 @@ function computePollBackoffMs(streak: number, baseMs: number, maxMs: number): nu
 
 interface MessagesProps {
   onNavigateToUserProfile?: (walletAddress: string) => void;
-  onNavigateToPage?: (page: string) => void;
   initialConversationId?: string | null;
 }
 
-export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialConversationId }: MessagesProps) {
+export function Messages({ onNavigateToUserProfile, initialConversationId }: MessagesProps) {
   // ✅ Get wallet address for backend communication
   const { address } = useAccount();
   
@@ -110,11 +85,10 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
   
   // State
   const [conversations, setConversations] = useState<any[]>(defaultConversations);
-  const [activeConversation, setActiveConversation] = useState<number | string>(initialConversationId || 'ai-agent');
+  const [activeConversation, setActiveConversation] = useState<string | null>(initialConversationId || null);
   const [messagesByConversation, setMessagesByConversation] = useState<Record<string, any[]>>(initialMessagesByConversation);
   const [userInput, setUserInput] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
-  const [aiAgentEnabled, setAIAgentEnabled] = useState<boolean | null>(null);
   const [attachedImage, setAttachedImage] = useState<AttachedImage | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isNewConversationModalOpen, setIsNewConversationModalOpen] = useState(false);
@@ -140,12 +114,10 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
   const chatNotificationBaselineReadyRef = useRef<boolean>(false);
   const chatUnreadSnapshotRef = useRef<Record<string, number>>({});
   
-  // ✅ FIX: Track locally-added messages for demo conversations to prevent polling from clearing them
-  const localMessagesRef = useRef<any[]>([]);
   // ✅ FIX: Cooldown after sending to prevent immediate poll overwrite for backend conversations
   const sendCooldownRef = useRef<number>(0);
   // ✅ FIX: Ref to always have the latest activeConversation for polling (prevents stale closure)
-  const activeConversationRef = useRef<number | string>(activeConversation);
+  const activeConversationRef = useRef<string | null>(activeConversation);
   activeConversationRef.current = activeConversation;
   // ✅ FIX: Ref for address to prevent stale closure in polling
   const addressRef = useRef(address);
@@ -154,8 +126,11 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportTarget, setReportTarget] = useState<{ name: string; address: string } | null>(null);
-  const activeConversationKey = String(activeConversation);
-  const conversationMessages = messagesByConversation[activeConversationKey] || EMPTY_MESSAGES;
+  const activeConversationKey = activeConversation ? String(activeConversation) : null;
+  const conversationMessages = activeConversationKey ? (messagesByConversation[activeConversationKey] || EMPTY_MESSAGES) : EMPTY_MESSAGES;
+  const activeConversationRecord = activeConversation
+    ? conversations.find((conversation) => conversation.id === activeConversation) || null
+    : null;
 
   const setConversationMessagesFor = useCallback(
     (conversationId: string | number, updater: any[] | ((prev: any[]) => any[])) => {
@@ -288,6 +263,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
         const otherAddress = conv.participants.find(
           (p: string) => p.toLowerCase() !== currentAddress.toLowerCase()
         );
+        const displayLabel = formatUserDisplayName(conv.displayName, otherAddress);
         
         const unreadCount = conv.unreadCount[currentAddress.toLowerCase()] || 0;
         const recentlyActive = resolveChatPresenceOnline({
@@ -300,7 +276,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
         return {
           id: conv.id,
           address: otherAddress || '',
-          displayName: conv.displayName || shortenUserDisplayName(otherAddress || ''),
+          displayName: displayLabel || shortenUserDisplayName(otherAddress || ''),
           avatar: conv.avatar || undefined,
           AvatarComponent: getAvatarByUserId(otherAddress || ''),
           lastMessage: conv.lastMessage,
@@ -309,9 +285,8 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
           // otherwise fallback to recent-message activity as a practical online heuristic.
           online: recentlyActive,
           unread: unreadCount,
-          isAIAgent: false,
           userInfo: {
-            displayName: conv.displayName || shortenUserDisplayName(otherAddress || ''),
+            displayName: displayLabel || shortenUserDisplayName(otherAddress || ''),
             role: 'Community Member',
             walletAddress: otherAddress || '',
             avatarUrl: conv.avatar || undefined,
@@ -330,7 +305,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
         const uiConv = transformed[i];
         const backendConv = backendConversations[i];
         if (!uiConv || !backendConv) continue;
-        if (!uiConv.id || uiConv.id === 'ai-agent') continue;
+        if (!uiConv.id) continue;
 
         const unread = Number(uiConv.unread || 0);
         nextUnreadSnapshot[String(uiConv.id)] = unread;
@@ -341,8 +316,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
         if (unread <= prevUnread || unread <= 0) continue;
 
         const otherAddress = String(uiConv.address || '').toLowerCase();
-        const actorName =
-          String(uiConv.displayName || '').trim() ||
+        const actorName = formatUserDisplayName(uiConv.displayName, otherAddress) ||
           shortenUserDisplayName(otherAddress || '');
         const lastMessage = String(backendConv.lastMessage || '').trim() || 'Sent you a message';
         const lastMessageTime = String(backendConv.lastMessageTime || backendConv.createdAt || Date.now());
@@ -369,18 +343,14 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
       chatUnreadSnapshotRef.current = nextUnreadSnapshot;
       chatNotificationBaselineReadyRef.current = true;
       
-      // Merge with default conversations (AI Agent, demo conversations)
-      const merged = [...transformed, ...defaultConversations];
-      setConversations(merged);
+      setConversations(transformed);
 
       // Reconcile active conversation with the latest backend list.
       // This prevents the thread pane from staying on a stale/deleted UUID after DB reset or cleanup.
       setActiveConversation((prev) => {
-        if (prev === 'ai-agent' || typeof prev === 'number') return prev;
-        const stillExists = transformed.some((c: any) => c.id === prev);
-        if (stillExists) return prev;
+        if (prev && transformed.some((c: any) => c.id === prev)) return prev;
         if (transformed.length > 0) return transformed[0].id;
-        return 'ai-agent';
+        return null;
       });
     } catch (error) {
       console.error('[Messages] Load conversations error:', error);
@@ -407,7 +377,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
   };
   
   // Load messages for active conversation (silent=true for polling to suppress toasts)
-  const loadBackendMessages = async (conversationId: string | number, silent: boolean = false, force: boolean = false) => {
+  const loadBackendMessages = async (conversationId: string, silent: boolean = false, force: boolean = false) => {
     const conversationKey = String(conversationId);
 
     // Prevent overlapping silent polls for the same conversation.
@@ -435,17 +405,6 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
     
     const currentAddress = addressRef.current;
     
-    if (conversationId === 'ai-agent' || typeof conversationId === 'number') {
-      // ✅ FIX: For demo conversations, merge default messages with locally-added messages
-      const filtered = defaultMessages.filter(m => m.conversationId === conversationId);
-      const localForConv = localMessagesRef.current.filter(m => m.conversationId === conversationId);
-      
-      // Merge and deduplicate
-      const allMessages = [...filtered, ...localForConv];
-      setConversationMessagesFor(conversationId, allMessages);
-      return;
-    }
-
     // Do not overwrite real conversation messages when wallet address is temporarily unavailable
     if (!currentAddress) {
       return;
@@ -687,7 +646,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
   }, [address]);
 
   useEffect(() => {
-    if (!activeConversation || activeConversation === 'ai-agent' || typeof activeConversation === 'number') {
+    if (!activeConversation) {
       return;
     }
 
@@ -715,7 +674,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
   useEffect(() => {
     if (!initialConversationId) return;
     const target = String(initialConversationId);
-    if (!target || target === 'ai-agent') return;
+    if (!target) return;
 
     // If a wallet address is passed, resolve to a loaded conversation UUID when possible.
     if (target.startsWith('0x')) {
@@ -731,20 +690,10 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
     setActiveConversation((prev) => (prev === target ? prev : target));
   }, [initialConversationId, conversations]);
 
-  // Check if AI Agent is enabled for this seller
-  useEffect(() => {
-    if (!address) return; // ✅ Don't check if no wallet connected
-    
-    const checkAIAgent = async () => {
-      const config = await AIAgentClient.getConfig(address); // ✅ Use current user's address
-      setAIAgentEnabled(config?.enabled || false);
-    };
-    checkAIAgent();
-  }, [address]); // ✅ Reload when wallet address changes
-
   const handleSendMessage = async () => {
     // Must have either text or image
     if ((!userInput.trim() && !attachedImage) || sendingMessage || !address) return;
+    if (!activeConversation) return;
 
     const messageText = userInput.trim();
     
@@ -752,62 +701,6 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
     setUserInput('');
     setAttachedImage(null);
     setShowEmojiPicker(false);
-
-    // For AI Agent or demo conversations, use old logic
-    if (activeConversation === 'ai-agent' || typeof activeConversation === 'number') {
-      const newMessage = {
-        id: conversationMessages.length + 1,
-        sender: 'me',
-        AvatarComponent: getAvatarByUserId(18),
-        text: messageText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        read: true,
-        conversationId: activeConversation,
-        image: attachedImage
-      };
-
-      // ✅ FIX: Also store in localMessagesRef so polling doesn't clear it
-      localMessagesRef.current = [...localMessagesRef.current, newMessage];
-      setConversationMessagesFor(activeConversation, (prev) => [...prev, newMessage]);
-
-      // AI Agent logic - ONLY show typing indicator for AI responses
-      if (aiAgentEnabled && messageText && activeConversation !== 'ai-agent') {
-        setSendingMessage(true); // ✅ Show typing indicator ONLY for AI response
-        
-        try {
-          const aiResponse = await AIAgentClient.sendMessage(
-            address, // ✅ Use current user's address
-            messageText,
-            `conv_${activeConversation}`
-          );
-
-          if (aiResponse) {
-            setTimeout(() => {
-              const aiMsg = {
-                id: `ai_${Date.now()}`,
-                sender: 'them',
-                AvatarComponent: getAvatarByUserId(1),
-                text: aiResponse.content,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                read: true,
-                conversationId: activeConversation,
-                isAI: true
-              };
-              // ✅ FIX: Also store AI response in local ref
-              localMessagesRef.current = [...localMessagesRef.current, aiMsg];
-              setConversationMessagesFor(activeConversation, (prev) => [...prev, aiMsg]);
-              setSendingMessage(false);
-            }, 1000);
-          } else {
-            setSendingMessage(false);
-          }
-        } catch (error) {
-          console.error('AI Agent error:', error);
-          setSendingMessage(false);
-        }
-      }
-      return;
-    }
 
     // For real backend conversations - OPTIMISTIC UPDATE
     let optimisticMessageId = '';
@@ -996,7 +889,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
           {/* Header */}
           <div className="p-4 border-b border-[var(--t-border-subtle)] bg-transparent">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-white uppercase tracking-wider">Messages</h2>
+              <h2 className="text-sm font-bold text-ui-primary uppercase tracking-wider">Messages</h2>
               <button
                 onClick={() => {
                   if (!address) {
@@ -1012,9 +905,9 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
               </button>
             </div>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={14} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-muted" size={14} />
               <input
-                className="w-full bg-[rgba(18,18,18,0.5)] border border-[rgba(255,255,255,0.1)] rounded-[999px] pl-9 pr-4 py-2 text-xs text-[#F1F5F9] focus:ring-[#2CC295] focus:border-[#2CC295] placeholder:text-[rgba(203,213,225,0.5)]"
+                className="w-full bg-ui-input border border-ui-border rounded-[999px] pl-9 pr-4 py-2 text-xs text-ui-primary focus:ring-primary/35 focus:border-primary placeholder:text-ui-muted"
                 placeholder="Search conversations"
                 type="text"
               />
@@ -1030,20 +923,13 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                 className={`p-3 border-b border-[var(--t-border-subtle)] cursor-pointer transition-colors ${
                   activeConversation === conv.id
                     ? 'bg-[#2CC295]/5 border-l-2 border-l-[#2CC295]'
-                    : 'hover:bg-white/[0.02]'
+                    : 'hover:bg-ui-pill'
                 }`}
               >
                 <div className="flex gap-2">
                   <div className="relative flex-shrink-0">
-                    <div className={`w-10 h-10 rounded-full border overflow-hidden flex items-center justify-center ${
-                      conv.isAIAgent 
-                        ? 'bg-gradient-to-br from-[#2CC295] to-[#1a9d6f] border-[#2CC295]/50' 
-                        : 'bg-zinc-800 border-[#27272a]'
-                    }`}>
-                      {conv.isAIAgent ? (
-                        <Bot className="text-white" size={20} />
-                      ) : (() => {
-                        // Dynamically get avatar component based on address or use stored one
+                    <div className="w-10 h-10 rounded-full border overflow-hidden flex items-center justify-center bg-ui-input border-ui-border-subtle">
+                      {(() => {
                         const AvatarComp = conv.AvatarComponent || getAvatarByUserId(conv.address || conv.id);
                         return conv.avatar ? (
                           <img src={conv.avatar} alt={conv.displayName} className="w-full h-full object-cover" />
@@ -1052,34 +938,25 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                         );
                       })()}
                     </div>
-                    {conv.isAIAgent ? (
-                      <div className="absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-[#1a1a1c] rounded-full bg-[#2CC295]"></div>
-                    ) : (
-                      <div
-                        className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-[#1a1a1c] rounded-full ${
-                          conv.online ? 'bg-[#2CC295]' : 'bg-zinc-600'
-                        }`}
-                      ></div>
-                    )}
+                    <div
+                      className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-[var(--t-card-bg)] rounded-full ${
+                        conv.online ? 'bg-[#2CC295]' : 'bg-ui-muted'
+                      }`}
+                    ></div>
                   </div>
                   <div className="flex-grow min-w-0">
                     <div className="flex justify-between items-center mb-0.5">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-white truncate">
+                        <span className="text-xs font-bold text-ui-primary truncate">
                           {conv.displayName || shortenUserDisplayName(conv.address)}
                         </span>
-                        {conv.isAIAgent && (
-                          <Sparkles className="text-[#2CC295] flex-shrink-0" size={10} />
-                        )}
                       </div>
-                      <span className={`text-[9px] ${
-                        conv.isAIAgent ? 'text-[#2CC295] font-bold' : 'text-zinc-500'
-                      }`}>{conv.timestamp}</span>
+                      <span className="text-[9px] text-ui-muted">{conv.timestamp}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <p
                         className={`text-[11px] truncate font-medium ${
-                          conv.unread > 0 ? 'text-zinc-400' : 'text-zinc-500'
+                          conv.unread > 0 ? 'text-ui-secondary' : 'text-ui-muted'
                         }`}
                       >
                         {conv.lastMessage}
@@ -1096,18 +973,30 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
         </div>
 
         {/* Chat Area */}
-        {activeConversation === 'ai-agent' ? (
-          /* AI Agent Test Interface */
-          <div className="flex-1 flex overflow-hidden">
-            <AIAgentTest sellerAddress={address || ''} />
+        {!activeConversationRecord ? (
+          <div className="flex-1 flex items-center justify-center bg-transparent">
+            <div className="max-w-sm text-center px-8">
+              <h3 className="text-lg font-bold text-ui-primary">No Conversation Selected</h3>
+              <p className="text-sm text-ui-muted mt-2">
+                Choose an existing thread or start a new conversation to continue messaging.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsNewConversationModalOpen(true)}
+                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#2CC295] px-4 py-2.5 text-sm font-bold text-black transition-all hover:shadow-lg hover:shadow-[#2CC295]/20"
+              >
+                <Plus size={16} />
+                New Conversation
+              </button>
+            </div>
           </div>
         ) : (
           /* Normal Chat Interface */
           <div className="flex-1 flex flex-col overflow-hidden bg-transparent relative">
             {/* Chat Header */}
-            <div className="p-5 border-b border-[var(--t-border-subtle)] flex items-center justify-between bg-[rgba(18,18,18,0.5)] backdrop-blur-[6px] flex-shrink-0 relative">
+            <div className="p-5 border-b border-[var(--t-border-subtle)] flex items-center justify-between bg-ui-input backdrop-blur-[6px] flex-shrink-0 relative">
               {(() => {
-                const activeConv = conversations.find(c => c.id === activeConversation);
+                const activeConv = activeConversationRecord;
                 const AvatarComp = activeConv?.AvatarComponent;
                 const displayName = activeConv?.displayName || shortenUserDisplayName(activeConv?.address || '');
                 const isOnline = activeConv?.online || false;
@@ -1115,7 +1004,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                 return (
                   <>
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-zinc-800 border border-[#27272a] overflow-hidden flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-ui-input border border-ui-border-subtle overflow-hidden flex items-center justify-center">
                         {activeConv?.avatar ? (
                           <img src={activeConv.avatar} alt={displayName} className="w-full h-full object-cover" />
                         ) : AvatarComp ? (
@@ -1127,17 +1016,12 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                         )}
                       </div>
                       <div>
-                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-ui-primary flex items-center gap-2">
                           {displayName}
-                          {aiAgentEnabled && (
-                            <span className="w-5 h-5 bg-[#2CC295]/10 text-[#2CC295] border border-[#2CC295]/20 rounded flex items-center justify-center" title="AI Agent Active">
-                              <Bot size={12} />
-                            </span>
-                          )}
                         </h3>
                         <div className="flex items-center gap-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-[#2CC295]' : 'bg-zinc-600'}`}></span>
-                          <span className={`text-[10px] uppercase font-bold tracking-widest ${isOnline ? 'text-[#2CC295]' : 'text-zinc-500'}`}>{isOnline ? 'Online' : 'Offline'}</span>
+                          <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-[#2CC295]' : 'bg-ui-muted'}`}></span>
+                          <span className={`text-[10px] uppercase font-bold tracking-widest ${isOnline ? 'text-[#2CC295]' : 'text-ui-muted'}`}>{isOnline ? 'Online' : 'Offline'}</span>
                         </div>
                       </div>
                     </div>
@@ -1150,41 +1034,41 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
             <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto p-6 pb-24 space-y-6 hidden-scrollbar min-h-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               {/* Date Divider */}
               <div className="flex justify-center">
-                <span className="text-[10px] px-3 py-1 bg-[rgba(255,255,255,0.02)] border-0 rounded-full text-zinc-500 uppercase tracking-widest font-bold">
+                <span className="text-[10px] px-3 py-1 bg-ui-pill border border-ui-border-subtle rounded-full text-ui-muted uppercase tracking-widest font-bold">
                   Today
                 </span>
               </div>
 
               {/* Message Bubbles */}
               {(() => {
-                const activeConv = conversations.find(c => c.id === activeConversation);
+                const activeConv = activeConversationRecord;
                 // Get avatar component for the active conversation
                 const ConvAvatarComp = activeConv?.AvatarComponent || (activeConv?.address ? getAvatarByUserId(activeConv.address) : null);
                 
                 return conversationMessages.map((message) =>
                   message.sender !== 'me' ? (
                     <div key={message.id} className="flex items-end gap-3 max-w-[80%]">
-                      <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0 self-end">
+                      <div className="w-8 h-8 rounded-full bg-ui-input overflow-hidden flex-shrink-0 self-end">
                         {activeConv?.avatar ? (
                           <img src={activeConv.avatar} alt="User" className="w-full h-full object-cover" />
                         ) : ConvAvatarComp ? (
                           <ConvAvatarComp className="w-full h-full" />
                         ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-600 flex items-center justify-center text-white text-xs font-bold">
+                          <div className="w-full h-full bg-gradient-to-br from-[var(--t-surface-10)] to-[var(--t-surface-5)] flex items-center justify-center text-ui-primary text-xs font-bold">
                             {activeConv?.displayName?.charAt(0).toUpperCase() || 'U'}
                           </div>
                         )}
                       </div>
-                      <div className="bg-white/[0.05] backdrop-blur-lg border border-white/10 p-4 rounded-2xl rounded-bl-none">
+                      <div className="bg-ui-input backdrop-blur-lg border border-ui-border-subtle p-4 rounded-2xl rounded-bl-none">
                         {message.image && (
                           <div className="mb-2">
-                            <div className="w-[220px] sm:w-[260px] aspect-[4/3] rounded-lg overflow-hidden border border-white/10 bg-zinc-900/50">
+                            <div className="w-[220px] sm:w-[260px] aspect-[4/3] rounded-lg overflow-hidden border border-ui-border-subtle bg-ui-input">
                               <img src={message.image.url} alt="Attached" className="w-full h-full object-cover" />
                             </div>
                           </div>
                         )}
-                        <p className="text-sm text-zinc-200 leading-relaxed">{message.text}</p>
-                        <span className="text-[10px] text-zinc-500 mt-1 block">{message.timestamp}</span>
+                        <p className="text-sm text-ui-primary leading-relaxed">{message.text}</p>
+                        <span className="text-[10px] text-ui-muted mt-1 block">{message.timestamp}</span>
                         {message.isAI && (
                           <div className="flex items-center gap-1 mt-2 text-xs text-[#2CC295]" title="AI Agent Response">
                             <Bot size={12} />
@@ -1195,7 +1079,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                     </div>
                   ) : (
                     <div key={message.id} className="flex flex-row-reverse items-end gap-3 max-w-[80%] ml-auto">
-                      <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0 self-end">
+                      <div className="w-8 h-8 rounded-full bg-ui-input overflow-hidden flex-shrink-0 self-end">
                         {currentUser.avatarUrl ? (
                           <img src={currentUser.avatarUrl} alt={currentUser.displayName || currentUser.username} className="w-full h-full object-cover" />
                         ) : (() => {
@@ -1207,12 +1091,12 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                       <div className="bg-[#2CC295]/15 backdrop-blur-lg border border-[#2CC295]/20 p-4 rounded-2xl rounded-br-none">
                         {message.image && (
                           <div className="mb-2">
-                            <div className="w-[220px] sm:w-[260px] aspect-[4/3] rounded-lg overflow-hidden border border-[#2CC295]/20 bg-zinc-900/50">
+                            <div className="w-[220px] sm:w-[260px] aspect-[4/3] rounded-lg overflow-hidden border border-[#2CC295]/20 bg-ui-input">
                               <img src={message.image.url} alt="Attached" className="w-full h-full object-cover" />
                             </div>
                           </div>
                         )}
-                        <p className="text-sm text-white leading-relaxed break-words whitespace-pre-wrap">{message.text}</p>
+                        <p className="text-sm text-ui-primary leading-relaxed break-words whitespace-pre-wrap">{message.text}</p>
                         <div className="flex items-center justify-end gap-1 mt-2">
                           <span className="text-[10px] text-[#2CC295]/70">{message.timestamp}</span>
                           <svg className="w-3.5 h-3.5 text-[#2CC295]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1228,27 +1112,27 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
 
               {/* Typing Indicator */}
               {sendingMessage && (() => {
-                const activeConv = conversations.find(c => c.id === activeConversation);
+                const activeConv = activeConversationRecord;
                 const ConvAvatarComp = activeConv?.AvatarComponent || (activeConv?.address ? getAvatarByUserId(activeConv.address) : null);
                 
                 return (
                   <div className="flex items-end gap-3 max-w-[80%]">
-                    <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden flex-shrink-0 self-end">
+                    <div className="w-8 h-8 rounded-full bg-ui-input overflow-hidden flex-shrink-0 self-end">
                       {activeConv?.avatar ? (
                         <img src={activeConv.avatar} alt="User" className="w-full h-full object-cover" />
                       ) : ConvAvatarComp ? (
                         <ConvAvatarComp className="w-full h-full" />
                       ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-600 flex items-center justify-center text-white text-xs font-bold">
+                        <div className="w-full h-full bg-gradient-to-br from-[var(--t-surface-10)] to-[var(--t-surface-5)] flex items-center justify-center text-ui-primary text-xs font-bold">
                           {activeConv?.displayName?.charAt(0).toUpperCase() || 'U'}
                         </div>
                       )}
                     </div>
-                    <div className="bg-white/[0.05] backdrop-blur-lg border border-white/10 p-4 rounded-2xl rounded-bl-none">
+                    <div className="bg-ui-input backdrop-blur-lg border border-ui-border-subtle p-4 rounded-2xl rounded-bl-none">
                       <div className="flex gap-1">
-                        <span className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                        <span className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                        <span className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                        <span className="w-2 h-2 bg-ui-muted rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                        <span className="w-2 h-2 bg-ui-muted rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                        <span className="w-2 h-2 bg-ui-muted rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
                       </div>
                     </div>
                   </div>
@@ -1260,11 +1144,11 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
             </div>
 
             {/* Message Input */}
-            <div className="p-6 border-t border-[var(--t-border-subtle)] bg-[rgba(18,18,18,0.5)] backdrop-blur-[6px]">
+            <div className="p-6 border-t border-[var(--t-border-subtle)] bg-ui-input backdrop-blur-[6px]">
               <div className="flex items-center gap-4 max-w-4xl mx-auto w-full">
                 <div className="flex-grow relative">
                   <input
-                    className="w-full bg-[rgba(18,18,18,0.5)] border border-[rgba(255,255,255,0.1)] rounded-xl px-4 py-3 pr-20 text-sm text-[#F1F5F9] focus:ring-[#2CC295] focus:border-[#2CC295] placeholder:text-[rgba(203,213,225,0.5)]"
+                    className="w-full bg-ui-input border border-ui-border rounded-xl px-4 py-3 pr-20 text-sm text-ui-primary focus:ring-primary/35 focus:border-primary placeholder:text-ui-muted"
                     placeholder="Type a secure message..."
                     type="text"
                     value={userInput}
@@ -1275,13 +1159,13 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-2">
                     <button
                       ref={emojiButtonRef}
-                      className={`transition-colors ${showEmojiPicker ? 'text-[#2CC295]' : 'text-zinc-500 hover:text-white'}`}
+                      className={`transition-colors ${showEmojiPicker ? 'text-[#2CC295]' : 'text-ui-muted hover:text-ui-primary'}`}
                       onClick={() => setShowEmojiPicker(prev => !prev)}
                       type="button"
                     >
                       <Smile size={18} />
                     </button>
-                    <button className="text-zinc-500 hover:text-white transition-colors" onClick={() => fileInputRef.current?.click()}>
+                    <button className="text-ui-muted hover:text-ui-primary transition-colors" onClick={() => fileInputRef.current?.click()}>
                       <Paperclip size={18} />
                     </button>
                   </div>
@@ -1289,7 +1173,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                   {showEmojiPicker && (
                     <div
                       ref={emojiPickerRef}
-                      className="absolute bottom-full right-0 mb-2 bg-[#121212] border border-[rgba(255,255,255,0.08)] rounded-xl p-3 shadow-2xl shadow-black/70 backdrop-blur-[20px] z-[120]"
+                      className="absolute bottom-full right-0 mb-2 bg-ui-dropdown border border-ui-border-subtle rounded-xl p-3 shadow-2xl shadow-black/40 backdrop-blur-[20px] z-[120]"
                     >
                       <div className="flex flex-col gap-1.5">
                         {emojiRows.map((row, rowIdx) => (
@@ -1299,7 +1183,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                                   key={emoji}
                                   type="button"
                                   onClick={() => handleEmojiSelect(emoji)}
-                                  className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-xl cursor-pointer"
+                                  className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-ui-pill transition-colors text-xl cursor-pointer"
                                 >
                                   {emoji}
                                 </button>
@@ -1344,10 +1228,9 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
         <StudioSidebarShell widthClassName="w-[344px]" className="bg-ui-page border-l-0 p-2.5">
         <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
           {(() => {
-            const activeConv = conversations.find(c => c.id === activeConversation);
+            const activeConv = activeConversationRecord;
             const userInfo = activeConv?.userInfo;
             const AvatarComp = activeConv?.AvatarComponent;
-            const isAIAgent = activeConv?.isAIAgent;
 
             if (!userInfo) return null;
 
@@ -1355,11 +1238,7 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
               <>
                 {/* User Profile */}
                 <StudioSidebarHeader className="p-5 text-center border-b border-[var(--t-border-subtle)]">
-                  <div className={`w-16 h-16 rounded-full border-2 mx-auto mb-3 overflow-hidden flex items-center justify-center ${
-                    isAIAgent 
-                      ? 'bg-gradient-to-br from-[#2CC295] to-[#1a9d6f] border-[#2CC295]/50'
-                      : 'bg-zinc-800 border-[#27272a]'
-                  }`}>
+                  <div className="w-16 h-16 rounded-full border-2 mx-auto mb-3 overflow-hidden flex items-center justify-center bg-ui-input border-ui-border-subtle">
                     {userInfo.avatarUrl ? (
                       <img src={userInfo.avatarUrl} alt={userInfo.displayName} className="w-full h-full object-cover" />
                     ) : AvatarComp ? (
@@ -1368,61 +1247,40 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                       <Bot className="text-white" size={32} />
                     )}
                   </div>
-                  <h3 className="text-white font-bold text-sm">{userInfo.displayName}</h3>
-                  <p className="text-[10px] text-zinc-500 mt-1 uppercase tracking-widest font-bold">
+                  <h3 className="text-ui-primary font-bold text-sm">{userInfo.displayName}</h3>
+                  <p className="text-[10px] text-ui-muted mt-1 uppercase tracking-widest font-bold">
                     {userInfo.role}
                   </p>
                   <div className="mt-3 flex justify-center gap-2">
-                    {!isAIAgent && (
-                      <>
-                        {/* ✅ NEW CLEAN BUTTON - Navigate to Seller Profile */}
-                        <button 
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const targetAddress = userInfo?.walletAddress;
-                            const targetUserInfo = userInfo;
-                            
-                            console.log('🆕 NEW View Profile Button Clicked!');
-                            console.log('   Target Address:', targetAddress);
-                            console.log('   Target User Info:', targetUserInfo);
-                            
-                            if (targetAddress && onNavigateToUserProfile) {
-                              onNavigateToUserProfile(targetAddress);
-                            } else {
-                              console.error('❌ Missing address or handler');
-                            }
-                          }}
-                          className="px-4 py-2 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg text-xs font-bold text-zinc-400 hover:text-white hover:border-[#2CC295]/50 transition-all flex items-center gap-1.5"
-                        >
-                          View Profile
-                          <ArrowRight size={12} />
-                        </button>
-                        <button 
-                          onClick={() => {
-                            setReportTarget({
-                              name: userInfo.displayName,
-                              address: userInfo.walletAddress || ''
-                            });
-                            setReportReason('');
-                            setReportModalOpen(true);
-                          }}
-                          className="p-2 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg text-zinc-400 hover:text-red-400 hover:border-red-500/30 transition-colors"
-                          title="Report User"
-                        >
-                          <Flag size={14} />
-                        </button>
-                      </>
-                    )}
-                    {isAIAgent && (
-                      <button 
-                        onClick={() => onNavigateToPage?.('settings')}
-                        className="px-4 py-2 bg-[#2CC295]/10 border border-[#2CC295]/30 rounded-lg text-xs font-bold text-[#2CC295] hover:bg-[#2CC295]/20 transition-all flex items-center gap-1.5"
-                      >
-                        Configure AI
-                        <ArrowRight size={12} />
-                      </button>
-                    )}
+                    <button 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const targetAddress = userInfo?.walletAddress;
+                        
+                        if (targetAddress && onNavigateToUserProfile) {
+                          onNavigateToUserProfile(targetAddress);
+                        }
+                      }}
+                      className="px-4 py-2 bg-ui-input border border-ui-border-subtle rounded-lg text-xs font-bold text-ui-secondary hover:text-ui-primary hover:border-[#2CC295]/50 transition-all flex items-center gap-1.5"
+                    >
+                      View Profile
+                      <ArrowRight size={12} />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setReportTarget({
+                          name: userInfo.displayName,
+                          address: userInfo.walletAddress || ''
+                        });
+                        setReportReason('');
+                        setReportModalOpen(true);
+                      }}
+                      className="p-2 bg-ui-input border border-ui-border-subtle rounded-lg text-ui-secondary hover:text-red-400 hover:border-red-500/30 transition-colors"
+                      title="Report User"
+                    >
+                      <Flag size={14} />
+                    </button>
                   </div>
                 </StudioSidebarHeader>
 
@@ -1431,41 +1289,37 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                   {/* Wallet Address - Only for non-AI users */}
                   {userInfo.walletAddress && (
                     <div>
-                      <h4 className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-4">Wallet Address</h4>
+                      <h4 className="text-[10px] text-ui-muted font-bold uppercase tracking-widest mb-4">Wallet Address</h4>
                       <div 
-                        className="bg-zinc-950/50 p-3 rounded-lg border border-[#27272a] flex items-center justify-between group cursor-pointer hover:border-[#2CC295]/50 transition-colors"
+                        className="bg-ui-input p-3 rounded-lg border border-ui-border-subtle flex items-center justify-between group cursor-pointer hover:border-[#2CC295]/50 transition-colors"
                         onClick={() => copyToClipboard(userInfo.walletAddress)}
                       >
-                        <span className="text-xs font-mono text-zinc-300">{shortenUserDisplayName(userInfo.walletAddress)}</span>
-                        <Copy className="text-zinc-600 group-hover:text-[#2CC295] transition-colors" size={14} />
+                        <span className="text-xs font-mono text-ui-secondary">{shortenUserDisplayName(userInfo.walletAddress)}</span>
+                        <Copy className="text-ui-muted group-hover:text-[#2CC295] transition-colors" size={14} />
                       </div>
                     </div>
                   )}
 
-                  {/* Mutual Holdings / AI Features */}
+                  {/* Mutual Holdings */}
                   {userInfo.mutualHoldings && userInfo.mutualHoldings.length > 0 && (
                     <div>
                       <div className="flex justify-between items-center mb-4">
-                        <h4 className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
-                          {isAIAgent ? 'AI Capabilities' : 'Mutual Holdings'}
-                        </h4>
-                        {!isAIAgent && (
-                          <span className="text-[10px] text-[#2CC295] font-bold">{userInfo.mutualHoldings.length} Assets</span>
-                        )}
+                        <h4 className="text-[10px] text-ui-muted font-bold uppercase tracking-widest">Mutual Holdings</h4>
+                        <span className="text-[10px] text-[#2CC295] font-bold">{userInfo.mutualHoldings.length} Assets</span>
                       </div>
                       <div className="space-y-3">
                         {userInfo.mutualHoldings.map((holding, index) => {
                           const IconComponent = holding.icon === 'Diamond' ? Diamond : holding.icon === 'Coins' ? Coins : Zap;
                           return (
-                            <div key={index} className="p-3 bg-zinc-900/40 rounded-xl border border-[#27272a] flex items-center gap-3">
+                            <div key={index} className="p-3 bg-ui-input rounded-xl border border-ui-border-subtle flex items-center gap-3">
                               <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ 
                                 backgroundColor: `${holding.color}33` 
                               }}>
                                 <IconComponent style={{ color: holding.color }} size={14} />
                               </div>
                               <div>
-                                <p className="text-xs font-bold text-white">{holding.name}</p>
-                                <p className="text-[10px] text-zinc-500">{holding.amount}</p>
+                                <p className="text-xs font-bold text-ui-primary">{holding.name}</p>
+                                <p className="text-[10px] text-ui-muted">{holding.amount}</p>
                               </div>
                             </div>
                           );
@@ -1474,40 +1328,21 @@ export function Messages({ onNavigateToUserProfile, onNavigateToPage, initialCon
                     </div>
                   )}
 
-                  {/* AI Status - Only for AI Agent */}
-                  {isAIAgent && userInfo.interactionHistory && userInfo.interactionHistory.length > 0 && (
-                    <div className="pt-4">
-                      <h4 className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-4">AI Status</h4>
-                      <div className="space-y-4">
-                        {userInfo.interactionHistory.map((interaction, index) => (
-                          <div key={index} className="flex gap-3">
-                            <div className="w-px bg-[#27272a] relative">
-                              <div className={`absolute top-1 -left-1 w-2 h-2 rounded-full ${interaction.isRecent ? 'bg-[#2CC295]' : 'bg-zinc-600'}`}></div>
-                            </div>
-                            <div>
-                              <p className="text-xs text-zinc-300">{interaction.event}</p>
-                              <p className="text-[10px] text-zinc-500 mt-0.5">{interaction.date}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </StudioSidebarScroll>
 
-                {/* Footer - Rating for non-AI users - ✅ Dynamic from reputation system */}
-                {!isAIAgent && (() => {
+                {/* Footer - Rating from reputation system */}
+                {userInfo.walletAddress && (() => {
                   const rep = getPartnerReputation(userInfo.walletAddress);
                   const filledStars = Math.round(rep.score);
                   return (
-                    <StudioSidebarFooter className="p-6 bg-[rgba(18,18,18,0.5)] border-t border-[var(--t-border-subtle)]">
+                    <StudioSidebarFooter className="p-6 bg-ui-input border-t border-[var(--t-border-subtle)]">
                       <div className="flex items-center justify-center gap-1.5 mb-1">
-                        <span className="text-xl font-bold text-white">{rep.score}</span>
+                        <span className="text-xl font-bold text-ui-primary">{rep.score}</span>
                         <div className="flex items-center">
                           {renderStars(filledStars)}
                         </div>
                       </div>
-                      <p className="text-[10px] text-zinc-500 text-center">Based on {rep.reviewCount} reviews</p>
+                      <p className="text-[10px] text-ui-muted text-center">Based on {rep.reviewCount} reviews</p>
                     </StudioSidebarFooter>
                   );
                 })()}

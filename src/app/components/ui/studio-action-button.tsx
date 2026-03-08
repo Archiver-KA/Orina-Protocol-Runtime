@@ -35,8 +35,8 @@ export function StudioActionButton({
       : variant === 'danger'
         ? 'bg-red-500 hover:bg-red-600 text-white border-0'
       : variant === 'ghost'
-        ? 'bg-transparent border-0 text-[var(--color-button-ghost-fg)] hover:text-[var(--color-button-ghost-fg-hover)] hover:bg-[rgba(255,255,255,0.05)]'
-        : 'bg-[var(--color-button-secondary-bg)] border-0 text-white hover:bg-[var(--color-button-secondary-bg-hover)] backdrop-blur-[10px]';
+        ? 'bg-transparent border-0 text-[var(--color-button-ghost-fg)] hover:text-[var(--color-button-ghost-fg-hover)] hover:bg-[var(--t-surface-5)]'
+        : 'bg-[var(--color-button-secondary-bg)] border border-ui-border-subtle text-ui-primary hover:bg-[var(--color-button-secondary-bg-hover)] backdrop-blur-[10px]';
 
   return (
     <button

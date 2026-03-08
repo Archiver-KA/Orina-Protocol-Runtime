@@ -6,7 +6,7 @@ import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
 import { VerifiedUserIcon } from '@/app/components/verified-user-icon';
 import { getAvatarByUserId } from '@/app/components/user-avatars';
 import type { SellerProfileCardData } from '@/utils/mockSellerProfiles';
-import { followUser, unfollowUser, isFollowing } from '@/utils/profileUtils';
+import { followUser, unfollowUser, isFollowing, formatUserDisplayName } from '@/utils/profileUtils';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 
 interface ProfileSearchCardProps {
@@ -20,6 +20,7 @@ export function ProfileSearchCard({ profile, viewMode: _viewMode, onViewProfile,
   const { address: connectedAddress } = useAccount();
   const [following, setFollowing] = useState(false);
   const { requireWalletAction } = useRequireWalletAction();
+  const displayLabel = formatUserDisplayName(profile.displayName, profile.address);
 
   useEffect(() => {
     if (!connectedAddress) {
@@ -66,7 +67,7 @@ export function ProfileSearchCard({ profile, viewMode: _viewMode, onViewProfile,
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={handleCardKeyDown}
-      className="group w-full rounded-2xl overflow-hidden border-0 bg-[rgba(255,255,255,0.02)] backdrop-blur-[6px] hover:bg-[#1a1a1d] transition-all cursor-pointer"
+      className="profile-search-card-shell group w-full rounded-2xl overflow-hidden border-0 bg-[rgba(255,255,255,0.02)] backdrop-blur-[6px] hover:bg-[#1a1a1d] transition-all cursor-pointer"
     >
       <div className="relative h-32 w-full">
         {profile.bannerUrl ? (
@@ -133,7 +134,7 @@ export function ProfileSearchCard({ profile, viewMode: _viewMode, onViewProfile,
         </div>
         <div className={`absolute bottom-4 left-[4.35rem] ${!isOwnCard ? 'right-[7.5rem]' : 'right-3'} z-10 pointer-events-none`}>
           <h2 className="text-[13px] font-bold text-white tracking-tight truncate group-hover:text-[color:color-mix(in_srgb,var(--color-primary-custom)_12%,white)] transition-colors drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
-            {profile.displayName}
+            {displayLabel}
           </h2>
           <p className="text-[10px] text-zinc-300/80 truncate drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
             {profile.username}

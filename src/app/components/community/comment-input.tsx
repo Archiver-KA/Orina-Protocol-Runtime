@@ -92,20 +92,20 @@ export function CommentInput({ postId, currentUserId, currentUserName, onAddComm
           onFocus={handleFocus}
           placeholder={isConnected ? "Write a comment..." : "Connect wallet to comment..."}
           disabled={!isConnected}
-          className={`w-full px-4 py-2.5 pr-10 bg-zinc-900 border rounded-lg text-sm text-white placeholder-zinc-500 transition-all
+          className={`w-full px-4 py-2.5 pr-10 bg-ui-input border rounded-lg text-sm text-ui-primary placeholder:text-ui-muted transition-all
             ${isConnected 
-              ? 'border-zinc-800 focus:outline-none focus:border-[#2CC295] hover:border-zinc-700' 
-              : 'border-zinc-800 cursor-not-allowed opacity-75'
+              ? 'border-ui-border-subtle focus:outline-none focus:border-[#2CC295] hover:border-ui-border' 
+              : 'border-ui-border-subtle cursor-not-allowed opacity-75'
             }`}
         />
         
         {!isConnected && (
           <button
             onClick={openConnectModal}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 hover:bg-zinc-800 rounded-md transition-colors group"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 hover:bg-ui-input-focus rounded-md transition-colors group"
             title="Connect wallet"
           >
-            <Wallet size={16} className="text-zinc-500 group-hover:text-[#2CC295]" />
+            <Wallet size={16} className="text-ui-muted group-hover:text-[#2CC295]" />
           </button>
         )}
       </div>
@@ -117,7 +117,7 @@ export function CommentInput({ postId, currentUserId, currentUserName, onAddComm
         className={`p-2.5 rounded-lg transition-all flex items-center justify-center
           ${isConnected && content.trim()
             ? 'bg-[#2CC295] hover:bg-[#25a882] text-black'
-            : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+            : 'bg-ui-border-subtle text-ui-muted cursor-not-allowed'
           }`}
         title={!isConnected ? "Connect wallet to comment" : "Send comment"}
       >

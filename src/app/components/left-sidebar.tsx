@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
 } from 'lucide-react';
 import { OrinaMark } from '@/app/components/brand/OrinaMark';
+import { OrinaWordmark } from '@/app/components/brand/OrinaWordmark';
 
 interface LeftSidebarProps {
   activePage: string;
@@ -53,9 +54,7 @@ export function LeftSidebar({
               <OrinaMark />
             </div>
             {!collapsed && (
-              <span className="text-ui-strong font-bold text-[20px] tracking-[-0.3px] leading-none truncate">
-                ORINA
-              </span>
+              <OrinaWordmark className="h-[18px] w-auto text-ui-strong" />
             )}
           </div>
 

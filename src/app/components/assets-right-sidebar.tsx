@@ -5,6 +5,7 @@ import { SidebarSectionTitle } from '@/app/components/ui/studio-sidebar-parts';
 import { StudioProgressBar } from '@/app/components/ui/studio-progress-bar';
 import { StudioStatusBadge } from '@/app/components/ui/studio-status-badge';
 import { StudioMetricRow, StudioListItem } from '@/app/components/ui/studio-list-parts';
+import { useTheme } from '@/app/contexts/ThemeContext';
 
 // ✅ SYNCED: These values come from the same mock data in assets.tsx
 // When assets.tsx data changes, update these to match
@@ -57,9 +58,11 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 export function AssetsRightSidebar() {
+  const { theme } = useTheme();
   const rwaPercent = Math.round((PORTFOLIO.rwa.count / TOTAL_ASSETS) * 100);
   const receiptPercent = Math.round((PORTFOLIO.receipts.count / TOTAL_ASSETS) * 100);
   const nftPercent = 100 - rwaPercent - receiptPercent;
+  const ringCenterHex = theme === 'light' ? '#E7EDF4' : '#171717';
 
   const rwaValuePercent = Math.round((PORTFOLIO.rwa.valueETH / TOTAL_ETH) * 100);
   const receiptValuePercent = Math.round((PORTFOLIO.receipts.valueETH / TOTAL_ETH) * 100);
@@ -166,7 +169,10 @@ export function AssetsRightSidebar() {
                   )`
                 }}
               />
-              <div className="absolute inset-[15px] bg-[#171717] rounded-full flex flex-col items-center justify-center border border-ui-border-subtle">
+              <div
+                className="absolute inset-[15px] rounded-full flex flex-col items-center justify-center border border-ui-border-subtle"
+                style={{ backgroundColor: ringCenterHex }}
+              >
                 <span className="text-[9px] text-ui-muted font-bold uppercase">Total</span>
                 <span className="text-lg font-bold text-ui-primary">{TOTAL_ASSETS}</span>
                 <span className="text-[8px] text-ui-muted">assets</span>
@@ -240,7 +246,7 @@ export function AssetsRightSidebar() {
               <StudioPanel key={asset.name} className="rounded-xl p-3 group hover:border-[rgba(255,255,255,0.15)] transition-colors">
                 <StudioListItem
                   left={
-                    <div className="w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-ui-muted">
+                    <div className="w-7 h-7 rounded-lg bg-ui-input border border-ui-border-subtle flex items-center justify-center text-[10px] font-bold text-ui-muted">
                       #{i + 1}
                     </div>
                   }

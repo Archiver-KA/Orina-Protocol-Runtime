@@ -9,7 +9,7 @@ export function StudioFieldLabel({
   return (
     <label
       className={cn(
-        'block text-[10px] font-bold text-zinc-400 mb-2 uppercase tracking-widest',
+        'block text-[10px] font-bold text-ui-muted mb-2 uppercase tracking-widest',
         className
       )}
       {...props}
@@ -25,7 +25,7 @@ export function StudioFieldHint({
   ...props
 }: HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn('text-xs text-zinc-500 mt-2', className)} {...props}>
+    <p className={cn('text-xs text-ui-muted mt-2', className)} {...props}>
       {children}
     </p>
   );
@@ -67,7 +67,7 @@ export function StudioInputField({
     return (
       <input
         className={cn(
-          'w-full px-4 py-3 bg-ui-input border border-transparent rounded-full text-sm text-white placeholder:text-ui-muted transition-all',
+          'w-full px-4 py-3 bg-ui-input border border-ui-border-subtle rounded-full text-sm text-ui-primary placeholder:text-ui-muted transition-all',
           'focus:outline-none focus:ring-2 focus:ring-[#2CC295]/35',
           invalid ? 'focus:ring-red-500/30' : '',
           className,
@@ -81,14 +81,14 @@ export function StudioInputField({
   return (
     <div className={cn('relative', wrapperClassName)}>
       {hasLeftSlot ? (
-        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none">
+        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-ui-muted pointer-events-none">
           {leftSlot}
         </div>
       ) : null}
 
       <input
         className={cn(
-          'w-full py-3 bg-ui-input border border-transparent rounded-full text-sm text-white placeholder:text-ui-muted transition-all',
+          'w-full py-3 bg-ui-input border border-ui-border-subtle rounded-full text-sm text-ui-primary placeholder:text-ui-muted transition-all',
           'focus:outline-none focus:ring-2 focus:ring-[#2CC295]/35',
           hasLeftSlot ? 'pl-11' : 'pl-4',
           hasRightSlot ? 'pr-12' : 'pr-4',
@@ -100,7 +100,7 @@ export function StudioInputField({
       />
 
       {hasRightSlot ? (
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none">
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-ui-muted pointer-events-none">
           {rightSlot}
         </div>
       ) : null}
@@ -126,7 +126,7 @@ export function StudioTextareaField({
   return (
     <textarea
       className={cn(
-        'w-full px-4 py-3 bg-ui-input border border-transparent rounded-[20px] text-sm text-white placeholder:text-ui-muted transition-all resize-none',
+        'w-full px-4 py-3 bg-ui-input border border-ui-border-subtle rounded-[20px] text-sm text-ui-primary placeholder:text-ui-muted transition-all resize-none',
         'focus:outline-none focus:ring-2 focus:ring-[#2CC295]/35',
         invalid ? 'focus:ring-red-500/30' : '',
         className

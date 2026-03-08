@@ -9,6 +9,7 @@ import { copyToClipboard } from '@/utils/clipboard';
 import { useGuestMode } from '@/hooks/useGuestMode';
 import { useAccessMode } from '@/hooks/useAccessMode';
 import { clearWalletAuthSession } from '@/utils/walletAuthSession';
+import { formatUserDisplayName } from '@/utils/profileUtils';
 
 interface WalletConnectButtonProps {
   onNavigate?: (page: string) => void;
@@ -79,10 +80,8 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
     };
   }, []);
 
-  const resolvedLabel = (userData?.displayName || userData?.username || '').trim();
-  const navLabel = resolvedLabel
-    ? resolvedLabel.slice(0, 3).toUpperCase()
-    : (address ? address.slice(2, 5).toUpperCase() : 'USR');
+  const resolvedLabel = formatUserDisplayName(userData?.displayName, address);
+  const navLabel = resolvedLabel || (address ? formatAddress(address) : 'User');
 
   const dropdownPanelStyle = {
     animation: 'walletDropdownIn 0.15s ease',
@@ -92,7 +91,7 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
   } as const;
 
   const dropdownItemClass =
-    'w-full flex items-center gap-3 px-4 py-3 text-sm text-ui-secondary hover:bg-[rgba(255,255,255,0.05)] hover:text-ui-primary transition-colors text-left';
+    'w-full flex items-center gap-3 px-4 py-3 text-sm text-[rgba(203,213,225,0.92)] hover:bg-[rgba(255,255,255,0.05)] hover:text-white transition-colors text-left';
 
   const renderWalletDropdown = (align: 'right' | 'left') => (
     <div
@@ -102,12 +101,12 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
       <style>{`@keyframes walletDropdownIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
       <div className="px-4 py-3">
-        <p className="text-[10px] text-ui-muted uppercase tracking-[0.8px] font-bold mb-1">Connected Wallet</p>
+        <p className="text-[10px] text-[rgba(148,163,184,0.86)] uppercase tracking-[0.8px] font-bold mb-1">Connected Wallet</p>
         <div className="flex items-start gap-2">
-          <p className="text-xs font-mono text-ui-primary break-all flex-1 leading-5">{address}</p>
+          <p className="text-xs font-mono text-[rgba(226,232,240,0.95)] break-all flex-1 leading-5">{address}</p>
           <button
             onClick={handleCopyAddress}
-            className="mt-0.5 p-1 rounded-md text-ui-muted hover:text-ui-primary hover:bg-[var(--t-surface-5)] transition-colors shrink-0"
+            className="mt-0.5 p-1 rounded-md text-[rgba(148,163,184,0.9)] hover:text-white hover:bg-[rgba(255,255,255,0.08)] transition-colors shrink-0"
             title="Copy wallet address"
           >
             {copied ? <CheckCircle size={14} className="text-[#2CC295]" /> : <Copy size={14} />}
@@ -125,7 +124,7 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
           e.currentTarget.style.background = 'transparent';
         }}
       >
-        <User size={18} className="text-ui-muted" />
+        <User size={18} className="text-[rgba(148,163,184,0.9)]" />
         <span className="text-xs font-semibold">Profile</span>
       </button>
 
@@ -139,7 +138,7 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
           e.currentTarget.style.background = 'transparent';
         }}
       >
-        <Heart size={18} className="text-ui-muted" />
+        <Heart size={18} className="text-[rgba(148,163,184,0.9)]" />
         <span className="text-xs font-semibold">Favorites</span>
       </button>
 
@@ -153,13 +152,13 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
           e.currentTarget.style.background = 'transparent';
         }}
       >
-        <Settings size={18} className="text-ui-muted" />
+        <Settings size={18} className="text-[rgba(148,163,184,0.9)]" />
         <span className="text-xs font-semibold">Settings</span>
       </button>
 
       <button
         onClick={handleDisconnect}
-        className={`${dropdownItemClass} text-ui-muted hover:text-red-400`}
+        className={`${dropdownItemClass} text-[rgba(148,163,184,0.9)] hover:text-red-400`}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = 'var(--t-surface-5)';
         }}
@@ -204,7 +203,7 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
           onMouseEnter={handleMouseEnter}
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
           className="w-full flex items-center justify-center h-9 rounded-full hover:bg-[rgba(255,255,255,0.06)] transition-all"
-          title={userData?.displayName || userData?.username || formatAddress(address)}
+          title={resolvedLabel || formatAddress(address)}
         >
           {userData?.avatarUrl ? (
             <img src={userData.avatarUrl} alt="Profile" className="w-7 h-7 rounded-full object-cover border-0" />
@@ -225,10 +224,10 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
       <button
         onMouseEnter={handleMouseEnter}
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        className="flex items-center justify-between gap-2 min-w-[104px] h-[43px] px-3 bg-[rgba(18,18,18,0.5)] hover:bg-[rgba(18,18,18,0.65)] rounded-[50px] transition-all shadow-none"
+        className="flex items-center justify-between gap-2 min-w-[132px] max-w-[220px] h-[43px] px-3 bg-[rgba(18,18,18,0.5)] hover:bg-[rgba(18,18,18,0.65)] rounded-[50px] transition-all shadow-none"
       >
         <div className="min-w-0 flex-1 text-left">
-          <span className="text-[14px] leading-none font-bold text-ui-strong block truncate">
+          <span className="text-[14px] leading-none font-bold text-[rgba(241,245,249,0.96)] block truncate">
             {navLabel}
           </span>
         </div>

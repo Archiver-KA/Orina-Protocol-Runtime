@@ -1,15 +1,22 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { readWalletThemePreference, writeWalletThemePreference } from "@/utils/themePreferences";
 
 export type Theme = "dark" | "light";
 
 interface ThemeContextValue {
   theme: Theme;
   toggleTheme: () => void;
+  setTheme: (theme: Theme) => void;
+  applyThemeFromWallet: (address?: string | null) => Theme;
+  activeWalletAddress: string | null;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: "dark",
   toggleTheme: () => {},
+  setTheme: () => {},
+  applyThemeFromWallet: () => "dark",
+  activeWalletAddress: null,
 });
 
 const cssVars: Record<Theme, Record<string, string>> = {
@@ -100,7 +107,8 @@ const cssVars: Record<Theme, Record<string, string>> = {
 };
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setThemeState] = useState<Theme>("dark");
+  const [activeWalletAddress, setActiveWalletAddress] = useState<string | null>(null);
 
   useEffect(() => {
     const vars = cssVars[theme];
@@ -111,18 +119,49 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
-  useEffect(() => {
-    const vars = cssVars.dark;
-    Object.entries(vars).forEach(([k, v]) => {
-      document.documentElement.style.setProperty(k, v);
-    });
-    document.documentElement.setAttribute("data-theme", "dark");
-    document.documentElement.classList.add("dark");
+  const persistWalletTheme = useCallback((nextTheme: Theme, walletAddress?: string | null) => {
+    if (!walletAddress) return;
+    writeWalletThemePreference(walletAddress, nextTheme);
   }, []);
 
-  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  const setTheme = useCallback((nextTheme: Theme) => {
+    setThemeState(nextTheme);
+    persistWalletTheme(nextTheme, activeWalletAddress);
+  }, [activeWalletAddress, persistWalletTheme]);
 
-  return <ThemeContext.Provider value={{ theme, toggleTheme }}>{children}</ThemeContext.Provider>;
+  const applyThemeFromWallet = useCallback((address?: string | null): Theme => {
+    const normalizedAddress = address?.toLowerCase() ?? null;
+    setActiveWalletAddress(normalizedAddress);
+
+    const nextTheme = readWalletThemePreference(normalizedAddress);
+    setThemeState(nextTheme);
+    return nextTheme;
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setThemeState((currentTheme) => {
+      const nextTheme = currentTheme === "dark" ? "light" : "dark";
+      persistWalletTheme(nextTheme, activeWalletAddress);
+      return nextTheme;
+    });
+  }, [activeWalletAddress, persistWalletTheme]);
+
+  const contextValue = useMemo(
+    () => ({
+      theme,
+      toggleTheme,
+      setTheme,
+      applyThemeFromWallet,
+      activeWalletAddress,
+    }),
+    [theme, toggleTheme, setTheme, applyThemeFromWallet, activeWalletAddress],
+  );
+
+  return (
+    <ThemeContext.Provider value={contextValue}>
+      {children}
+    </ThemeContext.Provider>
+  );
 }
 
 export const useTheme = () => useContext(ThemeContext);

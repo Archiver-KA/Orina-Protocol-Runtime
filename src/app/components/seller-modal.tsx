@@ -126,12 +126,12 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/70 backdrop-blur-[10px]"
+      className="studio-portal-backdrop fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/70 backdrop-blur-[10px]"
       onClick={handleOverlayClick}
     >
-      <div className="w-full max-w-2xl h-[90vh] rounded-[24px] border-0 bg-[rgba(255,255,255,0.03)] backdrop-blur-[20px] shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col relative">
+      <div className="studio-modal-theme studio-glass-modal w-full max-w-2xl h-[90vh] rounded-[24px] border border-ui-border-subtle bg-ui-card backdrop-blur-[20px] shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col relative">
         {/* Close Button */}
-        <StudioModalCloseButton onClick={onClose} className="absolute top-8 right-8 z-20" />
+        <StudioModalCloseButton onClick={onClose} className="studio-glass-secondary absolute top-8 right-8 z-20" />
 
         {/* Header Section */}
         <div className="p-10 pb-6 shrink-0">
@@ -140,19 +140,19 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
             <div className="relative mb-4">
               <img
                 alt={seller.name}
-                className="w-24 h-24 rounded-full object-cover border-4 border-white/10 shadow-2xl"
+                className="w-24 h-24 rounded-full object-cover border-4 border-ui-border-subtle shadow-2xl"
                 src={seller.avatar}
               />
               {seller.isVerified && (
-                <div className="absolute bottom-1 right-1 bg-[var(--color-primary-custom)] rounded-full p-1 border-4 border-[rgba(18,18,18,0.86)] flex items-center justify-center">
-                  <CheckCircle size={12} className="text-white" fill="currentColor" />
+                <div className="absolute bottom-1 right-1 bg-[var(--color-primary-custom)] rounded-full p-1 border-4 border-ui-border-subtle flex items-center justify-center">
+                  <CheckCircle size={12} className="text-[var(--color-button-primary-fg)]" fill="currentColor" />
                 </div>
               )}
             </div>
 
             {/* Name & Badges */}
             <div className="flex items-center gap-2 mb-2">
-              <h2 className="text-2xl font-extrabold text-white">{seller.name}</h2>
+              <h2 className="text-2xl font-extrabold text-ui-primary">{seller.name}</h2>
               {seller.isCreator && (
                 <span className="bg-[var(--color-primary-custom)]/10 text-primary text-[9px] px-2 py-0.5 rounded uppercase font-bold border border-[var(--color-primary-custom)]/20 tracking-tighter">
                   Creator
@@ -173,35 +173,35 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
         </div>
 
         {/* Stats Section */}
-        <div className="px-10 py-0 border-t border-[var(--color-panel-border)] bg-zinc-900/10 shrink-0">
+        <div className="studio-glass-header px-10 py-0 border-t border-ui-border-subtle bg-[var(--t-surface-2)] shrink-0">
           <div className="grid grid-cols-3 gap-4 py-6">
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 mb-1">
                 <Star className="text-yellow-500" size={14} fill="currentColor" />
-                <span className="text-white font-bold text-base tracking-tight">{seller.rating}</span>
+                <span className="text-ui-primary font-bold text-base tracking-tight">{seller.rating}</span>
               </div>
-              <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Rating</p>
+              <p className="text-[10px] text-ui-muted uppercase font-bold tracking-widest">Rating</p>
             </div>
             <div className="text-center">
-              <p className="text-white font-bold text-base tracking-tight mb-1">{seller.totalSales}</p>
-              <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Total Sales</p>
+              <p className="text-ui-primary font-bold text-base tracking-tight mb-1">{seller.totalSales}</p>
+              <p className="text-[10px] text-ui-muted uppercase font-bold tracking-widest">Total Sales</p>
             </div>
             <div className="text-center">
-              <p className="text-white font-bold text-base tracking-tight mb-1">{seller.floorPrice}</p>
-              <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Floor Price</p>
+              <p className="text-ui-primary font-bold text-base tracking-tight mb-1">{seller.floorPrice}</p>
+              <p className="text-[10px] text-ui-muted uppercase font-bold tracking-widest">Floor Price</p>
             </div>
           </div>
 
-          <p className="text-center text-[10px] text-zinc-600 mb-6 italic">{seller.memberSince}</p>
+          <p className="text-center text-[10px] text-ui-muted mb-6 italic">{seller.memberSince}</p>
 
           {/* Tabs */}
-          <div className="flex items-center justify-center gap-8 border-t border-[var(--color-panel-border)]/60">
+          <div className="flex items-center justify-center gap-8 border-t border-ui-border-subtle">
             <button
               onClick={() => setActiveTab('creations')}
               className={`py-4 text-xs uppercase font-bold tracking-widest border-b-2 transition-all ${
                 activeTab === 'creations'
-                  ? 'border-[var(--color-primary-custom)] text-white'
-                  : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                  ? 'border-[var(--color-primary-custom)] text-ui-primary'
+                  : 'border-transparent text-ui-muted hover:text-ui-secondary'
               }`}
             >
               Creations
@@ -210,8 +210,8 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
               onClick={() => setActiveTab('reviews')}
               className={`py-4 text-xs uppercase font-bold tracking-widest border-b-2 transition-all ${
                 activeTab === 'reviews'
-                  ? 'border-[var(--color-primary-custom)] text-white'
-                  : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                  ? 'border-[var(--color-primary-custom)] text-ui-primary'
+                  : 'border-transparent text-ui-muted hover:text-ui-secondary'
               }`}
             >
               Reviews ({seller.reviewCount})
@@ -223,7 +223,7 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
         {activeTab === 'creations' && (
           <div className="flex-grow overflow-y-auto custom-scrollbar p-10 pt-8">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xs uppercase font-bold text-zinc-400 tracking-widest">Featured Creations</h3>
+              <h3 className="text-xs uppercase font-bold text-ui-secondary tracking-widest">Featured Creations</h3>
               <span className="text-xs text-primary font-medium hover:underline cursor-pointer">View All</span>
             </div>
 
@@ -231,7 +231,7 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
               {featuredNFTs.map((nft) => (
                 <div
                   key={nft.id}
-                  className="bg-[rgba(255,255,255,0.02)] border border-[var(--color-panel-border)] backdrop-blur-xl rounded-2xl p-2 hover:bg-[rgba(255,255,255,0.04)] hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+                  className="studio-glass-surface bg-[var(--t-surface-5)] border border-ui-border-subtle backdrop-blur-xl rounded-2xl p-2 hover:bg-[var(--t-surface-10)] hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
                 >
                   <div className="aspect-square rounded-xl overflow-hidden mb-3">
                     <img
@@ -241,9 +241,9 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
                     />
                   </div>
                   <div className="px-1 pb-1">
-                    <p className="text-[10px] font-bold text-white truncate mb-1">{nft.name}</p>
+                    <p className="text-[10px] font-bold text-ui-primary truncate mb-1">{nft.name}</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-zinc-500">Price</span>
+                      <span className="text-[10px] text-ui-muted">Price</span>
                       <span className="text-[10px] font-bold text-primary">{nft.price}</span>
                     </div>
                   </div>
@@ -265,8 +265,8 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
           <div className="flex-grow overflow-y-auto custom-scrollbar p-10 pt-8">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
-                <h3 className="text-xs uppercase font-bold text-zinc-400 tracking-widest">Detailed Feedback</h3>
-                <div className="flex items-center gap-1 bg-zinc-800 px-2 py-0.5 rounded text-[10px] font-bold text-white">
+                <h3 className="text-xs uppercase font-bold text-ui-secondary tracking-widest">Detailed Feedback</h3>
+                <div className="flex items-center gap-1 bg-[var(--t-surface-10)] px-2 py-0.5 rounded text-[10px] font-bold text-ui-primary border border-ui-border-subtle">
                   <Star className="text-yellow-500" size={12} fill="currentColor" />
                   {seller.rating} ({seller.reviewCount} Reviews)
                 </div>
@@ -277,7 +277,7 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
                   className={`text-[10px] font-bold uppercase tracking-tighter px-3 py-1 rounded-full transition-colors ${
                     reviewFilter === 'all'
                       ? 'bg-[var(--color-primary-custom)]/20 text-primary border border-[var(--color-primary-custom)]/30'
-                      : 'hover:bg-zinc-800 text-zinc-500 border border-zinc-800'
+                      : 'hover:bg-[var(--t-surface-10)] text-ui-muted border border-ui-border-subtle'
                   }`}
                 >
                   All
@@ -287,7 +287,7 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
                   className={`text-[10px] font-bold uppercase tracking-tighter px-3 py-1 rounded-full transition-colors ${
                     reviewFilter === 'positive'
                       ? 'bg-[var(--color-primary-custom)]/20 text-primary border border-[var(--color-primary-custom)]/30'
-                      : 'hover:bg-zinc-800 text-zinc-500 border border-zinc-800'
+                      : 'hover:bg-[var(--t-surface-10)] text-ui-muted border border-ui-border-subtle'
                   }`}
                 >
                   Positive
@@ -297,7 +297,7 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
                   className={`text-[10px] font-bold uppercase tracking-tighter px-3 py-1 rounded-full transition-colors ${
                     reviewFilter === 'critical'
                       ? 'bg-[var(--color-primary-custom)]/20 text-primary border border-[var(--color-primary-custom)]/30'
-                      : 'hover:bg-zinc-800 text-zinc-500 border border-zinc-800'
+                      : 'hover:bg-[var(--t-surface-10)] text-ui-muted border border-ui-border-subtle'
                   }`}
                 >
                   Critical
@@ -309,23 +309,23 @@ export function SellerModal({ isOpen, onClose, seller }: SellerModalProps) {
               {reviews.map((review) => (
                 <div
                   key={review.id}
-                  className="bg-[rgba(255,255,255,0.02)] border border-[var(--color-panel-border)] backdrop-blur-xl rounded-2xl p-5"
+                  className="studio-glass-surface bg-[var(--t-surface-5)] border border-ui-border-subtle backdrop-blur-xl rounded-2xl p-5"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-zinc-800 border border-white/5 overflow-hidden">
+                      <div className="w-10 h-10 rounded-full bg-[var(--t-surface-10)] border border-ui-border-subtle overflow-hidden">
                         <img alt={review.author} className="w-full h-full object-cover" src={review.avatar} />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-white">{review.author}</p>
+                        <p className="text-sm font-bold text-ui-primary">{review.author}</p>
                         <div className="flex gap-0.5">
                           {renderStars(review.rating)}
                         </div>
                       </div>
                     </div>
-                    <span className="text-[10px] text-zinc-500 font-medium">{review.date}</span>
+                    <span className="text-[10px] text-ui-muted font-medium">{review.date}</span>
                   </div>
-                  <p className="text-sm text-zinc-400 leading-relaxed italic">"{review.comment}"</p>
+                  <p className="text-sm text-ui-secondary leading-relaxed italic">"{review.comment}"</p>
                 </div>
               ))}
             </div>

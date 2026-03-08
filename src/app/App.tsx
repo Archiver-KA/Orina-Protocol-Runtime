@@ -12,23 +12,15 @@ import { AssetsRightSidebar } from '@/app/components/assets-right-sidebar';
 import { Community } from '@/app/components/community';
 import { CommunityRightSidebar } from '@/app/components/community-right-sidebar';
 import { Messages } from '@/app/components/messages';
-import { Profile } from '@/app/components/profile';
 import { History } from '@/app/components/history';
 import { HistoryRightSidebar } from '@/app/components/history-right-sidebar';
 import { EnhancedProfile } from '@/app/components/profile/enhanced-profile'; // ✅ Unified profile for both owner & visitor modes
 import { Settings } from '@/app/components/settings';
-import { AIAgentTest } from '@/app/components/ai-agent-test';
-import { NotificationDemo } from '@/app/components/notifications/notification-demo';
 import { AssetDetailsPage } from '@/app/components/asset-details/asset-details-page';
 import { SearchPage } from '@/app/components/search/search-page';
 import { FavoritesWatchlistPage } from '@/app/components/favorites/favorites-watchlist-page';
-import { AnalyticsDashboard } from '@/app/components/analytics/analytics-dashboard';
 import { CommandPalette } from '@/app/components/command-palette/command-palette';
-import { BulkOperationsDemo } from '@/app/components/bulk-operations/bulk-operations-demo';
-import { WalletDemo } from '@/app/components/wallet/wallet-demo';
 import { WalletModals } from '@/app/components/wallet/wallet-modals';
-import { StyleGuide } from '@/app/pages/StyleGuide';
-import { IPFSTestPage } from '@/app/components/ipfs-test-page';
 import { PublicHomePage } from '@/app/components/public-home-page';
 import { useState, useEffect, useRef } from 'react';
 import { Web3Provider } from '@/providers/Web3Provider';
@@ -37,7 +29,7 @@ import { WalletModalProvider } from '@/contexts/WalletModalContext';
 import { UserProvider } from '@/contexts/UserContext';
 import { WalletConnectionStatus } from '@/app/components/wallet-connection-status';
 import { Toaster } from '@/app/components/ui/sonner';
-import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut';
+import { useTheme } from '@/app/contexts/ThemeContext';
 import { useUserInitialization } from '@/hooks/useUserInitialization';
 import { cleanupAllStaleSellerProfiles } from '@/utils/cleanupSellerProfiles';
 import { useAccessMode } from '@/hooks/useAccessMode';
@@ -68,6 +60,7 @@ function AppContent({
   // Initialize user data when wallet connects (must be inside Web3Provider)
   useUserInitialization();
   const { addNotification } = useNotifications();
+  const { applyThemeFromWallet } = useTheme();
 
   const { isGuest, effectiveConnectedAddress, canAccessPage, resolvePageForMode } = useAccessMode();
   const accessGuard = useAccessGuard(setActivePage);
@@ -88,6 +81,10 @@ function AppContent({
       setActivePage('overview');
     }
   }, [effectiveConnectedAddress, activePage, setActivePage]);
+
+  useEffect(() => {
+    applyThemeFromWallet(effectiveConnectedAddress ?? null);
+  }, [effectiveConnectedAddress, applyThemeFromWallet]);
 
   useEffect(() => {
     chatNotificationBaselineReadyRef.current = false;
@@ -215,11 +212,13 @@ function AppContent({
   if (!effectiveConnectedAddress && activePage === 'home') {
     return (
       <>
-        <Toaster position="top-right" theme="dark" />
-        <div className="h-screen bg-ui-page text-ui-secondary overflow-hidden flex flex-col">
-          <Navbar activePage={activePage} setActivePage={guardedSetActivePage} onSearch={handleSearch} isGuest={isGuest} />
-          <div className="flex-1 min-h-0">
+        <Toaster position="top-right" />
+        <div className="relative h-screen bg-ui-page text-ui-secondary overflow-hidden">
+          <div className="absolute inset-0">
             <PublicHomePage />
+          </div>
+          <div className="absolute inset-x-0 top-0 z-20">
+            <Navbar activePage={activePage} setActivePage={guardedSetActivePage} onSearch={handleSearch} isGuest={isGuest} />
           </div>
         </div>
         <WalletModals />
@@ -229,7 +228,7 @@ function AppContent({
 
   return (
     <>
-      <Toaster position="top-right" theme="dark" />
+      <Toaster position="top-right" />
       {/* Outer: flex-row so sidebar spans full height */}
       <div className="h-screen bg-ui-page text-ui-secondary overflow-hidden flex flex-row">
         {/* Left: Native Bar (full height) */}
@@ -251,7 +250,7 @@ function AppContent({
             className={isGuest ? 'flex-1 overflow-hidden bg-ui-page text-ui-secondary' : 'flex-1 overflow-hidden bg-ui-page text-ui-secondary'}
             style={!isGuest ? {
               display: 'grid',
-              gridTemplateColumns: (['marketplace', 'market-insights', 'messages', 'profile', 'settings', 'ai-agent-test', 'notification-demo', 'asset-details', 'favorites', 'watchlist', 'bulk-demo', 'wallet-demo', 'search', 'style-guide', 'ipfs-test'].includes(activePage))
+              gridTemplateColumns: (['marketplace', 'market-insights', 'messages', 'profile', 'settings', 'asset-details', 'favorites', 'watchlist', 'search'].includes(activePage))
                 ? '1fr'
                 : '1fr 344px',
             } : undefined}
@@ -278,9 +277,7 @@ function AppContent({
             {!isGuest && activePage === 'assets' && <AssetsRightSidebar />}
             {!isGuest && activePage === 'community' && <CommunityRightSidebar />}
             {!isGuest && activePage === 'history' && <HistoryRightSidebar />}
-            {activePage === 'settings' && <Settings onNavigateToPage={guardedSetActivePage} />}
-            {activePage === 'ai-agent-test' && <AIAgentTest sellerAddress="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb" />}
-            {activePage === 'notification-demo' && <NotificationDemo />}
+            {activePage === 'settings' && <Settings />}
             {activePage === 'asset-details' && (
               <AssetDetailsPage
                 assetId={selectedAssetId}
@@ -307,10 +304,6 @@ function AppContent({
                 onNavigateToUserProfile={guardedNavigateToUserProfile}
               />
             )}
-            {activePage === 'bulk-demo' && <BulkOperationsDemo />}
-            {activePage === 'wallet-demo' && <WalletDemo />}
-            {activePage === 'style-guide' && <StyleGuide />}
-            {activePage === 'ipfs-test' && <IPFSTestPage />}
             <WalletConnectionStatus />
           </main>
         </div>
@@ -347,7 +340,6 @@ export default function App() {
     if (page === 'profile') {
       // Clear selectedProfileAddress so EnhancedProfile falls back to connectedAddress (own profile)
       setSelectedProfileAddress(null);
-      console.log('🏠 [Navigation] Navigating to OWN profile (cleared selectedProfileAddress)');
     }
     setActivePage(page);
   };
@@ -393,14 +385,8 @@ export default function App() {
 
   // 🧹 CLEANUP: Run comprehensive seller profile cleanup on app startup
   useEffect(() => {
-    console.log('🚀 [App] Starting up - running seller profile cleanup...');
     const report = cleanupAllStaleSellerProfiles();
-
-    if (report.totalCleaned > 0) {
-      console.log('✅ [App] Cleanup complete - removed', report.totalCleaned, 'stale profiles');
-    } else {
-      console.log('✅ [App] No cleanup needed - storage is clean');
-    }
+    void report;
   }, []); // Run once on mount
 
   // NOTE: ⌘K is now handled by Navbar search bar
@@ -459,7 +445,6 @@ export default function App() {
       return;
     }
 
-    console.log('👤 [Navigation] Navigating to profile:', walletAddress);
     setPreviousPage(activePage);
     setSelectedProfileAddress(walletAddress);
     setActivePage('profile');
@@ -470,7 +455,7 @@ export default function App() {
     const sidebarWidth = sidebarCollapsed ? '88px' : '248px';
 
     // Pages without right sidebar (search has its own right sidebar built-in)
-    if (activePage === 'marketplace' || activePage === 'market-insights' || activePage === 'messages' || activePage === 'profile' || activePage === 'settings' || activePage === 'ai-agent-test' || activePage === 'notification-demo' || activePage === 'asset-details' || activePage === 'favorites' || activePage === 'watchlist' || activePage === 'bulk-demo' || activePage === 'wallet-demo' || activePage === 'search' || activePage === 'style-guide' || activePage === 'ipfs-test') {
+    if (activePage === 'marketplace' || activePage === 'market-insights' || activePage === 'messages' || activePage === 'profile' || activePage === 'settings' || activePage === 'asset-details' || activePage === 'favorites' || activePage === 'watchlist' || activePage === 'search') {
       return `grid-cols-[${sidebarWidth}_1fr]`;
     }
 

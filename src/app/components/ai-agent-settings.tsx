@@ -5,10 +5,9 @@ import { projectId, publicAnonKey } from '/utils/supabase/info';
 
 interface AIAgentSettingsProps {
   walletAddress: string;
-  onNavigateToTest?: () => void;
 }
 
-export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSettingsProps) {
+export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
   const [config, setConfig] = useState<AIAgentConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -109,36 +108,36 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-3">
+          <h3 className="text-[10px] font-bold text-ui-muted uppercase tracking-widest flex items-center gap-3">
             <Bot className="text-[#2CC295]" size={18} />
             AI Agent for Messages
           </h3>
-          <p className="text-sm text-zinc-500 mt-2">
+          <p className="text-sm text-ui-muted mt-2">
             Let AI handle customer inquiries automatically in Messages
           </p>
         </div>
       </div>
 
       {/* Enable Toggle */}
-      <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-5">
+      <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-5">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <h4 className="text-white font-bold">Enable AI Agent</h4>
+              <h4 className="text-ui-primary font-bold">Enable AI Agent</h4>
               {enabled && (
                 <span className="text-xs bg-[#2CC295]/10 text-[#2CC295] border border-[#2CC295]/20 px-2 py-0.5 rounded uppercase font-bold">
                   Active
                 </span>
               )}
             </div>
-            <p className="text-sm text-zinc-500 mt-1">
+            <p className="text-sm text-ui-muted mt-1">
               AI will automatically respond to customer messages on your behalf
             </p>
           </div>
           <button
             onClick={() => setEnabled(!enabled)}
             className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors flex-shrink-0 ${
-              enabled ? 'bg-[#2CC295]' : 'bg-zinc-700'
+              enabled ? 'bg-[#2CC295]' : 'bg-ui-border'
             }`}
           >
             <span
@@ -155,7 +154,7 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
         <div className="space-y-4">
           {/* Agent Name */}
           <div>
-            <label className="block text-xs font-bold text-zinc-400 uppercase mb-2">
+            <label className="block text-xs font-bold text-ui-muted uppercase mb-2">
               AI Agent Name
             </label>
             <input
@@ -163,16 +162,16 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
               value={agentName}
               onChange={(e) => setAgentName(e.target.value)}
               placeholder="e.g., Tesla Sales Assistant, Property Bot"
-              className="w-full bg-[rgba(255,255,255,0.02)] border-0 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#2CC295]/50"
+              className="w-full bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg px-4 py-2.5 text-ui-primary text-sm placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295]/50"
             />
-            <p className="text-xs text-zinc-500 mt-1">
+            <p className="text-xs text-ui-muted mt-1">
               This name will be shown to customers in Messages
             </p>
           </div>
 
           {/* Behavior */}
           <div>
-            <label className="block text-xs font-bold text-zinc-400 uppercase mb-2">
+            <label className="block text-xs font-bold text-ui-muted uppercase mb-2">
               AI Behavior
             </label>
             <div className="space-y-2">
@@ -181,8 +180,8 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
                   key={mode}
                   className={`flex items-start gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${
                     behavior === mode
-                      ? 'bg-[#2CC295]/5 border-[#2CC295]/30'
-                      : 'bg-zinc-900/50 border-[#27272a] hover:border-[#2CC295]/20'
+                      ? 'bg-[#2CC295]/10 border-[#2CC295]/30'
+                      : 'bg-[var(--t-surface-5)] border-ui-border-subtle hover:border-[#2CC295]/20'
                   }`}
                 >
                   <input
@@ -190,11 +189,11 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
                     name="behavior"
                     checked={behavior === mode}
                     onChange={() => setBehavior(mode)}
-                    className="mt-0.5 w-4 h-4 text-[#2CC295] bg-zinc-800 border-[#27272a] focus:ring-0 focus:ring-offset-0"
+                    className="mt-0.5 w-4 h-4 text-[#2CC295] bg-[var(--t-surface-10)] border-ui-border focus:ring-0 focus:ring-offset-0"
                   />
                   <div className="flex-1">
-                    <div className="text-sm font-bold text-white capitalize">{mode}</div>
-                    <div className="text-xs text-zinc-500 mt-0.5">
+                    <div className="text-sm font-bold text-ui-primary capitalize">{mode}</div>
+                    <div className="text-xs text-ui-muted mt-0.5">
                       {mode === 'conservative' && 'Only answer direct questions. Minimal engagement.'}
                       {mode === 'moderate' && 'Answer questions and suggest related products. Balanced approach.'}
                       {mode === 'aggressive' && 'Proactive selling. Suggest products and create urgency.'}
@@ -206,17 +205,17 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
           </div>
 
           {/* Auto Reply */}
-          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-lg p-4">
+          <div className="bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg p-4">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 checked={autoReply}
                 onChange={(e) => setAutoReply(e.target.checked)}
-                className="w-4 h-4 rounded border-[#27272a] bg-zinc-800 checked:bg-[#2CC295] checked:border-[#2CC295] focus:ring-0 focus:ring-offset-0"
+                className="w-4 h-4 rounded border-ui-border bg-[var(--t-surface-10)] checked:bg-[#2CC295] checked:border-[#2CC295] focus:ring-0 focus:ring-offset-0"
               />
               <div className="flex-1">
-                <div className="text-sm font-bold text-white">Auto-reply to new messages</div>
-                <div className="text-xs text-zinc-500 mt-0.5">
+                <div className="text-sm font-bold text-ui-primary">Auto-reply to new messages</div>
+                <div className="text-xs text-ui-muted mt-0.5">
                   Automatically respond when customers send messages
                 </div>
               </div>
@@ -225,7 +224,7 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
 
           {/* Greeting Message (Optional) */}
           <div>
-            <label className="block text-xs font-bold text-zinc-400 uppercase mb-2">
+            <label className="block text-xs font-bold text-ui-muted uppercase mb-2">
               Custom Greeting (Optional)
             </label>
             <textarea
@@ -233,9 +232,9 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
               onChange={(e) => setGreetingMessage(e.target.value)}
               placeholder="Leave empty to use default greeting..."
               rows={3}
-              className="w-full bg-[rgba(255,255,255,0.02)] border-0 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#2CC295]/50 resize-none"
+              className="w-full bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg px-4 py-2.5 text-ui-primary text-sm placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295]/50 resize-none"
             />
-            <p className="text-xs text-zinc-500 mt-1">
+            <p className="text-xs text-ui-muted mt-1">
               Custom message when AI first greets customers
             </p>
           </div>
@@ -280,33 +279,22 @@ export function AIAgentSettings({ walletAddress, onNavigateToTest }: AIAgentSett
       {enabled && (
         <>
           <div className="grid grid-cols-3 gap-4 pt-4">
-            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
+            <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-4">
               <MessageSquare className="text-[#2CC295] mb-2" size={16} />
-              <div className="text-xs text-zinc-400 uppercase font-bold">Response Time</div>
-              <div className="text-lg font-bold text-white mt-1">Instant</div>
+              <div className="text-xs text-ui-secondary uppercase font-bold">Response Time</div>
+              <div className="text-lg font-bold text-ui-primary mt-1">Instant</div>
             </div>
-            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
+            <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-4">
               <Zap className="text-[#2CC295] mb-2" size={16} />
-              <div className="text-xs text-zinc-400 uppercase font-bold">Availability</div>
-              <div className="text-lg font-bold text-white mt-1">24/7</div>
+              <div className="text-xs text-ui-secondary uppercase font-bold">Availability</div>
+              <div className="text-lg font-bold text-ui-primary mt-1">24/7</div>
             </div>
-            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
+            <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-4">
               <Settings className="text-[#2CC295] mb-2" size={16} />
-              <div className="text-xs text-zinc-400 uppercase font-bold">Mode</div>
-              <div className="text-lg font-bold text-white mt-1 capitalize">{behavior}</div>
+              <div className="text-xs text-ui-secondary uppercase font-bold">Mode</div>
+              <div className="text-lg font-bold text-ui-primary mt-1 capitalize">{behavior}</div>
             </div>
           </div>
-
-          {/* Test AI Agent Button */}
-          {onNavigateToTest && config && (
-            <button
-              onClick={onNavigateToTest}
-              className="w-full px-4 py-3 bg-[rgba(255,255,255,0.05)] border border-[#2CC295]/40 text-[#2CC295] rounded-full text-sm font-bold hover:bg-[#2CC295]/10 transition-colors flex items-center justify-center gap-2"
-            >
-              <Bot size={18} />
-              Test AI Agent in Chat
-            </button>
-          )}
         </>
       )}
     </div>

@@ -122,7 +122,7 @@ export function NftBuyDirectSignModal({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className={`fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 ${
-          transparentBackdrop ? 'bg-transparent backdrop-blur-[10px]' : 'bg-black/70 backdrop-blur-[10px]'
+          transparentBackdrop ? 'bg-transparent backdrop-blur-[10px]' : 'studio-portal-backdrop bg-black/70 backdrop-blur-[10px]'
         }`}
         onClick={handleOverlayClick}
       >
@@ -132,21 +132,21 @@ export function NftBuyDirectSignModal({
           exit={{ opacity: 0, scale: 0.98, y: 8 }}
           transition={{ duration: 0.2 }}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-[640px] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden"
+          className="studio-modal-theme studio-glass-modal w-full max-w-[640px] rounded-[2rem] border border-ui-border-subtle bg-ui-card backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden"
         >
-          <div className="px-6 md:px-8 py-6 border-b border-[rgba(255,255,255,0.06)] flex items-start justify-between gap-4">
+          <div className="studio-glass-header px-6 md:px-8 py-6 border-b border-[rgba(255,255,255,0.06)] flex items-start justify-between gap-4">
             <div>
               <h3 className="text-2xl font-bold text-white">Buy NFT</h3>
               <p className="text-sm text-zinc-400 mt-1">
                 Direct-buy flow (OpenSea-style): confirm price and sign. No delivery setup required.
               </p>
             </div>
-            <StudioModalCloseButton onClick={onClose} iconSize={18} className="w-10 h-10 rounded-xl" />
+            <StudioModalCloseButton onClick={onClose} iconSize={18} className="studio-glass-secondary w-10 h-10 rounded-xl" />
           </div>
 
           <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-5">
             <div className="space-y-4">
-              <div className="rounded-2xl border-0 bg-[rgba(255,255,255,0.02)] p-4">
+              <div className="studio-glass-surface rounded-2xl border border-ui-border-subtle bg-[rgba(255,255,255,0.02)] p-4">
                 <div className="flex items-start gap-4">
                   <div className="w-24 h-24 rounded-2xl overflow-hidden bg-zinc-800 border border-white/5 shrink-0">
                     <img src={asset.image} alt={asset.name} className="w-full h-full object-cover" />
@@ -156,7 +156,7 @@ export function NftBuyDirectSignModal({
                       <span className="px-2 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#7DD3FC]/10 text-[#7DD3FC] border border-[#7DD3FC]/20">
                         NFT
                       </span>
-                      <span className="px-2 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-white/5 text-zinc-300 border border-white/10">
+                      <span className="studio-glass-chip px-2 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-white/5 text-zinc-300 border border-white/10">
                         Token #{asset.tokenId}
                       </span>
                     </div>
@@ -169,7 +169,7 @@ export function NftBuyDirectSignModal({
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-[rgba(125,211,252,0.15)] bg-[rgba(125,211,252,0.05)] p-4">
+              <div className="studio-glass-surface rounded-2xl border border-[rgba(125,211,252,0.15)] bg-[rgba(125,211,252,0.05)] p-4">
                 <div className="flex items-start gap-3">
                   <div className="w-9 h-9 rounded-xl bg-[#7DD3FC]/15 border border-[#7DD3FC]/20 inline-flex items-center justify-center text-[#7DD3FC] shrink-0">
                     <Sparkles size={16} />
@@ -185,7 +185,7 @@ export function NftBuyDirectSignModal({
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-2xl border-0 bg-[rgba(255,255,255,0.02)] p-4">
+              <div className="studio-glass-surface rounded-2xl border border-ui-border-subtle bg-[rgba(255,255,255,0.02)] p-4">
                 <p className="text-[10px] font-bold tracking-[0.18em] text-zinc-500 uppercase mb-3">Purchase Summary</p>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-sm">

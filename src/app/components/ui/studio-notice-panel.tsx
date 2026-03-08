@@ -24,26 +24,26 @@ export function StudioNoticePanel({
   const tone =
     variant === 'error'
       ? {
-          box: 'bg-red-500/10 border-red-500/30',
-          title: 'text-red-400',
-          body: 'text-red-400/80',
-          icon: <AlertCircle className="text-red-400 flex-shrink-0 mt-0.5" size={compact ? 16 : 20} />,
+          box: 'bg-[var(--t-notice-error-bg)] border-[var(--t-notice-error-border)]',
+          title: 'text-[color:var(--t-notice-error-title)]',
+          body: 'text-[color:var(--t-notice-error-body)]',
+          icon: <AlertCircle className="text-[color:var(--t-notice-error-title)] flex-shrink-0 mt-0.5" size={compact ? 16 : 20} />,
         }
       : variant === 'warning'
         ? {
-            box: 'bg-amber-500/10 border-amber-500/30',
-            title: 'text-amber-400',
-            body: 'text-amber-400/80',
-            icon: <AlertCircle className="text-amber-400 flex-shrink-0 mt-0.5" size={compact ? 16 : 20} />,
+            box: 'bg-[var(--t-notice-warning-bg)] border-[var(--t-notice-warning-border)]',
+            title: 'text-[color:var(--t-notice-warning-title)]',
+            body: 'text-[color:var(--t-notice-warning-body)]',
+            icon: <AlertCircle className="text-[color:var(--t-notice-warning-title)] flex-shrink-0 mt-0.5" size={compact ? 16 : 20} />,
           }
         : variant === 'info'
           ? {
-              box: 'bg-blue-500/10 border-blue-500/30',
-              title: 'text-blue-300',
-              body: 'text-blue-200/80',
-              icon: <Info className="text-blue-300 flex-shrink-0 mt-0.5" size={compact ? 16 : 20} />,
+              box: 'bg-[var(--t-notice-info-bg)] border-[var(--t-notice-info-border)]',
+              title: 'text-[color:var(--t-notice-info-title)]',
+              body: 'text-[color:var(--t-notice-info-body)]',
+              icon: <Info className="text-[color:var(--t-notice-info-title)] flex-shrink-0 mt-0.5" size={compact ? 16 : 20} />,
             }
-          : variant === 'success'
+      : variant === 'success'
             ? {
                 box: 'bg-[color:color-mix(in_srgb,var(--color-primary-custom)_10%,transparent)] border-[color:color-mix(in_srgb,var(--color-primary-custom)_35%,transparent)]',
                 title: 'text-primary',
@@ -51,10 +51,10 @@ export function StudioNoticePanel({
                 icon: <Info className="text-primary flex-shrink-0 mt-0.5" size={compact ? 16 : 20} />,
               }
             : {
-                box: 'bg-zinc-950/30 border-zinc-800',
-                title: 'text-zinc-400',
-                body: 'text-zinc-500',
-                icon: <Info className="text-zinc-600 flex-shrink-0 mt-0.5" size={compact ? 16 : 20} />,
+                box: 'bg-ui-input border-ui-border-subtle',
+                title: 'text-ui-secondary',
+                body: 'text-ui-muted',
+                icon: <Info className="text-ui-muted flex-shrink-0 mt-0.5" size={compact ? 16 : 20} />,
               };
 
   return (

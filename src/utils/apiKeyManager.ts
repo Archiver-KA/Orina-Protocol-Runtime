@@ -1,4 +1,4 @@
-import { APIKey, APIKeyGenerateOptions, PendingOperation, APIUsageStats } from '@/app/types/api-key';
+import { APIKey, APIKeyGenerateOptions, PendingOperation } from '@/app/types/api-key';
 
 /**
  * 🔒 SECURITY-FIRST API KEY MANAGER
@@ -138,26 +138,17 @@ export class APIKeyManager {
 
   // Get all keys for wallet
   static getKeysForWallet(walletAddress: string): APIKey[] {
-    console.log(`[API Keys Debug] getKeysForWallet called for: ${walletAddress}`);
-    
     // Try migration first
     this.migrateLegacyKeys(walletAddress);
     
     const storageKey = this.getStorageKey(walletAddress);
-    console.log(`[API Keys Debug] Using storage key: ${storageKey}`);
-    
     const stored = localStorage.getItem(storageKey);
-    console.log(`[API Keys Debug] Raw stored data:`, stored ? `${stored.substring(0, 100)}...` : 'null');
-    
     if (!stored) {
-      console.log(`[API Keys Debug] No keys found in storage`);
       return [];
     }
 
     try {
       const keys: APIKey[] = JSON.parse(stored);
-      console.log(`[API Keys Debug] Found ${keys.length} keys`);
-      
       // Decrypt keys for display
       return keys.map(k => ({
         ...k,
@@ -332,90 +323,6 @@ export class APIKeyManager {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return result;
-  }
-
-  // Initialize demo data for first-time users
-  static initializeDemoData(walletAddress: string): void {
-    const existingKeys = this.getKeysForWallet(walletAddress);
-    
-    // Only initialize if no keys exist
-    if (existingKeys.length === 0) {
-      // Create 2 demo API keys
-      const demoKey1: APIKey = {
-        id: this.generateRandomId(),
-        key: `sk_seller_${this.generateRandomToken(32)}`,
-        name: 'Production Bot',
-        walletAddress,
-        permissions: ['read', 'write', 'mint'],
-        createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(), // 15 days ago
-        lastUsedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-        expiresAt: null,
-        isActive: true,
-        usageStats: {
-          totalRequests: 1247,
-          successRate: 99.2,
-          lastDayRequests: 89
-        }
-      };
-
-      const demoKey2: APIKey = {
-        id: this.generateRandomId(),
-        key: `sk_seller_${this.generateRandomToken(32)}`,
-        name: 'Development Agent',
-        walletAddress,
-        permissions: ['read'],
-        createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
-        lastUsedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 mins ago
-        expiresAt: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString(), // expires in 25 days
-        isActive: true,
-        usageStats: {
-          totalRequests: 342,
-          successRate: 100,
-          lastDayRequests: 45
-        }
-      };
-
-      this.saveKey(walletAddress, demoKey1);
-      this.saveKey(walletAddress, demoKey2);
-      
-      console.log('[API Keys] Initialized demo data');
-    }
-  }
-
-  // Get mock usage stats
-  static getUsageStats(walletAddress: string, keyId: string): APIUsageStats {
-    const keys = this.getKeysForWallet(walletAddress);
-    const key = keys.find(k => k.id === keyId);
-    
-    if (!key) {
-      throw new Error('Key not found');
-    }
-
-    // Generate mock data for last 30 days
-    const last30Days = [];
-    for (let i = 29; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      last30Days.push({
-        date: date.toISOString().split('T')[0],
-        requests: Math.floor(Math.random() * 50) + 10
-      });
-    }
-
-    return {
-      totalRequests: key.usageStats.totalRequests,
-      successfulRequests: Math.floor(key.usageStats.totalRequests * key.usageStats.successRate / 100),
-      failedRequests: Math.floor(key.usageStats.totalRequests * (100 - key.usageStats.successRate) / 100),
-      rateLimitHits: Math.floor(Math.random() * 5),
-      averageResponseTime: Math.floor(Math.random() * 200) + 50,
-      requestsByEndpoint: {
-        '/api/seller/assets': Math.floor(Math.random() * 100),
-        '/api/seller/orders': Math.floor(Math.random() * 50),
-        '/api/seller/analytics': Math.floor(Math.random() * 30),
-        '/api/seller/mint': Math.floor(Math.random() * 20)
-      },
-      last30Days
-    };
   }
 
   /**

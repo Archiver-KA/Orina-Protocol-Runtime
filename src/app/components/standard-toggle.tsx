@@ -7,7 +7,7 @@ interface StandardToggleProps {
 
 export function StandardToggle({ options, value, onChange, className = '' }: StandardToggleProps) {
   return (
-    <div className={`inline-flex w-full bg-ui-pill rounded-full p-1 gap-1 ${className}`}>
+    <div className={`inline-flex w-full bg-[var(--t-surface-5)] rounded-lg p-1 gap-1 ${className}`}>
       {options.map((option) => {
         const isActive = value === option;
         return (
@@ -15,10 +15,10 @@ export function StandardToggle({ options, value, onChange, className = '' }: Sta
             key={option}
             onClick={() => onChange(option)}
             className={`
-              flex-1 min-w-0 px-4 py-2.5 text-xs font-bold rounded-full transition-all duration-200
+              flex-1 min-w-0 px-4 py-2.5 text-xs font-bold rounded-md transition-all duration-200
               ${isActive 
-                ? 'bg-[#2CC295] text-black' 
-                : 'text-ui-secondary hover:text-ui-primary hover:bg-[rgba(255,255,255,0.05)]'
+                ? 'bg-[#2CC295] text-black shadow-[0_8px_18px_-16px_rgba(44,194,149,0.9)]' 
+                : 'bg-transparent text-ui-secondary hover:text-ui-primary hover:bg-ui-input-focus'
               }
             `}
           >

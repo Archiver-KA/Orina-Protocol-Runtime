@@ -164,17 +164,17 @@ export function OrderCountdown({
         <div className="flex gap-2 mt-0.5">
           {timeRemaining.days > 0 && (
             <>
-              <span className="text-[7px] text-zinc-600 uppercase w-5">DD</span>
-              <span className="text-[7px] text-zinc-600 uppercase w-5">HH</span>
-              <span className="text-[7px] text-zinc-600 uppercase w-5">MM</span>
-              <span className="text-[7px] text-zinc-600 uppercase w-5">SS</span>
+              <span className="text-[7px] text-ui-muted uppercase w-5">DD</span>
+              <span className="text-[7px] text-ui-muted uppercase w-5">HH</span>
+              <span className="text-[7px] text-ui-muted uppercase w-5">MM</span>
+              <span className="text-[7px] text-ui-muted uppercase w-5">SS</span>
             </>
           )}
           {timeRemaining.days === 0 && (
             <>
-              <span className="text-[7px] text-zinc-600 uppercase w-5">HH</span>
-              <span className="text-[7px] text-zinc-600 uppercase w-5">MM</span>
-              <span className="text-[7px] text-zinc-600 uppercase w-5">SS</span>
+              <span className="text-[7px] text-ui-muted uppercase w-5">HH</span>
+              <span className="text-[7px] text-ui-muted uppercase w-5">MM</span>
+              <span className="text-[7px] text-ui-muted uppercase w-5">SS</span>
             </>
           )}
         </div>
@@ -218,7 +218,7 @@ export function OrderCountdownInline({ deadline, showLabel = false }: {
   }, [deadline]);
 
   if (!timeRemaining) {
-    return <span className="text-zinc-500 text-xs">Loading...</span>;
+    return <span className="text-ui-muted text-xs">Loading...</span>;
   }
 
   const hours = timeRemaining.totalSeconds / 3600;
@@ -254,7 +254,7 @@ export function OrderCountdownInline({ deadline, showLabel = false }: {
         {formatTime()}
       </span>
       {showLabel && (
-        <span className="text-[9px] text-zinc-600 uppercase tracking-wide">
+        <span className="text-[9px] text-ui-muted uppercase tracking-wide">
           left
         </span>
       )}

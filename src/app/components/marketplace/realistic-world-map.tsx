@@ -50,7 +50,7 @@ export function RealisticWorldMap({
   onToggleVerified,
 }: RealisticWorldMapProps) {
   const [hoveredAsset, setHoveredAsset] = useState<number | null>(null);
-  const [mapStyle, setMapStyle] = useState<'dark' | 'satellite'>('dark');
+  const [mapStyle, setMapStyle] = useState<'default' | 'satellite'>('default');
   const [viewState, setViewState] = useState({
     longitude: 0,
     latitude: 20,
@@ -59,7 +59,7 @@ export function RealisticWorldMap({
   const mapRef = useRef<MapRef>(null);
 
   const toggleMapStyle = useCallback(() => {
-    setMapStyle((prev) => (prev === 'dark' ? 'satellite' : 'dark'));
+    setMapStyle((prev) => (prev === 'default' ? 'satellite' : 'default'));
   }, []);
 
   const handleMove = useCallback((evt: any) => {
@@ -72,35 +72,38 @@ export function RealisticWorldMap({
 
   // Get map style URLs
   const getMapStyles = () => {
-    if (mapStyle === 'dark') {
+    if (mapStyle === 'default') {
       return {
+        light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
         dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
       };
     } else {
       // Satellite style - need to create a proper MapLibre GL style object
+      const satelliteStyle = {
+        version: 8,
+        sources: {
+          'satellite-tiles': {
+            type: 'raster',
+            tiles: [
+              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            ],
+            tileSize: 256,
+            attribution: '© Esri'
+          }
+        },
+        layers: [
+          {
+            id: 'satellite',
+            type: 'raster',
+            source: 'satellite-tiles',
+            minzoom: 0,
+            maxzoom: 22
+          }
+        ]
+      } as any;
       return {
-        dark: {
-          version: 8,
-          sources: {
-            'satellite-tiles': {
-              type: 'raster',
-              tiles: [
-                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-              ],
-              tileSize: 256,
-              attribution: '© Esri'
-            }
-          },
-          layers: [
-            {
-              id: 'satellite',
-              type: 'raster',
-              source: 'satellite-tiles',
-              minzoom: 0,
-              maxzoom: 22
-            }
-          ]
-        } as any,
+        light: satelliteStyle,
+        dark: satelliteStyle,
       };
     }
   };

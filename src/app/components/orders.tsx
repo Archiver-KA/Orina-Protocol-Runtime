@@ -139,7 +139,7 @@ function OrderActionNoticeModal({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.9 }}
           transition={{ duration: 0.25 }}
-          className="bg-[rgba(18,18,18,0.9)] border-0 rounded-[24px] shadow-2xl max-w-md w-full overflow-hidden"
+          className="bg-[var(--t-card-bg)] border-0 rounded-[24px] shadow-2xl max-w-md w-full overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="p-12 flex flex-col items-center justify-center space-y-6 text-center">
@@ -161,8 +161,8 @@ function OrderActionNoticeModal({
             </motion.div>
 
             <div className="space-y-2">
-              <h3 className="text-4xl font-bold text-white leading-tight">{notice.title}</h3>
-              <p className="text-sm text-zinc-400">{notice.description}</p>
+              <h3 className="text-4xl font-bold text-ui-primary leading-tight">{notice.title}</h3>
+              <p className="text-sm text-ui-secondary">{notice.description}</p>
             </div>
 
             <div className="w-full p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg">
@@ -170,17 +170,17 @@ function OrderActionNoticeModal({
                 <AssetThumb
                   src={notice.assetImage}
                   alt="Product"
-                  className="w-12 h-12 rounded-lg bg-zinc-800 border border-[#27272a] shrink-0"
+                  className="w-12 h-12 rounded-lg bg-ui-input border border-ui-border-subtle shrink-0"
                 />
                 <div className="flex-1 text-left min-w-0">
-                  <p className="text-xs font-bold text-white leading-tight truncate">{notice.assetName}</p>
-                  <p className="text-xs text-zinc-500 mt-0.5">{notice.assetValueEth} ETH</p>
+                  <p className="text-xs font-bold text-ui-primary leading-tight truncate">{notice.assetName}</p>
+                  <p className="text-xs text-ui-muted mt-0.5">{notice.assetValueEth} ETH</p>
                 </div>
                 {toneStyles.trailing}
               </div>
             </div>
 
-            <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+            <div className="w-full h-1 bg-ui-border-subtle rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: '0%' }}
                 animate={{ width: '100%' }}
@@ -696,12 +696,12 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                       <div className="relative w-10 h-10 shrink-0">
                         <svg className="w-full h-full" viewBox="0 0 36 36">
                           <circle
-                            className="stroke-zinc-800"
                             cx="18"
                             cy="18"
                             fill="none"
                             r="16"
                             strokeWidth="3"
+                            stroke="var(--t-border-medium)"
                           />
                           <circle
                             className={order.state === 1 ? 'stroke-primary' : 'stroke-[#F7DC7F]'}
@@ -809,7 +809,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                         const deadline = order.state === 1 ? order.autoReleaseAt : order.payDeadline;
                         const { days, hours, mins, secs } = parseCountdown(deadline);
                         return (
-                          <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950/40 backdrop-blur-sm shrink-0">
+                          <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-ui-border-subtle bg-ui-input backdrop-blur-sm shrink-0">
                             <div className="flex items-center gap-2">
                               <div className="flex flex-col items-center w-6">
                                 <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{days.toString().padStart(2, '0')}</span>
@@ -837,7 +837,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                     </div>
 
                     {/* Border and Action Buttons */}
-                    <div className="flex items-center justify-between pt-4 border-t border-[#27272a]">
+                    <div className="flex items-center justify-between pt-4 border-t border-ui-border-subtle">
                       <StudioActionButton
                         onClick={(e) => {
                           e.stopPropagation();
@@ -996,7 +996,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${selectedOrder.signatures.buyer1 ? 'bg-primary' : 'border border-zinc-700'
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${selectedOrder.signatures.buyer1 ? 'bg-primary' : 'border border-ui-border'
                       }`}>
                       {selectedOrder.signatures.buyer1 ? (
                         <Check size={12} className="text-black font-bold" />
@@ -1015,7 +1015,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${selectedOrder.signatures.seller ? 'bg-primary' : 'border border-zinc-700'
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${selectedOrder.signatures.seller ? 'bg-primary' : 'border border-ui-border'
                       }`}>
                       {selectedOrder.signatures.seller ? (
                         <Check size={12} className="text-black font-bold" />
@@ -1034,7 +1034,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${selectedOrder.signatures.buyer2 ? 'bg-primary' : 'border border-zinc-700'
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${selectedOrder.signatures.buyer2 ? 'bg-primary' : 'border border-ui-border'
                       }`}>
                       {selectedOrder.signatures.buyer2 ? (
                         <Check size={12} className="text-black font-bold" />
@@ -1060,7 +1060,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                 <StudioProgressBar
                   value={selectedOrder.progress}
                   variant="success"
-                  trackClassName="bg-zinc-900"
+                  trackClassName="bg-ui-border-subtle"
                 />
               </div>
             </div>
@@ -1097,7 +1097,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                 <div className="mt-4 p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
                   <p className="text-[10px] font-bold text-ui-muted uppercase mb-2 tracking-wider">Product Information</p>
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-lg bg-zinc-800/40 border-0 overflow-hidden">
+                    <div className="w-12 h-12 rounded-lg bg-ui-input border-0 overflow-hidden">
                       <img
                         alt="Product"
                         className="w-full h-full object-cover"

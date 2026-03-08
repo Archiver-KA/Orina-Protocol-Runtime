@@ -22,8 +22,7 @@ export type AccessCapability =
   | 'protocol_order_write'
   | 'protocol_mint_write'
   | 'protocol_dispute_write'
-  | 'protocol_asset_write'
-  | 'use_demos';
+  | 'protocol_asset_write';
 
 const GUEST_ALLOWED_PAGES = new Set<AppPage>([
   'home',
@@ -31,15 +30,6 @@ const GUEST_ALLOWED_PAGES = new Set<AppPage>([
   'search',
   'community',
   'asset-details',
-]);
-
-const DEMO_PAGES = new Set<AppPage>([
-  'ai-agent-test',
-  'notification-demo',
-  'bulk-demo',
-  'wallet-demo',
-  'style-guide',
-  'ipfs-test',
 ]);
 
 export function isGuestAccessMode(mode: AccessMode) {
@@ -75,7 +65,7 @@ export function pageToCapability(page: AppPage): AccessCapability | null {
     case 'watchlist':
       return 'use_favorites';
     default:
-      return DEMO_PAGES.has(page) ? 'use_demos' : null;
+      return null;
   }
 }
 

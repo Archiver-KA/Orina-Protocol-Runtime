@@ -73,7 +73,7 @@ import ReactDOM from 'react-dom';
 import { EmptyStateCard } from '@/app/components/ui/empty-state-card';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
-import { createDefaultProfile, loadUserProfile, saveUserProfile } from '@/utils/profileUtils';
+import { createDefaultProfile, formatUserDisplayName, loadUserProfile, saveUserProfile } from '@/utils/profileUtils';
 import { sendCommunityNotificationViaBridge } from '@/utils/supabaseAuthClaimBridge';
 
 // ─── Sub-components ───────────────────────────────────────────
@@ -82,7 +82,7 @@ function PostTypeBadge({ type }: { type: Post['type'] }) {
   const map: Record<string, { bg: string; text: string; label: string }> = {
     achievement: { bg: 'bg-[var(--color-primary-custom)]/10', text: 'text-primary', label: 'Achievement' },
     announcement: { bg: 'bg-blue-500/10', text: 'text-blue-400', label: 'Announcement' },
-    discussion: { bg: 'bg-zinc-800', text: 'text-zinc-400', label: 'Discussion' },
+    discussion: { bg: 'bg-ui-pill border border-ui-border-subtle', text: 'text-ui-secondary', label: 'Discussion' },
     question: { bg: 'bg-yellow-500/10', text: 'text-yellow-400', label: 'Question' },
   };
   const s = map[type] || map.discussion;
@@ -95,13 +95,13 @@ function PostTypeBadge({ type }: { type: Post['type'] }) {
 
 function EmptyState({ filter, isSearching }: { filter: FeedFilter; isSearching: boolean }) {
   const icon = isSearching ? (
-    <Search size={28} className="text-zinc-600" />
+    <Search size={28} className="text-ui-muted" />
   ) : filter === 'my-posts' ? (
-    <User size={28} className="text-zinc-600" />
+    <User size={28} className="text-ui-muted" />
   ) : filter === 'my-saved' ? (
-    <Bookmark size={28} className="text-zinc-600" />
+    <Bookmark size={28} className="text-ui-muted" />
   ) : (
-    <MessageSquare size={28} className="text-zinc-600" />
+    <MessageSquare size={28} className="text-ui-muted" />
   );
 
   const title = isSearching
@@ -275,7 +275,7 @@ function PostActionMenu({
       <button
         ref={btnRef}
         onClick={() => setOpen(!open)}
-        className="inline-flex items-center justify-center p-1 text-zinc-400 hover:text-white transition-colors"
+        className="inline-flex items-center justify-center p-1 text-ui-secondary hover:text-ui-primary transition-colors"
       >
         <MoreHorizontal size={20} />
       </button>
@@ -305,8 +305,8 @@ function PollSection({
   const showResults = !!userVote || ended;
 
   return (
-    <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4 space-y-3">
-      <p className="text-sm font-bold text-white flex items-center gap-2">
+    <div className="bg-ui-pill border border-ui-border-subtle rounded-xl p-4 space-y-3">
+      <p className="text-sm font-bold text-ui-primary flex items-center gap-2">
         <BarChart3 size={16} className="text-primary" />
         {poll.question}
       </p>
@@ -321,29 +321,29 @@ function PollSection({
               onClick={() => onVote(post.id, option.id)}
               className={`w-full relative rounded-lg overflow-hidden text-left transition-all ${isVoted
                   ? 'border border-[var(--color-primary-custom)]/40'
-                  : 'border border-[var(--color-panel-border)] hover:border-zinc-600'
+                  : 'border border-ui-border-subtle hover:border-ui-border'
                 } ${!isConnected && !showResults ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
               {showResults && (
                 <div
-                  className={`absolute inset-0 ${isVoted ? 'bg-[var(--color-primary-custom)]/10' : 'bg-zinc-800/50'}`}
+                  className={`absolute inset-0 ${isVoted ? 'bg-[var(--color-primary-custom)]/10' : 'bg-ui-border-subtle'}`}
                   style={{ width: `${pct}%` }}
                 />
               )}
               <div className="relative flex items-center justify-between px-4 py-2.5">
-                <span className="text-sm text-zinc-300 flex items-center gap-2">
+                <span className="text-sm text-ui-secondary flex items-center gap-2">
                   {isVoted && <Check size={14} className="text-primary" />}
                   {option.text}
                 </span>
                 {showResults && (
-                  <span className="text-xs font-bold text-zinc-400">{pct}%</span>
+                  <span className="text-xs font-bold text-ui-muted">{pct}%</span>
                 )}
               </div>
             </button>
           );
         })}
       </div>
-      <div className="flex items-center justify-between text-[10px] text-zinc-500 uppercase tracking-widest">
+      <div className="flex items-center justify-between text-[10px] text-ui-muted uppercase tracking-widest">
         <span>{poll.totalVotes} votes</span>
         <span>{ended ? 'Poll ended' : `Ends ${formatDistanceToNow(new Date(poll.endsAt), { addSuffix: true })}`}</span>
       </div>
@@ -365,10 +365,10 @@ function TrendingTopicsBar({
   if (topics.length === 0) return null;
 
   return (
-    <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-4">
+    <div className="bg-ui-pill border border-ui-border-subtle rounded-2xl p-4">
       <div className="flex items-center gap-2 mb-3">
         <TrendingUp size={14} className="text-primary" />
-        <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">Trending</span>
+        <span className="text-[11px] font-bold text-ui-secondary uppercase tracking-widest">Trending</span>
       </div>
       <div className="flex flex-wrap gap-2">
         {topics.slice(0, 8).map((topic) => {
@@ -379,11 +379,11 @@ function TrendingTopicsBar({
               onClick={() => onTagClick(isActive ? '' : topic.tag)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isActive
                   ? 'bg-[var(--color-primary-custom)]/20 text-primary border border-[var(--color-primary-custom)]/30'
-                  : 'bg-[rgba(18,18,18,0.5)] text-zinc-400 border border-transparent hover:bg-[rgba(255,255,255,0.06)] hover:text-white'
+                  : 'bg-ui-input text-ui-secondary border border-ui-border-subtle hover:bg-[var(--t-input-focus-bg)] hover:text-ui-primary'
                 }`}
             >
               <span>#{topic.tag}</span>
-              <span className="text-[10px] text-zinc-500">{topic.postCount}</span>
+              <span className="text-[10px] text-ui-muted">{topic.postCount}</span>
             </button>
           );
         })}
@@ -538,7 +538,9 @@ function CommentThread({
     comment.walletAddress && address
       ? comment.walletAddress.toLowerCase() === address.toLowerCase()
       : comment.userId === actualUserId;
-  const commentName = isMine ? actualUserName : comment.userName;
+  const commentName = isMine
+    ? actualUserName
+    : formatUserDisplayName(comment.userName, comment.walletAddress || comment.userId);
   const commentAvatarUrl = (isMine ? (userData?.avatarUrl || userData?.avatar) : comment.userAvatar) || comment.userAvatar;
 
   // Find direct replies to this comment
@@ -556,10 +558,10 @@ function CommentThread({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="bg-[rgba(255,255,255,0.02)] p-3 rounded-2xl border-0">
+          <div className="bg-ui-pill p-3 rounded-2xl border border-ui-border-subtle">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold text-white">{commentName}</span>
-              <span className="text-[10px] text-zinc-500">
+              <span className="text-xs font-bold text-ui-primary">{commentName}</span>
+              <span className="text-[10px] text-ui-muted">
                 {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true }).replace('about ', '')}
               </span>
             </div>
@@ -569,14 +571,14 @@ function CommentThread({
                 replying to a comment
               </p>
             )}
-            <p className="text-xs text-zinc-300 leading-relaxed">{comment.content}</p>
+            <p className="text-xs text-ui-secondary leading-relaxed">{comment.content}</p>
           </div>
           <div className="flex items-center gap-3 mt-1.5 ml-1">
             <button
               onClick={() => onLikeComment(comment.id)}
               className={`text-[10px] font-bold uppercase flex items-center gap-1 transition-colors ${likedCommentIds.has(comment.id)
                   ? 'text-red-500/80 hover:text-red-500'
-                  : 'text-zinc-500 hover:text-white'
+                  : 'text-ui-muted hover:text-ui-primary'
                 }`}
             >
               <Heart size={10} fill={likedCommentIds.has(comment.id) ? 'currentColor' : 'none'} />
@@ -585,7 +587,7 @@ function CommentThread({
             {isConnected && (
               <button
                 onClick={() => onReply(comment)}
-                className="text-[10px] text-zinc-500 font-bold hover:text-primary uppercase flex items-center gap-1"
+                className="text-[10px] text-ui-muted font-bold hover:text-primary uppercase flex items-center gap-1"
               >
                 <Reply size={10} /> Reply
               </button>
@@ -613,7 +615,7 @@ function CommentThread({
 
       {/* Nested Replies */}
       {showReplies && replies.length > 0 && depth < maxDepth && (
-        <div className="border-l-2 border-zinc-800/80 ml-4">
+        <div className="border-l-2 border-ui-border-subtle ml-4">
           {replies.map((reply) => (
             <CommentThread
               key={reply.id}
@@ -638,7 +640,7 @@ function CommentThread({
       {/* Collapsed replies indicator at max depth */}
       {showReplies && replies.length > 0 && depth >= maxDepth && (
         <div className="ml-8 mt-2">
-          <p className="text-[10px] text-zinc-500 italic">
+          <p className="text-[10px] text-ui-muted italic">
             {replies.length} more {replies.length === 1 ? 'reply' : 'replies'} (max depth reached)
           </p>
         </div>
@@ -696,7 +698,8 @@ export function EnhancedCommunity({
   const { userData, displayName } = useUser();
 
   const actualUserId = userData?.address || address || currentUserId;
-  const actualUserName = displayName || userData?.displayName || userData?.username || currentUserName;
+  const actualUserNameRaw = displayName || userData?.displayName || userData?.username || currentUserName;
+  const actualUserName = formatUserDisplayName(actualUserNameRaw, address);
 
   const persistLikedComments = useCallback((next: Set<string>) => {
     if (!address || typeof window === 'undefined') return;
@@ -880,7 +883,7 @@ export function EnhancedCommunity({
 
   const handleCreatePost = (data: CreatePostData) => {
     seedProfileSnapshot(address, {
-      displayName: actualUserName,
+      displayName: actualUserNameRaw,
       avatarUrl: userData?.avatarUrl || userData?.avatar || undefined,
     });
 
@@ -888,7 +891,7 @@ export function EnhancedCommunity({
       id: `post_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       type: data.type,
       userId: actualUserId,
-      userName: actualUserName,
+      userName: actualUserNameRaw,
       userAvatar: userData?.avatarUrl || userData?.avatar || undefined,
       userRole: null,
       walletAddress: address,
@@ -1055,7 +1058,7 @@ export function EnhancedCommunity({
     const replyTarget = replyingTo[postId];
 
     seedProfileSnapshot(address, {
-      displayName: actualUserName,
+      displayName: actualUserNameRaw,
       avatarUrl: userData?.avatarUrl || userData?.avatar || undefined,
     });
 
@@ -1063,7 +1066,7 @@ export function EnhancedCommunity({
       id: `comment_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       postId,
       userId: actualUserId,
-      userName: actualUserName,
+      userName: actualUserNameRaw,
       userAvatar: userData?.avatarUrl || userData?.avatar || undefined,
       walletAddress: address,
       content,
@@ -1285,12 +1288,12 @@ export function EnhancedCommunity({
   // ─── Render ──────────────────────────────────────────────
 
   return (
-    <div className="h-full overflow-hidden bg-ui-page relative p-2.5">
+    <div className="community-borderless-theme h-full overflow-hidden bg-ui-page relative p-2.5">
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--color-panel-border); border-radius: 10px; }
-        .post-card { background: rgba(255, 255, 255, 0.02); border: 0; }
+        .post-card { background: var(--t-surface-2); border: 0; }
       `}</style>
 
       <div className="relative z-10 h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto custom-scrollbar">
@@ -1298,8 +1301,8 @@ export function EnhancedCommunity({
           {/* ─── Header ─── */}
           <div className="flex items-end justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">Community Feed</h1>
-              <p className="text-zinc-500 text-sm mt-1">
+              <h1 className="text-2xl font-bold text-ui-primary tracking-tight">Community Feed</h1>
+              <p className="text-ui-secondary text-sm mt-1">
                 {isConnected
                   ? `Welcome back, ${actualUserName}`
                   : 'Connect your wallet to participate'}
@@ -1317,7 +1320,7 @@ export function EnhancedCommunity({
                       }
                       setIsNotifPanelOpen(!isNotifPanelOpen);
                     }}
-                    className="relative p-2.5 rounded-lg bg-zinc-900 border border-[var(--color-panel-border)] text-zinc-400 hover:text-white hover:border-zinc-600 transition-all"
+                    className="relative p-2.5 rounded-lg bg-ui-input border border-ui-border-subtle text-ui-secondary hover:text-ui-primary hover:border-ui-border transition-all"
                   >
                     <Bell size={18} />
                     {unreadNotifCount > 0 && (
@@ -1361,12 +1364,12 @@ export function EnhancedCommunity({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search posts, tags, users..."
-                  className="w-full h-[43px] pl-11 pr-10 bg-[rgba(18,18,18,0.5)] border border-[rgba(255,255,255,0.1)] rounded-[999px] text-sm text-[#F1F5F9] placeholder:text-[rgba(203,213,225,0.5)] focus:outline-none focus:border-[var(--color-primary-custom)]/50 transition-colors"
+                  className="w-full h-[43px] pl-11 pr-10 bg-ui-input border border-ui-border rounded-[999px] text-sm text-ui-primary placeholder:text-ui-muted focus:outline-none focus:border-[var(--color-primary-custom)]/50 transition-colors"
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ui-muted hover:text-ui-primary"
                   >
                     <X size={16} />
                   </button>
@@ -1427,7 +1430,9 @@ export function EnhancedCommunity({
                 const PostAvatar = getAvatarByUserId(post.userId);
                 const isOwner = isPostOwner(post, address);
                 const isEditing = editingPostId === post.id;
-                const postDisplayName = isOwner ? actualUserName : post.userName;
+                const postDisplayName = isOwner
+                  ? actualUserName
+                  : formatUserDisplayName(post.userName, post.walletAddress || post.userId);
                 const postAvatarUrl = (isOwner ? (userData?.avatarUrl || userData?.avatar) : post.userAvatar) || post.userAvatar;
 
                 // Separate top-level comments from replies
@@ -1457,7 +1462,7 @@ export function EnhancedCommunity({
                         <div className="flex items-center gap-3">
                           <button
                             onClick={() => handleNavigateProfile(post)}
-                            className="relative w-11 h-11 rounded-full border border-zinc-700 overflow-hidden hover:ring-2 hover:ring-[var(--color-primary-custom)] transition-all cursor-pointer"
+                            className="relative w-11 h-11 rounded-full border border-ui-border-subtle overflow-hidden hover:ring-2 hover:ring-[var(--color-primary-custom)] transition-all cursor-pointer"
                             title={`View ${postDisplayName}'s profile`}
                           >
                             {postAvatarUrl ? (
@@ -1466,7 +1471,7 @@ export function EnhancedCommunity({
                               <PostAvatar className="w-full h-full" />
                             )}
                             {post.type === 'achievement' && (
-                              <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[var(--color-primary-custom)] border-2 border-[#18181b] rounded-full flex items-center justify-center pointer-events-none">
+                              <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[var(--color-primary-custom)] border-2 border-[var(--t-card-bg)] rounded-full flex items-center justify-center pointer-events-none">
                                 <Check size={10} className="text-black font-bold" />
                               </span>
                             )}
@@ -1475,22 +1480,22 @@ export function EnhancedCommunity({
                             <div className="flex items-center gap-2 flex-wrap">
                               <button
                                 onClick={() => handleNavigateProfile(post)}
-                                className="text-white font-bold text-sm hover:text-primary transition-colors cursor-pointer"
+                                className="text-ui-primary font-bold text-sm hover:text-primary transition-colors cursor-pointer"
                               >
                                 {postDisplayName}
                               </button>
                               {showPinnedState && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-800/80 border border-zinc-700 text-[9px] uppercase tracking-widest text-zinc-300">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-ui-pill border border-ui-border-subtle text-[9px] uppercase tracking-widest text-ui-secondary">
                                   <Pin size={9} className="text-primary" />
                                   Pinned
                                 </span>
                               )}
                               <PostTypeBadge type={post.type} />
                               {post.isEdited && (
-                                <span className="text-[9px] text-zinc-600 italic">(edited)</span>
+                                <span className="text-[9px] text-ui-muted italic">(edited)</span>
                               )}
                             </div>
-                            <span className="text-[11px] text-zinc-500 uppercase tracking-wide font-mono">
+                            <span className="text-[11px] text-ui-muted uppercase tracking-wide font-mono">
                               {post.userRole || 'Community Member'} &middot;{' '}
                               {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
                             </span>
@@ -1513,13 +1518,13 @@ export function EnhancedCommunity({
                           <textarea
                             value={editContent}
                             onChange={(e) => setEditContent(e.target.value)}
-                            className="w-full px-4 py-3 bg-black/40 border border-[var(--color-primary-custom)]/30 rounded-lg text-white text-sm resize-none focus:outline-none min-h-[120px]"
+                            className="w-full px-4 py-3 bg-ui-input border border-[var(--color-primary-custom)]/30 rounded-lg text-ui-primary text-sm resize-none focus:outline-none min-h-[120px]"
                           />
                           <div className="flex items-center gap-2 justify-end">
                             <StudioActionButton
                               onClick={() => { setEditingPostId(null); setEditContent(''); }}
                               variant="secondary"
-                              className="px-4 py-2 text-xs text-zinc-400 hover:text-white"
+                              className="px-4 py-2 text-xs text-ui-secondary hover:text-ui-primary"
                             >
                               Cancel
                             </StudioActionButton>
@@ -1527,7 +1532,7 @@ export function EnhancedCommunity({
                               onClick={() => handleSaveEdit(post.id)}
                               disabled={editContent.trim().length < 10}
                               variant="primary"
-                              className="px-4 py-2 text-xs disabled:bg-zinc-700 disabled:text-zinc-500"
+                              className="px-4 py-2 text-xs disabled:bg-ui-border-subtle disabled:text-ui-muted"
                             >
                               Save Changes
                             </StudioActionButton>
@@ -1535,7 +1540,7 @@ export function EnhancedCommunity({
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap">
+                          <p className="text-ui-secondary text-sm leading-relaxed whitespace-pre-wrap">
                             {post.content}
                           </p>
                           {post.tags && post.tags.length > 0 && (
@@ -1583,7 +1588,7 @@ export function EnhancedCommunity({
                         <div className="flex items-center gap-6">
                           <button
                             onClick={() => handleLike(post.id)}
-                            className={`flex items-center gap-2 transition-all group ${isLiked ? 'text-red-500/80 hover:text-red-500' : 'text-zinc-500 hover:text-red-500'
+                            className={`flex items-center gap-2 transition-all group ${isLiked ? 'text-red-500/80 hover:text-red-500' : 'text-ui-muted hover:text-red-500'
                               }`}
                           >
                             <Heart size={20} fill={isLiked ? 'currentColor' : 'none'} />
@@ -1591,7 +1596,7 @@ export function EnhancedCommunity({
                           </button>
                           <button
                             onClick={() => handleToggleComments(post.id)}
-                            className={`flex items-center gap-2 transition-all group ${isCommentsOpen ? 'text-primary' : 'text-zinc-500 hover:text-zinc-300'
+                            className={`flex items-center gap-2 transition-all group ${isCommentsOpen ? 'text-primary' : 'text-ui-muted hover:text-ui-secondary'
                               }`}
                           >
                             <MessageSquare size={20} />
@@ -1599,19 +1604,19 @@ export function EnhancedCommunity({
                           </button>
                           <button
                             onClick={() => handleShare(post.id)}
-                            className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 transition-all group"
+                            className="flex items-center gap-2 text-ui-muted hover:text-ui-secondary transition-all group"
                           >
                             <Share2 size={20} />
                             <span className="text-xs font-bold">{post.shareCount}</span>
                           </button>
                         </div>
                         <div className="flex items-center gap-4">
-                          <span className="text-[10px] text-zinc-500 uppercase font-mono">
+                          <span className="text-[10px] text-ui-muted uppercase font-mono">
                             {formatCount(post.viewCount)} Views
                           </span>
                           <button
                             onClick={() => handleBookmark(post.id)}
-                            className={`transition-all ${isBookmarked ? 'text-primary' : 'text-zinc-500 hover:text-primary'
+                            className={`transition-all ${isBookmarked ? 'text-primary' : 'text-ui-muted hover:text-primary'
                               }`}
                           >
                             <Bookmark size={20} fill={isBookmarked ? 'currentColor' : 'none'} />
@@ -1622,9 +1627,9 @@ export function EnhancedCommunity({
 
                     {/* ─ Comments Section ─ */}
                     {isCommentsOpen && (
-                      <div className="bg-[rgba(255,255,255,0.02)] border-t border-[var(--color-panel-border)] p-5 space-y-4">
+                      <div className="bg-ui-pill border-t border-ui-border-subtle p-5 space-y-4">
                         {topLevelComments.length === 0 && postComments.length === 0 && (
-                          <p className="text-xs text-zinc-500 text-center py-4">No comments yet. Be the first!</p>
+                          <p className="text-xs text-ui-muted text-center py-4">No comments yet. Be the first!</p>
                         )}
 
                         {/* Threaded Comments */}
@@ -1657,11 +1662,11 @@ export function EnhancedCommunity({
                           <div className="flex items-center gap-2 px-3 py-2 bg-[var(--color-primary-custom)]/5 border border-[var(--color-primary-custom)]/20 rounded-lg">
                             <CornerDownRight size={14} className="text-primary" />
                             <span className="text-xs text-primary">
-                              Replying to <strong>{currentReply.userName}</strong>
+                              Replying to <strong>{formatUserDisplayName(currentReply.userName, currentReply.walletAddress || currentReply.userId)}</strong>
                             </span>
                             <button
                               onClick={() => handleCancelReply(post.id)}
-                              className="ml-auto text-zinc-500 hover:text-white"
+                              className="ml-auto text-ui-muted hover:text-ui-primary"
                             >
                               <X size={14} />
                             </button>
@@ -1683,12 +1688,12 @@ export function EnhancedCommunity({
                                   handleAddComment(post.id);
                                 }
                               }}
-                              className="w-full bg-zinc-900 border border-[var(--color-panel-border)] rounded-xl px-4 py-2.5 text-sm focus:ring-[var(--color-primary-custom)] focus:border-[var(--color-primary-custom)] focus:outline-none text-white pr-12"
+                              className="w-full bg-ui-input border border-ui-border-subtle rounded-xl px-4 py-2.5 text-sm focus:ring-[var(--color-primary-custom)] focus:border-[var(--color-primary-custom)] focus:outline-none text-ui-primary placeholder:text-ui-muted pr-12"
                               placeholder={
                                 !isConnected
                                   ? 'Connect wallet to comment...'
                                   : currentReply
-                                    ? `Reply to ${currentReply.userName}...`
+                                    ? `Reply to ${formatUserDisplayName(currentReply.userName, currentReply.walletAddress || currentReply.userId)}...`
                                     : 'Write a comment...'
                               }
                               disabled={!isConnected}
@@ -1696,7 +1701,7 @@ export function EnhancedCommunity({
                             <button
                               onClick={() => handleAddComment(post.id)}
                               disabled={!isConnected || !commentInputs[post.id]?.trim()}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-[var(--color-primary-custom)] disabled:bg-zinc-700 text-black disabled:text-zinc-500 rounded-lg flex items-center justify-center hover:bg-[var(--color-primary-custom)]/90 transition-all"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-[var(--color-primary-custom)] disabled:bg-ui-border-subtle text-black disabled:text-ui-muted rounded-lg flex items-center justify-center hover:bg-[var(--color-primary-custom)]/90 transition-all"
                             >
                               <Send size={16} />
                             </button>

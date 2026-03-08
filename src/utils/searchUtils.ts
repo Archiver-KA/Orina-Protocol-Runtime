@@ -1,4 +1,5 @@
 import { SearchFilters, SearchResult, SearchHistoryItem, SortOption } from '@/types/search';
+import { MarketplaceAsset } from '@/app/types/asset';
 
 const SEARCH_HISTORY_KEY = 'studio_search_history';
 const MAX_HISTORY_ITEMS = 10;
@@ -71,6 +72,78 @@ export function filterResults(results: SearchResult[], filters: SearchFilters): 
   filtered = sortResults(filtered, filters.sortBy);
 
   return filtered;
+}
+
+function parseMarketplacePrice(price: string): number {
+  const parsed = Number.parseFloat(String(price).replace(/[^\d.]/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/**
+ * Filter marketplace assets based on search filters
+ */
+export function filterMarketplaceResults(results: MarketplaceAsset[], filters: SearchFilters): MarketplaceAsset[] {
+  let filtered = [...results];
+
+  if (filters.query.trim()) {
+    const query = filters.query.toLowerCase();
+    filtered = filtered.filter((item) =>
+      item.name.toLowerCase().includes(query) ||
+      item.description?.toLowerCase().includes(query) ||
+      item.category.toLowerCase().includes(query) ||
+      item.tags?.some((tag) => tag.toLowerCase().includes(query)) ||
+      item.seller.ensName?.toLowerCase().includes(query) ||
+      item.seller.address.toLowerCase().includes(query)
+    );
+  }
+
+  if (filters.categories.length > 0) {
+    filtered = filtered.filter((item) => filters.categories.includes(item.category));
+  }
+
+  if (filters.priceRange.min !== null) {
+    filtered = filtered.filter((item) => parseMarketplacePrice(item.price) >= filters.priceRange.min!);
+  }
+
+  if (filters.priceRange.max !== null) {
+    filtered = filtered.filter((item) => parseMarketplacePrice(item.price) <= filters.priceRange.max!);
+  }
+
+  if (filters.blockchains.length > 0) {
+    filtered = filtered.filter((item) => filters.blockchains.includes(item.blockchain));
+  }
+
+  if (filters.verifiedOnly) {
+    filtered = filtered.filter((item) => item.verified);
+  }
+
+  return sortMarketplaceResults(filtered, filters.sortBy);
+}
+
+/**
+ * Sort marketplace assets by option
+ */
+export function sortMarketplaceResults(results: MarketplaceAsset[], sortBy: SortOption): MarketplaceAsset[] {
+  const sorted = [...results];
+
+  switch (sortBy) {
+    case 'price-asc':
+      return sorted.sort((a, b) => parseMarketplacePrice(a.price) - parseMarketplacePrice(b.price));
+    case 'price-desc':
+      return sorted.sort((a, b) => parseMarketplacePrice(b.price) - parseMarketplacePrice(a.price));
+    case 'date-asc':
+      return sorted.sort((a, b) => a.listedAt - b.listedAt);
+    case 'date-desc':
+      return sorted.sort((a, b) => b.listedAt - a.listedAt);
+    case 'popularity':
+      return sorted.sort((a, b) => (b.views + b.likes) - (a.views + a.likes));
+    case 'name-asc':
+      return sorted.sort((a, b) => a.name.localeCompare(b.name));
+    case 'name-desc':
+      return sorted.sort((a, b) => b.name.localeCompare(a.name));
+    default:
+      return sorted;
+  }
 }
 
 /**
@@ -219,6 +292,19 @@ export function getPriceRange(results: SearchResult[]): { min: number; max: numb
   if (results.length === 0) return { min: 0, max: 100 };
   
   const prices = results.map((item) => item.priceNumeric);
+  return {
+    min: Math.min(...prices),
+    max: Math.max(...prices),
+  };
+}
+
+/**
+ * Get price range from marketplace assets
+ */
+export function getMarketplacePriceRange(results: MarketplaceAsset[]): { min: number; max: number } {
+  if (results.length === 0) return { min: 0, max: 100 };
+
+  const prices = results.map((item) => parseMarketplacePrice(item.price));
   return {
     min: Math.min(...prices),
     max: Math.max(...prices),

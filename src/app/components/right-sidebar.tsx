@@ -22,22 +22,47 @@ export function RightSidebar() {
   return (
     <StudioSidebarShell widthClassName="w-full" className="bg-ui-page border-l-0 p-2.5">
       <style>{`
-        .right-sidebar-swap-input:focus {
-          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        .right-sidebar-swap-input,
+        .right-sidebar-amount-input {
+          background: var(--t-input-bg) !important;
+          border: 1px solid var(--t-border-medium) !important;
+          color: var(--t-text-primary) !important;
           box-shadow: none !important;
+        }
+
+        .right-sidebar-swap-input::placeholder,
+        .right-sidebar-amount-input::placeholder {
+          color: var(--t-text-muted) !important;
+          opacity: 1 !important;
+        }
+
+        .right-sidebar-swap-input:focus {
+          background: var(--t-input-focus-bg) !important;
+          border: 1px solid #2cc295 !important;
+          box-shadow: 0 0 0 1px rgba(44, 194, 149, 0.35) !important;
           outline: none !important;
         }
 
         .right-sidebar-amount-input:focus {
-          border: 1px solid rgba(255, 255, 255, 0.1) !important;
-          box-shadow: none !important;
+          background: var(--t-input-focus-bg) !important;
+          border: 1px solid #2cc295 !important;
+          box-shadow: 0 0 0 1px rgba(44, 194, 149, 0.35) !important;
           outline: none !important;
+        }
+
+        .right-sidebar-token-trigger {
+          background: var(--t-input-bg) !important;
+          color: var(--t-text-primary) !important;
+        }
+
+        .right-sidebar-token-trigger:hover {
+          background: var(--t-input-focus-bg) !important;
         }
 
         .right-sidebar-token-trigger svg {
           width: 14px !important;
           height: 14px !important;
-          color: #4a4a4a !important;
+          color: var(--t-text-muted) !important;
         }
       `}</style>
       <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
@@ -71,14 +96,8 @@ export function RightSidebar() {
                   placeholder="0.0"
                   value={swapAmount}
                   onChange={(e) => setSwapAmount(e.target.value)}
-                  className="right-sidebar-swap-input w-full h-[49px] px-4 py-3 pr-[120px] rounded-[12px] text-[14px] leading-[18px] font-bold text-[#F1F5F9] placeholder:text-[rgba(241,245,249,0.5)] outline-none transition-none"
-                  style={{
-                    boxSizing: 'border-box',
-                    background: 'rgba(18, 18, 18, 0.5)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '12px',
-                    boxShadow: 'none',
-                  }}
+                  className="right-sidebar-swap-input w-full h-[49px] px-4 py-3 pr-[120px] rounded-[12px] text-[14px] leading-[18px] font-bold text-ui-primary placeholder:text-ui-muted outline-none transition-colors"
+                  style={{ boxSizing: 'border-box' }}
                 />
                 <div className="absolute left-[143px] top-[1px] w-[105px] h-[47px] z-[80]">
                   <CustomDropdown
@@ -87,7 +106,7 @@ export function RightSidebar() {
                     onChange={setSwapFrom}
                     variant="compact"
                     className="w-full h-full overflow-visible"
-                    triggerClassName="right-sidebar-token-trigger !h-[47px] !rounded-[14px] !px-4 !text-[15px] !leading-[22px] !font-bold font-sans bg-[rgba(18,18,18,0.5)] text-white hover:bg-[rgba(18,18,18,0.5)]"
+                    triggerClassName="right-sidebar-token-trigger !h-[47px] !rounded-[14px] !px-4 !text-[15px] !leading-[22px] !font-bold font-sans"
                     menuClassName="mt-1 rounded-[16px] z-[9999]"
                   />
                 </div>
@@ -112,14 +131,8 @@ export function RightSidebar() {
                   placeholder="0.0"
                   value={swapAmount ? (parseFloat(swapAmount) * 2450).toFixed(2) : ''}
                   readOnly
-                  className="right-sidebar-swap-input w-full h-[49px] px-4 py-3 pr-[120px] rounded-[12px] text-[14px] leading-[18px] font-bold text-[#F1F5F9] placeholder:text-[rgba(241,245,249,0.5)] outline-none transition-none"
-                  style={{
-                    boxSizing: 'border-box',
-                    background: 'rgba(18, 18, 18, 0.5)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '12px',
-                    boxShadow: 'none',
-                  }}
+                  className="right-sidebar-swap-input w-full h-[49px] px-4 py-3 pr-[120px] rounded-[12px] text-[14px] leading-[18px] font-bold text-ui-primary placeholder:text-ui-muted outline-none transition-colors"
+                  style={{ boxSizing: 'border-box' }}
                 />
                 <div className="absolute left-[143px] top-[1px] w-[105px] h-[47px] z-[60]">
                   <CustomDropdown
@@ -128,7 +141,7 @@ export function RightSidebar() {
                     onChange={setSwapTo}
                     variant="compact"
                     className="w-full h-full overflow-visible"
-                    triggerClassName="right-sidebar-token-trigger !h-[47px] !rounded-[14px] !px-4 !text-[15px] !leading-[22px] !font-bold font-sans bg-[rgba(18,18,18,0.5)] text-white hover:bg-[rgba(18,18,18,0.5)]"
+                    triggerClassName="right-sidebar-token-trigger !h-[47px] !rounded-[14px] !px-4 !text-[15px] !leading-[22px] !font-bold font-sans"
                     menuClassName="mt-1 rounded-[16px] z-[9999]"
                   />
                 </div>
@@ -167,14 +180,8 @@ export function RightSidebar() {
                 placeholder="0.0"
                 value={stakingAmount}
                 onChange={(e) => setStakingAmount(e.target.value)}
-                className="right-sidebar-amount-input w-full max-w-[248px] h-[49px] px-4 py-3 text-[14px] leading-[18px] font-bold text-[#F1F5F9] placeholder:text-[rgba(241,245,249,0.5)] rounded-[12px] outline-none transition-none"
-                style={{
-                  boxSizing: 'border-box',
-                  background: 'rgba(18, 18, 18, 0.5)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '12px',
-                  boxShadow: 'none',
-                }}
+                className="right-sidebar-amount-input w-full max-w-[248px] h-[49px] px-4 py-3 text-[14px] leading-[18px] font-bold text-ui-primary placeholder:text-ui-muted rounded-[12px] outline-none transition-colors"
+                style={{ boxSizing: 'border-box' }}
               />
               <div className="flex justify-between items-center mt-1 px-1">
                 <p className="text-[10px] text-ui-muted">Available: 30,625 ORI</p>

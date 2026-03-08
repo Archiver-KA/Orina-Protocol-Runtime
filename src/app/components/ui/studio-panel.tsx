@@ -7,7 +7,7 @@ interface StudioPanelProps extends HTMLAttributes<HTMLDivElement> {
 export function StudioPanel({ children, className = '', ...props }: StudioPanelProps) {
   return (
     <div
-      className={`bg-[rgba(255,255,255,0.02)] border-0 ${className}`.trim()}
+      className={`bg-[var(--t-surface-2)] border-0 ${className}`.trim()}
       {...props}
     >
       {children}

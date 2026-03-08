@@ -38,12 +38,12 @@ export function StudioProgressBar({
             ? 'bg-blue-500'
             : variant === 'purple'
               ? 'bg-purple-500'
-              : 'bg-zinc-500';
+              : 'bg-ui-border';
 
   return (
     <div
       className={cn(
-        'w-full rounded-full overflow-hidden bg-zinc-800',
+        'w-full rounded-full overflow-hidden bg-ui-border-subtle',
         heightClassName,
         trackClassName,
         className

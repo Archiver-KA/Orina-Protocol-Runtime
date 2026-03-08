@@ -36,6 +36,7 @@ import {
   loadUserProfile,
   saveUserProfile,
   createDefaultProfile,
+  formatUserDisplayName,
   shortenUserDisplayName,
   loadUserActivities,
   followUser,
@@ -374,9 +375,8 @@ export function EnhancedProfile({
 
     try {
       const actorName =
-        userData?.displayName ||
-        userData?.username ||
-        profile?.displayName ||
+        formatUserDisplayName(userData?.displayName, connectedAddress) ||
+        formatUserDisplayName(profile?.displayName, connectedAddress) ||
         shortenUserDisplayName(connectedAddress);
       const sourceId = buildNotificationSourceId('follow_profile', [connectedAddress, profileAddress]);
       const followNotif = createNotification(
@@ -731,7 +731,7 @@ export function EnhancedProfile({
           <div className="flex items-start gap-6 mb-8">
             {/* Avatar */}
             <div className="relative group flex-shrink-0">
-              <div className="w-32 h-32 rounded-full border-4 border-[#121212] overflow-hidden shadow-2xl bg-zinc-900">
+              <div className="w-32 h-32 rounded-full border-4 border-[var(--t-page-bg)] overflow-hidden shadow-2xl bg-[var(--t-surface-5)]">
                 {(profile.avatarUrl || profile.avatar) ? (
                   <ImageWithFallback
                     src={profile.avatarUrl || profile.avatar || ""}
@@ -777,8 +777,8 @@ export function EnhancedProfile({
                 {/* Name & Badge */}
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-3xl font-bold text-white tracking-tight">
-                      {profile.displayName || shortenUserDisplayName(profileAddress)}
+                    <h1 className="text-3xl font-bold text-ui-primary tracking-tight">
+                      {formatUserDisplayName(profile.displayName, profileAddress)}
                     </h1>
                     {/* ✅ WALLET IDENTITY: Conditional Premium/Verified badges */}
                     {walletIdentity?.verification.isPremium && (
@@ -794,49 +794,49 @@ export function EnhancedProfile({
                       </span>
                     )}
                     {walletIdentity && !walletIdentity.verification.isPremium && !walletIdentity.verification.isVerified && (
-                      <span className="bg-zinc-800/50 text-zinc-400 text-[10px] font-bold px-2 py-0.5 rounded border border-zinc-700/30 uppercase tracking-widest flex items-center gap-1">
+                      <span className="bg-[rgba(44,194,149,0.08)] text-ui-primary text-[10px] font-bold px-2 py-0.5 rounded border border-[rgba(44,194,149,0.22)] uppercase tracking-widest flex items-center gap-1">
                         {walletIdentity.reputation.levelIcon} {walletIdentity.reputation.level}
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
+                  <div className="flex items-center gap-2 text-xs text-ui-secondary mb-1">
                     <span className="font-mono">
                       {profile.username
                         ? (profile.username.startsWith('@') ? profile.username : `@${profile.username}`)
                         : `@${String(profileAddress || '').slice(2, 10)}`}
                     </span>
-                    <span className="text-zinc-700">•</span>
+                    <span className="text-ui-muted">•</span>
                     <span className="font-mono">
                       {profileAddress ? `${profileAddress.slice(0, 6)}...${profileAddress.slice(-4)}` : ''}
                     </span>
                   </div>
 
                   {/* Bio - Moved below avatar with smaller font */}
-                  <p className="text-zinc-500 text-sm mt-1 max-w-md">{profile.bio || 'No bio available'}</p>
+                  <p className="text-ui-secondary text-sm mt-1 max-w-md">{profile.bio || 'No bio available'}</p>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Stats Panel */}
-          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-6 flex items-center justify-between gap-8 mb-10">
+          <div className="bg-[var(--t-surface-2)] border-0 rounded-2xl p-6 flex items-center justify-between gap-8 mb-10">
             <div className="flex-1 text-center border-r border-[var(--color-panel-border)]/50">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest mb-1">
                 Portfolio Value
               </p>
               <div className="flex items-center justify-center gap-2">
-                <span className="text-xl font-bold text-white">{walletIdentity ? formatETH(walletIdentity.portfolio.portfolioValueETH) : '—'}</span>
+                <span className="text-xl font-bold text-ui-primary">{walletIdentity ? formatETH(walletIdentity.portfolio.portfolioValueETH) : '—'}</span>
                 <span className="text-primary font-bold text-sm">ETH</span>
               </div>
-              <p className="text-xs text-zinc-500 mt-1">≈ {walletIdentity ? formatUSD(walletIdentity.portfolio.portfolioValueUSD) : '—'} USD</p>
+              <p className="text-xs text-ui-secondary mt-1">≈ {walletIdentity ? formatUSD(walletIdentity.portfolio.portfolioValueUSD) : '—'} USD</p>
             </div>
 
             <div className="flex-1 text-center border-r border-[var(--color-panel-border)]/50">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest mb-1">
                 Total Profit
               </p>
               <div className="flex items-center justify-center gap-2">
-                <span className="text-xl font-bold text-white">{walletIdentity ? formatProfit(walletIdentity.portfolio.totalProfitPercent) : '—'}</span>
+                <span className="text-xl font-bold text-ui-primary">{walletIdentity ? formatProfit(walletIdentity.portfolio.totalProfitPercent) : '—'}</span>
                 {walletIdentity && walletIdentity.portfolio.totalProfitPercent >= 0 ? (
                   <TrendingUpIcon size={18} className="text-primary" />
                 ) : (
@@ -849,27 +849,27 @@ export function EnhancedProfile({
             </div>
 
             <div className="flex-1 text-center border-r border-[var(--color-panel-border)]/50">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest mb-1">
                 Assets Owned
               </p>
-              <h4 className="text-xl font-bold text-white">{walletIdentity?.assets.totalOwned ?? '—'}</h4>
-              <p className="text-xs text-zinc-500 mt-1">across {walletIdentity?.portfolio.activeNetworks ?? 1} network{(walletIdentity?.portfolio.activeNetworks ?? 1) > 1 ? 's' : ''}</p>
+              <h4 className="text-xl font-bold text-ui-primary">{walletIdentity?.assets.totalOwned ?? '—'}</h4>
+              <p className="text-xs text-ui-secondary mt-1">across {walletIdentity?.portfolio.activeNetworks ?? 1} network{(walletIdentity?.portfolio.activeNetworks ?? 1) > 1 ? 's' : ''}</p>
             </div>
 
             <div className="flex-1 text-center border-r border-[var(--color-panel-border)]/50">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest mb-1">
                 Followers
               </p>
-              <h4 className="text-xl font-bold text-white">{walletIdentity?.social.followersCount ?? 0}</h4>
-              <p className="text-xs text-zinc-500 mt-1">{walletIdentity?.social.followingCount ?? 0} following</p>
+              <h4 className="text-xl font-bold text-ui-primary">{walletIdentity?.social.followersCount ?? 0}</h4>
+              <p className="text-xs text-ui-secondary mt-1">{walletIdentity?.social.followingCount ?? 0} following</p>
             </div>
 
             <div className="flex-1 text-center">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest mb-1">
                 Joined
               </p>
-              <h4 className="text-xl font-bold text-white">{walletIdentity?.social.joinedDateFormatted ?? '—'}</h4>
-              <p className="text-xs text-zinc-500 mt-1">{walletIdentity && walletIdentity.social.accountAgeDays > 30 ? 'Early member' : 'New member'}</p>
+              <h4 className="text-xl font-bold text-ui-primary">{walletIdentity?.social.joinedDateFormatted ?? '—'}</h4>
+              <p className="text-xs text-ui-secondary mt-1">{walletIdentity && walletIdentity.social.accountAgeDays > 30 ? 'Early member' : 'New member'}</p>
             </div>
           </div>
         </div>
@@ -886,7 +886,7 @@ export function EnhancedProfile({
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex items-center gap-2 px-6 py-3 font-bold text-sm transition-all relative ${activeTab === tab.id
                         ? 'text-primary'
-                        : 'text-zinc-400 hover:text-zinc-300'
+                        : 'text-ui-secondary hover:text-ui-primary'
                       }`}
                   >
                     <Icon size={18} />
@@ -907,12 +907,12 @@ export function EnhancedProfile({
           {activeTab === 'overview' && (
             <div className="space-y-8">
               <div>
-                <h3 className="text-lg font-bold text-white mb-6">Recent Activity</h3>
-                <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-hidden">
+                <h3 className="text-lg font-bold text-ui-primary mb-6">Recent Activity</h3>
+                <div className="bg-[var(--t-surface-2)] border-0 rounded-2xl overflow-hidden">
                   {realActivities.length > 0 ? (
                     <table className="w-full text-left">
-                      <thead className="border-b border-[var(--color-panel-border)] bg-zinc-800/30">
-                        <tr className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                      <thead className="border-b border-[var(--color-panel-border)] bg-[var(--t-surface-5)]">
+                        <tr className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">
                           <th className="px-6 py-4">Transaction</th>
                           <th className="px-6 py-4">Asset</th>
                           <th className="px-6 py-4">Price</th>
@@ -924,21 +924,21 @@ export function EnhancedProfile({
                         {realActivities.slice(0, 4).map((activity) => {
                           const config = activityTypeConfig[activity.type] || { label: activity.type, color: 'bg-zinc-500' };
                           return (
-                            <tr key={activity.id} className="hover:bg-zinc-800/30 transition-colors">
+                            <tr key={activity.id} className="hover:bg-[var(--t-surface-hover)] transition-colors">
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-2">
                                   <span className={`w-2 h-2 rounded-full ${config.color}`}></span>
-                                  <span className="text-sm font-medium text-white">{config.label}</span>
+                                  <span className="text-sm font-medium text-ui-primary">{config.label}</span>
                                 </div>
                               </td>
                               <td className="px-6 py-4">
-                                <span className="text-sm text-zinc-300 font-mono">{activity.assetName}</span>
+                                <span className="text-sm text-ui-secondary font-mono">{activity.assetName}</span>
                               </td>
                               <td className="px-6 py-4">
-                                <span className="text-sm text-white font-bold">{activity.price ? `${activity.price} ETH` : '—'}</span>
+                                <span className="text-sm text-ui-primary font-bold">{activity.price ? `${activity.price} ETH` : '—'}</span>
                               </td>
                               <td className="px-6 py-4">
-                                <span className="text-xs text-zinc-500">{formatActivityTime(activity.timestamp)}</span>
+                                <span className="text-xs text-ui-secondary">{formatActivityTime(activity.timestamp)}</span>
                               </td>
                               <td className="px-6 py-4 text-right">
                                 {activity.txHash ? (
@@ -946,7 +946,7 @@ export function EnhancedProfile({
                                     View TX <ExternalLink size={14} />
                                   </a>
                                 ) : (
-                                  <span className="text-xs text-zinc-600">—</span>
+                                  <span className="text-xs text-ui-muted">—</span>
                                 )}
                               </td>
                             </tr>
@@ -956,11 +956,11 @@ export function EnhancedProfile({
                     </table>
                   ) : (
                     <div className="py-14 px-6 text-center">
-                      <div className="w-16 h-16 rounded-2xl bg-zinc-950/80 border border-[var(--color-panel-border)] flex items-center justify-center mx-auto mb-5">
-                        <ActivityIcon size={28} className="text-zinc-700" />
+                      <div className="w-16 h-16 rounded-2xl bg-[var(--t-surface-5)] border border-ui-border-subtle flex items-center justify-center mx-auto mb-5">
+                        <ActivityIcon size={28} className="text-ui-muted" />
                       </div>
-                      <p className="text-2xl font-bold text-white mb-2">No activity recorded yet</p>
-                      <p className="text-sm text-zinc-500 max-w-md mx-auto">Transactions will appear here once you interact with the marketplace</p>
+                      <p className="text-2xl font-bold text-ui-primary mb-2">No activity recorded yet</p>
+                      <p className="text-sm text-ui-secondary max-w-md mx-auto">Transactions will appear here once you interact with the marketplace</p>
                     </div>
                   )}
                 </div>
@@ -973,7 +973,7 @@ export function EnhancedProfile({
           {activeTab === 'story' && (
             <div className="mx-auto w-full max-w-4xl">
               {isOwnProfile && (
-                <div className="mb-3 text-right text-[10px] text-zinc-500">
+                <div className="mb-3 text-right text-[10px] text-ui-secondary">
                   {storyCharacterCount}/{STORY_CHARACTER_LIMIT} chars • {storyImageCount}/{STORY_IMAGE_LIMIT} images
                 </div>
               )}
@@ -983,7 +983,7 @@ export function EnhancedProfile({
                     {isOwnProfile && (
                       <button
                         onClick={() => removeStoryBlock(block.id)}
-                        className="absolute right-1 top-1 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-black/45 text-zinc-300 transition-colors hover:bg-black/65 hover:text-white"
+                        className="absolute right-1 top-1 z-20 flex h-6 w-6 items-center justify-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] text-ui-secondary transition-colors hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
                         title="Remove block"
                       >
                         <X size={15} />
@@ -995,7 +995,7 @@ export function EnhancedProfile({
                         value={block.content}
                         onChange={(e) => updateStoryBlock(block.id, e.target.value)}
                         readOnly={!isOwnProfile}
-                        className={`block w-full appearance-none rounded-[12px] border border-transparent bg-transparent px-3 py-1.5 text-2xl font-semibold text-white/90 outline-none placeholder:text-zinc-600 transition-colors ${
+                        className={`block w-full appearance-none rounded-[12px] border border-transparent bg-transparent px-3 py-1.5 text-2xl font-semibold text-ui-primary outline-none placeholder:text-ui-muted transition-colors ${
                           isOwnProfile ? 'pr-10 focus:border-primary focus:ring-primary/35 focus:outline-none' : 'pr-3'
                         }`}
                         placeholder="Heading"
@@ -1009,7 +1009,7 @@ export function EnhancedProfile({
                         onInput={(e) => autoResizeTextarea(e.currentTarget)}
                         ref={autoResizeTextarea}
                         readOnly={!isOwnProfile}
-                        className={`block w-full appearance-none resize-none overflow-hidden rounded-[12px] border border-transparent bg-transparent px-3 py-1.5 text-lg leading-[1.6] text-zinc-400 outline-none placeholder:text-zinc-600 transition-colors ${
+                        className={`block w-full appearance-none resize-none overflow-hidden rounded-[12px] border border-transparent bg-transparent px-3 py-1.5 text-lg leading-[1.6] text-ui-secondary outline-none placeholder:text-ui-muted transition-colors ${
                           isOwnProfile ? 'pr-10 focus:border-primary focus:ring-primary/35 focus:outline-none' : 'pr-3'
                         }`}
                         rows={1}
@@ -1028,15 +1028,14 @@ export function EnhancedProfile({
                       </div>
                     )}
 
-                    <div className="group relative h-7 flex items-center justify-center">
-                      <div className="h-px w-full bg-zinc-900 group-hover:bg-zinc-700 transition-colors" />
+                    <div className="group relative flex h-14 items-center justify-center">
                       {isOwnProfile && (
                         <button
                           onClick={() => requestStoryImageInsert(index + 1)}
-                          className="absolute h-6 w-6 rounded-full border border-zinc-700 bg-zinc-900 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-zinc-200"
+                          className="absolute flex h-12 w-12 items-center justify-center rounded-full bg-ui-input text-ui-secondary opacity-0 shadow-[0_10px_24px_-16px_rgba(0,0,0,0.45)] transition-opacity group-hover:opacity-100 hover:text-ui-primary"
                           title="Insert image"
                         >
-                          <ImagePlus size={12} className="mx-auto" />
+                          <ImagePlus size={24} className="mx-auto" />
                         </button>
                       )}
                     </div>
@@ -1046,28 +1045,27 @@ export function EnhancedProfile({
 
               {isOwnProfile && (
                 <div className="sticky bottom-6 z-20 flex justify-center pt-8">
-                  <div className="relative flex h-[41px] w-[236px] items-center justify-center gap-4 rounded-full border border-ui-border-subtle bg-ui-input px-5 backdrop-blur-[6px] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.5)]">
+                  <div className="relative flex h-[64px] w-[324px] items-center justify-center gap-5 rounded-full bg-ui-input px-6 backdrop-blur-[6px] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.5)]">
                     <button
                       onClick={() => addStoryBlock('heading')}
-                      className="text-white hover:text-ui-primary transition-colors"
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--t-surface-5)] text-ui-secondary transition-colors hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
                       title="Add H3"
                     >
-                      <Heading3 size={14} />
+                      <Heading3 size={22} />
                     </button>
                     <button
                       onClick={() => addStoryBlock('paragraph')}
-                      className="text-white hover:text-ui-primary transition-colors"
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--t-surface-5)] text-ui-secondary transition-colors hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
                       title="Add paragraph"
                     >
-                      <AlignLeft size={14} />
+                      <AlignLeft size={22} />
                     </button>
-                    <div className="h-4 w-px bg-ui-border-subtle" />
                     <button
                       onClick={() => requestStoryImageInsert(storyBlocks.length)}
-                      className="text-white hover:text-ui-primary transition-colors"
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--t-surface-5)] text-ui-secondary transition-colors hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
                       title="Add image"
                     >
-                      <ImagePlus size={15} />
+                      <ImagePlus size={30} />
                     </button>
                   </div>
                 </div>
@@ -1087,17 +1085,17 @@ export function EnhancedProfile({
           {/* Activity Tab */}
           {activeTab === 'activity' && (
             <div>
-              <h3 className="text-lg font-bold text-white mb-6">
+              <h3 className="text-lg font-bold text-ui-primary mb-6">
                 All Activity
                 {realActivities.length > 0 && (
-                  <span className="text-zinc-500 text-sm font-normal ml-2">({realActivities.length})</span>
+                  <span className="text-ui-secondary text-sm font-normal ml-2">({realActivities.length})</span>
                 )}
               </h3>
-              <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl overflow-hidden">
+              <div className="bg-[var(--t-surface-2)] border-0 rounded-2xl overflow-hidden">
                 {realActivities.length > 0 ? (
                   <table className="w-full text-left">
-                    <thead className="border-b border-[var(--color-panel-border)] bg-zinc-800/30">
-                      <tr className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                    <thead className="border-b border-[var(--color-panel-border)] bg-[var(--t-surface-5)]">
+                      <tr className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">
                         <th className="px-6 py-4">Transaction</th>
                         <th className="px-6 py-4">Asset</th>
                         <th className="px-6 py-4">Price</th>
@@ -1110,18 +1108,18 @@ export function EnhancedProfile({
                       {realActivities.map((activity) => {
                         const config = activityTypeConfig[activity.type] || { label: activity.type, color: 'bg-zinc-500' };
                         return (
-                          <tr key={activity.id} className="hover:bg-zinc-800/30 transition-colors">
+                          <tr key={activity.id} className="hover:bg-[var(--t-surface-hover)] transition-colors">
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-2">
                                 <span className={`w-2 h-2 rounded-full ${config.color}`}></span>
-                                <span className="text-sm font-medium text-white">{config.label}</span>
+                                <span className="text-sm font-medium text-ui-primary">{config.label}</span>
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="text-sm text-zinc-300 font-mono">{activity.assetName}</span>
+                              <span className="text-sm text-ui-secondary font-mono">{activity.assetName}</span>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="text-sm text-white font-bold">{activity.price ? `${activity.price} ETH` : '—'}</span>
+                              <span className="text-sm text-ui-primary font-bold">{activity.price ? `${activity.price} ETH` : '—'}</span>
                             </td>
                             <td className="px-6 py-4">
                               <span className={`text-xs font-bold px-2 py-0.5 rounded ${activity.status === 'completed' ? 'bg-[var(--color-primary-custom)]/10 text-primary' :
@@ -1132,7 +1130,7 @@ export function EnhancedProfile({
                               </span>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="text-xs text-zinc-500">{formatActivityTime(activity.timestamp)}</span>
+                              <span className="text-xs text-ui-secondary">{formatActivityTime(activity.timestamp)}</span>
                             </td>
                             <td className="px-6 py-4 text-right">
                               {activity.txHash ? (
@@ -1140,7 +1138,7 @@ export function EnhancedProfile({
                                   View TX <ExternalLink size={14} />
                                 </a>
                               ) : (
-                                <span className="text-xs text-zinc-600">—</span>
+                                <span className="text-xs text-ui-muted">—</span>
                               )}
                             </td>
                           </tr>
@@ -1150,11 +1148,11 @@ export function EnhancedProfile({
                   </table>
                 ) : (
                   <div className="py-16 px-6 text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-zinc-950/80 border border-[var(--color-panel-border)] flex items-center justify-center mx-auto mb-5">
-                      <ActivityIcon size={28} className="text-zinc-700" />
+                    <div className="w-16 h-16 rounded-2xl bg-[var(--t-surface-5)] border border-ui-border-subtle flex items-center justify-center mx-auto mb-5">
+                      <ActivityIcon size={28} className="text-ui-muted" />
                     </div>
-                    <h4 className="text-2xl font-bold text-white mb-2">No activity yet</h4>
-                    <p className="text-sm text-zinc-500 max-w-sm mx-auto">
+                    <h4 className="text-2xl font-bold text-ui-primary mb-2">No activity yet</h4>
+                    <p className="text-sm text-ui-secondary max-w-sm mx-auto">
                       Your transaction history will appear here once you start minting, buying, or selling assets.
                     </p>
                   </div>
@@ -1167,17 +1165,17 @@ export function EnhancedProfile({
           {activeTab === 'favorites' && (
             <div>
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-white">
-                  Favorite Assets <span className="text-zinc-500 text-sm font-normal ml-2">({favoriteAssets.length} Items)</span>
+                <h3 className="text-lg font-bold text-ui-primary">
+                  Favorite Assets <span className="text-ui-secondary text-sm font-normal ml-2">({favoriteAssets.length} Items)</span>
                 </h3>
               </div>
               {favoriteAssets.length === 0 ? (
                 <div className="py-20 text-center">
-                  <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Heart size={40} className="text-zinc-700" />
+                  <div className="w-20 h-20 bg-[var(--t-surface-5)] rounded-full flex items-center justify-center mx-auto mb-6 border border-ui-border-subtle">
+                    <Heart size={40} className="text-ui-muted" />
                   </div>
-                  <h3 className="text-xl font-bold text-white mb-2">No favorites yet</h3>
-                  <p className="text-sm text-zinc-500">Start adding assets to your favorites</p>
+                  <h3 className="text-xl font-bold text-ui-primary mb-2">No favorites yet</h3>
+                  <p className="text-sm text-ui-secondary">Start adding assets to your favorites</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -1210,15 +1208,15 @@ export function EnhancedProfile({
           <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto hidden-scrollbar p-5 space-y-5">
             <div className="rounded-[24px] bg-ui-input border border-ui-border-subtle p-6 space-y-6">
               <div>
-                <h3 className="text-sm font-bold text-white">Story Settings</h3>
-                <p className="mt-1 text-[11px] leading-4 text-zinc-500">
+                <h3 className="text-sm font-bold text-ui-primary">Story Settings</h3>
+                <p className="mt-1 text-[11px] leading-4 text-ui-secondary">
                   Configure how your content appears to investors.
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-zinc-400">Category</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ui-muted">Category</p>
                   <div className="relative">
                     <select
                       value={isStorySettingsEditing ? storyDraftSettings.category : storySettings.category}
@@ -1226,39 +1224,38 @@ export function EnhancedProfile({
                         setStoryDraftSettings((prev) => ({ ...prev, category: event.target.value }))
                       }
                       disabled={!isStorySettingsEditing}
-                      className="w-full h-[42px] appearance-none rounded-2xl border border-ui-border bg-zinc-950 px-4 pr-9 text-sm text-zinc-300 focus:outline-none focus:border-primary focus:ring-primary/35 disabled:opacity-100 disabled:cursor-default"
+                      className="w-full h-[42px] appearance-none rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-2)] px-4 pr-9 text-sm text-ui-primary focus:outline-none focus:border-primary focus:ring-primary/35 disabled:opacity-100 disabled:cursor-default"
                     >
                       <option value="Institutional">Institutional</option>
                       <option value="Retail">Retail</option>
                       <option value="Mixed">Mixed</option>
                     </select>
-                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">⌄</span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-zinc-400">Tags</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ui-muted">Tags</p>
                   <div className="relative">
-                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600">#</span>
+                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ui-muted">#</span>
                     <input
                       value={isStorySettingsEditing ? storyDraftSettings.tags : storySettings.tags}
                       onChange={(event) =>
                         setStoryDraftSettings((prev) => ({ ...prev, tags: event.target.value }))
                       }
                       disabled={!isStorySettingsEditing}
-                      className="w-full h-[42px] rounded-2xl border border-ui-border bg-zinc-950 pl-8 pr-4 text-sm text-zinc-400 focus:outline-none focus:border-primary focus:ring-primary/35 disabled:opacity-100 disabled:cursor-default"
+                      className="w-full h-[42px] rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-2)] pl-8 pr-4 text-sm text-ui-primary focus:outline-none focus:border-primary focus:ring-primary/35 disabled:opacity-100 disabled:cursor-default"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-zinc-800">
+              <div className="pt-4">
                 <button
                   onClick={handleStorySettingsAction}
                   className={`w-full h-[43px] rounded-full text-[11px] font-bold uppercase tracking-[0.05em] transition-colors ${
                     isStorySettingsEditing
                       ? 'border border-white bg-white text-black hover:bg-zinc-100'
-                      : 'border border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                      : 'border border-ui-border text-ui-secondary hover:text-ui-primary'
                   }`}
                 >
                   {isStorySettingsEditing ? 'Save' : 'Edit'}
@@ -1267,20 +1264,20 @@ export function EnhancedProfile({
             </div>
 
             <div className="space-y-3">
-              <h3 className="px-1 text-[10px] font-bold uppercase tracking-[0.1em] text-white">Content Quality</h3>
-              <div className="rounded-[24px] bg-[rgba(24,24,27,0.3)] p-4 space-y-4">
+              <h3 className="px-1 text-[10px] font-bold uppercase tracking-[0.1em] text-ui-primary">Content Quality</h3>
+              <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] p-4 space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-zinc-400">Completeness</span>
+                  <span className="text-xs text-ui-secondary">Completeness</span>
                   <span className="rounded-lg bg-[rgba(44,194,149,0.1)] px-2 py-0.5 text-[10px] font-bold text-primary">92</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-zinc-400">Readability</span>
+                  <span className="text-xs text-ui-secondary">Readability</span>
                   <span className="rounded-lg bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">74</span>
                 </div>
-                <div className="h-1 rounded-full bg-zinc-800 overflow-hidden">
+                <div className="h-1 rounded-full bg-[var(--t-surface-10)] overflow-hidden">
                   <div className="h-full w-3/4 bg-[var(--color-primary-custom)]" />
                 </div>
-                <p className="text-[11px] leading-4 text-zinc-500">
+                <p className="text-[11px] leading-4 text-ui-secondary">
                   Adding more tags could improve discoverability by 15%.
                 </p>
               </div>
@@ -1291,10 +1288,10 @@ export function EnhancedProfile({
                 <TrendingUpIcon size={18} />
                 <span className="text-xs font-bold uppercase tracking-[0.08em]">AI Optimization</span>
               </div>
-              <p className="text-[11px] leading-5 text-zinc-400">
+              <p className="text-[11px] leading-5 text-ui-secondary">
                 Optimize this story for professional investors with our GPT-4 powered summary tool.
               </p>
-              <button className="w-full h-9 rounded-full bg-zinc-900 text-[10px] font-bold uppercase tracking-[0.05em] text-white hover:bg-zinc-800 transition-colors">
+              <button className="w-full h-9 rounded-full bg-ui-input border border-ui-border text-[10px] font-bold uppercase tracking-[0.05em] text-ui-primary hover:bg-[var(--t-surface-hover)] transition-colors">
                 Optimize Story
               </button>
             </div>
@@ -1303,11 +1300,11 @@ export function EnhancedProfile({
         <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="p-6 border-b border-[var(--color-panel-border)] bg-gradient-to-b from-white/[0.02] to-transparent">
-          <h2 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
-            <Shield size={18} className="text-zinc-500" />
+          <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
+            <Shield size={18} className="text-ui-muted" />
             User Performance
           </h2>
-          <p className="text-xs text-zinc-500 mt-1">Trust and reputation analysis</p>
+          <p className="text-xs text-ui-secondary mt-1">Trust and reputation analysis</p>
         </div>
 
         {/* Content */}
@@ -1316,21 +1313,20 @@ export function EnhancedProfile({
           <div className="text-center space-y-4">
             <div className="relative w-32 h-32 mx-auto flex items-center justify-center">
               <div
-                className="absolute inset-0 rounded-full border-4 border-zinc-800 p-1"
+                className="absolute inset-0 rounded-full"
                 style={{ background: walletIdentity ? getScoreGaugeGradient(walletIdentity.reputation.overallScore) : getScoreGaugeGradient(50) }}
-              >
-                <div className="w-full h-full rounded-full bg-[#131313] flex flex-col items-center justify-center">
-                  <span className="text-2xl font-black text-white">{walletIdentity?.reputation.overallScore ?? '—'}</span>
-                  <span className="text-[10px] text-zinc-500 font-bold uppercase">Rep Score</span>
-                </div>
+              />
+              <div className="absolute inset-[13px] rounded-full bg-[var(--t-page-bg)] shadow-[inset_0_0_0_1px_var(--t-border-subtle)] flex flex-col items-center justify-center">
+                <span className="text-2xl font-black text-ui-primary">{walletIdentity?.reputation.overallScore ?? '—'}</span>
+                <span className="text-[10px] text-ui-muted font-bold uppercase">Rep Score</span>
               </div>
             </div>
             {walletIdentity && (
               <div className="space-y-1">
-                <p className="text-xs font-bold text-white">
+                <p className="text-xs font-bold text-ui-primary">
                   {walletIdentity.reputation.levelIcon} {walletIdentity.reputation.level} Level
                 </p>
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs text-ui-secondary">
                   {walletIdentity.reputation.averageRating > 0
                     ? `${walletIdentity.reputation.averageRating.toFixed(1)}/5.0 avg from ${walletIdentity.reputation.totalReviews} reviews`
                     : 'No reviews yet'
@@ -1343,7 +1339,7 @@ export function EnhancedProfile({
           {/* Asset Breakdown */}
           {walletIdentity && (
             <div className="space-y-4">
-              <h3 className="text-[11px] uppercase tracking-[0.15em] font-bold text-zinc-500 px-1">
+              <h3 className="text-[11px] uppercase tracking-[0.15em] font-bold text-ui-muted px-1">
                 Asset Breakdown
               </h3>
               <div className="grid grid-cols-2 gap-2">
@@ -1353,12 +1349,12 @@ export function EnhancedProfile({
                   { label: 'Receipts', value: walletIdentity.assets.receiptNFTs, color: 'bg-purple-500' },
                   { label: 'Transferred', value: walletIdentity.assets.transferred, color: 'bg-yellow-500' },
                 ].map((item) => (
-                  <div key={item.label} className="p-3 bg-zinc-950/50 border border-[var(--color-panel-border)] rounded-lg">
+                  <div key={item.label} className="p-3 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg">
                     <div className="flex items-center gap-2 mb-1">
                       <div className={`w-1.5 h-1.5 rounded-full ${item.color}`}></div>
-                      <span className="text-[10px] font-bold text-zinc-500 uppercase">{item.label}</span>
+                      <span className="text-[10px] font-bold text-ui-muted uppercase">{item.label}</span>
                     </div>
-                    <span className="text-lg font-bold text-white">{item.value}</span>
+                    <span className="text-lg font-bold text-ui-primary">{item.value}</span>
                   </div>
                 ))}
               </div>
@@ -1367,10 +1363,10 @@ export function EnhancedProfile({
 
           {/* Recent Reviews - REAL DATA */}
           <div className="space-y-4">
-            <h3 className="text-[11px] uppercase tracking-[0.15em] font-bold text-zinc-500 px-1">
+            <h3 className="text-[11px] uppercase tracking-[0.15em] font-bold text-ui-muted px-1">
               Recent Reviews
               {walletIdentity && walletIdentity.reputation.totalReviews > 0 && (
-                <span className="ml-2 text-zinc-600">({walletIdentity.reputation.totalReviews})</span>
+                <span className="ml-2 text-ui-secondary">({walletIdentity.reputation.totalReviews})</span>
               )}
             </h3>
             <div className="space-y-4">
@@ -1378,14 +1374,14 @@ export function EnhancedProfile({
                 walletIdentity.reputation.recentRatings.slice(0, 3).map((rating, idx) => (
                   <div
                     key={rating.id || `rating-${idx}`}
-                    className="p-4 bg-zinc-950/50 border border-[var(--color-panel-border)] rounded-xl space-y-3"
+                    className="p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-xl space-y-3"
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400">
+                        <div className="w-6 h-6 rounded-full bg-[var(--t-surface-10)] flex items-center justify-center text-[10px] font-bold text-ui-secondary">
                           {(rating.fromUsername || rating.fromUserId || '?').slice(0, 2).toUpperCase()}
                         </div>
-                        <span className="text-xs font-bold text-white">
+                        <span className="text-xs font-bold text-ui-primary">
                           {rating.fromUsername || `${(rating.fromUserId || '0x0000').slice(0, 6)}...`}
                         </span>
                       </div>
@@ -1394,13 +1390,13 @@ export function EnhancedProfile({
                           <Star
                             key={i}
                             size={12}
-                            className={i < Math.round(rating.overallRating) ? 'fill-current' : 'text-zinc-700'}
+                            className={i < Math.round(rating.overallRating) ? 'fill-current' : 'text-ui-muted'}
                           />
                         ))}
                       </div>
                     </div>
                     {rating.review && (
-                      <p className="text-xs text-zinc-400 italic">"{rating.review.slice(0, 120)}{rating.review.length > 120 ? '...' : ''}"</p>
+                      <p className="text-xs text-ui-secondary italic">"{rating.review.slice(0, 120)}{rating.review.length > 120 ? '...' : ''}"</p>
                     )}
                   </div>
                 ))
@@ -1408,26 +1404,26 @@ export function EnhancedProfile({
                 mockReviews.map((review) => (
                   <div
                     key={review.id}
-                    className="p-4 bg-zinc-950/50 border border-[var(--color-panel-border)] rounded-xl space-y-3"
+                    className="p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-xl space-y-3"
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400">
+                        <div className="w-6 h-6 rounded-full bg-[var(--t-surface-10)] flex items-center justify-center text-[10px] font-bold text-ui-secondary">
                           {review.reviewer.slice(0, 2).toUpperCase()}
                         </div>
-                        <span className="text-xs font-bold text-white">{review.reviewer}</span>
+                        <span className="text-xs font-bold text-ui-primary">{review.reviewer}</span>
                       </div>
                       <div className="flex text-primary">
                         {Array.from({ length: 5 }).map((_, i) => (
                           <Star
                             key={i}
                             size={12}
-                            className={i < review.rating ? 'fill-current' : 'text-zinc-700'}
+                            className={i < review.rating ? 'fill-current' : 'text-ui-muted'}
                           />
                         ))}
                       </div>
                     </div>
-                    <p className="text-xs text-zinc-400 italic">"{review.comment}"</p>
+                    <p className="text-xs text-ui-secondary italic">"{review.comment}"</p>
                   </div>
                 ))
               )}
@@ -1436,47 +1432,47 @@ export function EnhancedProfile({
 
           {/* Trust Metrics - REAL DATA */}
           <div className="space-y-4">
-            <h3 className="text-[11px] uppercase tracking-[0.15em] font-bold text-zinc-500 px-1">
+            <h3 className="text-[11px] uppercase tracking-[0.15em] font-bold text-ui-muted px-1">
               Trust Metrics
             </h3>
             <div className="space-y-3">
               <div className="space-y-2">
                 <div className="flex justify-between text-[10px] font-bold uppercase">
-                  <span className="text-zinc-400">Response Rate</span>
-                  <span className="text-white">{walletIdentity?.trust.responseRate ?? 0}%</span>
+                  <span className="text-ui-secondary">Response Rate</span>
+                  <span className="text-ui-primary">{walletIdentity?.trust.responseRate ?? 0}%</span>
                 </div>
-                <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-1 bg-[var(--t-surface-10)] rounded-full overflow-hidden">
                   <div className="h-full bg-[var(--color-primary-custom)]" style={{ width: getTrustBarWidth(walletIdentity?.trust.responseRate ?? 0) }}></div>
                 </div>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-[10px] font-bold uppercase">
-                  <span className="text-zinc-400">Order Completion</span>
-                  <span className="text-white">{walletIdentity?.trust.orderCompletionRate ?? 0}%</span>
+                  <span className="text-ui-secondary">Order Completion</span>
+                  <span className="text-ui-primary">{walletIdentity?.trust.orderCompletionRate ?? 0}%</span>
                 </div>
-                <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-1 bg-[var(--t-surface-10)] rounded-full overflow-hidden">
                   <div className="h-full bg-[var(--color-primary-custom)]" style={{ width: getTrustBarWidth(walletIdentity?.trust.orderCompletionRate ?? 0) }}></div>
                 </div>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-[10px] font-bold uppercase">
-                  <span className="text-zinc-400">Avg. Response Time</span>
-                  <span className="text-white">{walletIdentity ? formatResponseTime(walletIdentity.trust.avgResponseTimeHours) : 'N/A'}</span>
+                  <span className="text-ui-secondary">Avg. Response Time</span>
+                  <span className="text-ui-primary">{walletIdentity ? formatResponseTime(walletIdentity.trust.avgResponseTimeHours) : 'N/A'}</span>
                 </div>
-                <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-1 bg-[var(--t-surface-10)] rounded-full overflow-hidden">
                   <div className="h-full bg-[var(--color-primary-custom)]" style={{ width: getTrustBarWidth(walletIdentity ? Math.max(0, 100 - walletIdentity.trust.avgResponseTimeHours * 10) : 0) }}></div>
                 </div>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-[10px] font-bold uppercase">
-                  <span className="text-zinc-400">Dispute Rate</span>
-                  <span className={`${(walletIdentity?.trust.disputeRate ?? 0) > 5 ? 'text-red-400' : 'text-white'}`}>
+                  <span className="text-ui-secondary">Dispute Rate</span>
+                  <span className={`${(walletIdentity?.trust.disputeRate ?? 0) > 5 ? 'text-red-500' : 'text-ui-primary'}`}>
                     {walletIdentity?.trust.disputeRate ?? 0}%
                   </span>
                 </div>
-                <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-1 bg-[var(--t-surface-10)] rounded-full overflow-hidden">
                   <div
-                    className={`h-full ${(walletIdentity?.trust.disputeRate ?? 0) > 5 ? 'bg-red-400' : 'bg-[var(--color-primary-custom)]'}`}
+                    className={`h-full ${(walletIdentity?.trust.disputeRate ?? 0) > 5 ? 'bg-red-500' : 'bg-[var(--color-primary-custom)]'}`}
                     style={{ width: getTrustBarWidth(100 - (walletIdentity?.trust.disputeRate ?? 0)) }}
                   ></div>
                 </div>
@@ -1487,14 +1483,14 @@ export function EnhancedProfile({
           {/* Trust Badges */}
           {walletIdentity && walletIdentity.reputation.trustBadges.length > 0 && (
             <div className="space-y-4">
-              <h3 className="text-[11px] uppercase tracking-[0.15em] font-bold text-zinc-500 px-1">
+              <h3 className="text-[11px] uppercase tracking-[0.15em] font-bold text-ui-muted px-1">
                 Trust Badges
               </h3>
               <div className="flex flex-wrap gap-2">
                 {walletIdentity.reputation.trustBadges.map((badge) => (
                   <div
                     key={badge.id}
-                    className={`px-3 py-1.5 rounded-lg border border-white/5 text-xs font-bold flex items-center gap-1.5 ${badge.color}`}
+                    className={`px-3 py-1.5 rounded-lg border border-ui-border-subtle text-xs font-bold flex items-center gap-1.5 ${badge.color}`}
                     title={badge.description}
                   >
                     <span>{badge.icon}</span>
@@ -1507,8 +1503,8 @@ export function EnhancedProfile({
         </div>
 
         {/* Footer */}
-        <div className="mt-auto border-t border-[var(--color-panel-border)] p-5 bg-zinc-950/80 backdrop-blur-md">
-          <button className="w-full py-3 bg-zinc-900 border border-[var(--color-panel-border)] rounded-xl text-xs font-bold text-white hover:border-[var(--color-primary-custom)]/50 transition-all flex items-center justify-center gap-2">
+        <div className="mt-auto border-t border-ui-border-subtle p-5 bg-[var(--t-surface-2)] backdrop-blur-md">
+          <button className="w-full py-3 bg-ui-input border border-ui-border-subtle rounded-xl text-xs font-bold text-ui-primary hover:border-[var(--color-primary-custom)]/50 hover:bg-[var(--t-surface-hover)] transition-all flex items-center justify-center gap-2">
             <Shield size={16} />
             View Verification Audit
           </button>

@@ -132,7 +132,7 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+        className="studio-portal-backdrop fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
         onClick={(e) => {
           if (e.target === e.currentTarget) handleClose();
         }}
@@ -142,14 +142,14 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           transition={{ type: 'spring', duration: 0.3 }}
-          className="relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
+          className="studio-modal-theme studio-portal-modal relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           <style>{`
             .hidden-scrollbar::-webkit-scrollbar { display: none; }
           `}</style>
 
-          <header className="shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
+          <header className="studio-portal-header shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <h1 className="text-lg font-bold text-white tracking-tight truncate">Create New Post</h1>
@@ -158,7 +158,7 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
+                <span className="studio-portal-chip h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
                   @{userName || userId}
                 </span>
                 <span className="h-7 px-3 inline-flex items-center bg-[#2CC295]/15 rounded-full border border-[#2CC295]/30 text-[9px] font-bold text-[#2CC295] uppercase tracking-widest">
@@ -173,7 +173,7 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
             <div className="h-full p-5 md:p-6 pt-4 relative z-10">
               <div className="w-full h-full mx-auto flex flex-col lg:flex-row items-start gap-6">
                 <section className="w-full lg:flex-1 min-w-0 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 mb-6">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 mb-6">
                     <div className="flex items-center gap-2 mb-4">
                       <Shield size={14} className="text-[#2CC295]" />
                       <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Post Type</h3>
@@ -188,7 +188,7 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                             p-4 rounded-[16px] text-left transition-all
                             ${selectedType === type
                               ? 'bg-[#2CC295]/10 text-white'
-                              : 'bg-[rgba(255,255,255,0.03)] text-zinc-400 hover:bg-[rgba(255,255,255,0.05)]'
+                              : 'studio-portal-subsurface bg-[rgba(255,255,255,0.03)] text-zinc-400 hover:bg-[rgba(255,255,255,0.05)]'
                             }
                           `}
                         >
@@ -200,7 +200,7 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                     </div>
                   </div>
 
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 mb-6">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 mb-6">
                     <label className="block text-[10px] font-bold uppercase tracking-[1px] text-[#71717A] mb-3">
                       Content *
                     </label>
@@ -209,7 +209,7 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                       onChange={(e) => setContent(e.target.value)}
                       placeholder="Share your thoughts with the community..."
                       rows={8}
-                      className="w-full px-4 py-3 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-[16px] text-white placeholder-zinc-600 focus:outline-none focus:border-[#2CC295]/40 resize-none transition-colors text-sm"
+                      className="studio-portal-input w-full px-4 py-3 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-[16px] text-white placeholder-zinc-600 focus:outline-none focus:border-[#2CC295]/40 resize-none transition-colors text-sm"
                       required
                       minLength={10}
                       maxLength={5000}
@@ -222,7 +222,7 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                     </div>
                   </div>
 
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 mb-6">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 mb-6">
                     <div className="flex items-center gap-2 mb-4">
                       <ImageIcon size={14} className="text-[#2CC295]" />
                       <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Images (Optional)</h3>
@@ -242,7 +242,7 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                     />
                   </div>
 
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 mb-6">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 mb-6">
                     <div className="flex items-center gap-2 mb-4">
                       <Type size={14} className="text-[#2CC295]" />
                       <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Tags (Optional)</h3>
@@ -254,7 +254,7 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                         onChange={(e) => setTagInput(e.target.value)}
                         onKeyDown={(e) => handleKeyDown(e, handleAddTag)}
                         placeholder="Add tags..."
-                        className="flex-1 px-4 py-2.5 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-[16px] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#2CC295]/40 transition-colors"
+                        className="studio-portal-input flex-1 px-4 py-2.5 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-[16px] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#2CC295]/40 transition-colors"
                       />
                       <button
                         type="button"
@@ -284,7 +284,7 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                   </div>
 
                   {selectedType === 'discussion' && (
-                    <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
+                    <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
                       <button
                         type="button"
                         onClick={() => setShowPoll(!showPoll)}
@@ -311,7 +311,7 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                               value={pollQuestion}
                               onChange={(e) => setPollQuestion(e.target.value)}
                               placeholder="What would you like to ask?"
-                              className="w-full px-4 py-2.5 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-[16px] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#2CC295]/40 transition-colors"
+                              className="studio-portal-input w-full px-4 py-2.5 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-[16px] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#2CC295]/40 transition-colors"
                             />
                           </div>
 
@@ -325,13 +325,13 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                                     value={option}
                                     onChange={(e) => updatePollOption(index, e.target.value)}
                                     placeholder={`Option ${index + 1}`}
-                                    className="flex-1 px-4 py-2.5 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-[16px] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#2CC295]/40 transition-colors"
+                                    className="studio-portal-input flex-1 px-4 py-2.5 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-[16px] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#2CC295]/40 transition-colors"
                                   />
                                   {pollOptions.length > 2 && (
                                     <button
                                       type="button"
                                       onClick={() => removePollOption(index)}
-                                      className="w-10 h-10 flex items-center justify-center rounded-[14px] bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+                                      className="studio-portal-secondary w-10 h-10 flex items-center justify-center rounded-[14px] bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
                                     >
                                       <X size={16} className="text-zinc-500" />
                                     </button>
@@ -375,7 +375,7 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                 </section>
 
                 <aside className="w-full lg:w-[300px] lg:max-w-[300px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
                     <h2 className="text-sm font-bold flex items-center gap-2 text-white tracking-tight">
                       <Shield className="text-[#2CC295]" size={16} />
                       Post Preview
@@ -383,9 +383,9 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                     <p className="text-xs text-zinc-500 mt-1">Review before posting</p>
                   </div>
 
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
                     <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Post Type</h3>
-                    <div className="bg-[rgba(255,255,255,0.03)] rounded-[16px] p-4">
+                    <div className="studio-portal-subsurface bg-[rgba(255,255,255,0.03)] rounded-[16px] p-4">
                       <div className="flex items-center gap-3">
                         {postTypes.find((pt) => pt.type === selectedType) && (
                           <>
@@ -407,14 +407,14 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                     </div>
                   </div>
 
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
                     <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Content Stats</h3>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-[rgba(255,255,255,0.03)] p-3 rounded-[16px]">
+                      <div className="studio-portal-subsurface bg-[rgba(255,255,255,0.03)] p-3 rounded-[16px]">
                         <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold mb-1">Characters</p>
                         <p className="text-lg font-bold text-white">{content.length}</p>
                       </div>
-                      <div className="bg-[rgba(255,255,255,0.03)] p-3 rounded-[16px]">
+                      <div className="studio-portal-subsurface bg-[rgba(255,255,255,0.03)] p-3 rounded-[16px]">
                         <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold mb-1">Words</p>
                         <p className="text-lg font-bold text-white">
                           {content.trim() ? content.trim().split(/\s+/).length : 0}
@@ -424,9 +424,9 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                   </div>
 
                   {(uploadedImages.length > 0 || tags.length > 0) && (
-                    <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
+                    <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
                       <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Attachments</h3>
-                      <div className="bg-[rgba(255,255,255,0.03)] p-4 rounded-[16px] space-y-3">
+                      <div className="studio-portal-subsurface bg-[rgba(255,255,255,0.03)] p-4 rounded-[16px] space-y-3">
                         {uploadedImages.length > 0 && (
                           <div className="flex items-center justify-between py-2 border-b border-[rgba(255,255,255,0.06)]">
                             <span className="text-xs text-zinc-500">Images</span>
@@ -443,9 +443,9 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                     </div>
                   )}
 
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
                     <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Readiness</h3>
-                    <div className="bg-[rgba(255,255,255,0.03)] p-4 rounded-[16px] space-y-2">
+                    <div className="studio-portal-subsurface bg-[rgba(255,255,255,0.03)] p-4 rounded-[16px] space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-zinc-500">Min. Characters</span>
                         <span className={`text-xs font-bold ${content.length >= 10 ? 'text-[#2CC295]' : 'text-zinc-600'}`}>
@@ -459,11 +459,11 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                     </div>
                   </div>
 
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
                     <button
                       type="button"
                       onClick={handleClose}
-                      className="w-full h-11 rounded-full bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-[#F1F5F9] transition-colors text-lg font-semibold"
+                      className="studio-portal-secondary w-full h-11 rounded-full bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-[#F1F5F9] transition-colors text-lg font-semibold"
                     >
                       Cancel
                     </button>

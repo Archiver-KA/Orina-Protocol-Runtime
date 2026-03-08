@@ -76,7 +76,7 @@ export function PriceRangeSlider({
       {/* Track */}
       <div 
         ref={trackRef}
-        className="h-1 bg-zinc-800 rounded-full relative cursor-pointer"
+        className="h-1 bg-[var(--t-surface-10)] rounded-full relative cursor-pointer"
       >
         {/* Active range */}
         <div
@@ -117,7 +117,7 @@ export function PriceRangeSlider({
           step={step}
           min={min}
           max={localValue[1] - step}
-          className="bg-zinc-900 border border-[#27272a] rounded px-3 py-1.5 text-xs text-white w-20 focus:border-[#2CC295] focus:ring-1 focus:ring-[#2CC295] outline-none"
+          className="bg-ui-input border border-ui-border-subtle rounded px-3 py-1.5 text-xs text-ui-primary w-20 placeholder:text-ui-muted focus:border-[#2CC295] focus:ring-1 focus:ring-[#2CC295] outline-none"
         />
         <input
           type="number"
@@ -132,7 +132,7 @@ export function PriceRangeSlider({
           step={step}
           min={localValue[0] + step}
           max={max}
-          className="bg-zinc-900 border border-[#27272a] rounded px-3 py-1.5 text-xs text-white w-20 focus:border-[#2CC295] focus:ring-1 focus:ring-[#2CC295] outline-none"
+          className="bg-ui-input border border-ui-border-subtle rounded px-3 py-1.5 text-xs text-ui-primary w-20 placeholder:text-ui-muted focus:border-[#2CC295] focus:ring-1 focus:ring-[#2CC295] outline-none"
         />
       </div>
     </div>

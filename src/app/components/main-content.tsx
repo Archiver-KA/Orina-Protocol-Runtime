@@ -1,9 +1,13 @@
 import { MarketVolumeChart } from '@/app/components/market-volume-chart';
 import { ChevronUp, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
+import { useTheme } from '@/app/contexts/ThemeContext';
 
 export function MainContent() {
   const [marketTimeRange, setMarketTimeRange] = useState('24H');
+  const { theme } = useTheme();
+  const ringTrackColor = theme === 'light' ? 'rgba(30, 41, 59, 0.18)' : '#27272A';
+  const ringCenterColor = theme === 'light' ? 'rgba(255, 255, 255, 0.95)' : '#131313';
 
   return (
     <section className="bg-ui-page h-full overflow-hidden relative">
@@ -93,8 +97,16 @@ export function MainContent() {
               </div>
 
               <div className="mt-4 flex items-center gap-6">
-                <div className="relative w-16 h-16 rounded-full bg-[conic-gradient(#2CC295_0_252deg,#27272A_252deg_360deg)] p-[6px] shrink-0">
-                  <div className="w-full h-full rounded-full bg-[#131313] flex items-center justify-center text-[10px] font-bold text-ui-primary">
+                <div
+                  className="relative w-16 h-16 rounded-full p-[6px] shrink-0"
+                  style={{
+                    background: `conic-gradient(#2CC295 0 252deg, ${ringTrackColor} 252deg 360deg)`,
+                  }}
+                >
+                  <div
+                    className="w-full h-full rounded-full flex items-center justify-center text-[10px] font-bold text-ui-primary"
+                    style={{ backgroundColor: ringCenterColor }}
+                  >
                     70%
                   </div>
                 </div>
@@ -142,7 +154,7 @@ export function MainContent() {
                 </div>
               </article>
 
-              <article className="bg-[rgba(9,9,11,0.5)] rounded-[24px] p-6 min-h-[200px]">
+              <article className="bg-ui-card rounded-[24px] p-6 min-h-[200px]">
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] uppercase tracking-[0.1em] font-bold text-ui-muted">Market Sentiment</p>
                   <span className="h-[21px] px-2 rounded-full border border-[rgba(44,194,149,0.2)] bg-[rgba(44,194,149,0.1)] text-[#2CC295] text-[10px] font-bold inline-flex items-center">

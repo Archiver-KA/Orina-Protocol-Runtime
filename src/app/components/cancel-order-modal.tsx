@@ -105,18 +105,18 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
   const canceller = isBuyer ? 'Buyer' : isSeller ? 'Seller' : 'Unknown';
 
   return (
-    <StudioModalShell className="bg-black/80 backdrop-blur-sm">
-      <StudioModalPanel className="max-w-lg rounded-xl">
+    <StudioModalShell className="studio-form-backdrop bg-black/80 backdrop-blur-sm">
+      <StudioModalPanel className="studio-form-modal max-w-lg rounded-xl">
         {/* Header */}
-        <StudioModalHeader className="border-b border-zinc-800">
+        <StudioModalHeader className="border-b border-ui-border-subtle">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center">
               <XCircle className="text-red-400" size={20} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Cancel Order</h2>
-              <p className="text-xs text-zinc-500">Order #{order.orderId.toString()}</p>
+              <h2 className="text-xl font-bold text-ui-primary">Cancel Order</h2>
+              <p className="text-xs text-ui-muted">Order #{order.orderId.toString()}</p>
             </div>
           </div>
           <StudioModalCloseButton
@@ -153,50 +153,50 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
           )}
 
           {/* Order Summary */}
-          <div className="bg-zinc-950/50 border border-zinc-800 rounded-lg p-4 space-y-3">
-            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Order Details</h3>
+          <div className="studio-form-surface bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg p-4 space-y-3">
+            <h3 className="text-xs font-bold text-ui-muted uppercase tracking-widest mb-3">Order Details</h3>
             
             <div className="flex items-center justify-between">
-              <span className="text-sm text-zinc-400">Asset ID</span>
-              <span className="text-sm text-white font-bold">#{order.assetId.toString()}</span>
+              <span className="text-sm text-ui-secondary">Asset ID</span>
+              <span className="text-sm text-ui-primary font-bold">#{order.assetId.toString()}</span>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm text-zinc-400">Amount</span>
-              <span className="text-sm text-white font-bold">{order.amount.toString()} units</span>
+              <span className="text-sm text-ui-secondary">Amount</span>
+              <span className="text-sm text-ui-primary font-bold">{order.amount.toString()} units</span>
             </div>
 
-            <div className="flex items-center justify-between py-2 border-t border-zinc-800">
-              <span className="text-sm text-zinc-400">Buyer</span>
-              <span className="text-sm text-white font-mono">{formatAddress(order.buyer)}</span>
+            <div className="flex items-center justify-between py-2 border-t border-ui-border-subtle">
+              <span className="text-sm text-ui-secondary">Buyer</span>
+              <span className="text-sm text-ui-primary font-mono">{formatAddress(order.buyer)}</span>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm text-zinc-400">Seller</span>
-              <span className="text-sm text-white font-mono">{formatAddress(order.seller)}</span>
+              <span className="text-sm text-ui-secondary">Seller</span>
+              <span className="text-sm text-ui-primary font-mono">{formatAddress(order.seller)}</span>
             </div>
 
-            <div className="flex items-center justify-between py-2 border-t border-zinc-800">
-              <span className="text-sm text-zinc-400">Order Value</span>
-              <span className="text-sm text-white font-bold font-mono">
+            <div className="flex items-center justify-between py-2 border-t border-ui-border-subtle">
+              <span className="text-sm text-ui-secondary">Order Value</span>
+              <span className="text-sm text-ui-primary font-bold font-mono">
                 {formatEther(order.grossPrice)} ETH
               </span>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm text-zinc-400">Order State</span>
+              <span className="text-sm text-ui-secondary">Order State</span>
               <span className={`text-sm font-bold ${
                 order.state === 0 ? 'text-blue-400' : 
                 order.state === 1 ? 'text-amber-400' : 
-                'text-zinc-500'
+                'text-ui-muted'
               }`}>
                 {order.state === 0 ? 'Proposed' : order.state === 1 ? 'Paid' : 'Unknown'}
               </span>
             </div>
 
             {address && (
-              <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
-                <span className="text-sm text-zinc-400">You are</span>
+              <div className="flex items-center justify-between pt-2 border-t border-ui-border-subtle">
+                <span className="text-sm text-ui-secondary">You are</span>
                 <span className="text-sm text-[#2CC295] font-bold">{canceller}</span>
               </div>
             )}
@@ -209,9 +209,9 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
                 <DollarSign className="text-amber-400 flex-shrink-0 mt-1" size={20} />
                 <div className="flex-1">
                   <h3 className="text-sm font-bold text-amber-400 mb-2">Refund Information</h3>
-                  <div className="space-y-2 text-xs text-zinc-300">
+                  <div className="space-y-2 text-xs text-ui-secondary">
                     <p>💰 Payment amount: <strong className="text-amber-400">{formatEther(order.grossPrice)} ETH</strong></p>
-                    <p>↩️ Refund to: <strong className="text-white font-mono">{formatAddress(order.buyer)}</strong></p>
+                    <p>↩️ Refund to: <strong className="text-ui-primary font-mono">{formatAddress(order.buyer)}</strong></p>
                     <p>⏱️ Timing: Immediate (same transaction)</p>
                     <p>🔐 Security: Funds returned from escrow</p>
                   </div>
@@ -222,32 +222,32 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
 
           {/* Cancel Reason (Optional) */}
           {canCancel && txStatus === 'idle' && (
-            <div className="bg-zinc-950/50 border border-zinc-800 rounded-lg p-4">
-              <StudioFieldLabel className="text-zinc-400 text-xs mb-2">
+            <div className="studio-form-surface bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg p-4">
+              <StudioFieldLabel className="text-ui-muted text-xs mb-2">
                 Cancellation Reason (Optional)
               </StudioFieldLabel>
               <StudioTextareaField
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
                 placeholder="E.g., Changed my mind, Found better deal, Delivery too long..."
-                className="bg-zinc-900 border-zinc-700 rounded-lg px-3 py-2"
+                className="studio-form-input bg-[var(--t-surface-5)] border-ui-border-subtle rounded-lg px-3 py-2"
                 rows={3}
                 maxLength={200}
               />
-              <StudioFieldHint className="text-zinc-600 mt-1">{cancelReason.length}/200 characters</StudioFieldHint>
+              <StudioFieldHint className="text-ui-muted mt-1">{cancelReason.length}/200 characters</StudioFieldHint>
             </div>
           )}
 
           {/* What Happens */}
           <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
             <div className="flex items-start gap-3">
-              <XCircle className="text-red-400 flex-shrink-0 mt-1" size={20} />
-              <div className="flex-1">
-                <h3 className="text-sm font-bold text-red-400 mb-2">What happens next?</h3>
-                <div className="space-y-2 text-xs text-zinc-300">
-                  <p>❌ Order state changes to "Cancelled"</p>
-                  {isPaid && <p>💰 Payment refunded to buyer wallet</p>}
-                  {!isPaid && <p>🔓 No payments to refund (order not paid)</p>}
+                <XCircle className="text-red-400 flex-shrink-0 mt-1" size={20} />
+                <div className="flex-1">
+                  <h3 className="text-sm font-bold text-red-400 mb-2">What happens next?</h3>
+                  <div className="space-y-2 text-xs text-ui-secondary">
+                    <p>❌ Order state changes to "Cancelled"</p>
+                    {isPaid && <p>💰 Payment refunded to buyer wallet</p>}
+                    {!isPaid && <p>🔓 No payments to refund (order not paid)</p>}
                   <p>📝 Cancellation recorded on blockchain</p>
                   <p>🚫 Order cannot be reactivated</p>
                   <p>⛔ Assets remain with seller</p>
@@ -280,21 +280,21 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
           )}
 
           {/* Protocol Info */}
-          <StudioNoticePanel variant="neutral" compact icon={<Shield className="text-zinc-600 flex-shrink-0 mt-0.5" size={14} />}>
-            <strong className="text-zinc-400">Cancellation Rights:</strong> Either party can cancel the order
+          <StudioNoticePanel variant="neutral" compact icon={<Shield className="text-ui-muted flex-shrink-0 mt-0.5" size={14} />}>
+            <strong className="text-ui-secondary">Cancellation Rights:</strong> Either party can cancel the order
             {' '}before delivery. If payment has been made, it will be automatically refunded to the buyer&apos;s wallet.
             {' '}This action is permanent and cannot be reversed.
           </StudioNoticePanel>
         </StudioModalBody>
 
         {/* Footer Actions */}
-        <StudioModalFooter className="border-t border-zinc-800">
+        <StudioModalFooter className="border-t border-ui-border-subtle">
           <StudioActionButton
             onClick={onClose}
             disabled={txStatus === 'pending' || txStatus === 'confirming'}
             variant="secondary"
             size="lg"
-            className="flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="studio-form-secondary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Keep Order
           </StudioActionButton>

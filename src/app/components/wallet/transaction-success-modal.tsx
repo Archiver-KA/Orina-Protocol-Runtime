@@ -24,7 +24,7 @@ export function TransactionSuccessModal({ result, onClose }: TransactionSuccessM
         backdropFilter: 'blur(12px)',
       }}
     >
-      <div className="bg-[#121212] w-full max-w-lg rounded-[2.5rem] border border-[#27272a] overflow-hidden shadow-2xl flex flex-col relative">
+      <div className="studio-modal-theme bg-ui-card w-full max-w-lg rounded-[2.5rem] border border-ui-border-subtle overflow-hidden shadow-2xl flex flex-col relative">
         
         {/* Success Header */}
         <div className="p-10 text-center">

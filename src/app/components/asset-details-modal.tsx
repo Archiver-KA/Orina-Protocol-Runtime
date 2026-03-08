@@ -74,7 +74,7 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/70 backdrop-blur-[10px]"
+        className="studio-portal-backdrop fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/70 backdrop-blur-[10px]"
         onClick={handleOverlayClick}
       >
         <motion.div
@@ -85,33 +85,33 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
           className="relative z-[1] w-full max-w-5xl max-h-[95vh] md:h-[95vh]"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="w-full max-w-5xl max-h-[95vh] md:h-[95vh] rounded-[24px] border-0 bg-[rgba(255,255,255,0.03)] backdrop-blur-[20px] shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col">
+          <div className="studio-modal-theme studio-glass-modal w-full max-w-5xl max-h-[95vh] md:h-[95vh] rounded-[24px] border-0 bg-[rgba(255,255,255,0.03)] backdrop-blur-[20px] shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col">
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar md:overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-0 min-h-full md:h-full md:min-h-0">
               {/* Left Column - Image & Properties */}
-              <div className="bg-zinc-900/30 md:h-full md:min-h-0 md:overflow-hidden">
+              <div className="studio-glass-header bg-zinc-900/30 md:h-full md:min-h-0 md:overflow-hidden">
                 <div className="p-8 flex flex-col h-full min-h-0 overflow-y-auto custom-scrollbar overscroll-contain">
                   {/* Image Preview */}
-                  <div className="relative shrink-0 flex items-center justify-center p-4 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.1)] backdrop-blur-xl rounded-[2rem] aspect-square overflow-hidden">
+                  <div className="studio-glass-surface relative shrink-0 flex items-center justify-center p-4 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.1)] backdrop-blur-xl rounded-[2rem] aspect-square overflow-hidden">
                     <img
                       alt={asset.name}
                       className="w-full h-full object-cover rounded-2xl"
                       src={images[currentImageIndex]}
                     />
                     {asset.verified && (
-                      <div className="absolute top-6 left-6 bg-[var(--color-primary-custom)]/20 px-3 py-1.5 rounded-lg border border-[var(--color-primary-custom)]/30 text-[9px] font-bold uppercase tracking-widest text-primary backdrop-blur-md flex items-center gap-1.5">
+                      <div className="studio-glass-chip absolute top-6 left-6 bg-[var(--color-primary-custom)]/20 px-3 py-1.5 rounded-lg border border-[var(--color-primary-custom)]/30 text-[9px] font-bold uppercase tracking-widest text-primary backdrop-blur-md flex items-center gap-1.5">
                         <Shield size={10} />
                         Verified
                       </div>
                     )}
                     {asset.featured && (
-                      <div className="absolute top-6 right-6 bg-orange-500/20 px-3 py-1.5 rounded-lg border border-orange-500/30 text-[9px] font-bold uppercase tracking-widest text-orange-300 backdrop-blur-md">
+                      <div className="studio-glass-chip absolute top-6 right-6 bg-orange-500/20 px-3 py-1.5 rounded-lg border border-orange-500/30 text-[9px] font-bold uppercase tracking-widest text-orange-300 backdrop-blur-md">
                         Featured
                       </div>
                     )}
                     {/* Image Carousel Dots */}
                     {images.length > 1 && (
-                      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 px-3 py-2 bg-black/20 backdrop-blur-md rounded-full border border-white/5">
+                      <div className="studio-glass-chip absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 px-3 py-2 bg-black/20 backdrop-blur-md rounded-full border border-white/5">
                         {images.map((_, index) => (
                           <button
                             key={index}
@@ -161,7 +161,7 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
                           {asset.tags && asset.tags.length > 0 && (
                             <div className="flex flex-wrap gap-2 mt-4">
                               {asset.tags.map((tag, i) => (
-                                <span key={i} className="px-2 py-1 bg-zinc-900 border border-[var(--color-panel-border)] rounded-lg text-[10px] text-zinc-400 uppercase font-bold">
+                                <span key={i} className="studio-glass-chip px-2 py-1 bg-zinc-900 border border-[var(--color-panel-border)] rounded-lg text-[10px] text-zinc-400 uppercase font-bold">
                                   #{tag}
                                 </span>
                               ))}
@@ -172,25 +172,25 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
 
                       {activeTab === 'Properties' && (
                         <div className="grid grid-cols-2 gap-3">
-                          <div className="p-4 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-2xl">
+                          <div className="studio-glass-surface p-4 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-2xl">
                             <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Category</p>
                             <p className="text-xs text-white font-medium">{asset.category}</p>
                           </div>
-                          <div className="p-4 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-2xl">
+                          <div className="studio-glass-surface p-4 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-2xl">
                             <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Blockchain</p>
                             <p className="text-xs text-white font-medium">{asset.blockchain}</p>
                           </div>
-                          <div className="p-4 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-2xl">
+                          <div className="studio-glass-surface p-4 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-2xl">
                             <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Token ID</p>
                             <p className="text-xs text-white font-medium">#{asset.tokenId}</p>
                           </div>
                           {isFractionalListing ? (
-                            <div className="p-4 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-2xl">
+                            <div className="studio-glass-surface p-4 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-2xl">
                               <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Available Slots</p>
                               <p className="text-xs text-white font-medium">{asset.availableSlots} / {asset.totalSlots}</p>
                             </div>
                           ) : (
-                            <div className="p-4 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-2xl">
+                            <div className="studio-glass-surface p-4 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-2xl">
                               <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Listing Type</p>
                               <p className="text-xs text-white font-medium">NFT / Single Unit</p>
                             </div>
@@ -200,14 +200,14 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
 
                       {activeTab === 'History' && (
                         <div className="space-y-2">
-                          <div className="p-3 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-xl">
+                          <div className="studio-glass-surface p-3 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-xl">
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-zinc-400">Listed by {asset.seller.ensName || asset.seller.address.slice(0, 8)}</span>
                               <span className="text-white font-bold">{asset.price}</span>
                             </div>
                             <p className="text-[10px] text-zinc-600 mt-1">{asset.listingDuration}</p>
                           </div>
-                          <div className="p-3 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-xl">
+                          <div className="studio-glass-surface p-3 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-xl">
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-zinc-400">Views</span>
                               <span className="text-white font-bold">{asset.views.toLocaleString()}</span>
@@ -231,7 +231,7 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
                           {asset.tags && asset.tags.length > 0 && (
                             <div className="flex flex-wrap gap-2 mt-4">
                               {asset.tags.map((tag, i) => (
-                                <span key={i} className="px-2 py-1 bg-zinc-900 border border-[var(--color-panel-border)] rounded-lg text-[10px] text-zinc-400 uppercase font-bold">
+                                <span key={i} className="studio-glass-chip px-2 py-1 bg-zinc-900 border border-[var(--color-panel-border)] rounded-lg text-[10px] text-zinc-400 uppercase font-bold">
                                   {tag}
                                 </span>
                               ))}
@@ -262,13 +262,13 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
                         )}
                       </div>
                     </div>
-                    <StudioModalCloseButton onClick={onClose} />
+                    <StudioModalCloseButton onClick={onClose} className="studio-glass-secondary" />
                   </div>
 
                   {/* Seller Info */}
                   <StudioPanel
                     onClick={handleSellerClick}
-                    className="flex items-center gap-3 p-4 rounded-xl mt-4 cursor-pointer hover:bg-zinc-900/70 hover:border-[var(--color-primary-custom)]/30 transition-all group"
+                    className="studio-glass-surface flex items-center gap-3 p-4 rounded-xl mt-4 cursor-pointer hover:bg-zinc-900/70 hover:border-[var(--color-primary-custom)]/30 transition-all group"
                   >
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--color-primary-custom)] to-[#1a8f6f] flex items-center justify-center text-white font-bold">
                       {asset.seller.ensName ? asset.seller.ensName[0].toUpperCase() : asset.seller.address[2].toUpperCase()}
@@ -364,7 +364,7 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
                 ) : (
                   <div className="mb-6">
                     <p className="text-[10px] text-zinc-500 uppercase font-bold mb-2">Purchase Quantity</p>
-                    <div className="rounded-xl border border-[var(--color-panel-border)] bg-zinc-900/50 px-4 py-3 flex items-center justify-between">
+                    <div className="studio-glass-surface rounded-xl border border-[var(--color-panel-border)] bg-zinc-900/50 px-4 py-3 flex items-center justify-between">
                       <div>
                         <p className="text-base font-bold text-white">1 NFT</p>
                         <p className="text-[10px] text-zinc-500 uppercase tracking-[0.15em]">Single-unit listing</p>
@@ -379,16 +379,16 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
 
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-3 mb-6">
-                  <div className="p-3 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-xl text-center">
+                  <div className="studio-glass-surface p-3 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-xl text-center">
                     <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Views</p>
                     <p className="text-base font-bold text-white">{asset.views.toLocaleString()}</p>
                   </div>
-                  <div className="p-3 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-xl text-center">
+                  <div className="studio-glass-surface p-3 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-xl text-center">
                     <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Likes</p>
                     <p className="text-base font-bold text-white">{asset.likes.toLocaleString()}</p>
                   </div>
                   {asset.rank && (
-                    <div className="p-3 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-xl text-center">
+                    <div className="studio-glass-surface p-3 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-xl text-center">
                       <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Rank</p>
                       <p className="text-base font-bold text-primary">#{asset.rank}</p>
                     </div>

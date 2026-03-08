@@ -106,11 +106,11 @@ export function CreateOrderModal({ isOpen, onClose, asset }: CreateOrderModalPro
   return (
     <>
       {/* Backdrop */}
-      <StudioModalBackdrop className="bg-black/60" onBackdropClick={onClose} />
+      <StudioModalBackdrop className="studio-form-backdrop bg-black/60" onBackdropClick={onClose} />
 
       {/* Modal */}
       <StudioModalShell className="z-50 px-4">
-        <StudioModalPanel className="max-w-lg">
+        <StudioModalPanel className="studio-form-modal max-w-lg">
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
@@ -119,8 +119,8 @@ export function CreateOrderModal({ isOpen, onClose, asset }: CreateOrderModalPro
                 <ShoppingCart className="text-[#2CC295]" size={20} />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-white">Create Order</h2>
-                <p className="text-xs text-zinc-500">Purchase asset #{asset.id.toString()}</p>
+                <h2 className="text-xl font-bold text-ui-primary">Create Order</h2>
+                <p className="text-xs text-ui-muted">Purchase asset #{asset.id.toString()}</p>
               </div>
             </div>
             <StudioModalCloseButton onClick={onClose} />
@@ -137,23 +137,23 @@ export function CreateOrderModal({ isOpen, onClose, asset }: CreateOrderModalPro
           )}
 
           {/* Asset Info */}
-          <div className="bg-zinc-950/50 border border-[#27272a] rounded-xl p-4 mb-6">
+          <div className="studio-form-surface bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-xl p-4 mb-6">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-zinc-500 text-xs mb-1">Seller</p>
-                <p className="text-white font-mono">{formatAddress(asset.seller)}</p>
+                <p className="text-ui-muted text-xs mb-1">Seller</p>
+                <p className="text-ui-primary font-mono">{formatAddress(asset.seller)}</p>
               </div>
               <div>
-                <p className="text-zinc-500 text-xs mb-1">Unit ID</p>
-                <p className="text-white font-bold">{asset.unitId.toString()}</p>
+                <p className="text-ui-muted text-xs mb-1">Unit ID</p>
+                <p className="text-ui-primary font-bold">{asset.unitId.toString()}</p>
               </div>
               <div>
-                <p className="text-zinc-500 text-xs mb-1">Available</p>
-                <p className="text-white font-bold">{asset.availableAmount.toString()}</p>
+                <p className="text-ui-muted text-xs mb-1">Available</p>
+                <p className="text-ui-primary font-bold">{asset.availableAmount.toString()}</p>
               </div>
               <div>
-                <p className="text-zinc-500 text-xs mb-1">Asset ID</p>
-                <p className="text-white font-bold">#{asset.id.toString()}</p>
+                <p className="text-ui-muted text-xs mb-1">Asset ID</p>
+                <p className="text-ui-primary font-bold">#{asset.id.toString()}</p>
               </div>
             </div>
           </div>
@@ -161,11 +161,11 @@ export function CreateOrderModal({ isOpen, onClose, asset }: CreateOrderModalPro
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <StudioFieldLabel className="text-zinc-500 text-xs">
+              <StudioFieldLabel className="text-ui-muted text-xs">
                 Amount
               </StudioFieldLabel>
               <StudioNumberField
-                className="bg-zinc-950"
+                className="studio-form-input bg-[var(--t-surface-5)] border-ui-border-subtle"
                 placeholder="e.g. 100"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -178,12 +178,12 @@ export function CreateOrderModal({ isOpen, onClose, asset }: CreateOrderModalPro
             </div>
 
             <div>
-              <StudioFieldLabel className="text-zinc-500 text-xs">
+              <StudioFieldLabel className="text-ui-muted text-xs">
                 Price Per Unit (ETH)
               </StudioFieldLabel>
               <StudioInputField
                 type="text"
-                className="bg-zinc-950 font-mono"
+                className="studio-form-input bg-[var(--t-surface-5)] border-ui-border-subtle font-mono"
                 placeholder="e.g. 0.001"
                 value={pricePerUnit}
                 onChange={(e) => setPricePerUnit(e.target.value)}
@@ -192,11 +192,11 @@ export function CreateOrderModal({ isOpen, onClose, asset }: CreateOrderModalPro
             </div>
 
             <div>
-              <StudioFieldLabel className="text-zinc-500 text-xs">
+              <StudioFieldLabel className="text-ui-muted text-xs">
                 Delivery Deadline (Days)
               </StudioFieldLabel>
               <StudioNumberField
-                className="bg-zinc-950"
+                className="studio-form-input bg-[var(--t-surface-5)] border-ui-border-subtle"
                 placeholder="e.g. 7"
                 value={deliveryDays}
                 onChange={(e) => setDeliveryDays(e.target.value)}
@@ -205,9 +205,9 @@ export function CreateOrderModal({ isOpen, onClose, asset }: CreateOrderModalPro
             </div>
 
             {/* Total Price */}
-            <div className="bg-[#2CC295]/10 border border-[#2CC295]/30 rounded-xl p-4">
-              <div className="flex justify-between items-center">
-                <span className="text-zinc-400 text-sm">Total Price</span>
+              <div className="bg-[#2CC295]/10 border border-[#2CC295]/30 rounded-xl p-4">
+                <div className="flex justify-between items-center">
+                <span className="text-ui-secondary text-sm">Total Price</span>
                 <span className="text-[#2CC295] text-xl font-bold font-mono">
                   {formatEther(BigInt(totalPrice()))} ETH
                 </span>
@@ -221,7 +221,7 @@ export function CreateOrderModal({ isOpen, onClose, asset }: CreateOrderModalPro
                 onClick={onClose}
                 variant="secondary"
                 size="lg"
-                className="flex-1 font-semibold"
+                className="studio-form-secondary flex-1 font-semibold"
                 disabled={isPending || isConfirming}
               >
                 Cancel

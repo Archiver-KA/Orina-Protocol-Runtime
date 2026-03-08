@@ -94,11 +94,11 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-3">
+          <h3 className="text-[10px] font-bold text-ui-muted uppercase tracking-widest flex items-center gap-3">
             <Key className="text-[#2CC295]" size={18} />
             API Keys for AI Agents
           </h3>
-          <p className="text-sm text-zinc-500 mt-2">
+          <p className="text-sm text-ui-muted mt-2">
             Enable AI agents to manage your marketplace listings automatically
           </p>
         </div>
@@ -144,31 +144,31 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
       {/* Stats Overview */}
       {apiKeys.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold uppercase mb-2">
+          <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-4">
+            <div className="flex items-center gap-2 text-ui-secondary text-xs font-bold uppercase mb-2">
               <Activity size={12} />
               Total Requests
             </div>
-            <div className="text-2xl font-bold text-white">{totalRequests.toLocaleString()}</div>
-            <div className="text-[10px] text-zinc-500 mt-1">Last 30 days</div>
+            <div className="text-2xl font-bold text-ui-primary">{totalRequests.toLocaleString()}</div>
+            <div className="text-[10px] text-ui-muted mt-1">Last 30 days</div>
           </div>
 
-          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold uppercase mb-2">
+          <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-4">
+            <div className="flex items-center gap-2 text-ui-secondary text-xs font-bold uppercase mb-2">
               <TrendingUp size={12} />
               Success Rate
             </div>
-            <div className="text-2xl font-bold text-white">{avgSuccessRate.toFixed(1)}%</div>
-            <div className="text-[10px] text-zinc-500 mt-1">Average across all keys</div>
+            <div className="text-2xl font-bold text-ui-primary">{avgSuccessRate.toFixed(1)}%</div>
+            <div className="text-[10px] text-ui-muted mt-1">Average across all keys</div>
           </div>
 
-          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold uppercase mb-2">
+          <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-4">
+            <div className="flex items-center gap-2 text-ui-secondary text-xs font-bold uppercase mb-2">
               <Shield size={12} />
               Active Keys
             </div>
-            <div className="text-2xl font-bold text-white">{apiKeys.filter(k => k.isActive).length}</div>
-            <div className="text-[10px] text-zinc-500 mt-1">Out of {apiKeys.length} total</div>
+            <div className="text-2xl font-bold text-ui-primary">{apiKeys.filter(k => k.isActive).length}</div>
+            <div className="text-[10px] text-ui-muted mt-1">Out of {apiKeys.length} total</div>
           </div>
         </div>
       )}
@@ -176,15 +176,15 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
       {/* API Keys List */}
       <div className="space-y-4">
         {apiKeys.length === 0 ? (
-          <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-8 text-center">
-            <Key className="mx-auto text-zinc-600 mb-3" size={32} />
-            <h4 className="text-white font-bold mb-2">No API Keys Yet</h4>
-            <p className="text-sm text-zinc-500 mb-4">
+          <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-8 text-center">
+            <Key className="mx-auto text-ui-muted mb-3" size={32} />
+            <h4 className="text-ui-primary font-bold mb-2">No API Keys Yet</h4>
+            <p className="text-sm text-ui-muted mb-4">
               Generate your first API key to start automating your marketplace management
             </p>
             <button
               onClick={() => setShowCreateForm(true)}
-              className="px-4 py-2 bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-white rounded-full text-xs font-bold transition-colors"
+              className="px-4 py-2 bg-[var(--t-surface-5)] border border-ui-border-subtle hover:bg-[var(--t-surface-10)] text-ui-primary rounded-full text-xs font-bold transition-colors"
             >
               Create First Key
             </button>
@@ -367,16 +367,16 @@ function CreateAPIKeyForm({
   };
 
   return (
-    <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl w-full">
+    <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-2xl w-full">
       {!generatedKey ? (
         <>
           {/* Header */}
-          <div className="p-6 border-b border-[#27272a] bg-zinc-900/20">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+          <div className="p-6 border-b border-[var(--t-border-subtle)] bg-[var(--t-surface-2)]">
+            <h3 className="text-xl font-bold text-ui-primary flex items-center gap-2">
               <Key className="text-[#2CC295]" size={20} />
               Generate New API Key
             </h3>
-            <p className="text-sm text-zinc-500 mt-1">
+            <p className="text-sm text-ui-muted mt-1">
               Create a new API key for AI agent integration
             </p>
           </div>
@@ -385,7 +385,7 @@ function CreateAPIKeyForm({
           <div className="p-6 space-y-6">
             {/* Key Name */}
             <div>
-              <label className="block text-xs font-bold text-zinc-400 uppercase mb-2">
+              <label className="block text-xs font-bold text-ui-muted uppercase mb-2">
                 Key Name
               </label>
               <input
@@ -393,31 +393,31 @@ function CreateAPIKeyForm({
                 value={keyName}
                 onChange={(e) => setKeyName(e.target.value)}
                 placeholder="e.g., ChatGPT Agent, Production Bot"
-                className="w-full bg-[rgba(255,255,255,0.02)] border-0 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#2CC295]/50"
+                className="w-full bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg px-4 py-2.5 text-ui-primary text-sm placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295]/50"
               />
             </div>
 
             {/* Permissions */}
             <div>
-              <label className="block text-xs font-bold text-zinc-400 uppercase mb-3">
+              <label className="block text-xs font-bold text-ui-muted uppercase mb-3">
                 Permissions
               </label>
               <div className="space-y-2">
                 {(['read', 'write', 'mint', 'delete'] as APIKeyPermission[]).map((permission) => (
                   <label
                     key={permission}
-                    className="flex items-center gap-3 p-3 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg cursor-pointer hover:border-[#2CC295]/30 transition-colors"
+                    className="flex items-center gap-3 p-3 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg cursor-pointer hover:border-[#2CC295]/30 transition-colors"
                   >
                     <input
                       type="checkbox"
                       checked={permissions.has(permission)}
                       onChange={() => togglePermission(permission)}
                       disabled={permission === 'read'}
-                      className="w-4 h-4 rounded border-[#27272a] bg-zinc-800 checked:bg-[#2CC295] checked:border-[#2CC295] focus:ring-0 focus:ring-offset-0"
+                      className="w-4 h-4 rounded border-ui-border bg-[var(--t-surface-10)] checked:bg-[#2CC295] checked:border-[#2CC295] focus:ring-0 focus:ring-offset-0"
                     />
                     <div className="flex-1">
-                      <div className="text-sm font-bold text-white capitalize">{permission}</div>
-                      <div className="text-xs text-zinc-500">
+                      <div className="text-sm font-bold text-ui-primary capitalize">{permission}</div>
+                      <div className="text-xs text-ui-muted">
                         {permission === 'read' && 'View assets, orders, and analytics (required)'}
                         {permission === 'write' && 'Update asset details and prices'}
                         {permission === 'mint' && 'Create new asset listings'}
@@ -431,10 +431,12 @@ function CreateAPIKeyForm({
 
             {/* Expiration */}
             <div>
-              <label className="block text-xs font-bold text-zinc-400 uppercase mb-2">
+              <label className="block text-xs font-bold text-ui-muted uppercase mb-2">
                 Expiration (Optional)
               </label>
               <CustomDropdown
+                variant="compact"
+                className="w-full"
                 options={[
                   { label: 'Never expires', value: '' },
                   { label: '7 days', value: '7' },
@@ -445,15 +447,16 @@ function CreateAPIKeyForm({
                 value={expiresInDays?.toString() || ''}
                 onChange={(value) => setExpiresInDays(value ? parseInt(value) : null)}
                 placeholder="Select expiration"
+                triggerClassName="h-[42px] rounded-lg bg-[var(--t-surface-5)] border border-ui-border-subtle hover:bg-[var(--t-surface-10)]"
               />
             </div>
           </div>
 
           {/* Footer */}
-          <div className="p-6 border-t border-[#27272a] flex items-center gap-3">
+          <div className="p-6 border-t border-[var(--t-border-subtle)] flex items-center gap-3">
             <button
               onClick={onCancel}
-              className="flex-1 px-4 py-2.5 bg-[rgba(255,255,255,0.02)] border-0 text-white rounded-lg text-sm font-bold hover:bg-zinc-800 transition-colors"
+              className="flex-1 px-4 py-2.5 bg-[var(--t-surface-2)] border border-ui-border-subtle text-ui-primary rounded-lg text-sm font-bold hover:bg-[var(--t-surface-5)] transition-colors"
             >
               Cancel
             </button>
@@ -469,26 +472,26 @@ function CreateAPIKeyForm({
       ) : (
         <>
           {/* Success Header */}
-          <div className="p-6 border-b border-[#27272a]">
+          <div className="p-6 border-b border-[var(--t-border-subtle)]">
             <div className="w-12 h-12 rounded-full bg-[#2CC295]/10 border border-[#2CC295]/20 flex items-center justify-center mb-4">
               <Check className="text-[#2CC295]" size={24} />
             </div>
-            <h3 className="text-xl font-bold text-white">API Key Generated!</h3>
-            <p className="text-sm text-zinc-500 mt-1">
+            <h3 className="text-xl font-bold text-ui-primary">API Key Generated!</h3>
+            <p className="text-sm text-ui-muted mt-1">
               Copy and save this key securely. You won't be able to see it again.
             </p>
           </div>
 
           {/* Generated Key Display */}
           <div className="p-6 space-y-4">
-            <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-lg p-4">
-              <div className="text-xs font-bold text-zinc-400 uppercase mb-2">Your API Key</div>
-              <code className="text-sm text-white font-mono break-all block mb-3">
+            <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-lg p-4">
+              <div className="text-xs font-bold text-ui-muted uppercase mb-2">Your API Key</div>
+              <code className="text-sm text-ui-primary font-mono break-all block mb-3">
                 {generatedKey.key}
               </code>
               <button
                 onClick={handleCopy}
-                className="w-full px-4 py-2 bg-zinc-800 border border-[#27272a] text-white rounded-lg text-xs font-bold hover:border-[#2CC295]/50 transition-colors flex items-center justify-center gap-2"
+                className="w-full px-4 py-2 bg-[var(--t-surface-5)] border border-ui-border-subtle text-ui-primary rounded-lg text-xs font-bold hover:border-[#2CC295]/50 transition-colors flex items-center justify-center gap-2"
               >
                 {copied ? (
                   <>
@@ -516,7 +519,7 @@ function CreateAPIKeyForm({
           </div>
 
           {/* Footer */}
-          <div className="p-6 border-t border-[#27272a]">
+          <div className="p-6 border-t border-[var(--t-border-subtle)]">
             <button
               onClick={handleDone}
               className="w-full px-4 py-2.5 bg-[#2CC295] text-black rounded-lg text-sm font-bold hover:bg-[#2CC295]/90 transition-colors"

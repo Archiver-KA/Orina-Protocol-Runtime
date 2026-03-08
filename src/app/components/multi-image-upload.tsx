@@ -119,33 +119,33 @@ export function MultiImageUpload({
             w-full h-40 rounded-xl border-2 border-dashed
             transition-all cursor-pointer
             ${images.length >= maxImages
-              ? 'bg-zinc-900/50 border-zinc-700 cursor-not-allowed'
-              : 'bg-zinc-900/30 border-zinc-700 hover:border-[var(--color-primary-custom)] hover:bg-zinc-900/50'
+              ? 'bg-ui-input border-ui-border-subtle cursor-not-allowed'
+              : 'bg-ui-input border-ui-border-subtle hover:border-[#2CC295] hover:bg-ui-input-focus'
             }
           `}
         >
           {isUploading ? (
-            <StudioLoadingIndicator
-              layout="stacked"
-              tone="primary"
-              size={32}
-              label="Uploading to IPFS..."
-              labelClassName="text-sm font-medium text-white"
-              subLabel={uploadingCount > 0 ? `${uploadingCount} file${uploadingCount > 1 ? 's' : ''}` : undefined}
-            />
-          ) : (
-            <>
-              <Upload className="text-zinc-500 mb-3" size={32} />
-              <p className="text-sm text-white font-medium">
+              <StudioLoadingIndicator
+                layout="stacked"
+                tone="primary"
+                size={32}
+                label="Uploading to IPFS..."
+                labelClassName="text-sm font-medium text-ui-primary"
+                subLabel={uploadingCount > 0 ? `${uploadingCount} file${uploadingCount > 1 ? 's' : ''}` : undefined}
+              />
+            ) : (
+              <>
+              <Upload className="text-ui-muted mb-3" size={32} />
+              <p className="text-sm text-ui-primary font-medium">
                 {images.length >= maxImages 
                   ? `Maximum ${maxImages} images reached`
                   : 'Click to upload images'
                 }
               </p>
-              <p className="text-xs text-zinc-500 mt-1">
+              <p className="text-xs text-ui-muted mt-1">
                 {images.length}/{maxImages} images • Min {minImages} required
               </p>
-            </>
+              </>
           )}
         </label>
       </div>
@@ -156,7 +156,7 @@ export function MultiImageUpload({
           {images.map((image, index) => (
             <div
               key={index}
-              className="relative aspect-square rounded-xl overflow-hidden border border-[var(--color-panel-border)] bg-zinc-900 group"
+              className="relative aspect-square rounded-xl overflow-hidden border border-ui-border-subtle bg-ui-input group"
             >
               <img
                 src={image.url}
@@ -175,7 +175,7 @@ export function MultiImageUpload({
               </button>
 
               {/* Image Number Badge */}
-              <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 backdrop-blur-sm rounded text-xs text-white font-mono">
+              <div className="absolute bottom-2 left-2 px-2 py-1 bg-ui-dropdown backdrop-blur-sm rounded text-xs text-ui-primary font-mono">
                 #{index + 1}
               </div>
             </div>
@@ -183,9 +183,9 @@ export function MultiImageUpload({
 
           {/* Uploading Placeholder */}
           {uploadingCount > 0 && (
-            <div className="relative aspect-square rounded-xl overflow-hidden border border-[var(--color-panel-border)] bg-zinc-900">
+            <div className="relative aspect-square rounded-xl overflow-hidden border border-ui-border-subtle bg-ui-input">
               <StudioLoadingOverlay
-                className="bg-black/35 backdrop-blur-sm"
+                className="bg-ui-dropdown backdrop-blur-sm"
                 panel={false}
                 size={24}
                 label={undefined}

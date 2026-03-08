@@ -44,8 +44,8 @@ export function StudioModalPanel({ className, children, ...props }: StudioModalP
   return (
     <div
       className={cn(
-        'w-full max-h-[90vh] overflow-hidden flex flex-col rounded-[24px]',
-        'bg-[rgba(255,255,255,0.03)] border-0 backdrop-blur-[20px] shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)]',
+        'studio-modal-theme w-full max-h-[90vh] overflow-hidden flex flex-col rounded-[24px] text-ui-secondary',
+        'bg-ui-card border border-ui-border-subtle backdrop-blur-[20px] shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)]',
         className
       )}
       {...props}
@@ -121,7 +121,7 @@ export function StudioModalCloseButton({
       type="button"
       size="icon"
       variant="secondary"
-      className={cn('text-zinc-500 hover:text-white', className)}
+      className={cn('text-ui-muted hover:text-ui-primary', className)}
       aria-label="Close modal"
       title="Close"
       {...props}

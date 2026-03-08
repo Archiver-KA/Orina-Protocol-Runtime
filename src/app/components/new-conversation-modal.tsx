@@ -91,7 +91,7 @@ export function NewConversationModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+        className="studio-portal-backdrop fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
         onClick={(e) => {
           if (e.target === e.currentTarget) handleClose();
         }}
@@ -101,14 +101,14 @@ export function NewConversationModal({
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           transition={{ type: 'spring', duration: 0.3 }}
-          className="relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
+          className="studio-modal-theme studio-portal-modal relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           <style>{`
             .hidden-scrollbar::-webkit-scrollbar { display: none; }
           `}</style>
 
-          <div className="shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
+          <div className="studio-portal-header shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <h1 className="text-lg font-bold text-white tracking-tight truncate">New Conversation</h1>
@@ -129,7 +129,7 @@ export function NewConversationModal({
             <div className="h-full p-5 md:p-6 pt-4 relative z-10">
               <div className="w-full h-full max-w-[860px] mx-auto flex flex-col lg:flex-row justify-center items-start gap-6 px-0 md:px-2">
                 <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Recipient Wallet</h3>
                       <Wallet className="text-[#52525B]" size={14} />
@@ -142,7 +142,7 @@ export function NewConversationModal({
                           value={walletAddress}
                           onChange={(e) => setWalletAddress(e.target.value)}
                           placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb..."
-                          className="w-full h-[49px] bg-[rgba(18,18,18,0.5)] border border-[rgba(255,255,255,0.1)] rounded-[12px] px-4 text-sm text-[#F1F5F9] placeholder:text-[rgba(241,245,249,0.45)] focus:outline-none focus:border-[#2CC295] font-mono transition-colors"
+                          className="studio-portal-input w-full h-[49px] bg-[rgba(18,18,18,0.5)] border border-[rgba(255,255,255,0.1)] rounded-[12px] px-4 text-sm text-[#F1F5F9] placeholder:text-[rgba(241,245,249,0.45)] focus:outline-none focus:border-[#2CC295] font-mono transition-colors"
                           disabled={isValidating}
                         />
                         {trimmedAddress && (
@@ -161,7 +161,7 @@ export function NewConversationModal({
                     </div>
                   </div>
 
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Contact Label</h3>
                       <span className="text-[9px] font-bold uppercase tracking-[1px] text-[#71717A]">Optional</span>
@@ -171,7 +171,7 @@ export function NewConversationModal({
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                       placeholder="e.g., John's Wallet, Trading Partner"
-                      className="w-full h-[49px] bg-[rgba(18,18,18,0.5)] border border-[rgba(255,255,255,0.1)] rounded-[12px] px-4 text-sm text-[#F1F5F9] placeholder:text-[rgba(241,245,249,0.45)] focus:outline-none focus:border-[#2CC295] transition-colors"
+                      className="studio-portal-input w-full h-[49px] bg-[rgba(18,18,18,0.5)] border border-[rgba(255,255,255,0.1)] rounded-[12px] px-4 text-sm text-[#F1F5F9] placeholder:text-[rgba(241,245,249,0.45)] focus:outline-none focus:border-[#2CC295] transition-colors"
                       disabled={isValidating}
                     />
                     <p className="text-[9px] text-[#71717A]">
@@ -181,13 +181,13 @@ export function NewConversationModal({
                 </div>
 
                 <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
-                  <div className="bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Conversation Preview</h3>
                       <User className="text-[#52525B]" size={14} />
                     </div>
 
-                    <div className="bg-black/40 rounded-xl p-4 flex items-center gap-3">
+                    <div className="studio-portal-subsurface bg-black/40 rounded-xl p-4 flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-[#2CC295]/20 border border-[#2CC295]/30 text-[#2CC295] font-bold text-sm inline-flex items-center justify-center">
                         {recipientLabel.charAt(0).toUpperCase()}
                       </div>

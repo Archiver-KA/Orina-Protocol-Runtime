@@ -56,7 +56,7 @@ export function ShareAssetModal({ isOpen, onClose, assetName, assetUrl }: ShareA
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.2 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-[rgba(255,255,255,0.02)] w-full max-w-md rounded-2xl border-0 overflow-hidden shadow-2xl"
+          className="studio-modal-theme bg-ui-card w-full max-w-md rounded-2xl border border-ui-border-subtle overflow-hidden shadow-2xl"
         >
           {/* Header */}
           <div className="p-6 border-b border-zinc-800">

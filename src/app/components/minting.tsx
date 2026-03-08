@@ -10,6 +10,7 @@ import { useMintAsset } from '@/hooks/useAssets';
 import { useNextUnitId } from '@/hooks/useUnits';
 import { AssetType } from '@/config/contracts';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
+import { useTheme } from '@/app/contexts/ThemeContext';
 
 export function Minting() {
   const [assetType, setAssetType] = useState<'RWA' | 'NFT'>('RWA');
@@ -28,6 +29,7 @@ export function Minting() {
   const [imageLoadError, setImageLoadError] = useState(false); // Track image load errors
 
   const { address, isConnected } = useAccount();
+  const { theme } = useTheme();
   const { data: nextUnitId } = useNextUnitId();
   const { mintAsset, hash, isPending, isConfirming, isConfirmed, error } = useMintAsset();
   const { requireWalletActionAsync } = useRequireWalletAction();
@@ -97,23 +99,48 @@ export function Minting() {
   };
 
   const statusMessage = getStatusMessage();
-  const studioCardClass = 'bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] p-6 backdrop-blur-[10px]';
-  const studioInputClass = 'w-full bg-[rgba(18,18,18,0.5)] border border-[rgba(255,255,255,0.1)] rounded-[12px] px-4 py-3 text-[14px] leading-[18px] font-bold text-[#F1F5F9] placeholder:text-[rgba(241,245,249,0.5)] focus:outline-none focus:ring-2 focus:ring-[#2CC295]/35 focus:border-[#2CC295]';
+  const studioCardClass = 'bg-ui-card rounded-[24px] p-6 backdrop-blur-[10px]';
+  const studioInputClass = 'w-full border-0 bg-[var(--t-surface-5)] rounded-lg px-4 py-3 text-[14px] leading-[18px] font-bold text-ui-primary placeholder:text-ui-muted focus:bg-ui-input-focus focus:outline-none focus:ring-2 focus:ring-[#2CC295]/20 shadow-none';
+  const mintingSelectTriggerClass = 'minting-neutral-select-trigger !h-[49px] !rounded-lg !bg-[var(--t-surface-5)] !border-0 !shadow-none !px-4 !text-[14px] !leading-[18px] !font-bold !text-ui-primary hover:!bg-[var(--t-surface-5)]';
+  const mintingNeutralTriggerStyle = theme === 'light' ? { background: '#ECEFF2' } : undefined;
 
   return (
-    <section className="bg-ui-page h-full overflow-hidden relative">
+    <section className="minting-borderless-theme bg-ui-page h-full overflow-hidden relative">
       <style>{`
         .minting-form-stack {
           isolation: isolate;
         }
         .minting-form-stack .dropdown-panel {
           z-index: 9999 !important;
-          background: rgba(18, 18, 18, 0.96) !important;
+          background: var(--t-dropdown-glass-bg) !important;
+        }
+        .minting-form-stack .minting-neutral-select-trigger,
+        .minting-form-stack .minting-price-token-trigger {
+          background: var(--t-surface-5) !important;
+          border: 0 !important;
+          box-shadow: none !important;
+        }
+        .minting-form-stack .minting-neutral-select-trigger:hover,
+        .minting-form-stack .minting-neutral-select-trigger:focus-visible,
+        .minting-form-stack .minting-price-token-trigger:hover,
+        .minting-form-stack .minting-price-token-trigger:focus-visible {
+          background: var(--t-surface-5) !important;
+        }
+        [data-theme="light"] .minting-form-stack .minting-neutral-select-trigger {
+          background: #eceff2 !important;
+        }
+        [data-theme="light"] .minting-form-stack .minting-neutral-select-trigger:hover,
+        [data-theme="light"] .minting-form-stack .minting-neutral-select-trigger:focus-visible {
+          background: #eceff2 !important;
         }
         .minting-price-token-trigger svg {
           width: 14px !important;
           height: 14px !important;
-          color: #4a4a4a !important;
+          color: var(--t-text-muted) !important;
+        }
+        .minting-price-group {
+          background: var(--t-surface-5);
+          border-radius: 0.5rem;
         }
         .minting-form-stack input[type="text"],
         .minting-form-stack input[type="number"] {
@@ -122,13 +149,13 @@ export function Minting() {
           line-height: 18px !important;
           font-weight: 700 !important;
           letter-spacing: 0 !important;
-          color: #F1F5F9 !important;
-          -webkit-text-fill-color: #F1F5F9 !important;
+          color: var(--t-text-primary) !important;
+          -webkit-text-fill-color: var(--t-text-primary) !important;
           font-variant-numeric: tabular-nums !important;
         }
         .minting-form-stack input[type="text"]::placeholder,
         .minting-form-stack input[type="number"]::placeholder {
-          color: rgba(241, 245, 249, 0.5) !important;
+          color: var(--t-text-muted) !important;
         }
       `}</style>
 
@@ -243,7 +270,7 @@ export function Minting() {
               {/* Step 2: Metadata Input */}
               <div className={studioCardClass}>
                 <div className="flex items-center gap-3 mb-6">
-                  <span className="w-7 h-7 bg-zinc-800 text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-[#27272a]">2</span>
+                  <span className="w-7 h-7 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">2</span>
                   <h2 className="text-lg font-bold text-ui-primary">Metadata Input</h2>
                 </div>
                 <div className="space-y-4">
@@ -273,7 +300,7 @@ export function Minting() {
               <div className={`${studioCardClass} relative z-[60]`}>
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div className="flex items-center gap-3">
-                    <span className="w-7 h-7 bg-zinc-800 text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-[#27272a]">3</span>
+                    <span className="w-7 h-7 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">3</span>
                     <h2 className="text-lg font-bold text-ui-primary">Collection Settings</h2>
                   </div>
                   <div className="w-full max-w-[260px]">
@@ -282,6 +309,9 @@ export function Minting() {
                       variant="compact"
                       defaultValue={blockchain}
                       onChange={(value) => setBlockchain(value)}
+                      openOnHover
+                      disableDefaultTriggerTone
+                      triggerStyle={mintingNeutralTriggerStyle}
                       options={[
                         { value: 'Ethereum Mainnet', label: 'Ethereum Mainnet' },
                         { value: 'Polygon', label: 'Polygon' },
@@ -289,6 +319,7 @@ export function Minting() {
                         { value: 'Solana', label: 'Solana' },
                       ]}
                       className="w-full"
+                      triggerClassName={mintingSelectTriggerClass}
                     />
                   </div>
                 </div>
@@ -296,7 +327,7 @@ export function Minting() {
                   {/* Price */}
                   <div>
                     <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Price</label>
-                    <div className="relative w-full h-[49px]">
+                    <div className="minting-price-group relative w-full h-[49px] overflow-hidden">
                       <input
                         type="number"
                         step="0.0001"
@@ -304,24 +335,25 @@ export function Minting() {
                         placeholder="0.0"
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
-                        className="w-full h-[49px] px-4 py-3 pr-[120px] rounded-[12px] text-[14px] leading-[18px] font-bold text-[#F1F5F9] placeholder:text-[rgba(241,245,249,0.5)] outline-none transition-none"
+                        className="w-full h-[49px] px-4 py-3 pr-[120px] rounded-none text-[14px] leading-[18px] font-bold text-ui-primary placeholder:text-ui-muted outline-none transition-none"
                         style={{
                           boxSizing: 'border-box',
-                          background: 'rgba(18, 18, 18, 0.5)',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                          borderRadius: '12px',
+                          background: 'transparent',
+                          border: 'none',
+                          borderRadius: '0',
                           fontFamily: "'Space Grotesk', var(--font-sans)",
                           boxShadow: 'none',
                         }}
                       />
-                      <div className="absolute top-[1px] right-[1px] w-[105px] h-[47px] z-[80]">
+                      <div className="absolute top-0 right-0 w-[105px] h-full z-[80]">
                         <CustomDropdown
                           options={['ETH', 'USDT', 'USDC', 'ORI']}
                           defaultValue={priceCurrency}
                           onChange={(value) => setPriceCurrency(value)}
+                          openOnHover
                           variant="compact"
                           className="w-full h-full overflow-visible"
-                          triggerClassName="minting-price-token-trigger !h-[47px] !rounded-[14px] !px-4 !text-[15px] !leading-[22px] !font-bold font-sans bg-[rgba(18,18,18,0.5)] text-white hover:bg-[rgba(18,18,18,0.5)]"
+                          triggerClassName="minting-price-token-trigger !h-full !rounded-none !border-0 !shadow-none !px-4 !text-[15px] !leading-[22px] !font-bold font-sans !bg-[var(--t-surface-5)] !text-ui-primary hover:!bg-[var(--t-surface-5)]"
                           menuClassName="mt-1 rounded-[16px] z-[9999]"
                         />
                       </div>
@@ -337,6 +369,9 @@ export function Minting() {
                           variant="compact"
                           defaultValue={unitId}
                           onChange={(value) => setUnitId(value)}
+                          openOnHover
+                          disableDefaultTriggerTone
+                          triggerStyle={mintingNeutralTriggerStyle}
                           options={[
                             { value: '0', label: 'Unit 0 - Default' },
                             { value: '1', label: 'Unit 1 - Gold (kg)' },
@@ -345,6 +380,7 @@ export function Minting() {
                             { value: '4', label: 'Unit 4 - Wheat (ton)' },
                           ]}
                           className="w-full"
+                          triggerClassName={mintingSelectTriggerClass}
                         />
                         <p className="text-[10px] text-ui-muted mt-1">Units managed by governance</p>
                       </>
@@ -384,6 +420,7 @@ export function Minting() {
                         options={['Expiry', 'Non-Expiry']}
                         value={expiryType}
                         onChange={(value) => setExpiryType(value as 'Expiry' | 'Non-Expiry')}
+                        className="min-h-[49px]"
                       />
                       {expiryType === 'Non-Expiry' && (
                         <p className="text-[10px] text-ui-muted mt-2">Asset will not expire</p>
@@ -412,7 +449,7 @@ export function Minting() {
               {/* Step 4: Mint Button */}
               <div className={`${studioCardClass} relative z-[10]`}>
                 <div className="flex items-center gap-3 mb-6">
-                  <span className="w-7 h-7 bg-zinc-800 text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-[#27272a]">4</span>
+                  <span className="w-7 h-7 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">4</span>
                   <h2 className="text-lg font-bold text-ui-primary">Mint Asset</h2>
                 </div>
                 <button
@@ -441,15 +478,15 @@ export function Minting() {
             <div className="xl:col-span-4">
               <div className="sticky top-0 space-y-6">
                 {/* Live Preview */}
-                <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-6">
+                <div className="bg-ui-card border border-ui-border-subtle rounded-2xl p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xs font-bold text-ui-muted uppercase tracking-widest">Live Preview</h3>
-                    <span className="px-3 py-1 bg-black/40 backdrop-blur-md text-primary border border-[#2CC295]/30 rounded-full text-[10px] font-bold uppercase">
+                    <span className="px-3 py-1 bg-ui-input backdrop-blur-md text-primary border border-[#2CC295]/30 rounded-full text-[10px] font-bold uppercase">
                       {assetType}
                     </span>
                   </div>
-                  <div className="bg-zinc-950 rounded-xl overflow-hidden border border-[#27272a]">
-                    <div className="aspect-square bg-zinc-900 flex items-center justify-center relative group">
+                  <div className="bg-ui-input rounded-xl overflow-hidden border border-ui-border-subtle">
+                    <div className="aspect-square bg-ui-input flex items-center justify-center relative group">
                       {assetType === 'RWA' && uploadedImages.length > 0 ? (
                         <>
                           <img
@@ -466,7 +503,7 @@ export function Minting() {
                                 onClick={() => setCurrentImageIndex(prev =>
                                   prev === 0 ? uploadedImages.length - 1 : prev - 1
                                 )}
-                                className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/60 hover:bg-black/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-ui-dropdown hover:bg-ui-input-focus rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                               >
                                 <ChevronLeft size={20} className="text-ui-primary" />
                               </button>
@@ -475,12 +512,12 @@ export function Minting() {
                                 onClick={() => setCurrentImageIndex(prev =>
                                   prev === uploadedImages.length - 1 ? 0 : prev + 1
                                 )}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/60 hover:bg-black/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-ui-dropdown hover:bg-ui-input-focus rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                               >
                                 <ChevronRight size={20} className="text-ui-primary" />
                               </button>
                               {/* Image Counter */}
-                              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/70 backdrop-blur-sm rounded-full text-xs text-ui-primary font-mono">
+                              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-ui-dropdown backdrop-blur-sm rounded-full text-xs text-ui-primary font-mono">
                                 {currentImageIndex + 1} / {uploadedImages.length}
                               </div>
                             </>
@@ -494,7 +531,7 @@ export function Minting() {
                           onError={() => setImageLoadError(true)}
                         />
                       ) : (
-                        <div className="relative w-full h-full bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800">
+                        <div className="relative w-full h-full bg-gradient-to-br from-[var(--t-input-bg)] via-[var(--t-surface-2)] to-[var(--t-input-focus-bg)]">
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="text-center p-6">
                               <ImageIcon className="text-ui-muted mx-auto mb-3" size={56} />
@@ -530,7 +567,7 @@ export function Minting() {
                 </div>
 
                 {/* Contract Info */}
-                <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-2xl p-5 space-y-4">
+                <div className="bg-ui-card border border-ui-border-subtle rounded-2xl p-5 space-y-4">
                   <div className="flex justify-between text-sm">
                     <span className="text-ui-muted">Contract Standard</span>
                     <span className="text-ui-primary font-medium text-right">ERC-721</span>

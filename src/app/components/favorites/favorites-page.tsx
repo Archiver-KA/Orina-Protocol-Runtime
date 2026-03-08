@@ -2,14 +2,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { Heart, Grid, List, TrendingUp, TrendingDown, DollarSign, Filter } from 'lucide-react';
 import { AssetDetails } from '@/types/asset';
 import { FavoriteSortOption, FavoriteFilterOption } from '@/types/favorites';
-// CARD DELETED - import { SearchResultCard } from '@/app/components/search/search-result-card';
-// CARD DELETED - import { SearchResult } from '@/types/search';
+import { SearchResultCard } from '@/app/components/search-result-card';
+import type { MarketplaceAsset } from '@/app/types/asset';
 import {
   loadFavorites,
-  removeFavorite,
   sortFavoriteAssets,
   calculateFavoritesStats,
-  getSortOptionLabel,
   toggleFavorite,
 } from '@/utils/favoritesUtils';
 import { generateMockAsset } from '@/utils/mockAssetData';
@@ -22,27 +20,36 @@ interface FavoritesPageProps {
   onAssetClick?: (assetId: string) => void;
 }
 
-// Convert AssetDetails to SearchResult format
-const assetToSearchResult = (asset: AssetDetails): SearchResult => {
-  const priceStr = asset.currentPrice.replace(' ETH', '').replace(',', '');
-  const priceNumeric = parseFloat(priceStr) || 0;
-  
+const assetToMarketplaceAsset = (asset: AssetDetails): MarketplaceAsset => {
+  const rawChain = String(asset.blockchain || 'BSC');
+  const blockchain: MarketplaceAsset['blockchain'] = (
+    ['Ethereum', 'Polygon', 'Arbitrum', 'Base', 'BSC'].includes(rawChain) ? rawChain : 'BSC'
+  ) as MarketplaceAsset['blockchain'];
+
   return {
     id: asset.id,
+    tokenId: asset.tokenId || asset.id,
+    contractAddress: asset.contractAddress || '0x0000000000000000000000000000000000000000',
     name: asset.name,
     description: asset.description || '',
     category: asset.category,
-    blockchain: 'BSC',
+    blockchain,
     price: asset.currentPrice,
-    priceUsd: `$${(priceNumeric * 2000).toLocaleString()}`, // Mock conversion
-    priceNumeric,
-    image: asset.image.replace('https://images.unsplash.com/', ''),
+    priceUSD: asset.currentPriceUsd || undefined,
+    currency: 'ETH',
+    image: asset.image,
+    seller: {
+      address: asset.seller?.address || asset.currentOwner || asset.creator,
+      verified: Boolean(asset.verified),
+    },
+    listedAt: asset.lastSale || asset.mintDate || Date.now(),
+    listingDuration: 'No expiry',
+    views: asset.views || 0,
+    likes: asset.favorites || 0,
     verified: asset.verified || false,
-    views: Math.floor(Math.random() * 10000),
-    favorites: Math.floor(Math.random() * 1000),
-    mintDate: Date.now() - Math.floor(Math.random() * 90 * 24 * 60 * 60 * 1000),
-    location: asset.location, // RWA location (Phuket, Dubai, etc.)
-    holders: Math.floor(Math.random() * 50) + 1, // Number of holders
+    network: 'testnet',
+    createdAt: asset.mintDate || Date.now(),
+    updatedAt: Date.now(),
   };
 };
 
@@ -100,12 +107,6 @@ export function FavoritesPage({
     calculateFavoritesStats(favoriteAssets), 
     [favoriteAssets]
   );
-
-  const handleRemoveFavorite = (assetId: string) => {
-    removeFavorite(currentUserId, assetId);
-    loadFavoritesData();
-    toast.success('Removed from favorites');
-  };
 
   const handleToggleFavorite = (assetId: string) => {
     const isFav = toggleFavorite(currentUserId, assetId);
@@ -297,10 +298,11 @@ export function FavoritesPage({
                 transition={{ duration: 0.3 }}
               >
                 <SearchResultCard
-                  result={assetToSearchResult(asset)}
-                  onClick={() => onAssetClick?.(asset.id)}
+                  asset={assetToMarketplaceAsset(asset)}
+                  onClick={(assetId) => onAssetClick?.(assetId)}
+                  onLike={handleToggleFavorite}
                   viewMode={viewMode}
-                  currentUserId={currentUserId}
+                  isLiked
                 />
               </motion.div>
             ))}

@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { AssetThumb } from '@/app/components/asset-thumb';
-import { StudioFieldError, StudioFieldHint, StudioFieldLabel, StudioInputField, StudioNumberField } from '@/app/components/ui/studio-form-fields';
+import { StudioFieldError, StudioFieldHint, StudioFieldLabel, StudioInputField } from '@/app/components/ui/studio-form-fields';
 import { StudioNoticePanel } from '@/app/components/ui/studio-notice-panel';
 import { StudioModalBody, StudioModalCloseButton, StudioModalFooter, StudioModalHeader, StudioModalPanel } from '@/app/components/ui/studio-modal';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
+import { useTheme } from '@/app/contexts/ThemeContext';
 
 interface TransferModalProps {
   isOpen: boolean;
@@ -19,6 +20,8 @@ interface TransferModalProps {
 }
 
 export function TransferModal({ isOpen, onClose, asset }: TransferModalProps) {
+  const { theme } = useTheme();
+  const [isLightTheme, setIsLightTheme] = useState(theme === 'light');
   const [recipientAddress, setRecipientAddress] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [isValidAddress, setIsValidAddress] = useState(true);
@@ -58,7 +61,41 @@ export function TransferModal({ isOpen, onClose, asset }: TransferModalProps) {
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+
+    const detectTheme = () => {
+      const attrTheme = root.getAttribute('data-theme') || '';
+      const hasLightClass = root.classList.contains('light');
+      const pageBgVar = getComputedStyle(root).getPropertyValue('--t-page-bg').trim().toLowerCase();
+      const inferredByVar =
+        pageBgVar.includes('eef1f4') ||
+        pageBgVar.includes('238, 241, 244');
+
+      setIsLightTheme(theme === 'light' || attrTheme === 'light' || hasLightClass || inferredByVar);
+    };
+
+    detectTheme();
+    const observer = new MutationObserver(detectTheme);
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
+    return () => observer.disconnect();
+  }, [theme]);
+
   if (!isOpen || !asset || typeof document === 'undefined') return null;
+
+  const lightBackdropStyle = isLightTheme
+    ? {
+        background:
+          'radial-gradient(circle at top, rgba(255, 255, 255, 0.5) 0%, rgba(226, 232, 240, 0.38) 42%, rgba(15, 23, 42, 0.28) 100%)',
+        backdropFilter: 'blur(16px) saturate(140%)',
+        WebkitBackdropFilter: 'blur(16px) saturate(140%)',
+      }
+    : undefined;
+
+  const quantityButtonClass = `taf-surface w-12 h-12 rounded-[14px] bg-[var(--t-surface-5)] border border-ui-border-subtle text-ui-secondary text-2xl leading-none flex items-center justify-center hover:bg-[var(--t-surface-10)] transition-colors ${
+    isLightTheme ? '!bg-[#F3F5F8] !border-[var(--t-border-subtle)] hover:!bg-[#ECEFF3]' : ''
+  }`;
 
   const modalContent = (
     <AnimatePresence>
@@ -66,7 +103,8 @@ export function TransferModal({ isOpen, onClose, asset }: TransferModalProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[120] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+        className="studio-form-backdrop fixed inset-0 z-[120] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+        style={lightBackdropStyle}
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
@@ -79,13 +117,13 @@ export function TransferModal({ isOpen, onClose, asset }: TransferModalProps) {
           className="relative z-[1] w-full max-w-2xl h-[calc(100dvh-3rem)]"
           onClick={(e) => e.stopPropagation()}
         >
-          <StudioModalPanel className="max-w-2xl h-[calc(100dvh-3rem)]">
+          <StudioModalPanel className="studio-form-modal transfer-asset-theme max-w-2xl h-[calc(100dvh-3rem)]">
             {/* Header */}
             <StudioModalHeader className="p-6 md:p-8 border-b-0 pb-3 md:pb-4">
             <div className="flex items-start justify-between mb-3 md:mb-4">
               <div>
-                <h2 className="text-lg font-bold text-white tracking-tight mb-1">Transfer Asset</h2>
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Send this asset to another wallet address</p>
+                <h2 className="text-lg font-bold text-ui-primary tracking-tight mb-1">Transfer Asset</h2>
+                <p className="text-[10px] text-ui-muted uppercase tracking-widest">Send this asset to another wallet address</p>
               </div>
               <StudioModalCloseButton onClick={onClose} />
             </div>
@@ -94,21 +132,23 @@ export function TransferModal({ isOpen, onClose, asset }: TransferModalProps) {
             <StudioModalBody className="p-6 md:p-8 pt-0">
 
             {/* Asset Preview */}
-            <div className="flex items-center gap-4 p-4 bg-[rgba(255,255,255,0.03)] border-0 rounded-[20px] mb-5 md:mb-6 backdrop-blur-[8px]">
+            <div className={`taf-surface flex items-center gap-4 p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-[20px] mb-5 md:mb-6 backdrop-blur-[8px] ${
+              isLightTheme ? '!bg-[#F3F5F8] !border-[var(--t-border-subtle)]' : ''
+            }`}>
               <AssetThumb
                 src={asset.image}
                 alt={asset.name}
                 className="w-16 h-16 rounded-lg"
               />
               <div className="flex-1">
-                <p className="text-base font-bold tracking-tight text-white">{asset.name}</p>
-                <p className="text-[10px] uppercase tracking-widest text-zinc-500">Token ID: {asset.id}</p>
+                <p className="text-base font-bold tracking-tight text-ui-primary">{asset.name}</p>
+                <p className="text-[10px] uppercase tracking-widest text-ui-muted">Token ID: {asset.id}</p>
               </div>
             </div>
 
             {/* Recipient Address */}
             <div className="mb-6">
-              <StudioFieldLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">
+              <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
                 Recipient Address
               </StudioFieldLabel>
               <StudioInputField
@@ -116,7 +156,9 @@ export function TransferModal({ isOpen, onClose, asset }: TransferModalProps) {
                 placeholder="0x..."
                 value={recipientAddress}
                 onChange={handleAddressChange}
-                className="p-4"
+                className={`taf-input p-4 !bg-[var(--t-surface-5)] !border !border-ui-border-subtle ${
+                  isLightTheme ? '!bg-[#F3F5F8] !border-[var(--t-border-subtle)]' : ''
+                }`}
                 invalid={!isValidAddress && recipientAddress.length > 0}
               />
               {!isValidAddress && recipientAddress.length > 0 && (
@@ -128,16 +170,32 @@ export function TransferModal({ isOpen, onClose, asset }: TransferModalProps) {
             </div>
 
             {/* Quantity */}
-            <div className="mb-8">
-              <StudioFieldLabel className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">
+            <div className="mb-6">
+              <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
                 Quantity
               </StudioFieldLabel>
-              <StudioNumberField
-                min="1"
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                className="p-4"
-              />
+              <div className={`taf-surface rounded-[24px] bg-[var(--t-surface-5)] border border-ui-border-subtle p-4 flex items-center justify-between gap-4 ${
+                isLightTheme ? '!bg-[#F3F5F8] !border-[var(--t-border-subtle)]' : ''
+              }`}>
+                <button
+                  type="button"
+                  onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                  className={quantityButtonClass}
+                >
+                  -
+                </button>
+                <div className="flex-1 text-center">
+                  <p className="text-5xl font-bold text-ui-primary leading-none">{quantity}</p>
+                  <p className="text-sm text-ui-muted mt-2">Units to transfer</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setQuantity((prev) => prev + 1)}
+                  className={quantityButtonClass}
+                >
+                  +
+                </button>
+              </div>
               <StudioFieldHint>
                 You will transfer {quantity} {quantity === 1 ? 'unit' : 'units'} of this asset
               </StudioFieldHint>
@@ -161,7 +219,9 @@ export function TransferModal({ isOpen, onClose, asset }: TransferModalProps) {
                 onClick={onClose}
                 variant="secondary"
                 size="lg"
-                className="flex-1 text-sm font-bold tracking-tight"
+                className={`taf-surface flex-1 text-sm font-bold tracking-tight ${
+                  isLightTheme ? '!bg-[#F3F5F8] !border !border-[var(--t-border-subtle)] hover:!bg-[#ECEFF3]' : ''
+                }`}
               >
                 Cancel
               </StudioActionButton>
