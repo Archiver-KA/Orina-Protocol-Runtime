@@ -1,10 +1,11 @@
-import { Clock, DollarSign, ExternalLink, Hash, MapPin, Package, Receipt, Store, User } from 'lucide-react';
+import { Clock, DollarSign, ExternalLink, Hash, MapPin, Package, Receipt, SlidersHorizontal, Store, User } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { formatEther } from 'viem';
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AssetThumb } from '@/app/components/asset-thumb';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
+import type { RwaSelectedAttribute } from '@/app/types/asset';
 import { formatAddress } from '@/utils/format';
 
 interface OrderDetailsModalProps {
@@ -21,6 +22,7 @@ interface OrderDetailsModalProps {
     paidAt?: bigint;
     sellerConfirmedAt?: bigint;
     estDeliverySeconds?: bigint;
+    selectedAttributes?: RwaSelectedAttribute[];
     platformFeeBpsSnapshot: bigint;
     daoFeeBpsSnapshot: bigint;
     burnFeeBpsSnapshot: bigint;
@@ -162,6 +164,32 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
                           <span className="text-xs font-mono text-white">{shippingAddress.phone}</span>
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <SlidersHorizontal size={14} className="text-[#2CC295]" />
+                      <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Buyer Selections</h3>
+                    </div>
+                    <div className="studio-portal-subsurface rounded-xl bg-black/40 border border-[rgba(255,255,255,0.08)] p-3 space-y-2.5">
+                      {order.selectedAttributes && order.selectedAttributes.length > 0 ? (
+                        order.selectedAttributes.map((attribute) => (
+                          <div
+                            key={attribute.groupId}
+                            className="flex items-start justify-between gap-3"
+                          >
+                            <span className="text-[10px] text-zinc-500 uppercase tracking-widest">
+                              {attribute.groupLabel}
+                            </span>
+                            <span className="text-xs font-semibold text-white text-right">
+                              {attribute.values.join(', ')}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-zinc-400">No buyer-selected offchain attributes were attached to this order.</p>
+                      )}
                     </div>
                   </div>
 

@@ -95,8 +95,6 @@ export function AssetDetailsPage({ assetId, onBack, onAssetClick, previousPage }
         return 'Back to Explorer';
       case 'favorites':
         return 'Back to Favorites';
-      case 'watchlist':
-        return 'Back to Watchlist';
       default:
         return 'Back to Explorer';
     }

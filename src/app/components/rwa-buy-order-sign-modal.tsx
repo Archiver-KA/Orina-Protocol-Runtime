@@ -11,15 +11,17 @@ import { useMemo, useState } from 'react';
 import { parseUnits } from 'viem';
 import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
-import { MarketplaceAsset } from '@/app/types/asset';
+import { MarketplaceAsset, RwaSelectedAttribute } from '@/app/types/asset';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 import { useBuyerSign1, useSignOrder } from '@/hooks/useEIP712Sign';
 import { CONTRACTS } from '@/config/contracts';
+import { createRuntimeOrderFromRwaIntent } from '@/utils/runtimeOrders';
 
 interface RwaBuyOrderSignModalProps {
   asset: MarketplaceAsset;
   quantity: number;
+  selectedAttributes?: RwaSelectedAttribute[];
   unitLabel?: string;
   transparentBackdrop?: boolean;
   onClose: () => void;
@@ -85,6 +87,7 @@ function buildMonthGrid(monthDate: Date) {
 export function RwaBuyOrderSignModal({
   asset,
   quantity,
+  selectedAttributes = [],
   unitLabel = 'slot',
   transparentBackdrop = false,
   onClose,
@@ -196,6 +199,15 @@ export function RwaBuyOrderSignModal({
         signedAt: Date.now(),
         mode,
         note,
+      });
+      createRuntimeOrderFromRwaIntent({
+        orderId: mode === 'predicted-live' && predictedOrderId !== undefined ? predictedOrderId : previewOrderId,
+        buyer: address,
+        asset,
+        quantity,
+        grossPrice: totalPriceBase,
+        estDeliverySeconds,
+        selectedAttributes,
       });
       toast.success('Buyer signature created');
     } catch (error) {
@@ -358,6 +370,29 @@ export function RwaBuyOrderSignModal({
                       </p>
                     </div>
                   </div>
+                  {selectedAttributes.length > 0 && (
+                    <>
+                      <div className="h-px bg-white/5" />
+                      <div>
+                        <p className="text-[10px] font-bold tracking-[0.18em] text-zinc-500 uppercase mb-2">
+                          Selected Attributes
+                        </p>
+                        <div className="space-y-2">
+                          {selectedAttributes.map((attribute) => (
+                            <div
+                              key={attribute.groupId}
+                              className="flex items-start justify-between gap-3 text-xs"
+                            >
+                              <span className="text-zinc-400">{attribute.groupLabel}</span>
+                              <span className="text-right font-semibold text-white">
+                                {attribute.values.join(', ')}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
                   <div className="h-px bg-white/5" />
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-300 font-semibold">Total</span>

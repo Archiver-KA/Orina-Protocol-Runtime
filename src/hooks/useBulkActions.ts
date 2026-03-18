@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { BulkAction, BulkOperationResult } from '@/types/bulk';
-import { addFavorite, addToWatchlist as addToWatchlistUtil } from '@/utils/favoritesUtils';
+import { addFavorite } from '@/utils/favoritesUtils';
 import { toast } from 'sonner';
 
 /**
@@ -34,19 +34,6 @@ export function useBulkActions() {
             }
           });
           toast.success(`Added ${successCount} items to favorites`);
-          break;
-
-        case 'add-to-watchlist':
-          ids.forEach(id => {
-            try {
-              addToWatchlistUtil(userId, id);
-              successCount++;
-            } catch (error) {
-              failedCount++;
-              errors.push(`Failed to add ${id} to watchlist`);
-            }
-          });
-          toast.success(`Added ${successCount} items to watchlist`);
           break;
 
         case 'set-price-alert':

@@ -104,9 +104,9 @@ export function TrendingSidebar({ topics, stats, onTagClick }: TrendingSidebarPr
         </h3>
 
         <div className="space-y-2">
-          <button className="w-full text-left px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors">
-            Community Guidelines
-          </button>
+          <a href="https://docs.orina.io/" target="_blank" rel="noopener noreferrer" className="block w-full text-left px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors">
+            Documentation
+          </a>
           <button className="w-full text-left px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors">
             FAQ
           </button>

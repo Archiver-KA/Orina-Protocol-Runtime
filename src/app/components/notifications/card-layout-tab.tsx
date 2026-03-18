@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Heart, TrendingUp, TrendingDown, Eye, Package, User, Clock, CheckCircle, XCircle, Diamond, Layers, Sparkles, ShoppingBag, Shield, ArrowRight, Users } from 'lucide-react';
+import { Checkbox } from '@/app/components/ui/checkbox';
 
 type CardVariant = 
   | 'search-grid-card'
@@ -72,11 +73,10 @@ export function CardLayoutTab() {
               <h4 className="text-base font-bold text-white">Grid View (Compact) ⭐</h4>
               <label className="flex items-center gap-2 cursor-pointer">
                 <span className="text-xs text-zinc-400">Select</span>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={selectedVariants.has('search-grid-card')}
-                  onChange={() => toggleVariant('search-grid-card')}
-                  className="w-4 h-4 rounded bg-zinc-800 border-zinc-700 text-[#2CC295] focus:ring-[#2CC295] focus:ring-offset-0 cursor-pointer"
+                  onCheckedChange={() => toggleVariant('search-grid-card')}
+                  className="bg-zinc-800 cursor-pointer"
                 />
               </label>
             </div>
@@ -158,11 +158,10 @@ export function CardLayoutTab() {
               <h4 className="text-base font-bold text-white">List View (Detailed with Stats) ⭐</h4>
               <label className="flex items-center gap-2 cursor-pointer">
                 <span className="text-xs text-zinc-400">Select</span>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={selectedVariants.has('search-list-card')}
-                  onChange={() => toggleVariant('search-list-card')}
-                  className="w-4 h-4 rounded bg-zinc-800 border-zinc-700 text-[#2CC295] focus:ring-[#2CC295] focus:ring-offset-0 cursor-pointer"
+                  onCheckedChange={() => toggleVariant('search-list-card')}
+                  className="bg-zinc-800 cursor-pointer"
                 />
               </label>
             </div>
@@ -256,11 +255,10 @@ export function CardLayoutTab() {
               <h4 className="text-base font-bold text-white">RWA Minted Card</h4>
               <label className="flex items-center gap-2 cursor-pointer">
                 <span className="text-xs text-zinc-400">Select</span>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={selectedVariants.has('rwa-minted-card')}
-                  onChange={() => toggleVariant('rwa-minted-card')}
-                  className="w-4 h-4 rounded bg-zinc-800 border-zinc-700 text-[#2CC295] focus:ring-[#2CC295] focus:ring-offset-0 cursor-pointer"
+                  onCheckedChange={() => toggleVariant('rwa-minted-card')}
+                  className="bg-zinc-800 cursor-pointer"
                 />
               </label>
             </div>
@@ -328,11 +326,10 @@ export function CardLayoutTab() {
               <h4 className="text-base font-bold text-white">Receipt NFT Card</h4>
               <label className="flex items-center gap-2 cursor-pointer">
                 <span className="text-xs text-zinc-400">Select</span>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={selectedVariants.has('receipt-nft-card')}
-                  onChange={() => toggleVariant('receipt-nft-card')}
-                  className="w-4 h-4 rounded bg-zinc-800 border-zinc-700 text-[#2CC295] focus:ring-[#2CC295] focus:ring-offset-0 cursor-pointer"
+                  onCheckedChange={() => toggleVariant('receipt-nft-card')}
+                  className="bg-zinc-800 cursor-pointer"
                 />
               </label>
             </div>
@@ -404,11 +401,10 @@ export function CardLayoutTab() {
               <h4 className="text-base font-bold text-white">Digital NFT Card</h4>
               <label className="flex items-center gap-2 cursor-pointer">
                 <span className="text-xs text-zinc-400">Select</span>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={selectedVariants.has('digital-nft-card')}
-                  onChange={() => toggleVariant('digital-nft-card')}
-                  className="w-4 h-4 rounded bg-zinc-800 border-zinc-700 text-[#2CC295] focus:ring-[#2CC295] focus:ring-offset-0 cursor-pointer"
+                  onCheckedChange={() => toggleVariant('digital-nft-card')}
+                  className="bg-zinc-800 cursor-pointer"
                 />
               </label>
             </div>
@@ -490,11 +486,10 @@ export function CardLayoutTab() {
               </div>
               <label className="flex items-center gap-3 cursor-pointer">
                 <span className="text-sm text-zinc-400">Select</span>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={selectedVariants.has('portfolio-table-row')}
-                  onChange={() => toggleVariant('portfolio-table-row')}
-                  className="w-5 h-5 rounded bg-zinc-800 border-zinc-700 text-[#2CC295] focus:ring-[#2CC295] focus:ring-offset-0 cursor-pointer"
+                  onCheckedChange={() => toggleVariant('portfolio-table-row')}
+                  className="size-5 bg-zinc-800 cursor-pointer"
                 />
               </label>
             </div>

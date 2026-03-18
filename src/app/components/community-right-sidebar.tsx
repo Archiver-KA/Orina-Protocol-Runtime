@@ -75,10 +75,12 @@ export function CommunityRightSidebar() {
             <h2 className="text-[11px] uppercase font-bold text-ui-muted mb-4">Quick Links</h2>
             <div className="space-y-1">
               <a
-                href="#"
+                href="https://docs.orina.io/"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center justify-between p-2.5 rounded-xl hover:bg-white/[0.04] transition-all text-ui-muted hover:text-ui-primary"
               >
-                <span className="text-sm font-medium">Community Guidelines</span>
+                <span className="text-sm font-medium">Documentation</span>
                 <ExternalLink size={14} />
               </a>
               <a

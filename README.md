@@ -29,6 +29,10 @@ The old mixed documentation set has been removed and replaced with a current-cod
 - [Community, Messages, And Profile](./docs/spec/04-community-messages-and-profile.md)
 - [Integrations, Settings, And Tools](./docs/spec/05-integrations-settings-and-tools.md)
 - [Current State And Demo Surfaces](./docs/spec/06-current-state-and-demo-surfaces.md)
+- [Collections And RWA Configurable Attributes](./docs/spec/07-collections-and-rwa-configurable-attributes.md)
+- [Global Delivery Address And Asset Location](./docs/spec/08-global-delivery-address.md)
+- [Supabase Migration And Geo Import Strategy](./docs/spec/09-supabase-migration-and-geo-import.md)
+- [Geo Import Runbook](./docs/spec/10-geo-import-runbook.md)
 
 ## Important Repository Areas
 

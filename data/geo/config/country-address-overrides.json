@@ -1,0 +1,78 @@
+{
+  "US": {
+    "phoneCode": "+1",
+    "postalCodeLabel": "ZIP code",
+    "postalCodeRequired": true,
+    "postalCodePattern": "^[0-9]{5}(-[0-9]{4})?$",
+    "addressSchema": {
+      "levels": [
+        { "kind": "admin1", "label": "State", "required": true },
+        { "kind": "admin2", "label": "County", "required": true },
+        { "kind": "locality", "label": "City", "required": true }
+      ]
+    }
+  },
+  "CA": {
+    "phoneCode": "+1",
+    "postalCodeLabel": "Postal code",
+    "postalCodeRequired": true,
+    "postalCodePattern": "^[A-Za-z]\\d[A-Za-z][ -]?\\d[A-Za-z]\\d$",
+    "addressSchema": {
+      "levels": [
+        { "kind": "admin1", "label": "Province", "required": true },
+        { "kind": "locality", "label": "City", "required": true }
+      ]
+    }
+  },
+  "GB": {
+    "phoneCode": "+44",
+    "postalCodeLabel": "Postcode",
+    "postalCodeRequired": true,
+    "postalCodePattern": "^[A-Za-z]{1,2}\\d[A-Za-z\\d]? ?\\d[A-Za-z]{2}$",
+    "addressSchema": {
+      "levels": [
+        { "kind": "admin1", "label": "Nation", "required": true },
+        { "kind": "locality", "label": "Town / City", "required": true }
+      ]
+    }
+  },
+  "VN": {
+    "phoneCode": "+84",
+    "postalCodeLabel": "Postal code",
+    "postalCodeRequired": true,
+    "postalCodePattern": "^[0-9]{5,6}$",
+    "addressSchema": {
+      "levels": [
+        { "kind": "admin1", "label": "Province / City", "required": true },
+        { "kind": "admin2", "label": "District", "required": true },
+        { "kind": "locality", "label": "Ward / Locality", "required": true }
+      ]
+    }
+  },
+  "JP": {
+    "nativeName": "\u65e5\u672c",
+    "phoneCode": "+81",
+    "postalCodeLabel": "Postal code",
+    "postalCodeRequired": true,
+    "postalCodePattern": "^\\d{3}-?\\d{4}$",
+    "addressSchema": {
+      "levels": [
+        { "kind": "admin1", "label": "Prefecture", "required": true },
+        { "kind": "locality", "label": "City / Ward", "required": true }
+      ]
+    }
+  },
+  "DE": {
+    "nativeName": "Deutschland",
+    "phoneCode": "+49",
+    "postalCodeLabel": "Postal code",
+    "postalCodeRequired": true,
+    "postalCodePattern": "^\\d{5}$",
+    "addressSchema": {
+      "levels": [
+        { "kind": "admin1", "label": "State", "required": true },
+        { "kind": "locality", "label": "City", "required": true }
+      ]
+    }
+  }
+}

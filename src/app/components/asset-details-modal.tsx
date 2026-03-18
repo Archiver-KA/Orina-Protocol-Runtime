@@ -1,6 +1,6 @@
-import { Heart, Layers, MessageSquare, Star, Minus, Plus, Shield, ExternalLink, Clock } from 'lucide-react';
-import { useState } from 'react';
-import { MarketplaceAsset } from '@/app/types/asset';
+import { Heart, Layers, MessageSquare, Star, Minus, Plus, Shield, ExternalLink, Clock, MapPin } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import type { MarketplaceAsset, RwaConfigurableAttributeGroup, RwaSelectedAttribute } from '@/app/types/asset';
 import { motion, AnimatePresence } from 'motion/react';
 import { VerifiedUserIcon } from '@/app/components/verified-user-icon';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
@@ -15,24 +15,46 @@ interface AssetDetailsModalProps {
   asset: MarketplaceAsset;
   onClose: () => void;
   onNavigateToSeller?: (sellerAddress: string) => void;
+  zIndexClassName?: string;
 }
 
-export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetDetailsModalProps) {
+export function AssetDetailsModal({
+  asset,
+  onClose,
+  onNavigateToSeller,
+  zIndexClassName = 'z-[60]',
+}: AssetDetailsModalProps) {
   const [activeTab, setActiveTab] = useState('Description');
   const [quantity, setQuantity] = useState(1);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorited, setIsFavorited] = useState(false);
   const [isBuyModalOpen, setIsBuyModalOpen] = useState(false);
+  const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string[]>>({});
   const { address } = useAccount();
   const { requireWalletAction } = useRequireWalletAction();
 
   const images = asset.images || [asset.image];
+  const configurableAttributes: RwaConfigurableAttributeGroup[] = asset.configurableAttributes || [];
   const isFractionalListing =
     typeof asset.availableSlots === 'number' && typeof asset.totalSlots === 'number';
   const minQuantity = isFractionalListing ? (asset.minPurchaseSlots || 1) : 1;
   const maxQuantity = isFractionalListing
     ? Math.min(asset.maxPurchaseSlots || 10, asset.availableSlots || 1)
     : 1;
+  const selectedAttributeSnapshots: RwaSelectedAttribute[] = configurableAttributes.flatMap((group) => {
+    const values = selectedAttributes[group.id] || [];
+    if (values.length === 0) return [];
+    return [{ groupId: group.id, groupLabel: group.label, values }];
+  });
+  const missingRequiredAttributes = configurableAttributes.filter(
+    (group) => group.required && (selectedAttributes[group.id] || []).length === 0
+  );
+  const hasMissingRequiredAttributes = missingRequiredAttributes.length > 0;
+
+  useEffect(() => {
+    setSelectedAttributes({});
+    setQuantity(1);
+  }, [asset.id]);
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
@@ -48,6 +70,31 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
     }
   };
 
+  const handleAttributeSelection = (
+    group: RwaConfigurableAttributeGroup,
+    optionLabel: string
+  ) => {
+    setSelectedAttributes((current) => {
+      const currentValues = current[group.id] || [];
+
+      if (group.selectionMode === 'single') {
+        return {
+          ...current,
+          [group.id]: [optionLabel],
+        };
+      }
+
+      const nextValues = currentValues.includes(optionLabel)
+        ? currentValues.filter((value) => value !== optionLabel)
+        : [...currentValues, optionLabel];
+
+      return {
+        ...current,
+        [group.id]: nextValues,
+      };
+    });
+  };
+
   const handleSellerClick = () => {
     if (onNavigateToSeller) {
       onNavigateToSeller(asset.seller.address);
@@ -56,6 +103,8 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
   };
 
   const handleBuyClick = () => {
+    if (hasMissingRequiredAttributes) return;
+
     // Opening the buy modal should only require a connected wallet.
     // Protocol/auth signatures are collected inside the modal when user clicks "Sign".
     const allowed = requireWalletAction({
@@ -74,7 +123,7 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="studio-portal-backdrop fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/70 backdrop-blur-[10px]"
+        className={`studio-portal-backdrop fixed inset-0 ${zIndexClassName} flex items-center justify-center p-6 bg-black/70 backdrop-blur-[10px]`}
         onClick={handleOverlayClick}
       >
         <motion.div
@@ -228,6 +277,25 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
                           <p className="text-zinc-400 leading-relaxed">
                             {asset.description || 'No description available.'}
                           </p>
+                          {asset.assetLocationSnapshot?.displayAddress && (
+                            <div className="studio-glass-surface p-4 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-2xl">
+                              <div className="flex items-center gap-2 text-[10px] text-zinc-500 uppercase font-bold mb-2">
+                                <MapPin size={12} className="text-primary" />
+                                Asset Address
+                              </div>
+                              <p className="text-sm text-white leading-relaxed">
+                                {asset.assetLocationSnapshot.displayAddress}
+                              </p>
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                <span className="studio-glass-chip px-2 py-1 bg-zinc-900 border border-[var(--color-panel-border)] rounded-lg text-[10px] text-zinc-400 uppercase font-bold">
+                                  {asset.assetLocationSnapshot.countryNameSnapshot}
+                                </span>
+                                <span className="studio-glass-chip px-2 py-1 bg-zinc-900 border border-[var(--color-panel-border)] rounded-lg text-[10px] text-zinc-400 uppercase font-bold">
+                                  {asset.assetLocationSnapshot.precision}
+                                </span>
+                              </div>
+                            </div>
+                          )}
                           {asset.tags && asset.tags.length > 0 && (
                             <div className="flex flex-wrap gap-2 mt-4">
                               {asset.tags.map((tag, i) => (
@@ -245,7 +313,7 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
               </div>
 
               {/* Right Column - Details & Purchase */}
-              <div className="p-8 flex flex-col md:min-h-0">
+              <div className="p-8 flex flex-col min-h-0 md:h-full md:overflow-y-auto custom-scrollbar overscroll-contain">
                 {/* Header */}
                 <div className="mb-6">
                   <div className="flex items-start justify-between mb-2">
@@ -377,6 +445,67 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
                   </div>
                 )}
 
+                {configurableAttributes.length > 0 && (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <p className="text-[10px] text-zinc-500 uppercase font-bold">Buyer Attributes</p>
+                      <span className="text-[10px] text-zinc-500">
+                        {selectedAttributeSnapshots.length}/{configurableAttributes.length} selected
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      {configurableAttributes.map((group) => {
+                        const selectedValues = selectedAttributes[group.id] || [];
+
+                        return (
+                          <div
+                            key={group.id}
+                            className="studio-glass-surface p-4 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-2xl"
+                          >
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                              <div>
+                                <p className="text-sm font-semibold text-white">{group.label}</p>
+                                {group.helpText && (
+                                  <p className="text-[11px] text-zinc-500 mt-1">{group.helpText}</p>
+                                )}
+                              </div>
+                              <span className="px-2 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-400">
+                                {group.required ? 'Required' : group.selectionMode === 'multi' ? 'Multi' : 'Optional'}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {group.options.map((option) => {
+                                const isSelected = selectedValues.includes(option.label);
+
+                                return (
+                                  <button
+                                    key={option.id}
+                                    type="button"
+                                    onClick={() => handleAttributeSelection(group, option.label)}
+                                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                                      isSelected
+                                        ? 'bg-[#2CC295] text-black'
+                                        : 'bg-white/5 border border-white/10 text-zinc-300 hover:bg-white/10'
+                                    }`}
+                                  >
+                                    {option.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {hasMissingRequiredAttributes && (
+                        <p className="text-[11px] text-orange-300">
+                          Select required attributes: {missingRequiredAttributes.map((group) => group.label).join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-3 mb-6">
                   <div className="studio-glass-surface p-3 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-xl text-center">
@@ -399,10 +528,15 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
                 <div className="mb-6">
                   <StudioActionButton
                     onClick={handleBuyClick}
+                    disabled={hasMissingRequiredAttributes}
                     className="w-full py-4 rounded-xl text-sm font-bold justify-center"
                   >
                     <Layers size={18} />
-                    {isFractionalListing ? `Buy Now (${quantity} Slot${quantity > 1 ? 's' : ''})` : 'Buy NFT'}
+                    {hasMissingRequiredAttributes
+                      ? 'Select Required Attributes'
+                      : isFractionalListing
+                        ? `Buy Now (${quantity} Slot${quantity > 1 ? 's' : ''})`
+                        : 'Buy NFT'}
                   </StudioActionButton>
                 </div>
               </div>
@@ -415,6 +549,7 @@ export function AssetDetailsModal({ asset, onClose, onNavigateToSeller }: AssetD
           <RwaBuyOrderSignModal
             asset={asset}
             quantity={quantity}
+            selectedAttributes={selectedAttributeSnapshots}
             unitLabel="slot"
             transparentBackdrop
             onClose={() => setIsBuyModalOpen(false)}

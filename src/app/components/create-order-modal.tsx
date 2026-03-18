@@ -6,7 +6,8 @@ import { formatAddress } from '@/utils/format';
 import { formatEther, parseEther } from 'viem';
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { StudioTxStatePanel } from '@/app/components/ui/studio-tx-state-panel';
-import { StudioFieldHint, StudioFieldLabel, StudioInputField, StudioNumberField } from '@/app/components/ui/studio-form-fields';
+import { StudioFieldHint, StudioFieldLabel, StudioNumberField } from '@/app/components/ui/studio-form-fields';
+import { preventInvalidNumberKeyDown } from '@/utils/numericInput';
 import { StudioModalBackdrop, StudioModalCloseButton, StudioModalPanel, StudioModalShell } from '@/app/components/ui/studio-modal';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
@@ -181,12 +182,15 @@ export function CreateOrderModal({ isOpen, onClose, asset }: CreateOrderModalPro
               <StudioFieldLabel className="text-ui-muted text-xs">
                 Price Per Unit (ETH)
               </StudioFieldLabel>
-              <StudioInputField
-                type="text"
+              <StudioNumberField
                 className="studio-form-input bg-[var(--t-surface-5)] border-ui-border-subtle font-mono"
                 placeholder="e.g. 0.001"
                 value={pricePerUnit}
                 onChange={(e) => setPricePerUnit(e.target.value)}
+                inputMode="decimal"
+                step="0.0001"
+                min="0"
+                onKeyDown={preventInvalidNumberKeyDown}
                 required
               />
             </div>

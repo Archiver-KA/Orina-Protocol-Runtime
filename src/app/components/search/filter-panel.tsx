@@ -2,6 +2,7 @@ import { ChevronDown, ChevronUp, Shield, X } from 'lucide-react';
 import { useState } from 'react';
 import { SearchFilters } from '@/types/search';
 import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
+import { preventInvalidNumberKeyDown } from '@/utils/numericInput';
 
 interface FilterPanelProps {
   filters: SearchFilters;
@@ -151,9 +152,11 @@ export function FilterPanel({ filters, onFiltersChange, resultCount, totalCount 
                 type="number"
                 step="0.1"
                 min="0"
+                inputMode="decimal"
                 placeholder="0.0"
                 value={filters.priceRange.min ?? ''}
                 onChange={(e) => handlePriceChange('min', e.target.value)}
+                onKeyDown={preventInvalidNumberKeyDown}
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#2CC295] transition-colors"
               />
             </div>
@@ -163,9 +166,11 @@ export function FilterPanel({ filters, onFiltersChange, resultCount, totalCount 
                 type="number"
                 step="0.1"
                 min="0"
+                inputMode="decimal"
                 placeholder="∞"
                 value={filters.priceRange.max ?? ''}
                 onChange={(e) => handlePriceChange('max', e.target.value)}
+                onKeyDown={preventInvalidNumberKeyDown}
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#2CC295] transition-colors"
               />
             </div>

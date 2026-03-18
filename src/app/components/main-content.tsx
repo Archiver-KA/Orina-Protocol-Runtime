@@ -1,5 +1,5 @@
 import { MarketVolumeChart } from '@/app/components/market-volume-chart';
-import { ChevronUp, TrendingUp } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { useTheme } from '@/app/contexts/ThemeContext';
 
@@ -61,9 +61,7 @@ export function MainContent() {
             <article className="bg-ui-card rounded-[24px] p-6 min-h-[146px] flex flex-col justify-between">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-[#2CC295] text-black inline-flex items-center justify-center">
-                    <ChevronUp size={10} />
-                  </span>
+                  <span className="w-3.5 h-3.5 rounded-full bg-[#2CC295] shadow-[0_0_12px_rgba(44,194,149,0.6)]" />
                   <span className="text-[12px] uppercase tracking-[0.12em] font-bold text-ui-muted">Total Value</span>
                 </div>
                 <span className="h-[19px] px-2 rounded-full bg-[rgba(44,194,149,0.1)] text-[#2CC295] text-[10px] font-bold inline-flex items-center gap-1">
@@ -91,9 +89,8 @@ export function MainContent() {
             </article>
 
             <article className="bg-ui-card rounded-[24px] p-6 min-h-[146px]">
-              <div className="flex items-start justify-between">
+              <div className="flex items-start">
                 <p className="text-[12px] uppercase tracking-[0.12em] font-bold text-ui-muted">Chain Health</p>
-                <span className="material-symbols-outlined text-ui-muted !text-[15px]">more_horiz</span>
               </div>
 
               <div className="mt-4 flex items-center gap-6">

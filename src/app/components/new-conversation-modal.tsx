@@ -101,7 +101,7 @@ export function NewConversationModal({
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           transition={{ type: 'spring', duration: 0.3 }}
-          className="studio-modal-theme studio-portal-modal relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
+          className="studio-modal-theme studio-portal-modal relative flex w-full max-w-[860px] flex-col overflow-hidden rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] shadow-[0_30px_120px_rgba(0,0,0,0.55)] backdrop-blur-[20px] h-auto max-h-[calc(100dvh-3rem)] md:max-h-[680px]"
           onClick={(e) => e.stopPropagation()}
         >
           <style>{`
@@ -117,18 +117,15 @@ export function NewConversationModal({
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="h-7 px-3 inline-flex items-center bg-[#2CC295]/15 rounded-full border border-[#2CC295]/30 text-[9px] font-bold text-[#2CC295] uppercase tracking-widest">
-                  Encrypted
-                </span>
                 <StudioModalCloseButton onClick={handleClose} />
               </div>
             </div>
           </div>
 
-          <section className="min-w-0 min-h-0 flex-1 overflow-y-auto lg:overflow-hidden hidden-scrollbar relative">
+          <section className="relative min-h-0 min-w-0 overflow-y-auto hidden-scrollbar">
             <div className="h-full p-5 md:p-6 pt-4 relative z-10">
-              <div className="w-full h-full max-w-[860px] mx-auto flex flex-col lg:flex-row justify-center items-start gap-6 px-0 md:px-2">
-                <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
+              <div className="mx-auto flex w-full max-w-[860px] flex-col items-start justify-center gap-6 px-0 md:px-2 lg:flex-row">
+                <div className="hidden-scrollbar flex h-auto min-h-0 w-full max-w-[366px] flex-col gap-4 overflow-visible pr-1">
                   <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Recipient Wallet</h3>
@@ -180,7 +177,7 @@ export function NewConversationModal({
                   </div>
                 </div>
 
-                <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
+                <div className="hidden-scrollbar flex h-auto min-h-0 w-full max-w-[366px] flex-col gap-4 overflow-visible pr-1">
                   <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Conversation Preview</h3>

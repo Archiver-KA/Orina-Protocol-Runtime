@@ -196,7 +196,7 @@ export function MyAssetReceiptCard({
           <Package size={10} />
           Receipt NFT
         </div>
-        <div className="absolute bottom-3 left-4 right-4 inline-flex items-center gap-2 bg-black/65 px-3 py-2">
+        <div className="absolute inset-x-0 bottom-0 inline-flex h-5 items-center gap-2 bg-black/75 px-[19px]">
           <span className="h-2 w-2 rounded-full bg-orange-400" />
           <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-orange-300">
             Non-Transferable
@@ -225,11 +225,6 @@ export function MyAssetReceiptCard({
               {asset.purchaseValue}
             </p>
           </div>
-          <div className="rounded-[10px] border border-ui-border-subtle bg-white/[0.06] px-4 py-3">
-            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-ui-secondary">
-              {asset.blockchain}
-            </span>
-          </div>
         </div>
       </div>
     </StudioPanel>
@@ -254,7 +249,7 @@ export function MyAssetNftCard({
           <ShoppingBag size={10} />
           Digital NFT
         </div>
-        <div className="absolute bottom-3 left-4 right-4 inline-flex items-center gap-2 bg-black/65 px-3 py-2">
+        <div className="absolute inset-x-0 bottom-0 inline-flex h-5 items-center gap-2 bg-black/75 px-[19px]">
           <span className={`h-2 w-2 rounded-full ${asset.transferable ? "bg-[#2CC295]" : "bg-orange-400"}`} />
           <span
             className={`text-[11px] font-bold uppercase tracking-[0.1em] ${

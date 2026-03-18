@@ -61,9 +61,7 @@ export function pageToCapability(page: AppPage): AccessCapability | null {
     case 'messages': return 'use_messages';
     case 'history': return 'use_history';
     case 'settings': return 'use_settings';
-    case 'favorites':
-    case 'watchlist':
-      return 'use_favorites';
+    case 'favorites': return 'use_favorites';
     default:
       return null;
   }

@@ -5,6 +5,7 @@ import { Star } from 'lucide-react';
 import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
 import { VerifiedUserIcon } from '@/app/components/verified-user-icon';
 import { getAvatarByUserId } from '@/app/components/user-avatars';
+import { ProfileFollowButton } from '@/app/components/profile/profile-follow-button';
 import type { SellerProfileCardData } from '@/utils/mockSellerProfiles';
 import { followUser, unfollowUser, isFollowing, formatUserDisplayName } from '@/utils/profileUtils';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
@@ -83,19 +84,16 @@ export function ProfileSearchCard({ profile, viewMode: _viewMode, onViewProfile,
         <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.02)_45%,rgba(255,255,255,0)_80%)]" />
         {!isOwnCard && (
           <div className="absolute bottom-3 right-3 z-20">
-            <button
+            <ProfileFollowButton
+              following={following}
               onClick={(e) => {
                 e.stopPropagation();
                 handleToggleFollow();
               }}
-              className={`px-3 py-1.5 rounded-full text-[9px] font-black tracking-[0.14em] uppercase transition-colors border backdrop-blur-md ${
-                following
-                  ? 'border-white/20 bg-white text-black hover:bg-zinc-200'
-                  : 'border-white/20 bg-[#0b0d12]/45 text-white hover:bg-[#0b0d12]/65'
-              }`}
+              className="shadow-[0_12px_24px_-18px_rgba(0,0,0,0.85)]"
             >
               {following ? 'Following' : 'Follow'}
-            </button>
+            </ProfileFollowButton>
           </div>
         )}
         <div className="absolute inset-x-0 top-2 grid grid-cols-3 px-2">

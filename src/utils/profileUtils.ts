@@ -1,4 +1,14 @@
-import { UserProfile, ActivityItem, Badge, ProfileStats, ActivityFilter } from '@/types/profile';
+import {
+  UserProfile,
+  ActivityItem,
+  Badge,
+  ProfileStats,
+  ActivityFilter,
+  StoryBlock,
+  StoryBlockType,
+  StorySettings,
+  UserStoryDocument,
+} from '@/types/profile';
 import { AssetDetails } from '@/types/asset';
 import { normalizeAddress, scopedAddress } from '@/utils/storageScope';
 import { isGuestModeForced } from '@/utils/guestMode';
@@ -6,7 +16,6 @@ import {
   dispatchSyncEvent,
   encodeEq,
   encodeIn,
-  getLocalSupabaseId,
   isSupabaseRestEnabled,
   restDelete,
   restSelect,
@@ -14,13 +23,115 @@ import {
   setLocalSupabaseId,
   toQuery,
 } from '@/utils/supabaseRest';
-import { exchangeWalletAuthForSupabaseClaimSession, isSupabaseAuthClaimBridgeEnabled } from '@/utils/supabaseAuthClaimBridge';
+import {
+  ensureRemoteProfileIdForWallet as ensureRemoteProfileIdCanonical,
+  getCachedRemoteProfileId as getCachedRemoteProfileIdCanonical,
+} from '@/utils/profileRemoteIdentity';
+import {
+  appSettingsToProfileSettings,
+  DEFAULT_USER_APP_SETTINGS,
+  hasLocalUserAppSettings,
+  hydrateUserAppSettingsFromSupabase,
+  mergeProfileSettingsIntoAppSettings,
+  readLocalUserAppSettings,
+  saveUserAppSettings,
+  settingsRecordToAppSettings,
+} from '@/utils/userSettingsUtils';
 
 // ✅ NEW ARCHITECTURE: Address-based only, no userId concept
 const ACTIVITIES_KEY = 'studio_user_activities';
 const PROFILE_SYNC_EVENT = 'orina:profile-changed';
 const PROFILE_SYNC_IN_FLIGHT = new Set<string>();
+const PROFILE_HYDRATE_LAST_AT = new Map<string, number>();
+const PROFILE_HYDRATE_MIN_INTERVAL_MS = 15_000;
 const DISPLAY_NAME_PREVIEW_LIMIT = 15;
+const DEFAULT_STORY_SETTINGS: StorySettings = {
+  category: 'Institutional',
+  tags: 'rwa, logistics, yield',
+};
+
+function createDefaultStoryBlocks(): StoryBlock[] {
+  return [
+    {
+      id: 'story-heading-intro',
+      type: 'heading',
+      content: 'Introduction to the Asset',
+    },
+    {
+      id: 'story-paragraph-intro',
+      type: 'paragraph',
+      content:
+        'The evolving landscape of Real World Assets (RWA) is creating unprecedented opportunities for retail and institutional sellers alike. This storefront collection focuses on high-yield industrial logistics centers in emerging tech hubs.',
+    },
+    {
+      id: 'story-image-main',
+      type: 'image',
+      content: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=1600',
+    },
+    {
+      id: 'story-heading-market',
+      type: 'heading',
+      content: 'Market Dynamics',
+    },
+    {
+      id: 'story-paragraph-market',
+      type: 'paragraph',
+      content:
+        'By leveraging tokenized ownership, we can now provide liquidity in markets that were previously locked behind massive capital requirements. This entry details the methodology for asset selection and risk mitigation in volatile cycles.',
+    },
+  ];
+}
+
+function createDefaultStoryDocument(): UserStoryDocument {
+  const blocks = createDefaultStoryBlocks();
+  return {
+    draftBlocks: blocks.map((block) => ({ ...block })),
+    draftSettings: { ...DEFAULT_STORY_SETTINGS },
+    publishedBlocks: blocks.map((block) => ({ ...block })),
+    publishedSettings: { ...DEFAULT_STORY_SETTINGS },
+    updatedAt: Date.now(),
+  };
+}
+
+function normalizeStoryBlockType(value: unknown): StoryBlockType {
+  if (value === 'heading' || value === 'paragraph' || value === 'image') return value;
+  return 'paragraph';
+}
+
+function normalizeStoryBlocks(rawBlocks: unknown, fallback: StoryBlock[]): StoryBlock[] {
+  if (!Array.isArray(rawBlocks)) {
+    return fallback.map((block) => ({ ...block }));
+  }
+
+  return rawBlocks
+    .filter((block): block is Record<string, unknown> => !!block && typeof block === 'object')
+    .map((block, index) => ({
+      id:
+        typeof block.id === 'string' && block.id.trim()
+          ? block.id
+          : `story-${normalizeStoryBlockType(block.type)}-${index}`,
+      type: normalizeStoryBlockType(block.type),
+      content: typeof block.content === 'string' ? block.content : '',
+    }));
+}
+
+function normalizeStorySettings(rawSettings: unknown): StorySettings {
+  if (!rawSettings || typeof rawSettings !== 'object') {
+    return { ...DEFAULT_STORY_SETTINGS };
+  }
+
+  return {
+    category:
+      typeof (rawSettings as { category?: unknown }).category === 'string' &&
+      (rawSettings as { category?: string }).category?.trim()
+        ? (rawSettings as { category: string }).category.trim()
+        : DEFAULT_STORY_SETTINGS.category,
+    tags:
+      typeof (rawSettings as { tags?: unknown }).tags === 'string'
+        ? (rawSettings as { tags: string }).tags.trim()
+        : DEFAULT_STORY_SETTINGS.tags,
+  };
+}
 
 function getLegacyShortUserDisplayName(address: string): string {
   if (!address) return '';
@@ -106,6 +217,27 @@ function normalizeUserProfileShape(address: string, raw: Partial<UserProfile> | 
       ? shortenUserDisplayName(normalizedAddress)
       : rawDisplayNameValue)
     : shortenUserDisplayName(normalizedAddress);
+  const canonicalProfileSettings = hasLocalUserAppSettings(normalizedAddress)
+    ? appSettingsToProfileSettings(
+        settingsRecordToAppSettings(readLocalUserAppSettings(normalizedAddress))
+      )
+    : undefined;
+  const defaultStory = createDefaultStoryDocument();
+  const rawStory = (parsed as any).story;
+  const normalizedStory: UserStoryDocument = {
+    draftBlocks: normalizeStoryBlocks(rawStory?.draftBlocks, defaultStory.draftBlocks),
+    draftSettings: normalizeStorySettings(rawStory?.draftSettings),
+    publishedBlocks: normalizeStoryBlocks(rawStory?.publishedBlocks, defaultStory.publishedBlocks),
+    publishedSettings: normalizeStorySettings(rawStory?.publishedSettings),
+    updatedAt:
+      typeof rawStory?.updatedAt === 'number' && Number.isFinite(rawStory.updatedAt)
+        ? rawStory.updatedAt
+        : defaultStory.updatedAt,
+    publishedAt:
+      typeof rawStory?.publishedAt === 'number' && Number.isFinite(rawStory.publishedAt)
+        ? rawStory.publishedAt
+        : undefined,
+  };
 
   return {
     ...createDefaultProfile(normalizedAddress),
@@ -122,6 +254,8 @@ function normalizeUserProfileShape(address: string, raw: Partial<UserProfile> | 
     followers: Array.isArray((parsed as any).followers) ? (parsed as any).followers.map(normalizeAddress).filter(Boolean) : [],
     following: Array.isArray((parsed as any).following) ? (parsed as any).following.map(normalizeAddress).filter(Boolean) : [],
     badges: Array.isArray((parsed as any).badges) ? (parsed as any).badges : [],
+    story: normalizedStory,
+    settings: canonicalProfileSettings || (parsed as any).settings || createDefaultProfile(normalizedAddress).settings,
   };
 }
 
@@ -147,6 +281,16 @@ function loadUserProfileLocalOnly(address: string): UserProfile | null {
   }
 }
 
+function areProfilesEquivalent(a: UserProfile | null | undefined, b: UserProfile | null | undefined): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  try {
+    return JSON.stringify(normalizeUserProfileShape(a.address, a)) === JSON.stringify(normalizeUserProfileShape(b.address, b));
+  } catch {
+    return false;
+  }
+}
+
 function saveUserProfileLocalOnly(profile: UserProfile): UserProfile {
   const repaired = normalizeUserProfileShape(profile.address, profile);
   localStorage.setItem(getProfileKey(repaired.address), JSON.stringify(repaired));
@@ -155,10 +299,6 @@ function saveUserProfileLocalOnly(profile: UserProfile): UserProfile {
 
 function profileMapKey(address: string): string {
   return normalizeAddress(address);
-}
-
-function profileIdForWallet(address: string): string | null {
-  return getLocalSupabaseId('profile', profileMapKey(address));
 }
 
 type DbProfileRow = {
@@ -198,12 +338,12 @@ function mapDbProfileToLocal(
   prefsRow?: DbUserPreferencesRow | null,
   badgeRows?: DbUserBadgeRow[],
   followers?: string[],
-  following?: string[]
+  following?: string[],
+  canonicalSettings?: ReturnType<typeof settingsRecordToAppSettings>
 ): UserProfile {
   const base = loadUserProfileLocalOnly(address) || createDefaultProfile(address);
-  const notificationSettings = prefsRow?.notification_settings ?? {};
-  const uiPreferences = prefsRow?.ui_preferences ?? {};
-  const privacySettings = prefsRow?.privacy_settings ?? {};
+  const nextSettings = canonicalSettings || base.settings;
+  const remoteStory = prefsRow?.ui_preferences?.story_document;
 
   return normalizeUserProfileShape(address, {
     ...base,
@@ -224,21 +364,8 @@ function mapDbProfileToLocal(
       discord: row.discord || undefined,
       telegram: row.telegram || undefined,
     },
-    settings: {
-      ...base.settings,
-      notifications: {
-        ...base.settings.notifications,
-        ...notificationSettings,
-      },
-      display: {
-        ...base.settings.display,
-        ...uiPreferences,
-      },
-      privacy: {
-        ...base.settings.privacy,
-        ...privacySettings,
-      },
-    },
+    settings: nextSettings || base.settings,
+    story: remoteStory ?? base.story,
     badges: badgeRows?.map((b) => b.badge_key) ?? base.badges,
     followers: followers ?? base.followers,
     following: following ?? base.following,
@@ -285,51 +412,8 @@ async function fetchWalletsByProfileIds(profileIds: string[]): Promise<Record<st
 
 async function ensureRemoteProfileId(address: string, seedProfile?: UserProfile): Promise<string | null> {
   const normalized = normalizeAddress(address);
-  const cached = profileIdForWallet(normalized);
-  if (cached) return cached;
-  if (!isSupabaseRestEnabled()) return null;
-
-  if (isSupabaseAuthClaimBridgeEnabled()) {
-    try {
-      await exchangeWalletAuthForSupabaseClaimSession(normalized);
-    } catch (error) {
-      console.debug('[Profile] Claim bridge exchange skipped:', error);
-    }
-  }
-
-  try {
-    const rows = await restSelect<DbProfileRow>(
-      'profiles',
-      toQuery({ select: '*', wallet_address: encodeEq(normalized), limit: '1' })
-    );
-    const found = rows[0];
-    if (found?.id) {
-      setLocalSupabaseId('profile', profileMapKey(normalized), found.id);
-      return found.id;
-    }
-  } catch (error) {
-    console.debug('[Profile] Remote lookup skipped:', error);
-    return null;
-  }
-
-  if (!seedProfile) return null;
-
-  try {
-    const rows = await restUpsert<DbProfileRow>(
-      'profiles',
-      [profileRowFromLocal(seedProfile)],
-      { onConflict: 'wallet_address' }
-    );
-    const saved = rows[0];
-    if (saved?.id) {
-      setLocalSupabaseId('profile', profileMapKey(normalized), saved.id);
-      return saved.id;
-    }
-  } catch (error) {
-    console.debug('[Profile] Remote create blocked or failed:', error);
-  }
-
-  return null;
+  if (!normalized || !isSupabaseRestEnabled()) return null;
+  return ensureRemoteProfileIdCanonical(normalized);
 }
 
 async function hydrateProfileFromSupabase(address: string): Promise<void> {
@@ -338,6 +422,9 @@ async function hydrateProfileFromSupabase(address: string): Promise<void> {
 
   PROFILE_SYNC_IN_FLIGHT.add(normalized);
   try {
+    const canonicalSettings = settingsRecordToAppSettings(
+      await hydrateUserAppSettingsFromSupabase(normalized).catch(() => readLocalUserAppSettings(normalized))
+    );
     const rows = await restSelect<DbProfileRow>(
       'profiles',
       toQuery({ select: '*', wallet_address: encodeEq(normalized), limit: '1' })
@@ -366,11 +453,16 @@ async function hydrateProfileFromSupabase(address: string): Promise<void> {
       prefsRows[0] || null,
       badgeRows,
       followerRows.map((x) => walletById[x.follower_user_id]).filter(Boolean),
-      followingRows.map((x) => walletById[x.following_user_id]).filter(Boolean)
+      followingRows.map((x) => walletById[x.following_user_id]).filter(Boolean),
+      appSettingsToProfileSettings(canonicalSettings)
     );
 
-    saveUserProfileLocalOnly(merged);
-    dispatchSyncEvent(PROFILE_SYNC_EVENT);
+    const currentLocal = loadUserProfileLocalOnly(normalized);
+    if (!areProfilesEquivalent(currentLocal, merged)) {
+      saveUserProfileLocalOnly(merged);
+      dispatchSyncEvent(PROFILE_SYNC_EVENT);
+    }
+    PROFILE_HYDRATE_LAST_AT.set(normalized, Date.now());
   } catch (error) {
     console.debug('[Profile] Remote hydrate skipped:', error);
   } finally {
@@ -399,21 +491,6 @@ async function syncProfileToSupabase(profile: UserProfile): Promise<void> {
   }
 
   try {
-    await restUpsert<DbUserPreferencesRow>(
-      'user_preferences',
-      [{
-        user_id: remoteProfileId,
-        notification_settings: local.settings.notifications,
-        ui_preferences: local.settings.display,
-        privacy_settings: local.settings.privacy,
-      }],
-      { onConflict: 'user_id' }
-    );
-  } catch (error) {
-    console.debug('[Profile] Remote preferences sync skipped:', error);
-  }
-
-  try {
     const badgeKeys = Array.from(new Set((local.badges || []).filter(Boolean)));
     if (badgeKeys.length > 0) {
       await restUpsert(
@@ -427,6 +504,30 @@ async function syncProfileToSupabase(profile: UserProfile): Promise<void> {
     }
   } catch (error) {
     console.debug('[Profile] Remote badges sync skipped:', error);
+  }
+
+  try {
+    const existingPrefsRows = await restSelect<DbUserPreferencesRow>(
+      'user_preferences',
+      toQuery({ select: '*', user_id: encodeEq(remoteProfileId), limit: '1' })
+    ).catch(() => []);
+    const existingPrefs = existingPrefsRows[0] || null;
+
+    await restUpsert(
+      'user_preferences',
+      [{
+        user_id: remoteProfileId,
+        notification_settings: existingPrefs?.notification_settings || {},
+        ui_preferences: {
+          ...(existingPrefs?.ui_preferences || {}),
+          story_document: local.story,
+        },
+        privacy_settings: existingPrefs?.privacy_settings || {},
+      }],
+      { onConflict: 'user_id' }
+    );
+  } catch (error) {
+    console.debug('[Profile] Remote story sync skipped:', error);
   }
 }
 
@@ -462,24 +563,38 @@ async function syncFollowRelation(currentAddress: string, targetAddress: string,
 }
 
 export function getCachedRemoteProfileId(address: string): string | null {
-  return profileIdForWallet(address);
+  return getCachedRemoteProfileIdCanonical(address);
 }
 
 export async function ensureRemoteProfileIdForWallet(address: string): Promise<string | null> {
-  const normalized = normalizeAddress(address);
-  const seed = loadUserProfileLocalOnly(normalized) || createDefaultProfile(normalized);
-  return ensureRemoteProfileId(normalized, seed);
+  return ensureRemoteProfileIdCanonical(address);
 }
 
 /**
  * ✅ NEW: Load user profile by wallet address (ONLY method)
  */
 export function loadUserProfile(address: string): UserProfile | null {
-  const profile = loadUserProfileLocalOnly(address);
+  const normalized = normalizeAddress(address);
+  const profile = loadUserProfileLocalOnly(normalized);
   if (!isGuestModeForced()) {
-    void hydrateProfileFromSupabase(address);
+    const lastHydratedAt = PROFILE_HYDRATE_LAST_AT.get(normalized) || 0;
+    if (Date.now() - lastHydratedAt >= PROFILE_HYDRATE_MIN_INTERVAL_MS) {
+      PROFILE_HYDRATE_LAST_AT.set(normalized, Date.now());
+      void hydrateProfileFromSupabase(normalized);
+    }
   }
   return profile;
+}
+
+export function loadUserProfileLocalOnlySnapshot(address: string): UserProfile | null {
+  return loadUserProfileLocalOnly(normalizeAddress(address));
+}
+
+export async function forceHydrateProfileFromSupabase(address: string): Promise<void> {
+  const normalized = normalizeAddress(address);
+  if (!normalized || isGuestModeForced()) return;
+  PROFILE_HYDRATE_LAST_AT.set(normalized, 0);
+  await hydrateProfileFromSupabase(normalized);
 }
 
 /**
@@ -491,7 +606,15 @@ export function saveUserProfile(profile: UserProfile): void {
       console.error('Cannot save profile without wallet address');
       return;
     }
-    const repaired = saveUserProfileLocalOnly(profile);
+    const normalizedAddress = normalizeAddress(profile.address);
+    const currentCanonical = settingsRecordToAppSettings(readLocalUserAppSettings(normalizedAddress));
+    const nextCanonical = mergeProfileSettingsIntoAppSettings(currentCanonical, profile.settings);
+    void saveUserAppSettings(normalizedAddress, nextCanonical);
+    const repaired = saveUserProfileLocalOnly({
+      ...profile,
+      address: normalizedAddress,
+      settings: appSettingsToProfileSettings(nextCanonical),
+    });
     dispatchSyncEvent(PROFILE_SYNC_EVENT);
     if (!isGuestModeForced()) {
       void syncProfileToSupabase(repaired);
@@ -526,25 +649,8 @@ export function createDefaultProfile(address: string): UserProfile {
     followers: [],
     following: [],
     badges: [],
-    settings: {
-      notifications: {
-        email: true,
-        push: true,
-        sales: true,
-        offers: true,
-        followers: true,
-      },
-      privacy: {
-        showActivity: true,
-        showBalance: true,
-        showFollowers: true,
-      },
-      display: {
-        theme: 'dark',
-        currency: 'ETH',
-        language: 'en',
-      },
-    },
+    story: createDefaultStoryDocument(),
+    settings: appSettingsToProfileSettings(DEFAULT_USER_APP_SETTINGS),
     verified: false,
   };
 }

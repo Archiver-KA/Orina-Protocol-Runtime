@@ -1,3 +1,5 @@
+import type { AssetDeliverySnapshot, AssetLocationSnapshot } from '@/types/asset';
+
 /**
  * ASSET INFO STRUCTURE - MarketplaceATP Protocol v3.3-freeze
  * ==========================================================
@@ -13,6 +15,29 @@
 // ============================================================================
 // MARKETPLACE ASSET (Public - đang được list for sale)
 // ============================================================================
+
+export type RwaAttributeSelectionMode = 'single' | 'multi';
+
+export interface RwaConfigurableAttributeOption {
+  id: string;
+  label: string;
+  note?: string;
+}
+
+export interface RwaConfigurableAttributeGroup {
+  id: string;
+  label: string;
+  helpText?: string;
+  required: boolean;
+  selectionMode: RwaAttributeSelectionMode;
+  options: RwaConfigurableAttributeOption[];
+}
+
+export interface RwaSelectedAttribute {
+  groupId: string;
+  groupLabel: string;
+  values: string[];
+}
 
 export interface MarketplaceAsset {
   // === CORE IDENTIFIERS ===
@@ -60,6 +85,9 @@ export interface MarketplaceAsset {
   verified: boolean;               // Asset verified by platform
   featured?: boolean;              // Featured listing
   tags?: string[];                 // Tags: ["luxury", "beachfront", "investment"]
+  configurableAttributes?: RwaConfigurableAttributeGroup[]; // Offchain buyer-selectable metadata for RWA flows
+  deliverySnapshot?: AssetDeliverySnapshot; // Delivery snapshot captured at mint time for owned/runtime surfaces
+  assetLocationSnapshot?: AssetLocationSnapshot; // Location snapshot captured at mint time for display/map surfaces
   
   // === BLOCKCHAIN ===
   blockchain: 'Ethereum' | 'Polygon' | 'Arbitrum' | 'Base' | 'BSC';
@@ -112,6 +140,9 @@ export interface RWAMintedAsset {
   // === METADATA ===
   verified: boolean;
   tags?: string[];
+  configurableAttributes?: RwaConfigurableAttributeGroup[]; // Offchain buyer-selectable metadata
+  deliverySnapshot?: AssetDeliverySnapshot;
+  assetLocationSnapshot?: AssetLocationSnapshot;
   
   // === BLOCKCHAIN ===
   blockchain: 'Ethereum' | 'Polygon' | 'Arbitrum' | 'Base' | 'BSC';

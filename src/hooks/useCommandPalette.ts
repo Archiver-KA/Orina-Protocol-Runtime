@@ -144,9 +144,9 @@ export function useCommandPalette(
     {
       id: 'nav-favorites',
       label: 'My Collections',
-      description: 'View favorites & watchlist',
+      description: 'View favorites & following',
       category: 'navigation',
-      keywords: ['favorites', 'liked', 'saved', 'bookmarks', 'watchlist', 'watch', 'alerts', 'tracking'],
+      keywords: ['favorites', 'liked', 'saved', 'bookmarks', 'following', 'collections'],
       icon: '❤️',
       action: () => {
         setActivePage('favorites');

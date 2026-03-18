@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
 import {
-  Home,
   Bell,
   Shield,
   Key,
@@ -20,171 +19,168 @@ import {
 import { CustomDropdown } from './custom-dropdown';
 import { APIKeysSettings } from './api-keys-settings';
 import { AIAgentSettings } from './ai-agent-settings';
+import {
+  DeliveryAddressBlock,
+  type DeliveryAddressBlockHandle,
+} from '@/app/components/settings/delivery-address-block';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
+import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
 import { useTheme } from '@/app/contexts/ThemeContext';
-import { getWalletSettingsKey, writeWalletThemePreference } from '@/utils/themePreferences';
-
-interface ToggleSwitchProps {
-  checked: boolean;
-  onChange: () => void;
-}
-
-function ToggleSwitch({ checked, onChange }: ToggleSwitchProps) {
-  return (
-    <button
-      onClick={onChange}
-      className={`relative inline-flex h-4 w-8 items-center rounded-full cursor-pointer transition-colors flex-shrink-0 ${checked ? 'bg-[#2CC295]' : 'bg-ui-border'
-        }`}
-    >
-      <span
-        className={`inline-block h-3 w-3 transform rounded-full bg-white transition ${checked ? 'translate-x-[1.125rem]' : 'translate-x-0.5'
-          }`}
-      ></span>
-    </button>
-  );
-}
-
-// Settings interface
-interface UserSettings {
-  // Delivery Address
-  fullName: string;
-  phoneNumber: string;
-  streetAddress: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  country: string;
-
-  // Notification Preferences
-  newOrders: boolean;
-  payments: boolean;
-  transfers: boolean;
-  messagingAlerts: boolean;
-
-  // Privacy & Security
-  twoFactor: boolean;
-  emailNotifications: boolean;
-  publicProfile: boolean;
-
-  // Display Preferences
-  darkMode: boolean;
-  compactView: boolean;
-  animations: boolean;
-
-  // Language & Region
-  language: string;
-  timezone: string;
-  currency: string;
-
-  // Security Sidebar
-  sessionLockout: boolean;
-  ipWhitelist: boolean;
-}
-
-// Default settings
-const DEFAULT_SETTINGS: UserSettings = {
-  fullName: '',
-  phoneNumber: '',
-  streetAddress: '',
-  city: '',
-  state: '',
-  zipCode: '',
-  country: 'United States',
-
-  newOrders: true,
-  payments: true,
-  transfers: false,
-  messagingAlerts: true,
-
-  twoFactor: false,
-  emailNotifications: true,
-  publicProfile: true,
-
-  darkMode: true,
-  compactView: false,
-  animations: true,
-
-  language: 'en-US',
-  timezone: 'UTC',
-  currency: 'USD',
-
-  sessionLockout: false,
-  ipWhitelist: true,
-};
+import type { UserAppSettings } from '@/types/user-settings';
+import {
+  DEFAULT_USER_APP_SETTINGS,
+  hydrateUserAppSettingsFromSupabase,
+  readLocalUserAppSettings,
+  saveUserAppSettings,
+  settingsRecordToAppSettings,
+  USER_SETTINGS_SYNC_EVENT,
+} from '@/utils/userSettingsUtils';
 
 export function Settings() {
   const { address } = useAccount();
-  const { setTheme: setRuntimeTheme, applyThemeFromWallet } = useTheme();
-  const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
-  const [hasChanges, setHasChanges] = useState(false);
+  const { theme, setTheme: setRuntimeTheme } = useTheme();
+  const [settings, setSettings] = useState<UserAppSettings>(DEFAULT_USER_APP_SETTINGS);
+  const [settingsHasChanges, setSettingsHasChanges] = useState(false);
+  const [addressHasChanges, setAddressHasChanges] = useState(false);
+  const deliveryAddressRef = useRef<DeliveryAddressBlockHandle>(null);
+  const settingsDirtyRef = useRef(false);
+  const runtimeThemeRef = useRef(theme);
+  const visibleSettingsKeys: Array<keyof UserAppSettings> = [
+    'newOrders',
+    'payments',
+    'transfers',
+    'messagingAlerts',
+    'twoFactor',
+    'emailNotifications',
+    'publicProfile',
+    'darkMode',
+    'compactView',
+    'animations',
+    'language',
+    'timezone',
+    'currency',
+    'sessionLockout',
+    'ipWhitelist',
+  ];
 
-  // Load settings from localStorage when component mounts or address changes
   useEffect(() => {
+    settingsDirtyRef.current = settingsHasChanges;
+  }, [settingsHasChanges]);
+
+  useEffect(() => {
+    runtimeThemeRef.current = theme;
+    setSettings((prev) => {
+      const nextDarkMode = theme === 'dark';
+      return prev.darkMode === nextDarkMode ? prev : { ...prev, darkMode: nextDarkMode };
+    });
+  }, [theme]);
+
+  const syncSettingsWithThemePreference = (nextSettings: UserAppSettings) => {
+    return {
+      ...nextSettings,
+      darkMode: runtimeThemeRef.current === 'dark',
+    };
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
     if (!address) {
-      setSettings(DEFAULT_SETTINGS);
-      setRuntimeTheme(DEFAULT_SETTINGS.darkMode ? 'dark' : 'light');
-      setHasChanges(false);
-      return;
+      setSettings(DEFAULT_USER_APP_SETTINGS);
+      setRuntimeTheme(DEFAULT_USER_APP_SETTINGS.darkMode ? 'dark' : 'light');
+      setSettingsHasChanges(false);
+      setAddressHasChanges(false);
+      return () => {
+        cancelled = true;
+      };
     }
 
-    const settingsKey = getWalletSettingsKey(address);
-    if (!settingsKey) {
-      setSettings(DEFAULT_SETTINGS);
-      setRuntimeTheme(DEFAULT_SETTINGS.darkMode ? 'dark' : 'light');
-      setHasChanges(false);
-      return;
-    }
+    const localSettings = syncSettingsWithThemePreference(
+      settingsRecordToAppSettings(readLocalUserAppSettings(address))
+    );
+    setSettings(localSettings);
+    setSettingsHasChanges(false);
+    setAddressHasChanges(false);
 
-    const savedSettings = localStorage.getItem(settingsKey);
+    void hydrateUserAppSettingsFromSupabase(address)
+      .then((hydrated) => {
+        if (cancelled) return;
+        const nextSettings = syncSettingsWithThemePreference(
+          settingsRecordToAppSettings(hydrated)
+        );
+        setSettings(nextSettings);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.debug('[Settings] Remote hydrate skipped:', error);
+      });
 
-    if (savedSettings) {
-      try {
-        const parsed = JSON.parse(savedSettings);
-        setSettings({ ...DEFAULT_SETTINGS, ...parsed });
-      } catch (error) {
-        console.error('[Settings] Error parsing saved settings:', error);
-        setSettings(DEFAULT_SETTINGS);
-      }
-    } else {
-      setSettings(DEFAULT_SETTINGS);
-    }
+    const handleSettingsSync = () => {
+      if (cancelled) return;
+      const next = syncSettingsWithThemePreference(
+        settingsRecordToAppSettings(readLocalUserAppSettings(address))
+      );
+      setSettings((prev) => {
+        if (!settingsDirtyRef.current) return next;
+        const merged = { ...prev };
+        for (const key of Object.keys(next) as Array<keyof UserAppSettings>) {
+          if (visibleSettingsKeys.includes(key)) continue;
+          merged[key] = next[key];
+        }
+        return merged;
+      });
+    };
 
-    applyThemeFromWallet(address);
+    window.addEventListener(USER_SETTINGS_SYNC_EVENT, handleSettingsSync as EventListener);
 
-    setHasChanges(false);
-  }, [address, applyThemeFromWallet, setRuntimeTheme]);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(USER_SETTINGS_SYNC_EVENT, handleSettingsSync as EventListener);
+    };
+  }, [address, setRuntimeTheme]);
 
   // Update a setting field
-  const updateSetting = <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => {
+  const updateSetting = <K extends keyof UserAppSettings>(key: K, value: UserAppSettings[K]) => {
     setSettings(prev => ({ ...prev, [key]: value }));
     if (key === 'darkMode') {
       setRuntimeTheme(Boolean(value) ? 'dark' : 'light');
     }
-    setHasChanges(true);
+    setSettingsHasChanges(true);
   };
 
   // Save all settings
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     if (!address) {
       toast.error('No wallet connected');
       return;
     }
 
     try {
-      const settingsKey = getWalletSettingsKey(address);
-      if (!settingsKey) {
-        toast.error('Invalid wallet address');
-        return;
+      if (deliveryAddressRef.current?.hasChanges()) {
+        const addressSaved = await deliveryAddressRef.current.save();
+        if (!addressSaved) return;
       }
 
-      localStorage.setItem(settingsKey, JSON.stringify(settings));
-      writeWalletThemePreference(address, settings.darkMode ? 'dark' : 'light');
-      setRuntimeTheme(settings.darkMode ? 'dark' : 'light');
-      setHasChanges(false);
+      const current = settingsRecordToAppSettings(readLocalUserAppSettings(address));
+      const nextSettings = { ...current };
+      for (const key of visibleSettingsKeys) {
+        nextSettings[key] = settings[key];
+      }
 
-      toast.success('Settings saved successfully!', {
-        description: 'Your preferences have been updated.',
-      });
+      const { remoteSynced } = await saveUserAppSettings(address, nextSettings);
+      setRuntimeTheme(settings.darkMode ? 'dark' : 'light');
+      setSettingsHasChanges(false);
+      setAddressHasChanges(false);
+
+      if (remoteSynced) {
+        toast.success('Settings saved successfully!', {
+          description: 'Your preferences are synced to your wallet profile.',
+        });
+      } else {
+        toast.success('Settings saved locally.', {
+          description: 'Remote sync is not available yet for this session.',
+        });
+      }
     } catch (error) {
       console.error('[Settings] Error saving settings:', error);
       toast.error('Failed to save settings');
@@ -194,39 +190,25 @@ export function Settings() {
   // Discard changes
   const handleDiscardChanges = () => {
     if (address) {
-      const settingsKey = getWalletSettingsKey(address);
-      if (!settingsKey) {
-        setSettings(DEFAULT_SETTINGS);
-        setRuntimeTheme(DEFAULT_SETTINGS.darkMode ? 'dark' : 'light');
-      } else {
-        const savedSettings = localStorage.getItem(settingsKey);
-
-        if (savedSettings) {
-          try {
-            const parsed = JSON.parse(savedSettings);
-            setSettings({ ...DEFAULT_SETTINGS, ...parsed });
-          } catch (error) {
-            setSettings(DEFAULT_SETTINGS);
-          }
-        } else {
-          setSettings(DEFAULT_SETTINGS);
-        }
-
-        applyThemeFromWallet(address);
-      }
+      const localSettings = syncSettingsWithThemePreference(
+        settingsRecordToAppSettings(readLocalUserAppSettings(address))
+      );
+      setSettings(localSettings);
     } else {
-      setSettings(DEFAULT_SETTINGS);
-      setRuntimeTheme(DEFAULT_SETTINGS.darkMode ? 'dark' : 'light');
+      setSettings(DEFAULT_USER_APP_SETTINGS);
+      setRuntimeTheme(DEFAULT_USER_APP_SETTINGS.darkMode ? 'dark' : 'light');
     }
-    setHasChanges(false);
+    deliveryAddressRef.current?.discard();
+    setSettingsHasChanges(false);
+    setAddressHasChanges(false);
     toast.info('Changes discarded');
   };
 
   const settingsPanelClass = 'bg-[var(--t-surface-2)] rounded-xl p-6';
-  const settingsInputClass = 'w-full bg-[var(--t-surface-5)] rounded-lg px-4 py-2.5 text-ui-primary focus:bg-ui-input-focus focus:outline-none focus:ring-2 focus:ring-[#2CC295]/20 text-sm placeholder:text-ui-muted shadow-none';
   const settingsRowClass = 'flex items-center justify-between p-4 bg-[var(--t-surface-5)] rounded-lg';
   const settingsSidebarCardClass = 'p-4 bg-[var(--t-surface-5)] rounded-xl';
   const settingsSidebarMutedCardClass = 'p-4 bg-[var(--t-surface-2)] rounded-xl space-y-2';
+  const hasChanges = settingsHasChanges || addressHasChanges;
 
   return (
     <section className="settings-borderless-theme h-full bg-ui-page overflow-hidden">
@@ -249,112 +231,11 @@ export function Settings() {
               {/* ══════════════════════════════════════════════ */}
               {/* SECTION 1: Delivery Address                    */}
               {/* ══════════════════════════════════════════════ */}
-              <div className={settingsPanelClass}>
-                <div className="flex items-center gap-3 mb-6">
-                  <Home className="text-[#2CC295]" size={20} />
-                  <h3 className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">Delivery Address</h3>
-                </div>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[9px] font-bold text-ui-muted uppercase tracking-widest mb-2">
-                        Full Name
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Alex Thompson"
-                        className={settingsInputClass}
-                        value={settings.fullName}
-                        onChange={(e) => updateSetting('fullName', e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[9px] font-bold text-ui-muted uppercase tracking-widest mb-2">
-                        Phone Number
-                      </label>
-                      <input
-                        type="tel"
-                        placeholder="+1 (555) 123-4567"
-                        className={settingsInputClass}
-                        value={settings.phoneNumber}
-                        onChange={(e) => updateSetting('phoneNumber', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[9px] font-bold text-ui-muted uppercase tracking-widest mb-2">
-                      Street Address
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="123 Main Street, Apt 4B"
-                      className={settingsInputClass}
-                      value={settings.streetAddress}
-                      onChange={(e) => updateSetting('streetAddress', e.target.value)}
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-[9px] font-bold text-ui-muted uppercase tracking-widest mb-2">
-                        City
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="San Francisco"
-                        className={settingsInputClass}
-                        value={settings.city}
-                        onChange={(e) => updateSetting('city', e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[9px] font-bold text-ui-muted uppercase tracking-widest mb-2">
-                        State / Province
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="California"
-                        className={settingsInputClass}
-                        value={settings.state}
-                        onChange={(e) => updateSetting('state', e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[9px] font-bold text-ui-muted uppercase tracking-widest mb-2">
-                        Postal Code
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="94102"
-                        className={settingsInputClass}
-                        value={settings.zipCode}
-                        onChange={(e) => updateSetting('zipCode', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[9px] font-bold text-ui-muted uppercase tracking-widest mb-2">
-                      Country
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="United States"
-                      className={settingsInputClass}
-                      value={settings.country}
-                      onChange={(e) => updateSetting('country', e.target.value)}
-                    />
-                  </div>
-                  <div className="pt-2 flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="default-address"
-                      className="w-4 h-4 rounded bg-[var(--t-surface-5)] text-[#2CC295] focus:ring-[#2CC295]/20"
-                    />
-                    <label htmlFor="default-address" className="text-xs text-ui-secondary cursor-pointer">
-                      Set as default shipping address
-                    </label>
-                  </div>
-                </div>
-              </div>
+              <DeliveryAddressBlock
+                ref={deliveryAddressRef}
+                walletAddress={address}
+                onDirtyChange={setAddressHasChanges}
+              />
 
               {/* ══════════════════════════════════════════════ */}
               {/* SECTION 2: Privacy & Security                   */}
@@ -375,7 +256,7 @@ export function Settings() {
                         <p className="text-xs text-ui-muted">Add an extra layer of security</p>
                       </div>
                     </div>
-                    <ToggleSwitch checked={settings.twoFactor} onChange={() => updateSetting('twoFactor', !settings.twoFactor)} />
+                    <ToggleSwitch checked={settings.twoFactor} onChange={(checked) => updateSetting('twoFactor', checked)} />
                   </div>
                   <div className={settingsRowClass}>
                     <div className="flex items-center gap-4">
@@ -387,7 +268,7 @@ export function Settings() {
                         <p className="text-xs text-ui-muted">Digest of important account activities</p>
                       </div>
                     </div>
-                    <ToggleSwitch checked={settings.emailNotifications} onChange={() => updateSetting('emailNotifications', !settings.emailNotifications)} />
+                    <ToggleSwitch checked={settings.emailNotifications} onChange={(checked) => updateSetting('emailNotifications', checked)} />
                   </div>
                   <div className={settingsRowClass}>
                     <div className="flex items-center gap-4">
@@ -399,7 +280,7 @@ export function Settings() {
                         <p className="text-xs text-ui-muted">Let others see your achievements</p>
                       </div>
                     </div>
-                    <ToggleSwitch checked={settings.publicProfile} onChange={() => updateSetting('publicProfile', !settings.publicProfile)} />
+                    <ToggleSwitch checked={settings.publicProfile} onChange={(checked) => updateSetting('publicProfile', checked)} />
                   </div>
                 </div>
               </div>
@@ -418,28 +299,28 @@ export function Settings() {
                       <p className="text-sm font-semibold text-ui-primary">New Orders</p>
                       <p className="text-xs text-ui-muted">Alert when someone buys your assets</p>
                     </div>
-                    <ToggleSwitch checked={settings.newOrders} onChange={() => updateSetting('newOrders', !settings.newOrders)} />
+                    <ToggleSwitch checked={settings.newOrders} onChange={(checked) => updateSetting('newOrders', checked)} />
                   </div>
                   <div className={settingsRowClass}>
                     <div>
                       <p className="text-sm font-semibold text-ui-primary">Payments</p>
                       <p className="text-xs text-ui-muted">Success and failure payment alerts</p>
                     </div>
-                    <ToggleSwitch checked={settings.payments} onChange={() => updateSetting('payments', !settings.payments)} />
+                    <ToggleSwitch checked={settings.payments} onChange={(checked) => updateSetting('payments', checked)} />
                   </div>
                   <div className={settingsRowClass}>
                     <div>
                       <p className="text-sm font-semibold text-ui-primary">Transfers</p>
                       <p className="text-xs text-ui-muted">Wallet to wallet activity monitoring</p>
                     </div>
-                    <ToggleSwitch checked={settings.transfers} onChange={() => updateSetting('transfers', !settings.transfers)} />
+                    <ToggleSwitch checked={settings.transfers} onChange={(checked) => updateSetting('transfers', checked)} />
                   </div>
                   <div className={settingsRowClass}>
                     <div>
                       <p className="text-sm font-semibold text-ui-primary">Messaging Alerts</p>
                       <p className="text-xs text-ui-muted">In-platform messaging notifications</p>
                     </div>
-                    <ToggleSwitch checked={settings.messagingAlerts} onChange={() => updateSetting('messagingAlerts', !settings.messagingAlerts)} />
+                    <ToggleSwitch checked={settings.messagingAlerts} onChange={(checked) => updateSetting('messagingAlerts', checked)} />
                   </div>
                 </div>
               </div>
@@ -535,15 +416,15 @@ export function Settings() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className={settingsRowClass}>
                     <span className="text-sm font-semibold text-ui-primary">Dark Mode</span>
-                    <ToggleSwitch checked={settings.darkMode} onChange={() => updateSetting('darkMode', !settings.darkMode)} />
+                    <ToggleSwitch checked={settings.darkMode} onChange={(checked) => updateSetting('darkMode', checked)} />
                   </div>
                   <div className={settingsRowClass}>
                     <span className="text-sm font-semibold text-ui-primary">Compact View</span>
-                    <ToggleSwitch checked={settings.compactView} onChange={() => updateSetting('compactView', !settings.compactView)} />
+                    <ToggleSwitch checked={settings.compactView} onChange={(checked) => updateSetting('compactView', checked)} />
                   </div>
                   <div className={settingsRowClass}>
                     <span className="text-sm font-semibold text-ui-primary">Animations</span>
-                    <ToggleSwitch checked={settings.animations} onChange={() => updateSetting('animations', !settings.animations)} />
+                    <ToggleSwitch checked={settings.animations} onChange={(checked) => updateSetting('animations', checked)} />
                   </div>
                 </div>
               </div>
@@ -679,13 +560,13 @@ export function Settings() {
                 <span className="text-xs text-ui-secondary group-hover:text-ui-primary transition-colors">
                   Session Lockout
                 </span>
-                <ToggleSwitch checked={settings.sessionLockout} onChange={() => updateSetting('sessionLockout', !settings.sessionLockout)} />
+                <ToggleSwitch checked={settings.sessionLockout} onChange={(checked) => updateSetting('sessionLockout', checked)} />
               </label>
               <label className="flex items-center justify-between cursor-pointer group">
                 <span className="text-xs text-ui-secondary group-hover:text-ui-primary transition-colors">
                   IP Whitelist
                 </span>
-                <ToggleSwitch checked={settings.ipWhitelist} onChange={() => updateSetting('ipWhitelist', !settings.ipWhitelist)} />
+                <ToggleSwitch checked={settings.ipWhitelist} onChange={(checked) => updateSetting('ipWhitelist', checked)} />
               </label>
             </div>
           </div>

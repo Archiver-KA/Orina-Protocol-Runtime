@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { preventInvalidNumberKeyDown } from '@/utils/numericInput';
 
 interface PriceRangeSliderProps {
   min: number;
@@ -106,6 +107,7 @@ export function PriceRangeSlider({
       <div className="flex justify-between mt-4">
         <input
           type="number"
+          inputMode="decimal"
           value={localValue[0].toFixed(2)}
           onChange={(e) => {
             const val = parseFloat(e.target.value) || min;
@@ -114,6 +116,7 @@ export function PriceRangeSlider({
             setLocalValue(newValue);
             onChange(newValue);
           }}
+          onKeyDown={preventInvalidNumberKeyDown}
           step={step}
           min={min}
           max={localValue[1] - step}
@@ -121,6 +124,7 @@ export function PriceRangeSlider({
         />
         <input
           type="number"
+          inputMode="decimal"
           value={localValue[1].toFixed(2)}
           onChange={(e) => {
             const val = parseFloat(e.target.value) || max;
@@ -129,6 +133,7 @@ export function PriceRangeSlider({
             setLocalValue(newValue);
             onChange(newValue);
           }}
+          onKeyDown={preventInvalidNumberKeyDown}
           step={step}
           min={localValue[0] + step}
           max={max}

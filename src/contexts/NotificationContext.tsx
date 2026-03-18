@@ -15,8 +15,10 @@ import {
   sortNotifications,
   markNotificationReadRemote,
   markAllNotificationsReadRemote,
+  hydrateNotificationsFromSupabase,
 } from '@/utils/notifications';
 import { exchangeWalletAuthForSupabaseClaimSession } from '@/utils/supabaseAuthClaimBridge';
+import { hydrateUserAppSettingsFromSupabase } from '@/utils/userSettingsUtils';
 
 interface NotificationContextType {
   notifications: AppNotification[];
@@ -111,17 +113,33 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const refreshPreferences = () => {
       setPreferences(loadPreferences(address));
     };
+    let cancelled = false;
+    const hydrateNotifications = async () => {
+      await exchangeWalletAuthForSupabaseClaimSession(address).catch(() => {
+        // H3 bridge may be disabled/unavailable; remote hydrate will gracefully fall back.
+      });
+      await hydrateNotificationsFromSupabase(address).catch(() => {
+        // Remote hydrate is best-effort only.
+      });
+      if (!cancelled) refreshNotifications();
+    };
+    const hydratePreferences = async () => {
+      await hydrateUserAppSettingsFromSupabase(address).catch(() => {
+        // Remote hydrate is best-effort only.
+      });
+      if (!cancelled) refreshPreferences();
+    };
 
     refreshPreferences();
-    void exchangeWalletAuthForSupabaseClaimSession(address).catch(() => {
-      // H3 bridge may be disabled/unavailable; loadNotifications will gracefully fall back.
-    });
     refreshNotifications();
+    void hydratePreferences();
+    void hydrateNotifications();
     window.addEventListener('focus', refreshNotifications);
     window.addEventListener('storage', refreshNotifications);
     window.addEventListener('orina:notifications-changed', refreshNotifications as EventListener);
     window.addEventListener('orina:notification-preferences-changed', refreshPreferences as EventListener);
     return () => {
+      cancelled = true;
       window.removeEventListener('focus', refreshNotifications);
       window.removeEventListener('storage', refreshNotifications);
       window.removeEventListener('orina:notifications-changed', refreshNotifications as EventListener);

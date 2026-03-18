@@ -24,7 +24,6 @@ export interface TestWalletMyAssetsFixture {
   receiptAssets: MyAssetReceipt[];
   nftAssets: MyAssetNft[];
   favoriteListingAssetIds: string[];
-  watchlistListingAssetIds: string[];
 }
 
 const FIXTURE_TS = {
@@ -78,7 +77,6 @@ const WALLET_A_FIXTURE: TestWalletMyAssetsFixture = {
     },
   ],
   favoriteListingAssetIds: ['asset-001', 'asset-004', 'asset-013'],
-  watchlistListingAssetIds: ['asset-002', 'asset-010'],
 };
 
 const WALLET_B_FIXTURE: TestWalletMyAssetsFixture = {
@@ -125,7 +123,6 @@ const WALLET_B_FIXTURE: TestWalletMyAssetsFixture = {
     },
   ],
   favoriteListingAssetIds: ['asset-003', 'asset-009', 'asset-014'],
-  watchlistListingAssetIds: ['asset-005', 'asset-011'],
 };
 
 function cloneFixture<T>(value: T): T {
@@ -245,4 +242,3 @@ export function getDeterministicOwnedAssetDetailsById(id: string): AssetDetails 
   const match = OWNED_ASSET_DETAILS_FIXTURES[id];
   return match ? cloneFixture(match) : null;
 }
-

@@ -4,6 +4,7 @@ import { APIKey, APIKeyPermission } from '@/app/types/api-key';
 import { APIKeyManager } from '@/utils/apiKeyManager';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { copyToClipboard } from '@/utils/clipboard';
+import { Checkbox } from '@/app/components/ui/checkbox';
 
 interface APIKeysSettingsProps {
   walletAddress: string;
@@ -408,12 +409,11 @@ function CreateAPIKeyForm({
                     key={permission}
                     className="flex items-center gap-3 p-3 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg cursor-pointer hover:border-[#2CC295]/30 transition-colors"
                   >
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={permissions.has(permission)}
-                      onChange={() => togglePermission(permission)}
+                      onCheckedChange={() => togglePermission(permission)}
                       disabled={permission === 'read'}
-                      className="w-4 h-4 rounded border-ui-border bg-[var(--t-surface-10)] checked:bg-[#2CC295] checked:border-[#2CC295] focus:ring-0 focus:ring-offset-0"
+                      className="bg-[var(--t-surface-10)]"
                     />
                     <div className="flex-1">
                       <div className="text-sm font-bold text-ui-primary capitalize">{permission}</div>

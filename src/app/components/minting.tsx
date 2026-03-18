@@ -1,16 +1,226 @@
-import { Sparkles, Upload, AlertCircle, CheckCircle, Eye, Heart, Loader2, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Sparkles, Upload, AlertCircle, CheckCircle, Eye, Heart, Loader2, Image as ImageIcon, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { PillSegmentedToggle } from '@/app/components/pill-segmented-toggle';
 import { StandardToggle } from '@/app/components/standard-toggle';
 import { ImageUpload, UploadedImage } from '@/app/components/image-upload';
 import { MultiImageUpload } from '@/app/components/multi-image-upload';
-import { useState } from 'react';
+import { MintingDeliverySection, type MintingDeliveryState } from '@/app/components/minting-delivery-section';
+import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { useMintAsset } from '@/hooks/useAssets';
-import { useNextUnitId } from '@/hooks/useUnits';
-import { AssetType } from '@/config/contracts';
+import { AssetType, CONTRACTS } from '@/config/contracts';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { useTheme } from '@/app/contexts/ThemeContext';
+import { preventInvalidNumberKeyDown } from '@/utils/numericInput';
+import type { RwaConfigurableAttributeGroup } from '@/app/types/asset';
+import type { AssetDeliverySnapshot, AssetDetails, AssetLocationSnapshot } from '@/types/asset';
+import type { MyAssetNft, MyAssetRwa } from '@/app/components/cards/my-asset-cards';
+import { shortenAddress } from '@/utils/profileUtils';
+import { upsertRuntimeMintedAsset, type RuntimeMintedAssetRecord } from '@/utils/runtimeMintedAssets';
+
+function createMintingAttributeId(prefix: string) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function createMintingAttributeOption(label = '') {
+  return {
+    id: createMintingAttributeId('attr-option'),
+    label,
+  };
+}
+
+function createMintingAttributeGroup(): RwaConfigurableAttributeGroup {
+  return {
+    id: createMintingAttributeId('attr-group'),
+    label: '',
+    helpText: '',
+    required: false,
+    selectionMode: 'single',
+    options: [createMintingAttributeOption(''), createMintingAttributeOption('')],
+  };
+}
+
+type PendingRuntimeMintDraft = {
+  walletAddress: string;
+  assetType: 'RWA' | 'NFT';
+  name: string;
+  description: string;
+  blockchain: string;
+  unitId: string;
+  totalAmount: string;
+  price: string;
+  priceCurrency: string;
+  images: string[];
+  configurableAttributes: RwaConfigurableAttributeGroup[];
+  deliverySnapshot?: AssetDeliverySnapshot;
+  assetLocationSnapshot?: AssetLocationSnapshot;
+  requestedAt: number;
+};
+
+function formatMintedDate(timestamp: number): string {
+  return new Date(timestamp).toISOString().slice(0, 10);
+}
+
+function parsePositiveNumber(value: string, fallback = 0): number {
+  const parsed = Number.parseFloat(String(value || '').replace(/[^\d.]/g, ''));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeMintBlockchainName(value: string): string {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized.includes('ethereum')) return 'Ethereum';
+  if (normalized.includes('polygon')) return 'Polygon';
+  if (normalized.includes('arbitrum')) return 'Arbitrum';
+  if (normalized.includes('base')) return 'Base';
+  if (normalized.includes('bnb') || normalized.includes('bsc')) return 'BSC';
+  return String(value || '').trim() || 'Ethereum';
+}
+
+function formatRuntimeUsd(price: number, currency: string): string {
+  const normalizedCurrency = String(currency || '').trim().toUpperCase();
+  if (normalizedCurrency === 'ETH') {
+    return `~ $${(price * 2500).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  }
+  if (normalizedCurrency === 'USDT' || normalizedCurrency === 'USDC') {
+    return `$${price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  }
+  return `~ ${price.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${normalizedCurrency || 'USD'}`;
+}
+
+function buildMintDeliverySnapshot(state: MintingDeliveryState | null): AssetDeliverySnapshot | undefined {
+  if (!state?.isValid || !state.effectiveDraft) return undefined;
+
+  return {
+    sourceMode: state.mode,
+    preview: state.preview,
+    countryCode: state.effectiveDraft.countryCode,
+    countryNameSnapshot: state.effectiveDraft.countryNameSnapshot,
+    geoPath: state.effectiveDraft.geoPath.map((segment) => ({
+      placeId: segment.placeId,
+      kind: segment.kind,
+      code: segment.code,
+      name: segment.name,
+      label: segment.label,
+    })),
+    postalCode: state.effectiveDraft.postalCode || undefined,
+    addressLine1: state.effectiveDraft.addressLine1,
+    addressLine2: state.effectiveDraft.addressLine2 || undefined,
+    deliveryInstructions: state.effectiveDraft.deliveryInstructions || undefined,
+    validationStatus: state.effectiveDraft.validationStatus,
+    source: state.effectiveDraft.source,
+    capturedAt: Date.now(),
+  };
+}
+
+function buildRuntimeMintedAssetRecord(
+  draft: PendingRuntimeMintDraft,
+  txHash: string
+): RuntimeMintedAssetRecord {
+  const now = Date.now();
+  const image = draft.images[0] || 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=800';
+  const normalizedBlockchain = normalizeMintBlockchainName(draft.blockchain);
+  const priceNumber = parsePositiveNumber(draft.price, 0);
+  const currentPrice = `${draft.price || '0'} ${draft.priceCurrency}`;
+  const floorPrice = `${Math.max(priceNumber * 0.9, 0).toFixed(priceNumber >= 1 ? 2 : 4).replace(/\.?0+$/, '') || '0'} ${draft.priceCurrency}`;
+  const baseId = `mint-${txHash.slice(2, 10)}-${draft.requestedAt.toString(36)}`;
+  const tokenId = `${draft.requestedAt}`;
+  const totalAmountNumber = Math.max(1, Math.trunc(parsePositiveNumber(draft.totalAmount, 1)));
+  const details: AssetDetails = {
+    id: baseId,
+    tokenId,
+    name: draft.name,
+    description: draft.description || `${draft.name} minted on Orina.`,
+    category: draft.assetType === 'RWA' ? 'Real World Asset' : 'Digital Art',
+    blockchain: normalizedBlockchain,
+    currentPrice,
+    currentPriceUsd: formatRuntimeUsd(priceNumber, draft.priceCurrency),
+    floorPrice,
+    image,
+    images: draft.images.length > 0 ? draft.images : [image],
+    properties: [
+      { trait_type: 'Asset Type', value: draft.assetType },
+      { trait_type: 'Unit ID', value: draft.unitId || '0' },
+      { trait_type: 'Supply', value: totalAmountNumber },
+      { trait_type: 'Blockchain', value: normalizedBlockchain },
+    ],
+    configurableAttributes:
+      draft.assetType === 'RWA' && draft.configurableAttributes.length > 0
+        ? draft.configurableAttributes
+        : undefined,
+    deliverySnapshot: draft.deliverySnapshot,
+    assetLocationSnapshot: draft.assetLocationSnapshot,
+    views: 0,
+    favorites: 0,
+    totalVolume: '0 ETH',
+    totalSales: 0,
+    currentOwner: draft.walletAddress,
+    creator: draft.walletAddress,
+    ownerHistory: [
+      {
+        address: draft.walletAddress,
+        timestamp: now,
+        price: 'Minted',
+        txHash,
+      },
+    ],
+    priceHistory: [
+      {
+        timestamp: now,
+        price: priceNumber,
+        priceUsd:
+          String(draft.priceCurrency || '').trim().toUpperCase() === 'ETH'
+            ? priceNumber * 2500
+            : priceNumber,
+        eventType: 'mint',
+      },
+    ],
+    contractAddress: CONTRACTS.ORINA_RWA,
+    tokenStandard: 'ERC-721',
+    mintDate: now,
+    verified: false,
+    ipfsUrl: `ipfs://runtime-minted/${baseId}`,
+    seller: {
+      name: shortenAddress(draft.walletAddress),
+      address: draft.walletAddress,
+    },
+  };
+
+  const myAsset: MyAssetRwa | MyAssetNft =
+    draft.assetType === 'RWA'
+      ? {
+          id: baseId,
+          name: draft.name,
+          type: 'RWA',
+          category: 'Real World Asset',
+          image,
+          status: 'Paused',
+          availableAmount: totalAmountNumber,
+          totalAmount: totalAmountNumber,
+          minPrice: currentPrice,
+          mintedDate: formatMintedDate(now),
+        }
+      : {
+          id: baseId,
+          name: draft.name,
+          type: 'NFT',
+          category: 'Digital Art',
+          image,
+          currentPrice,
+          floorPrice,
+          collection: 'Custom Collection',
+          transferable: true,
+        };
+
+  return {
+    id: baseId,
+    walletAddress: draft.walletAddress.toLowerCase(),
+    assetType: draft.assetType,
+    createdAt: now,
+    txHash,
+    myAsset,
+    details,
+  };
+}
 
 export function Minting() {
   const [assetType, setAssetType] = useState<'RWA' | 'NFT'>('RWA');
@@ -27,12 +237,28 @@ export function Minting() {
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]); // Multi-image for RWA
   const [currentImageIndex, setCurrentImageIndex] = useState(0); // For image carousel
   const [imageLoadError, setImageLoadError] = useState(false); // Track image load errors
+  const [configurableAttributes, setConfigurableAttributes] = useState<RwaConfigurableAttributeGroup[]>([]);
+  const [mintingDeliveryState, setMintingDeliveryState] = useState<MintingDeliveryState | null>(null);
+  const [deliveryValidationAttempt, setDeliveryValidationAttempt] = useState(0);
+  const [pendingRuntimeMintDraft, setPendingRuntimeMintDraft] = useState<PendingRuntimeMintDraft | null>(null);
 
   const { address, isConnected } = useAccount();
   const { theme } = useTheme();
-  const { data: nextUnitId } = useNextUnitId();
-  const { mintAsset, hash, isPending, isConfirming, isConfirmed, error } = useMintAsset();
+  const { mintAsset, hash, isPending, isConfirming, isConfirmed, error, reset } = useMintAsset();
   const { requireWalletActionAsync } = useRequireWalletAction();
+
+  useEffect(() => {
+    if (!error || !pendingRuntimeMintDraft) return;
+    setPendingRuntimeMintDraft(null);
+  }, [error, pendingRuntimeMintDraft]);
+
+  useEffect(() => {
+    if (!isConfirmed || !hash || !pendingRuntimeMintDraft) return;
+
+    upsertRuntimeMintedAsset(buildRuntimeMintedAssetRecord(pendingRuntimeMintDraft, hash));
+    setPendingRuntimeMintDraft(null);
+    reset();
+  }, [hash, isConfirmed, pendingRuntimeMintDraft, reset]);
 
   const handleMint = async () => {
     if (!isConnected) {
@@ -40,9 +266,31 @@ export function Minting() {
       return;
     }
 
-    if (!assetName || !totalAmount || (expiryType === 'Expiry' && !expiryDays)) {
+    if (
+      !assetName ||
+      !totalAmount ||
+      (assetType === 'RWA' && expiryType === 'Expiry' && !expiryDays) ||
+      (assetType === 'NFT' && expiryDays && Number(expiryDays) < 0)
+    ) {
       alert('Please fill in all required fields');
       return;
+    }
+
+    if (assetType === 'RWA') {
+      setDeliveryValidationAttempt((current) => current + 1);
+      if (!mintingDeliveryState?.isValid) {
+        alert(
+          mintingDeliveryState?.mode === 'default'
+            ? 'Please save a default delivery address in Settings or switch to Other Address before minting.'
+            : 'Please complete the delivery address fields before minting.'
+        );
+        return;
+      }
+
+      if (!mintingDeliveryState.locationSnapshot) {
+        alert('Resolving asset location. Please wait a moment and try again.');
+        return;
+      }
     }
 
     if (!(await requireWalletActionAsync({
@@ -54,14 +302,43 @@ export function Minting() {
     }
 
     try {
-      const expiryTimestamp = expiryType === 'Expiry' ? BigInt(Math.floor(Date.now() / 1000) + Number(expiryDays) * 24 * 60 * 60) : BigInt(0);
+      reset();
+      const resolvedUnitId = assetType === 'RWA' ? unitId : '0';
+      const resolvedExpiryDays = assetType === 'RWA' ? expiryDays : expiryDays.trim();
+      const expiryTimestamp =
+        resolvedExpiryDays && Number(resolvedExpiryDays) > 0
+          ? BigInt(Math.floor(Date.now() / 1000) + Number(resolvedExpiryDays) * 24 * 60 * 60)
+          : BigInt(0);
+
+      setPendingRuntimeMintDraft({
+        walletAddress: address,
+        assetType,
+        name: assetName.trim(),
+        description: description.trim(),
+        blockchain,
+        unitId: resolvedUnitId,
+        totalAmount,
+        price,
+        priceCurrency,
+        images:
+          assetType === 'RWA'
+            ? uploadedImages.map((image) => image.url).filter(Boolean)
+            : uploadedMedia?.url
+              ? [uploadedMedia.url]
+              : [],
+        configurableAttributes: previewConfigurableAttributes,
+        deliverySnapshot: assetType === 'RWA' ? buildMintDeliverySnapshot(mintingDeliveryState) : undefined,
+        assetLocationSnapshot: assetType === 'RWA' ? mintingDeliveryState?.locationSnapshot : undefined,
+        requestedAt: Date.now(),
+      });
       await mintAsset(
-        BigInt(unitId),
+        BigInt(resolvedUnitId),
         BigInt(totalAmount),
         expiryTimestamp,
         assetType === 'RWA' ? AssetType.RWA : AssetType.NFT,
       );
     } catch (err) {
+      setPendingRuntimeMintDraft(null);
       console.error('Minting failed:', err);
     }
   };
@@ -100,9 +377,78 @@ export function Minting() {
 
   const statusMessage = getStatusMessage();
   const studioCardClass = 'bg-ui-card rounded-[24px] p-6 backdrop-blur-[10px]';
-  const studioInputClass = 'w-full border-0 bg-[var(--t-surface-5)] rounded-lg px-4 py-3 text-[14px] leading-[18px] font-bold text-ui-primary placeholder:text-ui-muted focus:bg-ui-input-focus focus:outline-none focus:ring-2 focus:ring-[#2CC295]/20 shadow-none';
-  const mintingSelectTriggerClass = 'minting-neutral-select-trigger !h-[49px] !rounded-lg !bg-[var(--t-surface-5)] !border-0 !shadow-none !px-4 !text-[14px] !leading-[18px] !font-bold !text-ui-primary hover:!bg-[var(--t-surface-5)]';
+  const mintingInputToneClass = 'text-ui-secondary';
+  const studioInputClass = `w-full border border-ui-border-subtle bg-ui-input rounded-lg px-4 py-3 text-[14px] leading-[18px] font-bold ${mintingInputToneClass} focus:bg-ui-input-focus focus:outline-none focus:ring-2 focus:ring-[#2CC295]/20 shadow-none`;
+  const mintingSelectTriggerClass = `minting-neutral-select-trigger !h-[49px] !rounded-lg !border !border-ui-border-subtle !shadow-none !px-4 !text-[14px] !leading-[18px] !font-bold !text-ui-secondary hover:!bg-ui-input-focus`;
   const mintingNeutralTriggerStyle = theme === 'light' ? { background: '#ECEFF2' } : undefined;
+  const previewConfigurableAttributes = configurableAttributes
+    .map((group) => ({
+      ...group,
+      label: group.label.trim(),
+      helpText: group.helpText?.trim() || '',
+      options: group.options
+        .map((option) => ({ ...option, label: option.label.trim() }))
+        .filter((option) => option.label),
+    }))
+    .filter((group) => group.label && group.options.length > 0);
+
+  const addConfigurableAttributeGroup = () => {
+    setConfigurableAttributes((current) => [...current, createMintingAttributeGroup()]);
+  };
+
+  const removeConfigurableAttributeGroup = (groupId: string) => {
+    setConfigurableAttributes((current) => current.filter((group) => group.id !== groupId));
+  };
+
+  const updateConfigurableAttributeGroup = (
+    groupId: string,
+    patch: Partial<RwaConfigurableAttributeGroup>
+  ) => {
+    setConfigurableAttributes((current) =>
+      current.map((group) => (group.id === groupId ? { ...group, ...patch } : group))
+    );
+  };
+
+  const addConfigurableAttributeOption = (groupId: string) => {
+    setConfigurableAttributes((current) =>
+      current.map((group) =>
+        group.id === groupId
+          ? { ...group, options: [...group.options, createMintingAttributeOption()] }
+          : group
+      )
+    );
+  };
+
+  const updateConfigurableAttributeOption = (groupId: string, optionId: string, label: string) => {
+    setConfigurableAttributes((current) =>
+      current.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              options: group.options.map((option) =>
+                option.id === optionId ? { ...option, label } : option
+              ),
+            }
+          : group
+      )
+    );
+  };
+
+  const removeConfigurableAttributeOption = (groupId: string, optionId: string) => {
+    setConfigurableAttributes((current) =>
+      current.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              options:
+                group.options.length <= 1
+                  ? group.options
+                  : group.options.filter((option) => option.id !== optionId),
+            }
+          : group
+      )
+    );
+  };
 
   return (
     <section className="minting-borderless-theme bg-ui-page h-full overflow-hidden relative">
@@ -116,22 +462,22 @@ export function Minting() {
         }
         .minting-form-stack .minting-neutral-select-trigger,
         .minting-form-stack .minting-price-token-trigger {
-          background: var(--t-surface-5) !important;
-          border: 0 !important;
+          background: var(--t-input-bg) !important;
+          border: 1px solid var(--t-border-subtle) !important;
           box-shadow: none !important;
         }
         .minting-form-stack .minting-neutral-select-trigger:hover,
         .minting-form-stack .minting-neutral-select-trigger:focus-visible,
         .minting-form-stack .minting-price-token-trigger:hover,
         .minting-form-stack .minting-price-token-trigger:focus-visible {
-          background: var(--t-surface-5) !important;
+          background: var(--t-input-focus-bg) !important;
         }
         [data-theme="light"] .minting-form-stack .minting-neutral-select-trigger {
           background: #eceff2 !important;
         }
         [data-theme="light"] .minting-form-stack .minting-neutral-select-trigger:hover,
         [data-theme="light"] .minting-form-stack .minting-neutral-select-trigger:focus-visible {
-          background: #eceff2 !important;
+          background: #e8edf1 !important;
         }
         .minting-price-token-trigger svg {
           width: 14px !important;
@@ -139,23 +485,41 @@ export function Minting() {
           color: var(--t-text-muted) !important;
         }
         .minting-price-group {
-          background: var(--t-surface-5);
+          background: var(--t-input-bg);
+          border: 1px solid var(--t-border-subtle);
           border-radius: 0.5rem;
         }
         .minting-form-stack input[type="text"],
-        .minting-form-stack input[type="number"] {
+        .minting-form-stack input[type="number"],
+        .minting-form-stack textarea {
           font-family: 'Space Grotesk', var(--font-sans) !important;
           font-size: 14px !important;
           line-height: 18px !important;
           font-weight: 700 !important;
           letter-spacing: 0 !important;
-          color: var(--t-text-primary) !important;
-          -webkit-text-fill-color: var(--t-text-primary) !important;
+          color: var(--t-text-secondary) !important;
+          -webkit-text-fill-color: var(--t-text-secondary) !important;
           font-variant-numeric: tabular-nums !important;
         }
         .minting-form-stack input[type="text"]::placeholder,
-        .minting-form-stack input[type="number"]::placeholder {
+        .minting-form-stack input[type="number"]::placeholder,
+        .minting-form-stack textarea::placeholder {
           color: var(--t-text-muted) !important;
+          -webkit-text-fill-color: var(--t-text-muted) !important;
+          opacity: 1 !important;
+        }
+        [data-theme="light"] .minting-form-stack input[type="text"],
+        [data-theme="light"] .minting-form-stack input[type="number"],
+        [data-theme="light"] .minting-form-stack textarea {
+          color: color-mix(in srgb, var(--t-text-secondary) 88%, var(--t-text-primary) 12%) !important;
+          -webkit-text-fill-color: color-mix(in srgb, var(--t-text-secondary) 88%, var(--t-text-primary) 12%) !important;
+        }
+        [data-theme="light"] .minting-form-stack input[type="text"]::placeholder,
+        [data-theme="light"] .minting-form-stack input[type="number"]::placeholder,
+        [data-theme="light"] .minting-form-stack textarea::placeholder {
+          color: #94a3b8 !important;
+          -webkit-text-fill-color: #94a3b8 !important;
+          opacity: 1 !important;
         }
       `}</style>
 
@@ -296,14 +660,176 @@ export function Minting() {
                 </div>
               </div>
 
+              {assetType === 'RWA' && (
+                <div className={studioCardClass}>
+                  <div className="flex items-start justify-between gap-4 mb-6">
+                    <div className="flex items-center gap-3">
+                      <span className="w-7 h-7 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">3</span>
+                      <div>
+                        <h2 className="text-lg font-bold text-ui-primary">Attributes</h2>
+                        <p className="text-xs text-ui-muted mt-1">
+                          Add offchain options like size, grade, warehouse or packaging for buyers to choose during checkout.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addConfigurableAttributeGroup}
+                      className="h-10 px-4 rounded-full bg-[#2CC295]/10 text-primary text-xs font-bold inline-flex items-center gap-2 hover:bg-[#2CC295]/15 transition-colors"
+                    >
+                      <Plus size={14} />
+                      Add Attribute
+                    </button>
+                  </div>
+
+                  {configurableAttributes.length === 0 ? (
+                    <div className="rounded-2xl bg-[var(--t-surface-5)] p-5 text-center">
+                      <p className="text-sm font-semibold text-ui-primary">No attributes yet</p>
+                      <p className="text-xs text-ui-muted mt-1">
+                        Example: Ring Size, Warehouse, Packaging, Purity, Finish.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {configurableAttributes.map((group, index) => (
+                        <div key={group.id} className="rounded-2xl bg-[var(--t-surface-5)] p-4 space-y-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">
+                                Attribute Group {index + 1}
+                              </p>
+                              <p className="text-[10px] text-ui-muted mt-1">
+                                This metadata stays offchain and is attached to the buyer order snapshot.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeConfigurableAttributeGroup(group.id)}
+                              className="w-9 h-9 rounded-full bg-ui-card text-ui-muted hover:text-red-400 transition-colors inline-flex items-center justify-center"
+                              aria-label="Remove attribute group"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Label</label>
+                              <input
+                                className={studioInputClass}
+                                type="text"
+                                placeholder="e.g. Ring Size"
+                                value={group.label}
+                                onChange={(e) => updateConfigurableAttributeGroup(group.id, { label: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Help Text</label>
+                              <input
+                                className={studioInputClass}
+                                type="text"
+                                placeholder="Explain what buyer should choose"
+                                value={group.helpText || ''}
+                                onChange={(e) => updateConfigurableAttributeGroup(group.id, { helpText: e.target.value })}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3">
+                            <div className="inline-flex items-center gap-2 rounded-full bg-ui-card p-1">
+                              <button
+                                type="button"
+                                onClick={() => updateConfigurableAttributeGroup(group.id, { selectionMode: 'single' })}
+                                className={`h-8 px-4 rounded-full text-xs font-bold transition-colors ${
+                                  group.selectionMode === 'single'
+                                    ? 'bg-[#2CC295] text-black'
+                                    : 'text-ui-secondary hover:text-ui-primary'
+                                }`}
+                              >
+                                Single Select
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => updateConfigurableAttributeGroup(group.id, { selectionMode: 'multi' })}
+                                className={`h-8 px-4 rounded-full text-xs font-bold transition-colors ${
+                                  group.selectionMode === 'multi'
+                                    ? 'bg-[#2CC295] text-black'
+                                    : 'text-ui-secondary hover:text-ui-primary'
+                                }`}
+                              >
+                                Multi Select
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => updateConfigurableAttributeGroup(group.id, { required: !group.required })}
+                              className={`h-8 px-4 rounded-full text-xs font-bold transition-colors ${
+                                group.required
+                                  ? 'bg-[#2CC295]/12 text-primary'
+                                  : 'bg-ui-card text-ui-secondary hover:text-ui-primary'
+                              }`}
+                            >
+                              {group.required ? 'Required' : 'Optional'}
+                            </button>
+                          </div>
+
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest">
+                                Buyer Options
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => addConfigurableAttributeOption(group.id)}
+                                className="text-xs font-bold text-primary inline-flex items-center gap-1.5 hover:opacity-80"
+                              >
+                                <Plus size={12} />
+                                Add Option
+                              </button>
+                            </div>
+                            <div className="space-y-2">
+                              {group.options.map((option) => (
+                                <div key={option.id} className="flex items-center gap-2">
+                                  <input
+                                    className={studioInputClass}
+                                    type="text"
+                                    placeholder="e.g. US 7"
+                                    value={option.label}
+                                    onChange={(e) =>
+                                      updateConfigurableAttributeOption(group.id, option.id, e.target.value)
+                                    }
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeConfigurableAttributeOption(group.id, option.id)}
+                                    disabled={group.options.length <= 1}
+                                    className="w-10 h-10 rounded-full bg-ui-card text-ui-muted hover:text-red-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center"
+                                    aria-label="Remove attribute option"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Step 3: Collection Settings */}
               <div className={`${studioCardClass} relative z-[60]`}>
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div className="flex items-center gap-3">
-                    <span className="w-7 h-7 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">3</span>
+                    <span className="w-7 h-7 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">
+                      {assetType === 'RWA' ? '4' : '3'}
+                    </span>
                     <h2 className="text-lg font-bold text-ui-primary">Collection Settings</h2>
                   </div>
-                  <div className="w-full max-w-[260px]">
+                  <div className="w-full md:w-[calc(50%-0.5rem)] md:max-w-none shrink-0">
                     <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Blockchain</label>
                     <CustomDropdown
                       variant="compact"
@@ -332,10 +858,12 @@ export function Minting() {
                         type="number"
                         step="0.0001"
                         min="0"
+                        inputMode="decimal"
                         placeholder="0.0"
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
-                        className="w-full h-[49px] px-4 py-3 pr-[120px] rounded-none text-[14px] leading-[18px] font-bold text-ui-primary placeholder:text-ui-muted outline-none transition-none"
+                        onKeyDown={preventInvalidNumberKeyDown}
+                        className="w-full h-[49px] px-4 py-3 pr-[120px] rounded-none text-[14px] leading-[18px] font-bold text-ui-secondary placeholder:text-ui-muted outline-none transition-none"
                         style={{
                           boxSizing: 'border-box',
                           background: 'transparent',
@@ -353,50 +881,36 @@ export function Minting() {
                           openOnHover
                           variant="compact"
                           className="w-full h-full overflow-visible"
-                          triggerClassName="minting-price-token-trigger !h-full !rounded-none !border-0 !shadow-none !px-4 !text-[15px] !leading-[22px] !font-bold font-sans !bg-[var(--t-surface-5)] !text-ui-primary hover:!bg-[var(--t-surface-5)]"
+                          triggerClassName="minting-price-token-trigger !h-full !rounded-none !border-0 !shadow-none !px-4 !text-[15px] !leading-[22px] !font-bold font-sans !bg-transparent !text-ui-secondary hover:!bg-ui-input-focus"
                           menuClassName="mt-1 rounded-[16px] z-[9999]"
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* Unit ID - Dropdown for RWA, Input for NFT */}
-                  <div>
-                    <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Unit ID</label>
-                    {assetType === 'RWA' ? (
-                      <>
-                        <CustomDropdown
-                          variant="compact"
-                          defaultValue={unitId}
-                          onChange={(value) => setUnitId(value)}
-                          openOnHover
-                          disableDefaultTriggerTone
-                          triggerStyle={mintingNeutralTriggerStyle}
-                          options={[
-                            { value: '0', label: 'Unit 0 - Default' },
-                            { value: '1', label: 'Unit 1 - Gold (kg)' },
-                            { value: '2', label: 'Unit 2 - Silver (kg)' },
-                            { value: '3', label: 'Unit 3 - Oil (liter)' },
-                            { value: '4', label: 'Unit 4 - Wheat (ton)' },
-                          ]}
-                          className="w-full"
-                          triggerClassName={mintingSelectTriggerClass}
-                        />
-                        <p className="text-[10px] text-ui-muted mt-1">Units managed by governance</p>
-                      </>
-                    ) : (
-                      <>
-                        <input
-                          className={studioInputClass}
-                          placeholder="Enter unit ID (0 for default)"
-                          type="number"
-                          value={unitId}
-                          onChange={(e) => setUnitId(e.target.value)}
-                        />
-                        <p className="text-[10px] text-ui-muted mt-1">Next available: {nextUnitId ? Number(nextUnitId) : 'Loading...'}</p>
-                      </>
-                    )}
-                  </div>
+                  {assetType === 'RWA' && (
+                    <div>
+                      <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Unit ID</label>
+                      <CustomDropdown
+                        variant="compact"
+                        defaultValue={unitId}
+                        onChange={(value) => setUnitId(value)}
+                        openOnHover
+                        disableDefaultTriggerTone
+                        triggerStyle={mintingNeutralTriggerStyle}
+                        options={[
+                          { value: '0', label: 'Unit 0 - Default' },
+                          { value: '1', label: 'Unit 1 - Gold (kg)' },
+                          { value: '2', label: 'Unit 2 - Silver (kg)' },
+                          { value: '3', label: 'Unit 3 - Oil (liter)' },
+                          { value: '4', label: 'Unit 4 - Wheat (ton)' },
+                        ]}
+                        className="w-full"
+                        triggerClassName={mintingSelectTriggerClass}
+                      />
+                      <p className="text-[10px] text-ui-muted mt-1">Units managed by governance</p>
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Total Amount</label>
@@ -404,8 +918,11 @@ export function Minting() {
                       className={studioInputClass}
                       placeholder="e.g. 1000"
                       type="number"
+                      inputMode="numeric"
+                      min="0"
                       value={totalAmount}
                       onChange={(e) => setTotalAmount(e.target.value)}
+                      onKeyDown={preventInvalidNumberKeyDown}
                     />
                     {assetType === 'RWA' && (
                       <p className="text-[10px] text-ui-muted mt-1">Example: 10 units can be sold to 10 people</p>
@@ -428,17 +945,22 @@ export function Minting() {
                     </div>
                   )}
 
-                  {/* Expiry Days - Only show if Expiry type selected or NFT */}
+                  {/* Expiry Days */}
                   {(assetType === 'NFT' || expiryType === 'Expiry') && (
                     <div>
-                      <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Expiry (Days)</label>
+                      <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">
+                        Expiry (Days){assetType === 'NFT' ? ' - Optional' : ''}
+                      </label>
                       <input
                         className={`${studioInputClass} ${assetType === 'RWA' && expiryType === 'Non-Expiry' ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
-                        placeholder="e.g. 30"
+                        placeholder={assetType === 'NFT' ? 'Optional' : 'e.g. 30'}
                         type="number"
+                        inputMode="numeric"
+                        min="0"
                         value={expiryDays}
                         onChange={(e) => setExpiryDays(e.target.value)}
+                        onKeyDown={preventInvalidNumberKeyDown}
                         disabled={assetType === 'RWA' && expiryType === 'Non-Expiry'}
                       />
                     </div>
@@ -449,11 +971,20 @@ export function Minting() {
               {/* Step 4: Mint Button */}
               <div className={`${studioCardClass} relative z-[10]`}>
                 <div className="flex items-center gap-3 mb-6">
-                  <span className="w-7 h-7 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">4</span>
+                  <span className="w-7 h-7 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">
+                    {assetType === 'RWA' ? '5' : '4'}
+                  </span>
                   <h2 className="text-lg font-bold text-ui-primary">Mint Asset</h2>
                 </div>
+                {assetType === 'RWA' && (
+                  <MintingDeliverySection
+                    walletAddress={address}
+                    submitAttempt={deliveryValidationAttempt}
+                    onChange={setMintingDeliveryState}
+                  />
+                )}
                 <button
-                  className="w-full h-[45px] px-6 bg-[#2CC295] text-black rounded-full text-sm font-bold hover:opacity-90 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  className={`w-full h-[45px] px-6 ${assetType === 'RWA' ? 'mt-6' : ''} bg-[#2CC295] text-black rounded-full text-sm font-bold hover:opacity-90 transition-all disabled:opacity-60 disabled:cursor-not-allowed`}
                   onClick={handleMint}
                   disabled={isPending || isConfirming}
                 >
@@ -562,6 +1093,27 @@ export function Minting() {
                           <span className="text-[10px] px-2 py-0.5 bg-[#2CC295]/10 text-primary rounded-full font-bold">Common</span>
                         </div>
                       </div>
+                      {assetType === 'RWA' && previewConfigurableAttributes.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-ui-border-subtle space-y-2.5">
+                          <p className="text-[10px] text-ui-muted uppercase tracking-widest font-bold">Attributes</p>
+                          {previewConfigurableAttributes.map((group) => (
+                            <div key={group.id} className="rounded-xl bg-ui-card px-3 py-2.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-xs font-bold text-ui-primary">{group.label}</p>
+                                <span className="text-[9px] font-bold uppercase tracking-widest text-ui-muted">
+                                  {group.required ? 'Required' : 'Optional'}
+                                </span>
+                              </div>
+                              {group.helpText && (
+                                <p className="text-[10px] text-ui-muted mt-1">{group.helpText}</p>
+                              )}
+                              <p className="text-[10px] text-ui-secondary mt-1.5">
+                                {group.options.map((option) => option.label).join(' · ')}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

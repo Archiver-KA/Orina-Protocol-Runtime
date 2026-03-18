@@ -1,3 +1,25 @@
+export type StoryBlockType = 'heading' | 'paragraph' | 'image';
+
+export interface StoryBlock {
+  id: string;
+  type: StoryBlockType;
+  content: string;
+}
+
+export interface StorySettings {
+  category: string;
+  tags: string;
+}
+
+export interface UserStoryDocument {
+  draftBlocks: StoryBlock[];
+  draftSettings: StorySettings;
+  publishedBlocks: StoryBlock[];
+  publishedSettings: StorySettings;
+  updatedAt: number;
+  publishedAt?: number;
+}
+
 export interface UserProfile {
   id: string;
   address: string;
@@ -34,6 +56,8 @@ export interface UserProfile {
   
   // Badges
   badges: string[];
+
+  story: UserStoryDocument;
   
   // Settings
   settings: {

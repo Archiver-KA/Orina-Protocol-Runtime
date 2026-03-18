@@ -497,7 +497,7 @@ export function SearchResultCard({
 
   if (viewMode === 'grid') {
     return (
-      <div onClick={handleClick} className={`${containerClass} flex h-full flex-col`}>
+      <div onClick={handleClick} className={`${containerClass} search-result-card-grid flex h-full flex-col`}>
         {media}
 
         <div className="search-result-info-area flex flex-1 flex-col px-5 pb-5 pt-5">
@@ -526,7 +526,7 @@ export function SearchResultCard({
   }
 
   return (
-    <div onClick={handleClick} className={`${containerClass} flex flex-col lg:h-[240px] lg:flex-row`}>
+    <div onClick={handleClick} className={`${containerClass} search-result-card-list flex flex-col lg:h-[240px] lg:flex-row`}>
       <div className="relative h-[240px] shrink-0 overflow-hidden bg-black lg:h-full lg:w-[395px]">
         <ImageWithFallback src={asset.image} alt={asset.name} className="h-full w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />

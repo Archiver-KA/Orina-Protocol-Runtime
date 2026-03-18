@@ -7,23 +7,36 @@
 
 import { Search, Filter, Grid, List, Map as MapIcon, TrendingUp, Clock, Star, ShieldCheck } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
+import { toast } from 'sonner';
 import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
 import { SearchResultCard } from './search-result-card';
 import { ProfileSearchCard } from './profile-search-card';
+import { CollectionCard } from './collection-card';
 import { AssetDetailsModal } from './asset-details-modal';
+import { CollectionDetailsModal } from '@/app/components/collections/collection-details-modal';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { RealisticWorldMap } from './marketplace/realistic-world-map';
 import { useAccount } from 'wagmi';
 import { loadFavorites, toggleFavorite } from '@/utils/favoritesUtils';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { getMockSellerProfiles } from '@/utils/mockSellerProfiles';
-import { 
-  MOCK_MARKETPLACE_ASSETS,
-  getMarketplaceStatistics,
-  getAllCategories,
-  getAllBlockchains 
-} from '@/utils/mockMarketplaceData';
+import {
+  COLLECTIONS_SYNC_EVENT,
+  loadCollectionFavorites,
+  loadRuntimeCollections,
+  toggleCollectionFavorite,
+} from '@/utils/collectionsUtils';
 import { MarketplaceAsset } from '@/app/types/asset';
+import type { CollectionSummary } from '@/types/collection';
+import {
+  getMarketplaceCatalogAssetById,
+  getMarketplaceCatalogBlockchains,
+  getMarketplaceCatalogCategories,
+  getMarketplaceCatalogStatistics,
+  hydrateMarketplaceCatalogFromSupabase,
+  loadMarketplaceCatalogSync,
+  MARKETPLACE_CATALOG_SYNC_EVENT,
+} from '@/utils/marketplaceCatalog';
 
 interface MarketplaceProps {
   onNavigateToPage?: (page: string) => void;
@@ -32,21 +45,31 @@ interface MarketplaceProps {
 
 export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: MarketplaceProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>('map');
-  const [contentMode, setContentMode] = useState<'assets' | 'profiles'>('assets');
+  const [contentMode, setContentMode] = useState<'assets' | 'profiles' | 'collections'>('assets');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedBlockchain, setSelectedBlockchain] = useState<string>('all');
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [likedAssets, setLikedAssets] = useState<Set<string>>(new Set());
+  const [likedCollections, setLikedCollections] = useState<Set<string>>(new Set());
   const [selectedAsset, setSelectedAsset] = useState<MarketplaceAsset | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
   const [sellerProfiles, setSellerProfiles] = useState(() => getMockSellerProfiles());
+  const [runtimeCollections, setRuntimeCollections] = useState<CollectionSummary[]>(() => loadRuntimeCollections());
+  const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
   const { address } = useAccount();
   const { requireWalletAction } = useRequireWalletAction(onNavigateToPage);
 
-  const stats = getMarketplaceStatistics();
-  const categories = getAllCategories();
-  const blockchains = getAllBlockchains();
+  const stats = useMemo(() => getMarketplaceCatalogStatistics(marketplaceAssets), [marketplaceAssets]);
+  const categories = useMemo(() => getMarketplaceCatalogCategories(marketplaceAssets), [marketplaceAssets]);
+  const collectionCategories = useMemo(
+    () => Array.from(new Set(runtimeCollections.map((collection) => collection.category))).sort(),
+    [runtimeCollections]
+  );
+  const blockchains = useMemo(() => getMarketplaceCatalogBlockchains(marketplaceAssets), [marketplaceAssets]);
+  const visibleCategories = contentMode === 'collections' ? collectionCategories : categories;
   useEffect(() => {
     // Keep profile cards in sync with profile edits (displayName/avatar/follow counts).
     const refresh = () => setSellerProfiles(getMockSellerProfiles());
@@ -59,17 +82,72 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
   }, []);
 
   useEffect(() => {
-    if (!address) {
-      setLikedAssets(new Set());
+    const syncCatalog = () => {
+      setMarketplaceAssets(loadMarketplaceCatalogSync());
+    };
+
+    syncCatalog();
+    void hydrateMarketplaceCatalogFromSupabase().then(syncCatalog);
+    window.addEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
+    return () => {
+      window.removeEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncLikes = () => {
+      if (!address) {
+        setLikedAssets(new Set());
+        setLikedCollections(new Set());
+        return;
+      }
+      const favorites = loadFavorites(address);
+      setLikedAssets(new Set(favorites.map((fav) => fav.assetId)));
+      const collectionFavorites = loadCollectionFavorites(address);
+      setLikedCollections(new Set(collectionFavorites.map((favorite) => favorite.collectionId)));
+    };
+
+    syncLikes();
+    window.addEventListener(COLLECTIONS_SYNC_EVENT, syncLikes as EventListener);
+    return () => {
+      window.removeEventListener(COLLECTIONS_SYNC_EVENT, syncLikes as EventListener);
+    };
+  }, [address]);
+
+  useEffect(() => {
+    const syncCollections = () => {
+      setRuntimeCollections(loadRuntimeCollections());
+    };
+
+    window.addEventListener(COLLECTIONS_SYNC_EVENT, syncCollections as EventListener);
+    return () => {
+      window.removeEventListener(COLLECTIONS_SYNC_EVENT, syncCollections as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (contentMode === 'profiles') {
+      if (selectedCategory !== 'all') setSelectedCategory('all');
+      if (selectedBlockchain !== 'all') setSelectedBlockchain('all');
       return;
     }
-    const favorites = loadFavorites(address);
-    setLikedAssets(new Set(favorites.map((fav) => fav.assetId)));
-  }, [address]);
+
+    if (contentMode === 'collections') {
+      if (selectedBlockchain !== 'all') setSelectedBlockchain('all');
+      if (selectedCategory !== 'all' && !collectionCategories.includes(selectedCategory)) {
+        setSelectedCategory('all');
+      }
+      return;
+    }
+
+    if (selectedCategory !== 'all' && !categories.includes(selectedCategory)) {
+      setSelectedCategory('all');
+    }
+  }, [categories, collectionCategories, contentMode, selectedBlockchain, selectedCategory]);
 
   // Filter assets
   const filteredAssets = useMemo(() => {
-    let filtered = [...MOCK_MARKETPLACE_ASSETS];
+    let filtered = [...marketplaceAssets];
 
     // Search filter
     if (searchQuery) {
@@ -97,7 +175,31 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
     }
 
     return filtered;
-  }, [searchQuery, selectedCategory, selectedBlockchain, verifiedOnly]);
+  }, [marketplaceAssets, searchQuery, selectedCategory, selectedBlockchain, verifiedOnly]);
+
+  const filteredCollections = useMemo(() => {
+    let filtered = [...runtimeCollections];
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((collection) =>
+        collection.name.toLowerCase().includes(query) ||
+        collection.description.toLowerCase().includes(query) ||
+        collection.category.toLowerCase().includes(query) ||
+        collection.tags.some((tag) => tag.toLowerCase().includes(query))
+      );
+    }
+
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter((collection) => collection.category === selectedCategory);
+    }
+
+    if (verifiedOnly) {
+      filtered = filtered.filter((collection) => collection.verified);
+    }
+
+    return filtered;
+  }, [runtimeCollections, searchQuery, selectedCategory, verifiedOnly]);
 
   const filteredProfiles = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -110,6 +212,39 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
       : sellerProfiles;
     return verifiedOnly ? base.filter((p) => p.verified) : base;
   }, [searchQuery, sellerProfiles, verifiedOnly]);
+
+  const mapAssets = useMemo(
+    () =>
+      filteredAssets.flatMap((asset, index) => {
+        const coordinates = asset.assetLocationSnapshot?.coordinates;
+        if (!coordinates) return [];
+
+        return [
+          {
+            id: parseInt(asset.id.replace(/\D/g, '')) || index,
+            name: asset.name,
+            collection: asset.category,
+            price: asset.price,
+            usdPrice: asset.priceUSD || '$0',
+            rarity: asset.verified ? 'Legendary' : 'Common',
+            rarityColor: asset.verified ? 'text-primary' : 'text-ui-secondary',
+            image: asset.image,
+            latitude: coordinates.lat,
+            longitude: coordinates.lng,
+            city:
+              asset.assetLocationSnapshot?.geoPath[asset.assetLocationSnapshot.geoPath.length - 1]?.name ||
+              asset.assetLocationSnapshot?.countryNameSnapshot ||
+              'Unknown',
+            seller: {
+              name: asset.seller.ensName || asset.seller.address.slice(0, 10),
+              rating: `${asset.seller.reputation}%`,
+            },
+            verified: asset.verified,
+          },
+        ];
+      }),
+    [filteredAssets]
+  );
 
   const handleLike = (assetId: string) => {
     if (!address) {
@@ -125,8 +260,23 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
     });
   };
 
+  const handleCollectionLike = (collectionId: string) => {
+    if (!address) {
+      if (!requireWalletAction({ capability: 'favorite_write', actionLabel: 'use collection favorites', fallbackPage: 'marketplace' })) return;
+      return;
+    }
+    const isFav = toggleCollectionFavorite(address, collectionId);
+    setLikedCollections((prev) => {
+      const next = new Set(prev);
+      if (isFav) next.add(collectionId);
+      else next.delete(collectionId);
+      return next;
+    });
+    toast.success(isFav ? 'Added collection to favorites' : 'Removed collection from favorites');
+  };
+
   const handleAssetClick = (assetId: string) => {
-    const asset = MOCK_MARKETPLACE_ASSETS.find(a => a.id === assetId);
+    const asset = getMarketplaceCatalogAssetById(assetId, marketplaceAssets);
     if (asset) {
       setSelectedAsset(asset);
       setIsModalOpen(true);
@@ -142,6 +292,11 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
     setSellerProfiles(getMockSellerProfiles());
   };
 
+  const handleCollectionClick = (collectionId: string) => {
+    setSelectedCollectionId(collectionId);
+    setIsCollectionModalOpen(true);
+  };
+
   const handleNavigateToSeller = (sellerAddress: string) => {
     if (onNavigateToPage) {
       onNavigateToPage('seller');
@@ -149,7 +304,7 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
   };
 
   return (
-    <div className="h-full flex flex-col bg-ui-page overflow-hidden relative">
+    <div className="marketplace-page-theme h-full flex flex-col bg-ui-page overflow-hidden relative">
       <style>{`
         div::-webkit-scrollbar { width: 4px; }
         div::-webkit-scrollbar-track { background: transparent; }
@@ -188,6 +343,18 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
                   Profiles
                 </button>
                 <button
+                  onClick={() => {
+                    setContentMode('collections');
+                    if (viewMode === 'map') setViewMode('grid');
+                  }}
+                  className={`
+                    flex items-center justify-center px-3 py-2 rounded-[12px] text-xs font-bold transition-all
+                    ${contentMode === 'collections' ? 'bg-[rgba(255,255,255,0.08)] text-ui-primary' : 'text-ui-muted hover:text-ui-secondary'}
+                  `}
+                >
+                  Collections
+                </button>
+                <button
                   onClick={() => setViewMode('grid')}
                   className={`
                     flex items-center justify-center p-2 rounded-[12px] transition-all
@@ -213,14 +380,14 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
                 </button>
                 <button
                   onClick={() => setViewMode('map')}
-                  disabled={contentMode === 'profiles'}
+                  disabled={contentMode !== 'assets'}
                   className={`
                     flex items-center justify-center p-2 rounded-[12px] transition-all
                     ${viewMode === 'map'
                       ? 'bg-[rgba(255,255,255,0.08)] text-ui-primary'
                       : 'text-ui-muted hover:text-ui-secondary'
                     }
-                    ${contentMode === 'profiles' ? 'opacity-40 cursor-not-allowed' : ''}
+                    ${contentMode !== 'assets' ? 'opacity-40 cursor-not-allowed' : ''}
                   `}
                 >
                   <MapIcon size={16} />
@@ -236,7 +403,13 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={contentMode === 'profiles' ? 'Search profiles...' : 'Search assets...'}
+                    placeholder={
+                      contentMode === 'profiles'
+                        ? 'Search profiles...'
+                        : contentMode === 'collections'
+                        ? 'Search collections...'
+                        : 'Search assets...'
+                    }
                     className="w-full pl-9 pr-3 py-2.5 bg-ui-input border border-ui-border-subtle rounded-full text-sm text-ui-primary placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295] focus:ring-2 focus:ring-[#2CC295]/25 transition-all"
                   />
                 </div>
@@ -248,7 +421,7 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
                     onChange={setSelectedCategory}
                     options={[
                       { value: 'all', label: 'All Categories' },
-                      ...categories.map(cat => ({ value: cat, label: cat }))
+                      ...visibleCategories.map(cat => ({ value: cat, label: cat }))
                     ]}
                     variant="compact"
                     className={contentMode === 'profiles' ? 'opacity-50 pointer-events-none' : ''}
@@ -265,7 +438,7 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
                       ...blockchains.map(chain => ({ value: chain, label: chain }))
                     ]}
                     variant="compact"
-                    className={contentMode === 'profiles' ? 'opacity-50 pointer-events-none' : ''}
+                    className={contentMode !== 'assets' ? 'opacity-50 pointer-events-none' : ''}
                   />
                 </div>
 
@@ -285,13 +458,13 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
 
         {viewMode !== 'map' && <div className="px-8 pb-8">
         {/* Results: Grid/List/Map View */}
-        {(contentMode === 'assets' && filteredAssets.length === 0) || (contentMode === 'profiles' && filteredProfiles.length === 0) ? (
+        {(contentMode === 'assets' && filteredAssets.length === 0) || (contentMode === 'profiles' && filteredProfiles.length === 0) || (contentMode === 'collections' && filteredCollections.length === 0) ? (
           <div className="flex flex-col items-center justify-center py-20 px-8">
             <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center mb-6 border border-[#27272a]">
               <Search size={40} className="text-ui-muted" />
             </div>
             <h3 className="text-xl font-bold text-ui-primary mb-2">
-              {contentMode === 'assets' ? 'No assets found' : 'No profiles found'}
+              {contentMode === 'assets' ? 'No assets found' : contentMode === 'profiles' ? 'No profiles found' : 'No collections found'}
             </h3>
             <p className="text-sm text-ui-muted text-center max-w-md">
               Try adjusting your filters to see more results.
@@ -301,6 +474,10 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
           <div className={`
             ${contentMode === 'profiles'
               ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'
+              : contentMode === 'collections'
+              ? viewMode === 'grid'
+                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                : 'space-y-4'
               : viewMode === 'grid'
               ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
               : 'space-y-4'
@@ -318,15 +495,28 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
                 />
               ))
             ) : (
-              filteredProfiles.map((profile) => (
-                <ProfileSearchCard
-                  key={profile.address}
-                  profile={profile}
-                  viewMode={viewMode === 'list' ? 'list' : 'grid'}
-                  onViewProfile={handleProfileClick}
-                  onFollowChange={handleProfileFollowChange}
-                />
-              ))
+              contentMode === 'profiles' ? (
+                filteredProfiles.map((profile) => (
+                  <ProfileSearchCard
+                    key={profile.address}
+                    profile={profile}
+                    viewMode={viewMode === 'list' ? 'list' : 'grid'}
+                    onViewProfile={handleProfileClick}
+                    onFollowChange={handleProfileFollowChange}
+                  />
+                ))
+              ) : (
+                filteredCollections.map((collection) => (
+                  <CollectionCard
+                    key={collection.id}
+                    collection={collection}
+                    viewMode={viewMode}
+                    onLike={handleCollectionLike}
+                    onClick={handleCollectionClick}
+                    isLiked={likedCollections.has(collection.id)}
+                  />
+                ))
+              )
             )}
           </div>
         )}
@@ -336,26 +526,11 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
           <div className="flex-1 min-h-0 px-2.5 pb-0 pt-3">
             <div className="h-full rounded-t-[24px] overflow-hidden">
               <RealisticWorldMap
-                filteredAssets={filteredAssets.map((asset, index) => ({
-                  id: parseInt(asset.id.replace(/\D/g, '')) || index,
-                  name: asset.name,
-                  collection: asset.category,
-                  price: asset.price,
-                  usdPrice: asset.priceUSD || '$0',
-                  rarity: asset.verified ? 'Legendary' : 'Common',
-                  rarityColor: asset.verified ? 'text-primary' : 'text-ui-secondary',
-                  image: asset.image,
-                  latitude: (Math.random() * 60) - 30, // Mock latitude -30 to 30
-                  longitude: (Math.random() * 360) - 180, // Mock longitude -180 to 180
-                  city: asset.tags?.[0] || 'Unknown',
-                  seller: {
-                    name: asset.seller.ensName || asset.seller.address.slice(0, 10),
-                    rating: `${asset.seller.reputation}%`
-                  },
-                  verified: asset.verified
-                }))}
+                filteredAssets={mapAssets}
                 onAssetClick={(mapAsset) => {
-                  const asset = filteredAssets.find(a => a.name === mapAsset.name);
+                  const asset = filteredAssets.find(
+                    (a, index) => (parseInt(a.id.replace(/\D/g, '')) || index) === mapAsset.id
+                  );
                   if (asset) {
                     setSelectedAsset(asset);
                     setIsModalOpen(true);
@@ -379,6 +554,15 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
           onNavigateToSeller={handleNavigateToSeller}
         />
       )}
+
+      <CollectionDetailsModal
+        isOpen={isCollectionModalOpen}
+        collectionId={selectedCollectionId}
+        onClose={() => {
+          setIsCollectionModalOpen(false);
+          setSelectedCollectionId(null);
+        }}
+      />
     </div>
   );
 }

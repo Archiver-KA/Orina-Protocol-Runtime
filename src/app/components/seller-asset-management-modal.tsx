@@ -15,6 +15,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
+import { extractNumericValue, preventInvalidNumberKeyDown } from '@/utils/numericInput';
 
 interface SellerAsset {
   id: string;
@@ -373,7 +374,7 @@ function HistoryTab() {
 }
 
 function ManageTab({ asset }: { asset: SellerAsset }) {
-  const [minPrice, setMinPrice] = useState(asset.minPrice);
+  const [minPrice, setMinPrice] = useState(() => extractNumericValue(asset.minPrice));
   const [isPaused, setIsPaused] = useState(false);
 
   return (
@@ -384,11 +385,15 @@ function ManageTab({ asset }: { asset: SellerAsset }) {
           <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Min Price per Unit</label>
           <div className="flex gap-3">
             <input
-              type="text"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.0001"
               value={minPrice}
               onChange={(e) => setMinPrice(e.target.value)}
+              onKeyDown={preventInvalidNumberKeyDown}
               className="studio-glass-input flex-1 h-[45px] px-4 bg-zinc-950 border border-[#27272a] rounded-full text-white text-sm focus:outline-none focus:border-[#2CC295]"
-              placeholder="2.5 ETH"
+              placeholder="2.5"
             />
             <button className="h-[45px] px-6 rounded-full bg-[#2CC295] text-black text-sm font-bold tracking-tight hover:brightness-110 transition-all">
               Update

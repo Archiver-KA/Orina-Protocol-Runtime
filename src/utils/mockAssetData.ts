@@ -1,5 +1,6 @@
 import { AssetDetails, SimilarAsset } from '@/types/asset';
 import { getMarketplaceAssetById } from '@/utils/mockMarketplaceData';
+import { getRuntimeMintedAssetDetailsById } from '@/utils/runtimeMintedAssets';
 import { getDeterministicOwnedAssetDetailsById } from '@/utils/testWalletAssetFixtures';
 
 function hashString(input: string): number {
@@ -108,6 +109,9 @@ function marketplaceAssetToDetails(id: string): AssetDetails | null {
  * Generate mock asset details for demo
  */
 export function generateMockAsset(id: string): AssetDetails {
+  const runtimeMintedAsset = getRuntimeMintedAssetDetailsById(id);
+  if (runtimeMintedAsset) return runtimeMintedAsset;
+
   // Phase C2 invariant: owned My Asset fixtures and marketplace listings must stay in separate namespaces.
   const ownedFixture = getDeterministicOwnedAssetDetailsById(id);
   if (ownedFixture) return ownedFixture;

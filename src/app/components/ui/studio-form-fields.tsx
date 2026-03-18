@@ -1,5 +1,6 @@
 import type { HTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react';
 import { cn } from '@/app/components/ui/utils';
+import { preventInvalidNumberKeyDown } from '@/utils/numericInput';
 
 export function StudioFieldLabel({
   className,
@@ -111,7 +112,19 @@ export function StudioInputField({
 type StudioNumberFieldProps = Omit<StudioInputFieldProps, 'type'>;
 
 export function StudioNumberField(props: StudioNumberFieldProps) {
-  return <StudioInputField type="number" {...props} />;
+  const { onKeyDown, inputMode, ...rest } = props;
+
+  return (
+    <StudioInputField
+      type="number"
+      inputMode={inputMode ?? 'numeric'}
+      onKeyDown={(event) => {
+        preventInvalidNumberKeyDown(event);
+        onKeyDown?.(event);
+      }}
+      {...rest}
+    />
+  );
 }
 
 type StudioTextareaFieldProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {

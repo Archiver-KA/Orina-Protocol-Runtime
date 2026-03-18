@@ -1,4 +1,4 @@
-import { Heart, Eye, Bell, Download, Trash2, X, Check } from 'lucide-react';
+import { Heart, Bell, Download, Trash2, X, Check } from 'lucide-react';
 import { BulkAction } from '@/types/bulk';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -14,11 +14,6 @@ const actionConfigs = {
     label: 'Add to Favorites',
     icon: Heart,
     color: 'text-pink-400',
-  },
-  'add-to-watchlist': {
-    label: 'Add to Watchlist',
-    icon: Eye,
-    color: 'text-blue-400',
   },
   'set-price-alert': {
     label: 'Set Price Alert',
@@ -41,7 +36,7 @@ export function BulkToolbar({
   selectedCount,
   onAction,
   onCancel,
-  actions = ['add-to-favorites', 'add-to-watchlist', 'export'],
+  actions = ['add-to-favorites', 'export'],
 }: BulkToolbarProps) {
   return (
     <AnimatePresence>

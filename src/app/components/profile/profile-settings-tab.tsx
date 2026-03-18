@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { UserProfile } from '@/types/profile';
 import { Bell, Lock, Palette, Save } from 'lucide-react';
 import { toast } from 'sonner';
+import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
 
 interface ProfileSettingsTabProps {
   profile: UserProfile;
@@ -10,6 +11,10 @@ interface ProfileSettingsTabProps {
 
 export function ProfileSettingsTab({ profile, onSave }: ProfileSettingsTabProps) {
   const [settings, setSettings] = useState(profile.settings);
+
+  useEffect(() => {
+    setSettings(profile.settings);
+  }, [profile.settings]);
 
   const handleSave = () => {
     onSave({ settings });
@@ -231,7 +236,7 @@ interface ToggleRowProps {
   label: string;
   description: string;
   checked: boolean;
-  onChange: () => void;
+  onChange: (checked: boolean) => void;
 }
 
 function ToggleRow({ label, description, checked, onChange }: ToggleRowProps) {
@@ -241,20 +246,7 @@ function ToggleRow({ label, description, checked, onChange }: ToggleRowProps) {
         <p className="font-bold text-white">{label}</p>
         <p className="text-sm text-zinc-500">{description}</p>
       </div>
-      <button
-        onClick={onChange}
-        className={`
-          relative w-12 h-6 rounded-full transition-colors
-          ${checked ? 'bg-[#2CC295]' : 'bg-zinc-700'}
-        `}
-      >
-        <div
-          className={`
-            absolute top-1 w-4 h-4 bg-white rounded-full transition-transform
-            ${checked ? 'translate-x-7' : 'translate-x-1'}
-          `}
-        />
-      </button>
+      <ToggleSwitch checked={checked} onChange={onChange} />
     </div>
   );
 }

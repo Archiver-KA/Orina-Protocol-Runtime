@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Bot, MessageSquare, Zap, Settings, Check, AlertCircle } from 'lucide-react';
 import { AIAgentConfig, AIAgentBehavior } from '@/app/types/ai-agent';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { Checkbox } from '@/app/components/ui/checkbox';
 
 interface AIAgentSettingsProps {
   walletAddress: string;
@@ -207,11 +208,10 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
           {/* Auto Reply */}
           <div className="bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg p-4">
             <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={autoReply}
-                onChange={(e) => setAutoReply(e.target.checked)}
-                className="w-4 h-4 rounded border-ui-border bg-[var(--t-surface-10)] checked:bg-[#2CC295] checked:border-[#2CC295] focus:ring-0 focus:ring-offset-0"
+                onCheckedChange={(checked) => setAutoReply(checked === true)}
+                className="bg-[var(--t-surface-10)]"
               />
               <div className="flex-1">
                 <div className="text-sm font-bold text-ui-primary">Auto-reply to new messages</div>

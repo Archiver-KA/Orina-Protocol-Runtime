@@ -1,16 +1,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Heart, Grid, List, TrendingUp, TrendingDown, DollarSign, Filter } from 'lucide-react';
-import { AssetDetails } from '@/types/asset';
 import { FavoriteSortOption, FavoriteFilterOption } from '@/types/favorites';
 import { SearchResultCard } from '@/app/components/search-result-card';
 import type { MarketplaceAsset } from '@/app/types/asset';
 import {
   loadFavorites,
-  sortFavoriteAssets,
-  calculateFavoritesStats,
   toggleFavorite,
 } from '@/utils/favoritesUtils';
-import { generateMockAsset } from '@/utils/mockAssetData';
+import {
+  calculateMarketplaceFavoritesStats,
+  loadFavoriteMarketplaceAssets,
+  matchesFavoriteFilter,
+  sortFavoriteMarketplaceAssets,
+} from '@/utils/favoriteMarketplaceUtils';
 import { ASSET_METADATA_CHANGED_EVENT } from '@/utils/assetMetadataSync';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -20,39 +22,6 @@ interface FavoritesPageProps {
   onAssetClick?: (assetId: string) => void;
 }
 
-const assetToMarketplaceAsset = (asset: AssetDetails): MarketplaceAsset => {
-  const rawChain = String(asset.blockchain || 'BSC');
-  const blockchain: MarketplaceAsset['blockchain'] = (
-    ['Ethereum', 'Polygon', 'Arbitrum', 'Base', 'BSC'].includes(rawChain) ? rawChain : 'BSC'
-  ) as MarketplaceAsset['blockchain'];
-
-  return {
-    id: asset.id,
-    tokenId: asset.tokenId || asset.id,
-    contractAddress: asset.contractAddress || '0x0000000000000000000000000000000000000000',
-    name: asset.name,
-    description: asset.description || '',
-    category: asset.category,
-    blockchain,
-    price: asset.currentPrice,
-    priceUSD: asset.currentPriceUsd || undefined,
-    currency: 'ETH',
-    image: asset.image,
-    seller: {
-      address: asset.seller?.address || asset.currentOwner || asset.creator,
-      verified: Boolean(asset.verified),
-    },
-    listedAt: asset.lastSale || asset.mintDate || Date.now(),
-    listingDuration: 'No expiry',
-    views: asset.views || 0,
-    likes: asset.favorites || 0,
-    verified: asset.verified || false,
-    network: 'testnet',
-    createdAt: asset.mintDate || Date.now(),
-    updatedAt: Date.now(),
-  };
-};
-
 export function FavoritesPage({
   currentUserId = 'user_current',
   onAssetClick,
@@ -60,7 +29,7 @@ export function FavoritesPage({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState<FavoriteSortOption>('recent');
   const [filterBy, setFilterBy] = useState<FavoriteFilterOption>('all');
-  const [favoriteAssets, setFavoriteAssets] = useState<AssetDetails[]>([]);
+  const [favoriteAssets, setFavoriteAssets] = useState<MarketplaceAsset[]>([]);
 
   // Load favorites on mount
   useEffect(() => {
@@ -80,31 +49,24 @@ export function FavoritesPage({
   }, [currentUserId]);
 
   const loadFavoritesData = () => {
-    const favorites = loadFavorites(currentUserId);
-    
-    // Load asset details for each favorite
-    const assets = favorites.map((fav) => generateMockAsset(fav.assetId));
-    
-    setFavoriteAssets(assets);
+    setFavoriteAssets(loadFavoriteMarketplaceAssets(currentUserId));
   };
 
   // Filter assets by category
   const filteredAssets = useMemo(() => {
     if (filterBy === 'all') return favoriteAssets;
-    return favoriteAssets.filter((asset) => 
-      asset.category.toLowerCase() === filterBy.toLowerCase()
-    );
+    return favoriteAssets.filter((asset) => matchesFavoriteFilter(asset, filterBy));
   }, [favoriteAssets, filterBy]);
 
   // Sort assets
   const sortedAssets = useMemo(() => {
     const favorites = loadFavorites(currentUserId);
-    return sortFavoriteAssets(filteredAssets, sortBy, favorites);
+    return sortFavoriteMarketplaceAssets(filteredAssets, sortBy, favorites);
   }, [filteredAssets, sortBy, currentUserId]);
 
   // Calculate stats
   const stats = useMemo(() => 
-    calculateFavoritesStats(favoriteAssets), 
+    calculateMarketplaceFavoritesStats(favoriteAssets), 
     [favoriteAssets]
   );
 
@@ -298,7 +260,7 @@ export function FavoritesPage({
                 transition={{ duration: 0.3 }}
               >
                 <SearchResultCard
-                  asset={assetToMarketplaceAsset(asset)}
+                  asset={asset}
                   onClick={(assetId) => onAssetClick?.(assetId)}
                   onLike={handleToggleFavorite}
                   viewMode={viewMode}

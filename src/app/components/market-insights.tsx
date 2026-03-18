@@ -17,6 +17,8 @@ type ProductRow = {
   img: string;
 };
 
+const TRANSACTIONS_PER_PAGE = 10;
+
 const topProducts: ProductRow[] = [
   { name: 'Villa #A12', qty: '24 sold', value: '$520K', img: 'https://images.unsplash.com/photo-1560185007-cde436f6a4d0?w=80&h=80&fit=crop' },
   { name: 'Office #B08', qty: '18 sold', value: '$412K', img: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=80&h=80&fit=crop' },
@@ -27,6 +29,15 @@ const transactions: TxRow[] = [
   { event: '#TX-92311', asset: 'Villa Fraction #A12', type: 'Sale', amount: '$42,880', when: '2 mins ago', status: 'Done' },
   { event: '#TX-92308', asset: 'Office Token #B08', type: 'Mint', amount: '$18,350', when: '14 mins ago', status: 'Done' },
   { event: '#TX-92290', asset: 'Studio Unit #C04', type: 'Transfer', amount: '$8,920', when: '32 mins ago', status: 'Pending' },
+  { event: '#TX-92274', asset: 'Warehouse Share #D02', type: 'Sale', amount: '$24,600', when: '1 hour ago', status: 'Done' },
+  { event: '#TX-92261', asset: 'Retail Unit #E11', type: 'Mint', amount: '$11,250', when: '2 hours ago', status: 'Done' },
+  { event: '#TX-92243', asset: 'Logistics Hub #F03', type: 'Transfer', amount: '$13,740', when: '3 hours ago', status: 'Pending' },
+  { event: '#TX-92221', asset: 'Resort Share #G09', type: 'Sale', amount: '$57,420', when: '5 hours ago', status: 'Done' },
+  { event: '#TX-92198', asset: 'Data Center #H07', type: 'Mint', amount: '$29,880', when: '7 hours ago', status: 'Done' },
+  { event: '#TX-92177', asset: 'Apartment Fraction #J15', type: 'Transfer', amount: '$9,320', when: '9 hours ago', status: 'Pending' },
+  { event: '#TX-92159', asset: 'Hotel Unit #K21', type: 'Sale', amount: '$33,100', when: '11 hours ago', status: 'Done' },
+  { event: '#TX-92136', asset: 'Medical Office #L05', type: 'Mint', amount: '$16,480', when: '13 hours ago', status: 'Done' },
+  { event: '#TX-92104', asset: 'Industrial Lot #M18', type: 'Transfer', amount: '$21,960', when: '16 hours ago', status: 'Pending' },
 ];
 
 const calendarColumns = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -40,6 +51,7 @@ const sourceRows = [
 
 export function MarketInsights() {
   const [displayMonth, setDisplayMonth] = useState(new Date(2026, 2, 1));
+  const [transactionPage, setTransactionPage] = useState(0);
 
   const monthCells = useMemo(() => {
     const year = displayMonth.getFullYear();
@@ -74,11 +86,27 @@ export function MarketInsights() {
     [displayMonth],
   );
 
+  const totalTransactionPages = Math.max(1, Math.ceil(transactions.length / TRANSACTIONS_PER_PAGE));
+  const visibleTransactions = useMemo(
+    () =>
+      transactions.slice(
+        transactionPage * TRANSACTIONS_PER_PAGE,
+        transactionPage * TRANSACTIONS_PER_PAGE + TRANSACTIONS_PER_PAGE,
+      ),
+    [transactionPage],
+  );
+
   const goToPreviousMonth = () =>
     setDisplayMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
 
   const goToNextMonth = () =>
     setDisplayMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+
+  const goToPreviousTransactions = () =>
+    setTransactionPage((prev) => Math.max(0, prev - 1));
+
+  const goToNextTransactions = () =>
+    setTransactionPage((prev) => Math.min(totalTransactionPages - 1, prev + 1));
 
   return (
     <section className="bg-ui-page h-full overflow-y-auto hidden-scrollbar">
@@ -330,12 +358,32 @@ export function MarketInsights() {
               <h3 className="text-[12px] uppercase tracking-wider font-bold text-ui-primary">Recent Transactions</h3>
               <p className="text-[10px] text-ui-muted mt-1">Latest marketplace settlement events</p>
             </div>
-            <button
-              type="button"
-              className="h-[25px] px-3 rounded border border-[rgba(44,194,149,0.3)] text-[#2CC295] text-[10px] font-bold hover:bg-[rgba(44,194,149,0.08)] transition-colors"
-            >
-              Export CSV
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={goToPreviousTransactions}
+                disabled={transactionPage === 0}
+                className="w-8 h-8 rounded-lg border border-ui-border-subtle bg-ui-input text-ui-muted hover:text-ui-primary hover:bg-ui-input-focus inline-flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Previous transactions page"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={goToNextTransactions}
+                disabled={transactionPage >= totalTransactionPages - 1}
+                className="w-8 h-8 rounded-lg border border-ui-border-subtle bg-ui-input text-ui-muted hover:text-ui-primary hover:bg-ui-input-focus inline-flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Next transactions page"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <button
+                type="button"
+                className="h-[25px] px-3 rounded border border-[rgba(44,194,149,0.3)] text-[#2CC295] text-[10px] font-bold hover:bg-[rgba(44,194,149,0.08)] transition-colors"
+              >
+                Export CSV
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -351,7 +399,7 @@ export function MarketInsights() {
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((row, idx) => (
+                {visibleTransactions.map((row, idx) => (
                   <tr key={row.event} className={idx > 0 ? 'border-t border-ui-border-subtle' : ''}>
                     <td className="py-4 px-2 text-[11px] font-mono text-ui-secondary">{row.event}</td>
                     <td className="py-4 px-2 text-[11px] font-bold text-ui-primary">{row.asset}</td>

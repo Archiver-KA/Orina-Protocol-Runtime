@@ -1,15 +1,21 @@
-import { useState, useMemo, useEffect, type ReactNode } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { TrendingUp, Package, Sparkles, ShoppingBag, Grid3x3 } from 'lucide-react';
+import { toast } from 'sonner';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { useAccount } from 'wagmi';
 import { SellerAssetManagementModal } from '@/app/components/seller-asset-management-modal';
 import { TransferModal } from '@/app/components/transfer-modal';
 import { ListForSaleModal } from '@/app/components/list-for-sale-modal';
 import { ReceiptDetailModal } from '@/app/components/receipt-detail-modal';
+import { CollectionEditorModal } from '@/app/components/collections/collection-editor-modal';
+import { AddAssetToCollectionModal } from '@/app/components/collections/add-asset-to-collection-modal';
+import { CollectionDetailsModal } from '@/app/components/collections/collection-details-modal';
+import { CollectionsGridPanel } from '@/app/components/collections/collections-grid-panel';
 import { StudioPanel } from '@/app/components/ui/studio-panel';
 import { EmptyStateCard } from '@/app/components/ui/empty-state-card';
 import { StudioPillGroup, StudioPillButton } from '@/app/components/ui/studio-pill-group';
 import { StudioPageHeader } from '@/app/components/ui/studio-page-header';
+import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import {
   MyAssetNftCard,
   MyAssetReceiptCard,
@@ -20,6 +26,22 @@ import {
 } from '@/app/components/cards/my-asset-cards';
 import { getTestWalletMyAssets } from '@/utils/testWalletAssetFixtures';
 import { ensureAssetMetadataSeedForWalletFixtures } from '@/utils/assetMetadataSync';
+import {
+  hydrateRuntimeMintedAssetsFromSupabase,
+  loadRuntimeMyAssets,
+  subscribeToRuntimeMintedAssets,
+} from '@/utils/runtimeMintedAssets';
+import type { CollectionSummary } from '@/types/collection';
+import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
+import {
+  addAssetToCollection,
+  COLLECTIONS_SYNC_EVENT,
+  createCollection,
+  loadCollectionAssetOptions,
+  loadCollectionsByOwner,
+  queueCollectionsBackfillForWallet,
+  updateCollection,
+} from '@/utils/collectionsUtils';
 
 // Mock data for RWA Assets (user minted) - OPTIMIZED: Direct Unsplash URLs for bright, clear photos
 const mockRWAAssets = [
@@ -300,50 +322,19 @@ function sortAssets<T extends AnyAsset>(items: T[], sortBy: string): T[] {
   }
 }
 
-function AssetSectionHeader({
-  step,
-  title,
-  description,
-}: {
-  step: string;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[#2CC295]/30 bg-[#2CC295]/15">
-          <span className="text-[12px] font-bold leading-[18px] text-primary">{step}</span>
-        </div>
-        <h2 className="text-[20px] font-bold leading-[30px] text-ui-primary">{title}</h2>
-      </div>
-      <p className="pl-11 text-[13px] leading-5 text-ui-secondary">
-        {description}
-      </p>
-    </div>
-  );
-}
-
-function AssetSection({
-  step,
-  title,
-  description,
-  children,
-}: {
-  step: string;
-  title: string;
-  description: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="space-y-7">
-      <AssetSectionHeader step={step} title={title} description={description} />
-      {children}
-    </section>
-  );
+function mergeById<T extends { id: string }>(primary: T[], fallback: T[]): T[] {
+  const merged = new Map<string, T>();
+  [...primary, ...fallback].forEach((item) => {
+    if (!merged.has(item.id)) {
+      merged.set(item.id, item);
+    }
+  });
+  return Array.from(merged.values());
 }
 
 export function Assets() {
+  const { address, isConnected } = useAccount();
+  const { requireWalletActionAsync } = useRequireWalletAction();
   const [activeTab, setActiveTab] = useState<AssetTab>('All Assets');
   const [sortBy, setSortBy] = useState('Recent');
   const [selectedAsset, setSelectedAsset] = useState<AnyAsset | null>(null);
@@ -352,18 +343,60 @@ export function Assets() {
   const [isListForSaleModalOpen, setIsListForSaleModalOpen] = useState(false);
   const [selectedReceiptId, setSelectedReceiptId] = useState<string>('');
   const [isReceiptDetailModalOpen, setIsReceiptDetailModalOpen] = useState(false);
-
-  const { address, isConnected } = useAccount();
+  const [ownedCollections, setOwnedCollections] = useState<CollectionSummary[]>([]);
+  const [isCollectionEditorOpen, setIsCollectionEditorOpen] = useState(false);
+  const [collectionEditorMode, setCollectionEditorMode] = useState<'create' | 'edit'>('create');
+  const [selectedCollection, setSelectedCollection] = useState<CollectionSummary | null>(null);
+  const [isAddAssetModalOpen, setIsAddAssetModalOpen] = useState(false);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
+  const [runtimeOwnedAssets, setRuntimeOwnedAssets] = useState(() => loadRuntimeMyAssets(address));
   const walletFixture = useMemo(() => getTestWalletMyAssets(address), [address]);
-  const rwaAssets = walletFixture?.rwaAssets ?? mockRWAAssets;
+  const hasRuntimeRwa = runtimeOwnedAssets.rwaAssets.length > 0;
+  const hasRuntimeNft = runtimeOwnedAssets.nftAssets.length > 0;
+  const rwaAssets = hasRuntimeRwa
+    ? mergeById(runtimeOwnedAssets.rwaAssets, walletFixture?.rwaAssets ?? [])
+    : walletFixture?.rwaAssets ?? mockRWAAssets;
   const receiptAssets = walletFixture?.receiptAssets ?? mockReceiptNFTs;
-  const nftAssets = walletFixture?.nftAssets ?? mockDigitalNFTs;
+  const nftAssets = hasRuntimeNft
+    ? mergeById(runtimeOwnedAssets.nftAssets, walletFixture?.nftAssets ?? [])
+    : walletFixture?.nftAssets ?? mockDigitalNFTs;
+  const collectionAssetOptions = useMemo(() => loadCollectionAssetOptions(address), [address]);
+
+  useEffect(() => {
+    const refreshRuntimeAssets = () => {
+      setRuntimeOwnedAssets(loadRuntimeMyAssets(address));
+    };
+
+    refreshRuntimeAssets();
+    if (address) {
+      void hydrateRuntimeMintedAssetsFromSupabase(address).then(refreshRuntimeAssets);
+    }
+    return subscribeToRuntimeMintedAssets(refreshRuntimeAssets);
+  }, [address]);
 
   useEffect(() => {
     if (!isConnected || !address) return;
     // C2.3: seed persisted asset metadata for deterministic A/B fixtures (owned + linked listing ids).
     void ensureAssetMetadataSeedForWalletFixtures(address);
   }, [address, isConnected]);
+
+  useEffect(() => {
+    const refreshCollections = () => {
+      if (!address) {
+        setOwnedCollections([]);
+        return;
+      }
+      queueCollectionsBackfillForWallet(address);
+      setOwnedCollections(loadCollectionsByOwner(address));
+    };
+
+    refreshCollections();
+    window.addEventListener(COLLECTIONS_SYNC_EVENT, refreshCollections as EventListener);
+    return () => {
+      window.removeEventListener(COLLECTIONS_SYNC_EVENT, refreshCollections as EventListener);
+    };
+  }, [address]);
 
   // Calculate totals
   const totalRWA = rwaAssets.length;
@@ -380,6 +413,102 @@ export function Assets() {
     (showRwaSection && sortedRwaAssets.length > 0) ||
     (showReceiptSection && sortedReceiptAssets.length > 0) ||
     (showNftSection && sortedNftAssets.length > 0);
+  const visibleAssets = useMemo<AnyAsset[]>(() => {
+    const items: AnyAsset[] = [];
+
+    if (showRwaSection) items.push(...sortedRwaAssets);
+    if (showReceiptSection) items.push(...sortedReceiptAssets);
+    if (showNftSection) items.push(...sortedNftAssets);
+
+    return items;
+  }, [
+    showNftSection,
+    showReceiptSection,
+    showRwaSection,
+    sortedNftAssets,
+    sortedReceiptAssets,
+    sortedRwaAssets,
+  ]);
+
+  const handleOpenCreateCollection = () => {
+    setCollectionEditorMode('create');
+    setSelectedCollection(null);
+    setIsCollectionEditorOpen(true);
+  };
+
+  const handleOpenEditCollection = (collectionId: string) => {
+    const nextCollection = ownedCollections.find((item) => item.id === collectionId) || null;
+    if (!nextCollection) {
+      toast.error('Collection not found');
+      return;
+    }
+    setCollectionEditorMode('edit');
+    setSelectedCollection(nextCollection);
+    setIsCollectionEditorOpen(true);
+  };
+
+  const handleSaveCollection = async (draft: {
+    name: string;
+    category: string;
+    bio: string;
+    tags: string[];
+    coverImage: string;
+    itemIds: string[];
+  }) => {
+    if (!address) {
+      toast.error('Connect wallet to manage collections');
+      return;
+    }
+
+    const allowed = await requireWalletActionAsync({
+      capability: 'protocol_asset_write',
+      actionLabel: collectionEditorMode === 'create' ? 'create a collection' : 'edit this collection',
+      fallbackPage: 'assets',
+    });
+    if (!allowed) return;
+
+    if (collectionEditorMode === 'create') {
+      const created = createCollection(address, draft);
+      setSelectedCollection(created);
+      toast.success(`Created collection "${created.name}"`);
+    } else if (selectedCollection) {
+      const updated = updateCollection(address, selectedCollection.id, draft);
+      if (updated) {
+        setSelectedCollection(updated);
+        toast.success(`Updated collection "${updated.name}"`);
+      }
+    }
+
+    setIsCollectionEditorOpen(false);
+  };
+
+  const handleAddAssetToCollection = async (collectionId: string, assetId: string) => {
+    if (!address) {
+      toast.error('Connect wallet to manage collections');
+      return;
+    }
+
+    const allowed = await requireWalletActionAsync({
+      capability: 'protocol_asset_write',
+      actionLabel: 'add an asset to this collection',
+      fallbackPage: 'assets',
+    });
+    if (!allowed) return;
+
+    const updated = addAssetToCollection(address, collectionId, assetId);
+    if (!updated) {
+      toast.error('Unable to add asset to collection');
+      return;
+    }
+
+    const addedAsset = collectionAssetOptions.find((asset) => asset.id === assetId);
+    toast.success(
+      addedAsset
+        ? `Added "${addedAsset.name}" to "${updated.name}"`
+        : `Added asset to "${updated.name}"`
+    );
+    setIsAddAssetModalOpen(false);
+  };
 
   return (
     <div className="assets-page-shell h-full flex flex-col overflow-hidden relative bg-ui-page">
@@ -433,6 +562,38 @@ export function Assets() {
           setSelectedReceiptId('');
         }}
         receiptId={selectedReceiptId}
+      />
+
+      <CollectionEditorModal
+        isOpen={isCollectionEditorOpen}
+        mode={collectionEditorMode}
+        collection={selectedCollection}
+        onClose={() => {
+          setIsCollectionEditorOpen(false);
+          setSelectedCollection(null);
+        }}
+        onSubmit={handleSaveCollection}
+      />
+
+      <AddAssetToCollectionModal
+        isOpen={isAddAssetModalOpen}
+        collections={ownedCollections}
+        assetOptions={collectionAssetOptions}
+        onClose={() => setIsAddAssetModalOpen(false)}
+        onSubmit={handleAddAssetToCollection}
+        onCreateCollection={() => {
+          setIsAddAssetModalOpen(false);
+          handleOpenCreateCollection();
+        }}
+      />
+
+      <CollectionDetailsModal
+        isOpen={isCollectionModalOpen}
+        collectionId={selectedCollectionId}
+        onClose={() => {
+          setIsCollectionModalOpen(false);
+          setSelectedCollectionId(null);
+        }}
       />
 
       {/* Content Wrapper - Scrollable */}
@@ -551,8 +712,45 @@ export function Assets() {
           </div>
         </StudioPanel>
 
-        {/* Asset Sections */}
-        <div className="relative z-[10] space-y-20 pb-20">
+        <StudioPanel className="rounded-[24px] p-6 backdrop-blur-[10px]">
+          <CollectionsGridPanel
+            title="My Collections"
+            subtitle="Create and curate collections from assets owned or managed by this wallet."
+            collections={ownedCollections}
+            actionLabel="Manage Collection"
+            emptyTitle="No collections yet"
+            emptyDescription="Create a collection and start grouping owned assets or marketplace listings into themed sets."
+            headerActions={
+              <div className="flex flex-wrap items-center gap-3">
+                <StudioActionButton
+                  type="button"
+                  onClick={handleOpenCreateCollection}
+                  variant="secondary"
+                  size="lg"
+                  className="studio-form-secondary text-sm font-bold tracking-tight transition-all hover:border-[#2CC295]/35 hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
+                >
+                  Create Collection
+                </StudioActionButton>
+                <StudioActionButton
+                  type="button"
+                  onClick={() => setIsAddAssetModalOpen(true)}
+                  variant="primary"
+                  size="lg"
+                  className="text-sm font-bold tracking-tight shadow-lg shadow-[#2CC295]/20"
+                >
+                  Add Asset to Collection
+                </StudioActionButton>
+              </div>
+            }
+            onCollectionClick={(collectionId) => {
+              setSelectedCollectionId(collectionId);
+              setIsCollectionModalOpen(true);
+            }}
+          />
+        </StudioPanel>
+
+        {/* Assets Grid */}
+        <div className="relative z-[10] pb-20">
           {!hasVisibleAssets && (
             <EmptyStateCard
               icon={<Package size={30} className="text-ui-muted" />}
@@ -562,56 +760,36 @@ export function Assets() {
             />
           )}
 
-          {showRwaSection && sortedRwaAssets.length > 0 && (
-            <AssetSection
-              step="01"
-              title="RWA Asset Cards"
-              description="On-chain real-world assets with ownership status, available supply, minimum price, and seller management action."
-            >
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {sortedRwaAssets.map((asset) => (
-                  <MyAssetRwaCard
-                    key={asset.id}
-                    asset={asset}
-                    onManage={(a) => {
-                      setSelectedAsset(a);
-                      setIsSellerModalOpen(true);
-                    }}
-                  />
-                ))}
-              </div>
-            </AssetSection>
-          )}
+          {hasVisibleAssets && (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+              {visibleAssets.map((asset) => {
+                if (asset.type === 'RWA') {
+                  return (
+                    <MyAssetRwaCard
+                      key={asset.id}
+                      asset={asset}
+                      onManage={(a) => {
+                        setSelectedAsset(a);
+                        setIsSellerModalOpen(true);
+                      }}
+                    />
+                  );
+                }
 
-          {showReceiptSection && sortedReceiptAssets.length > 0 && (
-            <AssetSection
-              step="02"
-              title="Receipt NFT Cards"
-              description="Purchase receipts minted on-chain as non-transferable proof of completed acquisition and settlement."
-            >
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {sortedReceiptAssets.map((asset) => (
-                  <MyAssetReceiptCard
-                    key={asset.id}
-                    asset={asset}
-                    onOpen={(receiptId) => {
-                      setSelectedReceiptId(receiptId);
-                      setIsReceiptDetailModalOpen(true);
-                    }}
-                  />
-                ))}
-              </div>
-            </AssetSection>
-          )}
+                if (asset.type === 'Receipt') {
+                  return (
+                    <MyAssetReceiptCard
+                      key={asset.id}
+                      asset={asset}
+                      onOpen={(receiptId) => {
+                        setSelectedReceiptId(receiptId);
+                        setIsReceiptDetailModalOpen(true);
+                      }}
+                    />
+                  );
+                }
 
-          {showNftSection && sortedNftAssets.length > 0 && (
-            <AssetSection
-              step="03"
-              title="Digital NFT Cards"
-              description="On-chain digital assets with current pricing, floor pricing, transfer action, and secondary sale listing flow."
-            >
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {sortedNftAssets.map((asset) => (
+                return (
                   <MyAssetNftCard
                     key={asset.id}
                     asset={asset}
@@ -624,9 +802,9 @@ export function Assets() {
                       setIsListForSaleModalOpen(true);
                     }}
                   />
-                ))}
-              </div>
-            </AssetSection>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>

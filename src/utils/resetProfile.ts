@@ -14,7 +14,7 @@ import { clearAllConversations } from './conversationUtils';
  * This includes:
  * - User profile
  * - Activities
- * - Favorites & Watchlist (NEW: address-based)
+ * - Favorites (NEW: address-based)
  * - Conversations & Messages (NEW: address-based)
  * - Notifications (NEW: address-based)
  * - API Keys and pending operations
@@ -49,10 +49,8 @@ export function resetProfileForAddress(address: string): void {
     `orina_conversations_${addressLower}`,
     `orina_messages_${addressLower}`,
     
-    // Favorites & Watchlist
+    // Favorites
     `orina_favorites_${addressLower}`,
-    `orina_watchlist_${addressLower}`,
-    `orina_watchlist_alerts_${addressLower}`,
     
     // Notifications
     `orina_notifications_${addressLower}`,
@@ -127,16 +125,6 @@ export function resetProfileForAddress(address: string): void {
   
   // Clean from global favorites (legacy cleanup - address-based for now)
   cleanFromGlobalKey('studio_favorites', (item: any) => 
-    item.userAddress?.toLowerCase() !== addressLower
-  );
-  
-  // Clean from global watchlist (legacy cleanup)
-  cleanFromGlobalKey('studio_watchlist', (item: any) => 
-    item.userAddress?.toLowerCase() !== addressLower
-  );
-  
-  // Clean from global watchlist alerts (legacy cleanup)
-  cleanFromGlobalKey('studio_watchlist_alerts', (item: any) => 
     item.userAddress?.toLowerCase() !== addressLower
   );
   
@@ -264,7 +252,6 @@ export function resetAllProfiles(): void {
       key.startsWith('studio_user_profile_') ||
       key.startsWith('studio_user_activities_') ||
       key.startsWith('studio_favorites') ||
-      key.startsWith('studio_watchlist') ||
       key.startsWith('studio_price_alerts_') ||
       key === 'studio_address_to_userid' ||
       // New address-based patterns
@@ -272,7 +259,6 @@ export function resetAllProfiles(): void {
       key.startsWith('orina_conversations_') ||
       key.startsWith('orina_messages_') ||
       key.startsWith('orina_favorites_') ||
-      key.startsWith('orina_watchlist_') ||
       key.startsWith('orina_notifications_') ||
       key.startsWith('orina_api_keys_') ||
       key.startsWith('orina_migration_complete_')

@@ -1047,7 +1047,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                 
                 return conversationMessages.map((message) =>
                   message.sender !== 'me' ? (
-                    <div key={message.id} className="flex items-end gap-3 max-w-[80%]">
+                    <div key={message.id} className="flex min-w-0 max-w-[80%] items-end gap-3">
                       <div className="w-8 h-8 rounded-full bg-ui-input overflow-hidden flex-shrink-0 self-end">
                         {activeConv?.avatar ? (
                           <img src={activeConv.avatar} alt="User" className="w-full h-full object-cover" />
@@ -1059,7 +1059,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                           </div>
                         )}
                       </div>
-                      <div className="bg-ui-input backdrop-blur-lg border border-ui-border-subtle p-4 rounded-2xl rounded-bl-none">
+                      <div className="min-w-0 max-w-full overflow-hidden rounded-2xl rounded-bl-none border border-ui-border-subtle bg-ui-input p-4 backdrop-blur-lg">
                         {message.image && (
                           <div className="mb-2">
                             <div className="w-[220px] sm:w-[260px] aspect-[4/3] rounded-lg overflow-hidden border border-ui-border-subtle bg-ui-input">
@@ -1067,7 +1067,9 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                             </div>
                           </div>
                         )}
-                        <p className="text-sm text-ui-primary leading-relaxed">{message.text}</p>
+                        <p className="text-sm leading-relaxed text-ui-primary [overflow-wrap:anywhere] break-all whitespace-pre-wrap">
+                          {message.text}
+                        </p>
                         <span className="text-[10px] text-ui-muted mt-1 block">{message.timestamp}</span>
                         {message.isAI && (
                           <div className="flex items-center gap-1 mt-2 text-xs text-[#2CC295]" title="AI Agent Response">
@@ -1078,7 +1080,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                       </div>
                     </div>
                   ) : (
-                    <div key={message.id} className="flex flex-row-reverse items-end gap-3 max-w-[80%] ml-auto">
+                    <div key={message.id} className="ml-auto flex min-w-0 max-w-[80%] flex-row-reverse items-end gap-3">
                       <div className="w-8 h-8 rounded-full bg-ui-input overflow-hidden flex-shrink-0 self-end">
                         {currentUser.avatarUrl ? (
                           <img src={currentUser.avatarUrl} alt={currentUser.displayName || currentUser.username} className="w-full h-full object-cover" />
@@ -1088,7 +1090,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                           return <CurrentUserAvatar className="w-full h-full" />;
                         })()}
                       </div>
-                      <div className="bg-[#2CC295]/15 backdrop-blur-lg border border-[#2CC295]/20 p-4 rounded-2xl rounded-br-none">
+                      <div className="min-w-0 max-w-full overflow-hidden rounded-2xl rounded-br-none border border-[#2CC295]/20 bg-[#2CC295]/15 p-4 backdrop-blur-lg">
                         {message.image && (
                           <div className="mb-2">
                             <div className="w-[220px] sm:w-[260px] aspect-[4/3] rounded-lg overflow-hidden border border-[#2CC295]/20 bg-ui-input">
@@ -1096,7 +1098,9 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                             </div>
                           </div>
                         )}
-                        <p className="text-sm text-ui-primary leading-relaxed break-words whitespace-pre-wrap">{message.text}</p>
+                        <p className="text-sm leading-relaxed text-ui-primary [overflow-wrap:anywhere] break-all whitespace-pre-wrap">
+                          {message.text}
+                        </p>
                         <div className="flex items-center justify-end gap-1 mt-2">
                           <span className="text-[10px] text-[#2CC295]/70">{message.timestamp}</span>
                           <svg className="w-3.5 h-3.5 text-[#2CC295]" fill="none" viewBox="0 0 24 24" stroke="currentColor">

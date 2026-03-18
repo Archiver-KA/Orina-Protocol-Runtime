@@ -1,0 +1,2 @@
+sbp_1ef6cbe377c2e6fdbc823920b8879375b64d4255
+IYq0AI54zAF9ww90 DB Password supabase

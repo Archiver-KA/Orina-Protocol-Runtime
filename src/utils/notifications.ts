@@ -8,7 +8,15 @@ import {
   restUpsert,
   toQuery,
 } from '@/utils/supabaseRest';
-import { ensureRemoteProfileIdForWallet, getCachedRemoteProfileId } from '@/utils/profileUtils';
+import { ensureRemoteProfileIdForWallet, getCachedRemoteProfileId } from '@/utils/profileRemoteIdentity';
+import {
+  appSettingsToNotificationPreferences,
+  hasLocalUserAppSettings,
+  mergeNotificationPreferencesIntoAppSettings,
+  readLocalUserAppSettings,
+  saveUserAppSettings,
+  settingsRecordToAppSettings,
+} from '@/utils/userSettingsUtils';
 
 // 🔒 PHASE 1 FIX: Address-based storage for privacy isolation
 const LEGACY_STORAGE_KEY = 'studio_notifications'; // For migration
@@ -17,9 +25,7 @@ const NOTIFICATION_SOURCE_TYPE = 'atp2_app_v1';
 const NOTIFICATIONS_SYNC_EVENT = 'orina:notifications-changed';
 const PREFERENCES_SYNC_EVENT = 'orina:notification-preferences-changed';
 const notifSyncTimers = new Map<string, number>();
-const prefSyncTimers = new Map<string, number>();
 const notifHydrateInFlight = new Set<string>();
-const prefHydrateInFlight = new Set<string>();
 
 function normalizeNotificationSourceId(value: unknown): string | null {
   const raw = String(value ?? '').trim();
@@ -155,9 +161,6 @@ function loadNotificationsInternal(walletAddress: string, skipHydrate: boolean):
     const key = getNotificationsKey(walletAddress);
     const stored = localStorage.getItem(key);
     const parsed = stored ? JSON.parse(stored) : [];
-    if (walletAddress && !skipHydrate) {
-      void hydrateNotificationsFromSupabase(walletAddress);
-    }
     return Array.isArray(parsed) ? parsed : [];
   } catch (error) {
     console.error('[Notifications] Failed to load:', error);
@@ -176,6 +179,27 @@ export function saveNotifications(walletAddress: string, notifications: AppNotif
 
 export function saveNotificationsLocalOnly(walletAddress: string, notifications: AppNotification[]): void {
   saveNotificationsInternal(walletAddress, notifications, true);
+}
+
+export function appendNotification(
+  walletAddress: string,
+  notification: AppNotification,
+  options?: {
+    syncRemote?: boolean;
+    limit?: number;
+  }
+): AppNotification[] {
+  const limit = options?.limit ?? 100;
+  const existing = loadNotificationsLocalOnly(walletAddress);
+  const updated = dedupeNotificationsById([notification, ...existing]).slice(0, limit);
+
+  if (options?.syncRemote === false) {
+    saveNotificationsLocalOnly(walletAddress, updated);
+  } else {
+    saveNotifications(walletAddress, updated);
+  }
+
+  return updated;
 }
 
 function saveNotificationsInternal(walletAddress: string, notifications: AppNotification[], skipRemoteSync: boolean): void {
@@ -198,13 +222,22 @@ function saveNotificationsInternal(walletAddress: string, notifications: AppNoti
  */
 export function loadPreferences(walletAddress: string): NotificationPreferences {
   try {
+    if (!walletAddress) return getDefaultPreferences();
+
+    const currentSettings = settingsRecordToAppSettings(readLocalUserAppSettings(walletAddress));
+    if (hasLocalUserAppSettings(walletAddress)) {
+      return appSettingsToNotificationPreferences(currentSettings);
+    }
+
     const key = getPreferencesKey(walletAddress);
     const stored = localStorage.getItem(key);
-    const parsed = stored ? { ...getDefaultPreferences(), ...JSON.parse(stored) } : getDefaultPreferences();
-    if (walletAddress) {
-      void hydratePreferencesFromSupabase(walletAddress);
+    if (stored) {
+      const parsed = { ...getDefaultPreferences(), ...JSON.parse(stored) } as NotificationPreferences;
+      void saveUserAppSettings(walletAddress, mergeNotificationPreferencesIntoAppSettings(currentSettings, parsed));
+      return parsed;
     }
-    return parsed;
+
+    return appSettingsToNotificationPreferences(currentSettings);
   } catch (error) {
     console.error('[Notifications] Failed to load preferences:', error);
     return getDefaultPreferences();
@@ -220,10 +253,11 @@ export function savePreferences(walletAddress: string, preferences: Notification
   try {
     const key = getPreferencesKey(walletAddress);
     localStorage.setItem(key, JSON.stringify(preferences));
-    dispatchSyncEvent(PREFERENCES_SYNC_EVENT);
     if (walletAddress) {
-      queuePreferencesSync(walletAddress, preferences);
+      const currentSettings = settingsRecordToAppSettings(readLocalUserAppSettings(walletAddress));
+      void saveUserAppSettings(walletAddress, mergeNotificationPreferencesIntoAppSettings(currentSettings, preferences));
     }
+    dispatchSyncEvent(PREFERENCES_SYNC_EVENT);
   } catch (error) {
     console.error('[Notifications] Failed to save preferences:', error);
   }
@@ -258,13 +292,6 @@ type DbNotificationRow = {
   is_read: boolean;
   created_at: string;
   read_at: string | null;
-};
-
-type DbUserPreferencesRow = {
-  user_id: string;
-  notification_settings: Record<string, any>;
-  ui_preferences: Record<string, any>;
-  privacy_settings: Record<string, any>;
 };
 
 function normalizeWalletKey(walletAddress: string): string {
@@ -303,7 +330,7 @@ function mapAppNotificationsToDb(userId: string, notifications: AppNotification[
   }));
 }
 
-async function hydrateNotificationsFromSupabase(walletAddress: string): Promise<void> {
+export async function hydrateNotificationsFromSupabase(walletAddress: string): Promise<void> {
   const walletKey = normalizeWalletKey(walletAddress);
   if (!walletKey || notifHydrateInFlight.has(walletKey)) return;
   notifHydrateInFlight.add(walletKey);
@@ -356,36 +383,6 @@ async function hydrateNotificationsFromSupabase(walletAddress: string): Promise<
   }
 }
 
-async function hydratePreferencesFromSupabase(walletAddress: string): Promise<void> {
-  const walletKey = normalizeWalletKey(walletAddress);
-  if (!walletKey || prefHydrateInFlight.has(walletKey)) return;
-  prefHydrateInFlight.add(walletKey);
-  try {
-    const userId = getCachedRemoteProfileId(walletKey) || await ensureRemoteProfileIdForWallet(walletKey);
-    if (!userId) return;
-    const rows = await restSelect<DbUserPreferencesRow>(
-      'user_preferences',
-      toQuery({ select: 'user_id,notification_settings,ui_preferences,privacy_settings', user_id: encodeEq(userId), limit: '1' })
-    );
-    const row = rows[0];
-    if (!row) return;
-    const merged: NotificationPreferences = {
-      ...getDefaultPreferences(),
-      ...(row.notification_settings || {}),
-      types: {
-        ...getDefaultPreferences().types,
-        ...((row.notification_settings || {}).types || {}),
-      },
-    };
-    localStorage.setItem(getPreferencesKey(walletKey), JSON.stringify(merged));
-    dispatchSyncEvent(PREFERENCES_SYNC_EVENT);
-  } catch (error) {
-    console.debug('[Notifications] Preferences hydrate skipped:', error);
-  } finally {
-    prefHydrateInFlight.delete(walletKey);
-  }
-}
-
 function queueNotificationsSync(walletAddress: string, notifications: AppNotification[]): void {
   const walletKey = normalizeWalletKey(walletAddress);
   if (!walletKey) return;
@@ -396,18 +393,6 @@ function queueNotificationsSync(walletAddress: string, notifications: AppNotific
     void syncNotificationsToSupabase(walletKey, notifications);
   }, 250);
   notifSyncTimers.set(walletKey, timer);
-}
-
-function queuePreferencesSync(walletAddress: string, preferences: NotificationPreferences): void {
-  const walletKey = normalizeWalletKey(walletAddress);
-  if (!walletKey) return;
-  const prev = prefSyncTimers.get(walletKey);
-  if (prev) window.clearTimeout(prev);
-  const timer = window.setTimeout(() => {
-    prefSyncTimers.delete(walletKey);
-    void syncPreferencesToSupabase(walletKey, preferences);
-  }, 250);
-  prefSyncTimers.set(walletKey, timer);
 }
 
 async function syncNotificationsToSupabase(walletAddress: string, notifications: AppNotification[]): Promise<void> {
@@ -471,25 +456,6 @@ export async function markAllNotificationsReadRemote(walletAddress: string): Pro
     );
   } catch (error) {
     console.debug('[Notifications] markAllNotificationsReadRemote skipped:', error);
-  }
-}
-
-async function syncPreferencesToSupabase(walletAddress: string, preferences: NotificationPreferences): Promise<void> {
-  try {
-    const userId = await ensureRemoteProfileIdForWallet(walletAddress);
-    if (!userId) return;
-    await restUpsert(
-      'user_preferences',
-      [{
-        user_id: userId,
-        notification_settings: preferences,
-        ui_preferences: {},
-        privacy_settings: {},
-      }],
-      { onConflict: 'user_id' }
-    );
-  } catch (error) {
-    console.debug('[Notifications] Preferences sync skipped:', error);
   }
 }
 

@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "geo:download:geonames": "node scripts/geo/download-geonames.mjs",
+    "geo:build": "node scripts/geo/build-geo-import.mjs",
+    "geo:build:strict": "node scripts/geo/build-geo-import.mjs --strict",
+    "geo:export:migrations": "node scripts/geo/export-supabase-geo-migrations.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

@@ -409,6 +409,15 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
+.wallet-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+
+.wallet-dropdown-copy:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
 .dropdown-panel {
   background: var(--t-dropdown-glass-bg);
   border: none;
@@ -672,6 +681,40 @@ input:checked + .toggle-slider:before {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.42)) !important;
 }
 
+[data-theme="light"] .duration-picker-hover-secondary:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(236, 239, 242, 1)) !important;
+  border-color: rgba(44, 194, 149, 0.2) !important;
+  color: var(--t-text-primary) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 14px 28px -18px rgba(15, 23, 42, 0.2) !important;
+}
+
+[data-theme="light"] .duration-picker-hover-primary:hover {
+  background: var(--color-button-primary-bg-hover) !important;
+  color: var(--color-button-primary-fg) !important;
+  box-shadow: 0 16px 30px -18px rgba(44, 194, 149, 0.42) !important;
+}
+
+[data-theme="light"] .orders-secondary-hover:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(236, 239, 242, 0.96)) !important;
+  border-color: rgba(44, 194, 149, 0.14) !important;
+  color: var(--t-text-primary) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 12px 24px -20px rgba(15, 23, 42, 0.16) !important;
+}
+
+[data-theme="light"] .orders-primary-hover:hover {
+  background: var(--color-button-primary-bg-hover) !important;
+  box-shadow: 0 14px 28px -20px rgba(44, 194, 149, 0.38) !important;
+}
+
+[data-theme="light"] .orders-warning-hover:hover {
+  background: #ea850d !important;
+  box-shadow: 0 14px 28px -20px rgba(249, 115, 22, 0.42) !important;
+}
+
 [data-theme="light"] .studio-glass-modal .text-white,
 [data-theme="light"] .studio-glass-modal .text-\[\#F1F5F9\] {
   color: var(--t-text-primary) !important;
@@ -847,6 +890,38 @@ input:checked + .toggle-slider:before {
   box-shadow: var(--page-borderless-input-shadow);
 }
 
+.settings-borderless-theme .delivery-address-select-trigger {
+  border-color: var(--t-border-subtle) !important;
+  box-shadow: none !important;
+}
+
+.settings-borderless-theme .delivery-address-select-input,
+.settings-borderless-theme .delivery-address-select-input:focus,
+.settings-borderless-theme .delivery-address-select-input:hover {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.settings-borderless-theme .delivery-address-select-popover {
+  z-index: 120 !important;
+}
+
+.settings-borderless-theme .delivery-address-select-popover .border-t {
+  border-top-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+[data-theme="light"] .settings-borderless-theme .delivery-address-select-trigger {
+  background-color: var(--t-input-bg) !important;
+  border-color: var(--t-border-subtle) !important;
+}
+
+[data-theme="light"] .settings-borderless-theme .delivery-address-select-trigger:hover,
+[data-theme="light"] .settings-borderless-theme .delivery-address-select-trigger:focus-within {
+  background-color: var(--t-input-focus-bg) !important;
+}
+
 .community-borderless-theme .post-card {
   border-color: transparent !important;
 }
@@ -866,6 +941,24 @@ input:checked + .toggle-slider:before {
 
 .search-page-theme .search-result-card-shell:not(:hover) .search-result-info-area {
   background-color: var(--color-sidebar-shell) !important;
+}
+
+[data-theme="light"] .marketplace-page-theme .search-result-card-grid,
+[data-theme="light"] .marketplace-page-theme .collection-card-grid {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+}
+
+[data-theme="light"] .marketplace-page-theme .search-result-card-grid .search-result-info-area {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+}
+
+[data-theme="light"] .marketplace-page-theme .search-result-card-grid:hover,
+[data-theme="light"] .marketplace-page-theme .collection-card-grid:hover {
+  background-color: #ffffff !important;
+}
+
+[data-theme="light"] .marketplace-page-theme .search-result-card-grid:hover .search-result-info-area {
+  background-color: #ffffff !important;
 }
 
 /* List for Sale modal: light mode white/gray inversion (scoped, token-based). */

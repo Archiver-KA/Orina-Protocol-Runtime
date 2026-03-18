@@ -18,6 +18,20 @@ import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { StudioStatusBadge } from '@/app/components/ui/studio-status-badge';
 import { StudioProgressBar } from '@/app/components/ui/studio-progress-bar';
 import { StudioTimelineItem } from '@/app/components/ui/studio-list-parts';
+import type { OrderUiRecord } from '@/types/order';
+import {
+  useSellerConfirm,
+  usePayOrder,
+  useConfirmDelivery,
+  useCancelByBuyer,
+  useOpenDispute,
+} from '@/hooks/useMarketplace';
+import { useSellerSign2, useBuyerSign3 } from '@/hooks/useEIP712Sign';
+import {
+  hydrateRuntimeOrdersFromSupabase,
+  loadRuntimeOrders,
+  subscribeToRuntimeOrders,
+} from '@/utils/runtimeOrders';
 
 const TEAL = '#2CC295';
 
@@ -99,28 +113,22 @@ function OrderActionNoticeModal({
 
   const toneStyles = {
     success: {
-      iconBg: 'bg-[#2CC295]/20',
-      iconBorder: 'border-[#2CC295]/30',
-      iconText: 'text-[#2CC295]',
-      pulse: 'border-[#2CC295]',
+      iconWrap: 'bg-[#2CC295]/18',
+      iconRing: 'ring-1 ring-[#2CC295]/22',
       bar: 'bg-[#2CC295]',
       trailing: <Check className="text-[#2CC295]" size={18} />,
       icon: <Check className="text-[#2CC295]" size={44} strokeWidth={3} />,
     },
     warning: {
-      iconBg: 'bg-amber-500/20',
-      iconBorder: 'border-amber-500/30',
-      iconText: 'text-amber-400',
-      pulse: 'border-amber-500',
+      iconWrap: 'bg-amber-500/18',
+      iconRing: 'ring-1 ring-amber-500/22',
       bar: 'bg-amber-500',
       trailing: <AlertTriangle className="text-amber-400" size={18} />,
       icon: <AlertTriangle className="text-amber-400" size={44} strokeWidth={3} />,
     },
     danger: {
-      iconBg: 'bg-red-500/20',
-      iconBorder: 'border-red-500/30',
-      iconText: 'text-red-400',
-      pulse: 'border-red-500',
+      iconWrap: 'bg-red-500/18',
+      iconRing: 'ring-1 ring-red-500/22',
       bar: 'bg-red-500',
       trailing: <XCircle className="text-red-400" size={18} />,
       icon: <XCircle className="text-red-400" size={44} strokeWidth={2.5} />,
@@ -147,17 +155,9 @@ function OrderActionNoticeModal({
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.1, type: 'spring', stiffness: 220 }}
-              className="relative"
+              className={`w-24 h-24 rounded-full ${toneStyles.iconWrap} ${toneStyles.iconRing} flex items-center justify-center`}
             >
-              <div className={`w-24 h-24 rounded-full ${toneStyles.iconBg} border-4 ${toneStyles.iconBorder} flex items-center justify-center`}>
-                {toneStyles.icon}
-              </div>
-              <motion.div
-                initial={{ scale: 1, opacity: 0.5 }}
-                animate={{ scale: 1.5, opacity: 0 }}
-                transition={{ duration: 1, repeat: Infinity }}
-                className={`absolute inset-0 rounded-full border-2 ${toneStyles.pulse}`}
-              />
+              {toneStyles.icon}
             </motion.div>
 
             <div className="space-y-2">
@@ -197,7 +197,7 @@ function OrderActionNoticeModal({
 }
 
 // Mock orders matching the HTML design
-const mockOrders = [
+const mockOrders: OrderUiRecord[] = [
   {
     orderId: BigInt(88220),
     buyer: '0x71C7fe5b2c5d9f8e4f22' as `0x${string}`,
@@ -221,6 +221,7 @@ const mockOrders = [
     platformFeeBpsSnapshot: BigInt(250),
     daoFeeBpsSnapshot: BigInt(50),
     burnFeeBpsSnapshot: BigInt(25),
+    selectedAttributes: [],
     settlementType: 0,
     sellerConfirmed: false,
     progress: 0,
@@ -253,6 +254,7 @@ const mockOrders = [
     platformFeeBpsSnapshot: BigInt(250),
     daoFeeBpsSnapshot: BigInt(50),
     burnFeeBpsSnapshot: BigInt(25),
+    selectedAttributes: [],
     settlementType: 0,
     sellerConfirmed: true, // ✅ Seller ĐÃ confirm delivery time
     progress: 25, // Seller đã confirm, chờ buyer accept
@@ -287,6 +289,23 @@ const mockOrders = [
     platformFeeBpsSnapshot: BigInt(250),
     daoFeeBpsSnapshot: BigInt(50),
     burnFeeBpsSnapshot: BigInt(25),
+    selectedAttributes: [
+      {
+        groupId: 'bar-size',
+        groupLabel: 'Bar Size',
+        values: ['1kg'],
+      },
+      {
+        groupId: 'vault-location',
+        groupLabel: 'Vault Location',
+        values: ['Singapore Vault'],
+      },
+      {
+        groupId: 'packaging',
+        groupLabel: 'Packaging',
+        values: ['Sealed Case'],
+      },
+    ],
     settlementType: 0,
     sellerConfirmed: true,
     progress: 85,
@@ -321,6 +340,7 @@ const mockOrders = [
     platformFeeBpsSnapshot: BigInt(250),
     daoFeeBpsSnapshot: BigInt(50),
     burnFeeBpsSnapshot: BigInt(25),
+    selectedAttributes: [],
     settlementType: 0,
     sellerConfirmed: true,
     progress: 80,
@@ -353,6 +373,7 @@ const mockOrders = [
     platformFeeBpsSnapshot: BigInt(250),
     daoFeeBpsSnapshot: BigInt(50),
     burnFeeBpsSnapshot: BigInt(25),
+    selectedAttributes: [],
     settlementType: 0,
     sellerConfirmed: true,
     progress: 100,
@@ -370,10 +391,23 @@ interface OrdersProps {
 
 export function Orders({ onNavigateToPage }: OrdersProps) {
   const { address, isConnected } = useAccount();
+  const sellerConfirmTx = useSellerConfirm();
+  const payOrderTx = usePayOrder();
+  const confirmDeliveryTx = useConfirmDelivery();
+  const cancelByBuyerTx = useCancelByBuyer();
+  const openDisputeTx = useOpenDispute();
+  const sellerSign2 = useSellerSign2();
+  const buyerSign3 = useBuyerSign3();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedNetwork, setSelectedNetwork] = useState('all');
   const [selectedFilter, setSelectedFilter] = useState('all');
-  const [selectedOrder, setSelectedOrder] = useState(mockOrders[0]);
+  const [runtimeOrdersVersion, setRuntimeOrdersVersion] = useState(0);
+  const allOrders = useMemo(() => {
+    const runtimeOrders = loadRuntimeOrders(address);
+    const baseOrders = runtimeOrders.length > 0 ? runtimeOrders : mockOrders;
+    return [...baseOrders].sort((a, b) => Number(b.proposedAt - a.proposedAt));
+  }, [address, runtimeOrdersVersion]);
+  const [selectedOrder, setSelectedOrder] = useState<OrderUiRecord>(allOrders[0] ?? mockOrders[0]);
   const [showDurationPicker, setShowDurationPicker] = useState(false);
   const [confirmingOrderId, setConfirmingOrderId] = useState<bigint | null>(null);
   const [showConfirmDeliveryModal, setShowConfirmDeliveryModal] = useState(false);
@@ -388,6 +422,34 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (address) {
+      void hydrateRuntimeOrdersFromSupabase(address).then(() => {
+        setRuntimeOrdersVersion((value) => value + 1);
+      });
+    }
+    return subscribeToRuntimeOrders(() => {
+      setRuntimeOrdersVersion((value) => value + 1);
+    });
+  }, [address]);
+
+  useEffect(() => {
+    if (!allOrders.length) return;
+    const matchedOrder = allOrders.find((order) => order.orderId === selectedOrder.orderId);
+    if (matchedOrder) {
+      if (matchedOrder !== selectedOrder) {
+        setSelectedOrder(matchedOrder);
+      }
+      return;
+    }
+    setSelectedOrder(allOrders[0]);
+  }, [allOrders, selectedOrder]);
+
+  const resolveOrderById = (orderId: bigint | null) => {
+    if (orderId === null) return undefined;
+    return allOrders.find((order) => order.orderId === orderId);
+  };
 
   const showActionNotice = (
     tone: OrderActionNoticeTone,
@@ -413,7 +475,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
 
   // Filter orders
   const filteredOrders = useMemo(() => {
-    let filtered = mockOrders;
+    let filtered = allOrders;
 
     if (selectedNetwork !== 'all') {
       filtered = filtered.filter(o => o.network === selectedNetwork);
@@ -432,7 +494,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
     }
 
     return filtered;
-  }, [searchQuery, selectedFilter, selectedNetwork]);
+  }, [allOrders, searchQuery, selectedFilter, selectedNetwork]);
 
   // Stats
   const stats = useMemo(() => ({
@@ -475,12 +537,27 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
     setShowDurationPicker(true);
   };
 
-  const handleDurationConfirm = (days: number, targetDate: Date) => {
-    console.log('Seller confirmed with delivery time:', days, 'days, target:', targetDate);
-    // TODO: Call smart contract sellerConfirm with estDeliverySeconds = days * 24 * 60 * 60
-    const order = mockOrders.find((o) => o.orderId === confirmingOrderId);
-    if (order) {
+  const handleDurationConfirm = async (days: number, targetDate: Date) => {
+    const order = resolveOrderById(confirmingOrderId);
+    if (!order) {
+      setShowDurationPicker(false);
+      setConfirmingOrderId(null);
+      return;
+    }
+
+    try {
+      const estDeliverySeconds = BigInt(days) * 24n * 60n * 60n;
+      const sellerSig = await sellerSign2.sign({
+        orderId: order.orderId,
+        buyer: order.buyer,
+        grossPrice: order.grossPrice,
+        amount: order.amount,
+        estDeliverySeconds,
+      });
+      await sellerConfirmTx.sellerConfirm(order.orderId, estDeliverySeconds, sellerSig);
       showActionNotice('success', 'Seller Confirmed!', 'Delivery duration has been set. Redirecting to orders...', order);
+    } catch (error) {
+      console.error('sellerConfirm failed', { orderId: order.orderId.toString(), days, targetDate, error });
     }
     setShowDurationPicker(false);
     setConfirmingOrderId(null);
@@ -493,34 +570,48 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
 
   // Handle confirm delivery
   const handleConfirmDelivery = (orderId: bigint) => {
-    const order = mockOrders.find(o => o.orderId === orderId);
+    const order = resolveOrderById(orderId);
     if (order) {
       setSelectedOrder(order);
       setShowConfirmDeliveryModal(true);
     }
   };
 
-  const handleDeliveryConfirm = () => {
-    console.log('Buyer confirmed delivery for order:', selectedOrder.orderId.toString());
-    // TODO: Call smart contract buyerFinalizeRelease(orderId)
+  const handleDeliveryConfirm = async () => {
+    const order = resolveOrderById(selectedOrder.orderId);
+    if (!order) {
+      setShowConfirmDeliveryModal(false);
+      return;
+    }
+    try {
+      await confirmDeliveryTx.confirmDelivery(order.orderId);
+      showActionNotice('success', 'Delivery Confirmed!', 'Delivery confirmation has been submitted onchain.', order);
+    } catch (error) {
+      console.error('confirmDelivery failed', { orderId: order.orderId.toString(), error });
+    }
     setShowConfirmDeliveryModal(false);
   };
 
   // Handle open dispute
   const handleOpenDispute = (orderId: bigint) => {
-    const order = mockOrders.find(o => o.orderId === orderId);
+    const order = resolveOrderById(orderId);
     if (order) {
       setSelectedOrder(order);
       setShowOpenDisputeModal(true);
     }
   };
 
-  const handleDisputeConfirm = () => {
-    console.log('Buyer opened dispute for order:', selectedOrder.orderId.toString());
-    // TODO: Call smart contract openDispute(orderId)
-    const order = mockOrders.find((o) => o.orderId === selectedOrder.orderId);
-    if (order) {
+  const handleDisputeConfirm = async () => {
+    const order = resolveOrderById(selectedOrder.orderId);
+    if (!order) {
+      setShowOpenDisputeModal(false);
+      return;
+    }
+    try {
+      await openDisputeTx.openDispute(order.orderId);
       showActionNotice('warning', 'Dispute Opened', 'Arbiter notified and escrow is now frozen.', order);
+    } catch (error) {
+      console.error('openDispute failed', { orderId: order.orderId.toString(), error });
     }
     setShowOpenDisputeModal(false);
   };
@@ -531,7 +622,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
 
   // Handle dispute resolution
   const handleDisputeResolution = (orderId: bigint) => {
-    const order = mockOrders.find(o => o.orderId === orderId);
+    const order = resolveOrderById(orderId);
     if (order) {
       setSelectedOrder(order);
       setShowDisputeResolutionModal(true);
@@ -541,7 +632,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   const handleResolutionConfirm = () => {
     console.log('Dispute resolved for order:', selectedOrder.orderId.toString());
     // TODO: Call smart contract resolveDispute(orderId)
-    const order = mockOrders.find((o) => o.orderId === selectedOrder.orderId);
+    const order = resolveOrderById(selectedOrder.orderId);
     if (order) {
       showActionNotice('success', 'Dispute Resolved', 'Settlement has been finalized for this dispute.', order);
     }
@@ -553,22 +644,35 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   };
 
   // Handle buyer confirm order (Sig 2 + Pay)
-  const handleBuyerConfirmOrder = (orderId: bigint) => {
-    console.log('Buyer confirming order (Sig 2 + Pay):', orderId.toString());
-    // TODO: Call smart contract buyerConfirm(orderId) - This will trigger Sig 2 and payment
-    const order = mockOrders.find((o) => o.orderId === orderId);
-    if (order) {
+  const handleBuyerConfirmOrder = async (orderId: bigint) => {
+    const order = resolveOrderById(orderId);
+    if (!order || order.estDeliverySeconds <= 0n) return;
+
+    try {
+      const buyerSig2 = await buyerSign3.sign({
+        orderId: order.orderId,
+        seller: order.seller,
+        grossPrice: order.grossPrice,
+        amount: order.amount,
+        estDeliverySeconds: order.estDeliverySeconds,
+      });
+      await payOrderTx.payOrder(order.orderId, buyerSig2);
       showActionNotice('success', 'Order Confirmed!', 'Buyer signature submitted. Proceeding to payment...', order);
+    } catch (error) {
+      console.error('payOrder failed', { orderId: order.orderId.toString(), error });
     }
   };
 
   // Handle buyer cancel order
-  const handleBuyerCancelOrder = (orderId: bigint) => {
-    console.log('Buyer canceling order:', orderId.toString());
-    // TODO: Call smart contract cancelOrder(orderId)
-    const order = mockOrders.find((o) => o.orderId === orderId);
-    if (order) {
+  const handleBuyerCancelOrder = async (orderId: bigint) => {
+    const order = resolveOrderById(orderId);
+    if (!order) return;
+
+    try {
+      await cancelByBuyerTx.cancelByBuyer(order.orderId);
       showActionNotice('warning', 'Order Cancelled', 'Order has been cancelled and escrow flow stopped.', order);
+    } catch (error) {
+      console.error('cancelByBuyer failed', { orderId: order.orderId.toString(), error });
     }
   };
 
@@ -576,19 +680,22 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   const handleSellerRejectOrder = (orderId: bigint) => {
     console.log('Seller rejecting order:', orderId.toString());
     // TODO: Call smart contract sellerReject(orderId)
-    const order = mockOrders.find((o) => o.orderId === orderId);
+    const order = resolveOrderById(orderId);
     if (order) {
       showActionNotice('danger', 'Order Rejected', 'Proposal rejected by seller. Redirecting to orders...', order);
     }
   };
 
   // Handle confirm release (auto-release path)
-  const handleConfirmRelease = (orderId: bigint) => {
-    console.log('Confirm release for order:', orderId.toString());
-    // TODO: Call smart contract autoRelease(orderId) / finalize path
-    const order = mockOrders.find((o) => o.orderId === orderId);
-    if (order) {
+  const handleConfirmRelease = async (orderId: bigint) => {
+    const order = resolveOrderById(orderId);
+    if (!order) return;
+
+    try {
+      await confirmDeliveryTx.confirmDelivery(order.orderId);
       showActionNotice('success', 'Release Confirmed!', 'Escrow settlement finalized for this order.', order);
+    } catch (error) {
+      console.error('confirmRelease failed', { orderId: order.orderId.toString(), error });
     }
   };
 
@@ -599,7 +706,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   };
 
   // Check if order is in dispute window
-  const isInDisputeWindow = (order: typeof mockOrders[0]) => {
+  const isInDisputeWindow = (order: OrderUiRecord) => {
     if (order.state !== 1) return false; // Only PAID state
     const now = Math.floor(Date.now() / 1000);
     const autoReleasePassed = now > Number(order.autoReleaseAt);
@@ -682,7 +789,10 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
             {filteredOrders.map((order) => (
               <div
                 key={order.orderId.toString()}
-                onClick={() => setSelectedOrder(order)}
+                onClick={() => {
+                  setSelectedOrder(order);
+                  setShowOrderDetailsModal(true);
+                }}
                 className={`bg-[var(--t-card-bg)] border-0 rounded-[24px] backdrop-blur-[10px] overflow-hidden cursor-pointer transition-all duration-200 ${
                   selectedOrder.orderId === order.orderId
                     ? 'shadow-[0_0_0_1px_rgba(44,194,149,0.2),0_8px_18px_rgba(44,194,149,0.025)]'
@@ -690,154 +800,170 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                 }`}
               >
                 <div className="p-6">
-                  <div className="flex items-start justify-between mb-6">
-                    <div className="flex items-center gap-4">
-                      {/* Progress Ring */}
-                      <div className="relative w-10 h-10 shrink-0">
-                        <svg className="w-full h-full" viewBox="0 0 36 36">
-                          <circle
-                            cx="18"
-                            cy="18"
-                            fill="none"
-                            r="16"
-                            strokeWidth="3"
-                            stroke="var(--t-border-medium)"
-                          />
-                          <circle
-                            className={order.state === 1 ? 'stroke-primary' : 'stroke-[#F7DC7F]'}
-                            cx="18"
-                            cy="18"
-                            fill="none"
-                            r="16"
-                            strokeWidth="3"
-                            strokeLinecap="round"
-                            strokeDasharray="100"
-                            strokeDashoffset={getProgressDashOffset(order.progress)}
-                            style={{
-                              transition: 'stroke-dashoffset 0.35s',
-                              transform: 'rotate(-90deg)',
-                              transformOrigin: '50% 50%'
-                            }}
-                          />
-                        </svg>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className={`text-[8px] font-bold ${order.state === 1 ? 'text-primary' : 'text-[#F7DC7F]'}`}>
-                            {order.progress}%
-                          </span>
-                        </div>
-                      </div>
+                  <div className="flex flex-col gap-5">
+                    <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="flex min-w-0 flex-1 gap-4">
+                        <AssetThumb
+                          src={order.assetImage}
+                          alt={order.assetName}
+                          loading="eager"
+                          className="w-28 h-28 rounded-[22px] border-0 bg-ui-input shrink-0"
+                        />
 
-                      <div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-base font-bold text-ui-primary font-mono">
-                            #ORD-{order.orderId.toString()}
-                          </span>
-                          <StudioStatusBadge
-                            variant={
-                              order.state === 0
-                                ? 'warning'
-                                : order.state === 1
-                                  ? 'success'
-                                  : order.state === 2
-                                    ? 'danger'
-                                    : order.state === 3
-                                      ? 'info'
-                                      : 'muted'
-                            }
-                            size="sm"
-                            className="px-2 py-0.5 text-[10px]"
-                          >
-                            {order.state === 0
-                              ? 'Pending Confirm'
-                              : order.state === 1
-                                ? 'Paid'
-                                : order.state === 2
-                                  ? 'Disputed'
-                                  : order.state === 3
-                                    ? 'Finalized'
-                                    : 'Cancelled'}
-                          </StudioStatusBadge>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold text-ui-muted uppercase mb-1">
-                        Order Value
-                      </p>
-                      <p className="text-2xl font-black text-ui-primary">
-                        {formatEther(order.grossPrice)} ETH
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-4">
-                    {/* Buyer and Seller Address Boxes */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center gap-3 p-3 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
-                        <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
-                          <User className="text-blue-400" size={16} />
-                        </div>
-                        <div>
-                          <p className="text-[9px] uppercase font-bold text-ui-muted">Buyer</p>
-                          <p className="text-xs font-mono text-ui-secondary">
-                            {formatAddress(order.buyer)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 p-3 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
-                        <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0">
-                          <Store className="text-purple-400" size={16} />
-                        </div>
-                        <div>
-                          <p className="text-[9px] uppercase font-bold text-ui-muted">Seller</p>
-                          <p className="text-xs font-mono text-ui-secondary">
-                            {formatAddress(order.seller)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Asset Name with Countdown */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Package size={16} className="text-ui-muted" />
-                        <span className="text-sm font-semibold text-ui-secondary">{order.assetName}</span>
-                      </div>
-                      {/* Countdown Timer */}
-                      {(() => {
-                        const deadline = order.state === 1 ? order.autoReleaseAt : order.payDeadline;
-                        const { days, hours, mins, secs } = parseCountdown(deadline);
-                        return (
-                          <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-ui-border-subtle bg-ui-input backdrop-blur-sm shrink-0">
-                            <div className="flex items-center gap-2">
-                              <div className="flex flex-col items-center w-6">
-                                <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{days.toString().padStart(2, '0')}</span>
-                                <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Days</span>
+                        <div className="min-w-0 flex-1 space-y-4">
+                          <div className="flex min-w-0 items-center gap-4">
+                              <div className="relative w-10 h-10 shrink-0">
+                                <svg className="w-full h-full" viewBox="0 0 36 36">
+                                  <circle
+                                    cx="18"
+                                    cy="18"
+                                    fill="none"
+                                    r="16"
+                                    strokeWidth="3"
+                                    stroke="var(--t-border-medium)"
+                                  />
+                                  <circle
+                                    className={order.state === 1 ? 'stroke-primary' : 'stroke-[#F7DC7F]'}
+                                    cx="18"
+                                    cy="18"
+                                    fill="none"
+                                    r="16"
+                                    strokeWidth="3"
+                                    strokeLinecap="round"
+                                    strokeDasharray="100"
+                                    strokeDashoffset={getProgressDashOffset(order.progress)}
+                                    style={{
+                                      transition: 'stroke-dashoffset 0.35s',
+                                      transform: 'rotate(-90deg)',
+                                      transformOrigin: '50% 50%'
+                                    }}
+                                  />
+                                </svg>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <span className={`text-[8px] font-bold ${order.state === 1 ? 'text-primary' : 'text-[#F7DC7F]'}`}>
+                                    {order.progress}%
+                                  </span>
+                                </div>
                               </div>
-                              <div className="text-ui-muted font-bold text-[10px] leading-none">:</div>
-                              <div className="flex flex-col items-center w-6">
-                                <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{hours.toString().padStart(2, '0')}</span>
-                                <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Hrs</span>
+
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <span className="text-base font-bold text-ui-primary font-mono">
+                                    #ORD-{order.orderId.toString()}
+                                  </span>
+                                  <StudioStatusBadge
+                                    variant={
+                                      order.state === 0
+                                        ? 'warning'
+                                        : order.state === 1
+                                          ? 'success'
+                                          : order.state === 2
+                                            ? 'danger'
+                                            : order.state === 3
+                                              ? 'info'
+                                              : 'muted'
+                                    }
+                                    size="sm"
+                                    className="px-2 py-0.5 text-[10px]"
+                                  >
+                                    {order.state === 0
+                                      ? 'Pending Confirm'
+                                      : order.state === 1
+                                        ? 'Paid'
+                                        : order.state === 2
+                                          ? 'Disputed'
+                                          : order.state === 3
+                                            ? 'Finalized'
+                                            : 'Cancelled'}
+                                  </StudioStatusBadge>
+                                </div>
+                                <div className="mt-2 flex items-center gap-2 min-w-0">
+                                  <Package size={16} className="text-ui-muted shrink-0" />
+                                  <span className="truncate text-base font-semibold text-ui-secondary">
+                                    {order.assetName}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="text-ui-muted font-bold text-[10px] leading-none">:</div>
-                              <div className="flex flex-col items-center w-6">
-                                <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{mins.toString().padStart(2, '0')}</span>
-                                <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Min</span>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <div className="flex items-center gap-3 p-3 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
+                              <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
+                                <User className="text-blue-400" size={16} />
                               </div>
-                              <div className="text-ui-muted font-bold text-[10px] leading-none">:</div>
-                              <div className="flex flex-col items-center w-6">
-                                <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{secs.toString().padStart(2, '0')}</span>
-                                <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Sec</span>
+                              <div className="min-w-0">
+                                <p className="text-[9px] uppercase font-bold text-ui-muted">Buyer</p>
+                                <p className="truncate text-xs font-mono text-ui-secondary">
+                                  {formatAddress(order.buyer)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 p-3 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
+                              <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0">
+                                <Store className="text-purple-400" size={16} />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-[9px] uppercase font-bold text-ui-muted">Seller</p>
+                                <p className="truncate text-xs font-mono text-ui-secondary">
+                                  {formatAddress(order.seller)}
+                                </p>
                               </div>
                             </div>
                           </div>
-                        );
-                      })()}
+                        </div>
+                      </div>
+
+                      <div className="xl:w-[220px] xl:shrink-0">
+                        <div className="flex h-full flex-col justify-between px-2 py-1 text-right">
+                          <div>
+                            <p className="text-[10px] font-bold text-ui-muted uppercase mb-1">
+                              Order Value
+                            </p>
+                            <p className="text-2xl font-black text-ui-primary">
+                              {formatEther(order.grossPrice)} ETH
+                            </p>
+                            <div className="mt-1 flex items-center justify-end gap-2 text-[11px] font-semibold text-ui-secondary">
+                              <span className="uppercase tracking-wide text-ui-muted">Qty</span>
+                              <span className="font-mono text-ui-primary">
+                                {order.amount.toString()}
+                              </span>
+                            </div>
+                          </div>
+
+                          {(() => {
+                            const deadline = order.state === 1 ? order.autoReleaseAt : order.payDeadline;
+                            const { days, hours, mins, secs } = parseCountdown(deadline);
+                            return (
+                              <div className="mt-4 ml-auto w-fit rounded-xl border border-ui-border-subtle bg-ui-input px-3 py-2 backdrop-blur-sm">
+                                <div className="flex items-center justify-center gap-2">
+                                  <div className="flex flex-col items-center w-6">
+                                    <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{days.toString().padStart(2, '0')}</span>
+                                    <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Days</span>
+                                  </div>
+                                  <div className="h-6 w-px bg-ui-border-subtle/80"></div>
+                                  <div className="flex flex-col items-center w-6">
+                                    <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{hours.toString().padStart(2, '0')}</span>
+                                    <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Hrs</span>
+                                  </div>
+                                  <div className="h-6 w-px bg-ui-border-subtle/80"></div>
+                                  <div className="flex flex-col items-center w-6">
+                                    <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{mins.toString().padStart(2, '0')}</span>
+                                    <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Min</span>
+                                  </div>
+                                  <div className="h-6 w-px bg-ui-border-subtle/80"></div>
+                                  <div className="flex flex-col items-center w-6">
+                                    <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{secs.toString().padStart(2, '0')}</span>
+                                    <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Sec</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Border and Action Buttons */}
-                    <div className="flex items-center justify-between pt-4 border-t border-ui-border-subtle">
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-ui-border-subtle">
                       <StudioActionButton
                         onClick={(e) => {
                           e.stopPropagation();
@@ -845,13 +971,13 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                           setShowOrderDetailsModal(true);
                         }}
                         variant="secondary"
-                        size="sm"
-                        className="text-[10px] px-3 py-1.5 text-ui-secondary hover:text-ui-primary"
-                        leftIcon={<Info size={12} />}
+                        size="lg"
+                        className="orders-secondary-hover h-[45px] px-5 text-sm text-ui-secondary hover:text-ui-primary"
+                        leftIcon={<Info size={14} />}
                       >
                         Details
                       </StudioActionButton>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-end gap-3">
                         {order.state === 1 ? (
                           <>
                             {isInDisputeWindow(order) ? (
@@ -861,9 +987,9 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                                     e.stopPropagation();
                                     handleOpenDispute(order.orderId);
                                   }}
-                                  size="sm"
-                                  className="bg-orange-500 text-black border-transparent text-[10px] px-3 py-1.5 hover:opacity-90"
-                                  leftIcon={<XCircle size={12} />}
+                                  size="lg"
+                                  className="orders-warning-hover h-[45px] bg-orange-500 text-black border-transparent text-sm px-5"
+                                  leftIcon={<XCircle size={14} />}
                                 >
                                   Open Dispute
                                 </StudioActionButton>
@@ -873,26 +999,26 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                                     handleConfirmDelivery(order.orderId);
                                   }}
                                   variant="primary"
-                                  size="sm"
-                                  className="text-[10px] px-4 py-1.5 hover:opacity-90"
-                                  leftIcon={<Check size={12} />}
+                                  size="lg"
+                                  className="orders-primary-hover h-[45px] text-sm px-5"
+                                  leftIcon={<Check size={14} />}
                                 >
                                   Confirm Delivery
                                 </StudioActionButton>
                               </>
                             ) : (
                               <StudioActionButton
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleConfirmRelease(order.orderId);
-                                }}
-                                variant="primary"
-                                size="sm"
-                                className="text-[10px] px-4 py-1.5 hover:opacity-90"
-                                leftIcon={<Check size={12} />}
-                              >
-                                Confirm Release
-                              </StudioActionButton>
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleConfirmRelease(order.orderId);
+                                  }}
+                                  variant="primary"
+                                  size="lg"
+                                  className="orders-primary-hover h-[45px] text-sm px-5"
+                                  leftIcon={<Check size={14} />}
+                                >
+                                  Confirm Release
+                                </StudioActionButton>
                             )}
                           </>
                         ) : order.state === 0 ? (
@@ -905,9 +1031,9 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                                     handleSellerRejectOrder(order.orderId);
                                   }}
                                   variant="secondary"
-                                  size="sm"
-                                  className="text-[10px] px-3 py-1.5 text-ui-secondary"
-                                  leftIcon={<XCircle size={12} />}
+                                  size="lg"
+                                  className="orders-secondary-hover h-[45px] px-5 text-sm text-ui-secondary"
+                                  leftIcon={<XCircle size={14} />}
                                 >
                                   Reject
                                 </StudioActionButton>
@@ -917,9 +1043,9 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                                     handleSellerConfirm(order.orderId);
                                   }}
                                   variant="primary"
-                                  size="sm"
-                                  className="text-[10px] px-4 py-1.5 hover:opacity-90"
-                                  leftIcon={<Check size={12} />}
+                                  size="lg"
+                                  className="orders-primary-hover h-[45px] text-sm px-5"
+                                  leftIcon={<Check size={14} />}
                                 >
                                   Seller Confirm
                                 </StudioActionButton>
@@ -932,9 +1058,9 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                                     handleBuyerCancelOrder(order.orderId);
                                   }}
                                   variant="secondary"
-                                  size="sm"
-                                  className="text-[10px] px-3 py-1.5 text-ui-secondary"
-                                  leftIcon={<XCircle size={12} />}
+                                  size="lg"
+                                  className="orders-secondary-hover h-[45px] px-5 text-sm text-ui-secondary"
+                                  leftIcon={<XCircle size={14} />}
                                 >
                                   Cancel Order
                                 </StudioActionButton>
@@ -944,9 +1070,9 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                                     handleBuyerConfirmOrder(order.orderId);
                                   }}
                                   variant="primary"
-                                  size="sm"
-                                  className="text-[10px] px-4 py-1.5 hover:opacity-90"
-                                  leftIcon={<Check size={12} />}
+                                  size="lg"
+                                  className="orders-primary-hover h-[45px] text-sm px-5"
+                                  leftIcon={<Check size={14} />}
                                 >
                                   Confirm Order
                                 </StudioActionButton>
@@ -959,9 +1085,9 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                               e.stopPropagation();
                               handleDisputeResolution(order.orderId);
                             }}
-                            size="sm"
-                            className="bg-orange-500 text-black border-transparent text-[10px] px-4 py-1.5 hover:opacity-90"
-                            leftIcon={<Timer size={12} />}
+                            size="lg"
+                            className="orders-warning-hover h-[45px] bg-orange-500 text-black border-transparent text-sm px-5"
+                            leftIcon={<Timer size={14} />}
                           >
                             View Dispute
                           </StudioActionButton>
@@ -1153,7 +1279,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
       {/* Duration Picker Modal */}
       {showDurationPicker && (
         <DurationPicker
-          defaultDays={Number(mockOrders.find(o => o.orderId === confirmingOrderId)?.estDeliverySeconds || BigInt(7 * 24 * 3600)) / (24 * 3600)}
+          defaultDays={Number(resolveOrderById(confirmingOrderId)?.estDeliverySeconds || BigInt(7 * 24 * 3600)) / (24 * 3600)}
           onConfirm={handleDurationConfirm}
           onCancel={handleDurationCancel}
         />

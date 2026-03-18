@@ -24,7 +24,7 @@ import {
   X
 } from 'lucide-react';
 import { EditProfileModal } from './edit-profile-modal';
-import { loadFavorites, toggleFavorite } from '@/utils/favoritesUtils';
+import { toggleFavorite } from '@/utils/favoritesUtils';
 import {
   createNotification,
   loadNotificationsLocalOnly,
@@ -41,17 +41,24 @@ import {
   loadUserActivities,
   followUser,
   unfollowUser,
-  isFollowing as isFollowingUser
+  isFollowing as isFollowingUser,
+  forceHydrateProfileFromSupabase
 } from '@/utils/profileUtils';
-import { generateMockAsset } from '@/utils/mockAssetData';
-import { getMarketplaceAssetById } from '@/utils/mockMarketplaceData';
+import { loadFavoriteMarketplaceAssets } from '@/utils/favoriteMarketplaceUtils';
 import { ASSET_METADATA_CHANGED_EVENT } from '@/utils/assetMetadataSync';
 import { sendCommunityNotificationViaBridge } from '@/utils/supabaseAuthClaimBridge';
 import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
 import { getAvatarByUserId } from '@/app/components/user-avatars';
 import { SearchResultCard } from '@/app/components/search-result-card';
+import { CollectionCard } from '@/app/components/collection-card';
+import { CollectionEditorModal } from '@/app/components/collections/collection-editor-modal';
+import { CollectionDetailsModal } from '@/app/components/collections/collection-details-modal';
+import { CollectionsGridPanel } from '@/app/components/collections/collections-grid-panel';
+import { ProfileFollowButton } from '@/app/components/profile/profile-follow-button';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
+import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { VerifiedUserIcon } from '@/app/components/verified-user-icon';
+import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import {
   getWalletIdentity,
   formatETH,
@@ -62,9 +69,25 @@ import {
   getTrustBarWidth
 } from '@/utils/walletIdentityStore';
 import type { WalletIdentity } from '@/types/wallet-identity';
-import type { UserProfile, ProfileTab, ActivityItem } from '@/types/profile';
-import type { AssetDetails } from '@/types/asset';
+import type {
+  UserProfile,
+  ProfileTab,
+  ActivityItem,
+  StoryBlock,
+  StorySettings,
+  UserStoryDocument,
+} from '@/types/profile';
 import type { MarketplaceAsset } from '@/app/types/asset';
+import type { CollectionSummary } from '@/types/collection';
+import {
+  COLLECTIONS_SYNC_EVENT,
+  createCollection,
+  loadCollectionsByOwner,
+  loadFavoriteCollectionSummaries,
+  queueCollectionsBackfillForWallet,
+  toggleCollectionFavorite,
+  updateCollection,
+} from '@/utils/collectionsUtils';
 
 // Mock data for reviews fallback only
 const mockReviews = [
@@ -83,20 +106,9 @@ const activityTypeConfig: Record<string, { label: string; color: string }> = {
   offer: { label: 'Offer Made', color: 'bg-pink-500' },
 };
 
-type StoryBlock = {
-  id: string;
-  type: 'heading' | 'paragraph' | 'image';
-  content: string;
-};
-
-type StorySettingsState = {
-  category: string;
-  tags: string;
-};
-
 const STORY_CHARACTER_LIMIT = 5000;
 const STORY_IMAGE_LIMIT = 5;
-const DEFAULT_STORY_SETTINGS: StorySettingsState = {
+const DEFAULT_STORY_SETTINGS: StorySettings = {
   category: 'Institutional',
   tags: 'rwa, logistics, yield',
 };
@@ -107,6 +119,27 @@ function countStoryCharacters(blocks: StoryBlock[]): number {
 
 function countStoryImages(blocks: StoryBlock[]): number {
   return blocks.reduce((total, block) => total + (block.type === 'image' ? 1 : 0), 0);
+}
+
+function cloneStoryBlocks(blocks: StoryBlock[]): StoryBlock[] {
+  return blocks.map((block) => ({ ...block }));
+}
+
+function createStoryDocument(
+  currentProfile: UserProfile,
+  nextDraftBlocks: StoryBlock[],
+  nextDraftSettings: StorySettings,
+  overrides?: Partial<UserStoryDocument>
+): UserStoryDocument {
+  return {
+    draftBlocks: cloneStoryBlocks(nextDraftBlocks),
+    draftSettings: { ...nextDraftSettings },
+    publishedBlocks: cloneStoryBlocks(currentProfile.story?.publishedBlocks || []),
+    publishedSettings: { ...(currentProfile.story?.publishedSettings || DEFAULT_STORY_SETTINGS) },
+    updatedAt: Date.now(),
+    publishedAt: currentProfile.story?.publishedAt,
+    ...overrides,
+  };
 }
 
 function formatActivityTime(timestamp: number): string {
@@ -124,86 +157,33 @@ interface EnhancedProfileProps {
   onNavigateToMessages?: (walletAddress: string) => void;
 }
 
-function favoriteAssetToMarketplaceAsset(asset: AssetDetails): MarketplaceAsset {
-  const now = Date.now();
-  const rawChain = String(asset.blockchain || 'BSC');
-  const blockchain: MarketplaceAsset['blockchain'] = (
-    ['Ethereum', 'Polygon', 'Arbitrum', 'Base', 'BSC'].includes(rawChain) ? rawChain : 'BSC'
-  ) as MarketplaceAsset['blockchain'];
-
-  return {
-    id: String(asset.id),
-    tokenId: String(asset.tokenId || asset.id),
-    contractAddress: asset.contractAddress || '0x0000000000000000000000000000000000000000',
-    name: asset.name || 'Unnamed Asset',
-    category: asset.category || 'Marketplace',
-    description: asset.description,
-    image: asset.image || 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=800',
-    seller: {
-      address: asset.seller?.address || asset.currentOwner || '0x0000000000000000000000000000000000000000',
-      verified: Boolean(asset.seller?.name) || Boolean(asset.verified),
-    },
-    price: asset.currentPrice || '0 ETH',
-    priceUSD: asset.currentPriceUsd || undefined,
-    currency: 'ETH',
-    listedAt: asset.lastSale || asset.mintDate || now,
-    listingDuration: 'No expiry',
-    views: Number(asset.views || 0),
-    likes: Number(asset.favorites || 0),
-    verified: Boolean(asset.verified),
-    blockchain,
-    network: 'testnet',
-    createdAt: asset.mintDate || now,
-    updatedAt: now,
-  };
-}
-
 export function EnhancedProfile({
   address,
   onNavigateToAsset,
   onNavigateToMessages,
 }: EnhancedProfileProps) {
+  const { requireWalletActionAsync } = useRequireWalletAction();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [favoriteAssets, setFavoriteAssets] = useState<AssetDetails[]>([]);
+  const [favoriteAssets, setFavoriteAssets] = useState<MarketplaceAsset[]>([]);
+  const [favoriteCollections, setFavoriteCollections] = useState<CollectionSummary[]>([]);
+  const [ownedCollections, setOwnedCollections] = useState<CollectionSummary[]>([]);
+  const [favoritesViewMode, setFavoritesViewMode] = useState<'assets' | 'collections'>('assets');
   const [walletIdentity, setWalletIdentity] = useState<WalletIdentity | null>(null);
   const [realActivities, setRealActivities] = useState<ActivityItem[]>([]);
   const [isFollowingProfile, setIsFollowingProfile] = useState(false);
-  const [storyBlocks, setStoryBlocks] = useState<StoryBlock[]>([
-    {
-      id: 'story-heading-intro',
-      type: 'heading',
-      content: 'Introduction to the Asset',
-    },
-    {
-      id: 'story-paragraph-intro',
-      type: 'paragraph',
-      content:
-        'The evolving landscape of Real World Assets (RWA) is creating unprecedented opportunities for retail and institutional sellers alike. This storefront collection focuses on high-yield industrial logistics centers in emerging tech hubs.',
-    },
-    {
-      id: 'story-image-main',
-      type: 'image',
-      content: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=1600',
-    },
-    {
-      id: 'story-heading-market',
-      type: 'heading',
-      content: 'Market Dynamics',
-    },
-    {
-      id: 'story-paragraph-market',
-      type: 'paragraph',
-      content:
-        'By leveraging tokenized ownership, we can now provide liquidity in markets that were previously locked behind massive capital requirements. This entry details the methodology for asset selection and risk mitigation in volatile cycles.',
-    },
-  ]);
+  const [isCollectionEditorOpen, setIsCollectionEditorOpen] = useState(false);
+  const [collectionEditorMode, setCollectionEditorMode] = useState<'create' | 'edit'>('create');
+  const [selectedOwnedCollection, setSelectedOwnedCollection] = useState<CollectionSummary | null>(null);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
+  const [storyDraftBlocks, setStoryDraftBlocks] = useState<StoryBlock[]>([]);
+  const [savedStoryDraftBlocks, setSavedStoryDraftBlocks] = useState<StoryBlock[]>([]);
   const [pendingStoryImageIndex, setPendingStoryImageIndex] = useState<number | null>(null);
   const storyImageInputRef = useRef<HTMLInputElement>(null);
-  const [storySettings, setStorySettings] = useState<StorySettingsState>(DEFAULT_STORY_SETTINGS);
-  const [storyDraftSettings, setStoryDraftSettings] = useState<StorySettingsState>(DEFAULT_STORY_SETTINGS);
-  const [isStorySettingsEditing, setIsStorySettingsEditing] = useState(false);
+  const [storyDraftSettings, setStoryDraftSettings] = useState<StorySettings>(DEFAULT_STORY_SETTINGS);
+  const [savedStoryDraftSettings, setSavedStoryDraftSettings] = useState<StorySettings>(DEFAULT_STORY_SETTINGS);
   const { updateAvatar, updateBanner, updateUserData, userData } = useUser();
   const { address: connectedAddress } = useAccount();
 
@@ -249,6 +229,10 @@ export function EnhancedProfile({
 
     setProfile(userProfile);
 
+    if (!isOwnProfile) {
+      void forceHydrateProfileFromSupabase(profileAddress);
+    }
+
     // ✅ WALLET IDENTITY: Compute unified wallet data
     const identity = getWalletIdentity(profileAddress);
     setWalletIdentity(identity);
@@ -280,42 +264,55 @@ export function EnhancedProfile({
   // Load favorites when tab changes or component mounts
   useEffect(() => {
     loadFavoritesData();
+    loadFavoriteCollectionsData();
+    loadOwnedCollectionsData();
   }, [address, activeTab, connectedAddress]);
 
   const loadFavoritesData = () => {
-    // ✅ PHASE 1: Use address prop (seller/profile being viewed), NOT connectedAddress!
-    const userAddress = address; // Always use the profile address being viewed
+    const userAddress = profileAddress;
     if (!userAddress) {
       setFavoriteAssets([]);
       return;
     }
 
     try {
-      const favorites = loadFavorites(userAddress);
-      const assets = favorites
-        .filter((fav: any) => typeof fav?.assetId === 'string' && fav.assetId.trim().length > 0)
-        .map((fav: any) => {
-          try {
-            return generateMockAsset(fav.assetId);
-          } catch (error) {
-            console.warn('[EnhancedProfile] Invalid legacy favorite asset, using safe fallback:', fav, error);
-            const now = Date.now();
-            return {
-              id: fav.assetId,
-              tokenId: fav.assetId,
-              name: `Asset ${String(fav.assetId).slice(0, 8)}`,
-              category: 'Marketplace',
-              image: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=800',
-              currentPrice: '0 ETH',
-              verified: false,
-              lastSale: now,
-            } as any;
-          }
-        });
-      setFavoriteAssets(assets);
+      setFavoriteAssets(loadFavoriteMarketplaceAssets(userAddress));
     } catch (error) {
       console.error('[EnhancedProfile] Failed to load favorites:', error);
       setFavoriteAssets([]);
+    }
+  };
+
+  const loadFavoriteCollectionsData = () => {
+    const userAddress = profileAddress;
+    if (!userAddress) {
+      setFavoriteCollections([]);
+      return;
+    }
+
+    try {
+      setFavoriteCollections(loadFavoriteCollectionSummaries(userAddress));
+    } catch (error) {
+      console.error('[EnhancedProfile] Failed to load favorite collections:', error);
+      setFavoriteCollections([]);
+    }
+  };
+
+  const loadOwnedCollectionsData = () => {
+    const userAddress = profileAddress;
+    if (!userAddress) {
+      setOwnedCollections([]);
+      return;
+    }
+
+    try {
+      if (isOwnProfile) {
+        queueCollectionsBackfillForWallet(userAddress);
+      }
+      setOwnedCollections(loadCollectionsByOwner(userAddress));
+    } catch (error) {
+      console.error('[EnhancedProfile] Failed to load owned collections:', error);
+      setOwnedCollections([]);
     }
   };
 
@@ -327,20 +324,59 @@ export function EnhancedProfile({
       if (nextProfile) setProfile(nextProfile);
       setRealActivities(loadUserActivities(profileAddress));
     };
+    const refreshViewerProfileFromRemote = () => {
+      if (!isOwnProfile) {
+        void forceHydrateProfileFromSupabase(profileAddress);
+      }
+    };
 
     const refreshFavorites = () => loadFavoritesData();
+    const refreshCollections = () => {
+      loadFavoriteCollectionsData();
+      loadOwnedCollectionsData();
+    };
 
     window.addEventListener('orina:profile-changed', refreshProfile as EventListener);
     window.addEventListener('orina:favorites-changed', refreshFavorites as EventListener);
+    window.addEventListener(COLLECTIONS_SYNC_EVENT, refreshCollections as EventListener);
     window.addEventListener(ASSET_METADATA_CHANGED_EVENT, refreshFavorites as EventListener);
     window.addEventListener('storage', refreshFavorites as EventListener);
+    window.addEventListener('focus', refreshViewerProfileFromRemote as EventListener);
     return () => {
       window.removeEventListener('orina:profile-changed', refreshProfile as EventListener);
       window.removeEventListener('orina:favorites-changed', refreshFavorites as EventListener);
+      window.removeEventListener(COLLECTIONS_SYNC_EVENT, refreshCollections as EventListener);
       window.removeEventListener(ASSET_METADATA_CHANGED_EVENT, refreshFavorites as EventListener);
       window.removeEventListener('storage', refreshFavorites as EventListener);
+      window.removeEventListener('focus', refreshViewerProfileFromRemote as EventListener);
     };
   }, [profileAddress, address, connectedAddress, isOwnProfile]);
+
+  const storyHasUnsavedChanges =
+    JSON.stringify(storyDraftBlocks) !== JSON.stringify(savedStoryDraftBlocks) ||
+    JSON.stringify(storyDraftSettings) !== JSON.stringify(savedStoryDraftSettings);
+
+  useEffect(() => {
+    if (!profile) return;
+
+    const nextDraftBlocks = cloneStoryBlocks(profile.story?.draftBlocks || []);
+    const nextDraftSettings = { ...(profile.story?.draftSettings || DEFAULT_STORY_SETTINGS) };
+
+    if (!isOwnProfile) {
+      setStoryDraftBlocks(nextDraftBlocks);
+      setSavedStoryDraftBlocks(nextDraftBlocks);
+      setStoryDraftSettings(nextDraftSettings);
+      setSavedStoryDraftSettings(nextDraftSettings);
+      return;
+    }
+
+    if (!storyHasUnsavedChanges || savedStoryDraftBlocks.length === 0) {
+      setStoryDraftBlocks(nextDraftBlocks);
+      setSavedStoryDraftBlocks(nextDraftBlocks);
+      setStoryDraftSettings(nextDraftSettings);
+      setSavedStoryDraftSettings(nextDraftSettings);
+    }
+  }, [profile, isOwnProfile]);
 
   const handleToggleFavorite = (assetId: string) => {
     // ✅ PHASE 1: Use address prop (profile being viewed) for viewing favorites
@@ -354,6 +390,72 @@ export function EnhancedProfile({
     toggleFavorite(userAddress, assetId);
     loadFavoritesData();
     toast.success('Removed from favorites');
+  };
+
+  const handleToggleFavoriteCollection = (collectionId: string) => {
+    const userAddress = connectedAddress;
+    if (!userAddress) {
+      toast.error('Please connect your wallet to manage favorite collections');
+      return;
+    }
+
+    const isFav = toggleCollectionFavorite(userAddress, collectionId);
+    loadFavoriteCollectionsData();
+    toast.success(isFav ? 'Added collection to favorites' : 'Removed collection from favorites');
+  };
+
+  const handleCollectionCardClick = (collectionId: string) => {
+    setSelectedCollectionId(collectionId);
+    setIsCollectionModalOpen(true);
+  };
+
+  const handleOpenCreateCollection = () => {
+    setCollectionEditorMode('create');
+    setSelectedOwnedCollection(null);
+    setIsCollectionEditorOpen(true);
+  };
+
+  const handleOpenEditCollection = (collectionId: string) => {
+    const nextCollection = ownedCollections.find((item) => item.id === collectionId) || null;
+    if (!nextCollection) {
+      toast.error('Collection not found');
+      return;
+    }
+    setCollectionEditorMode('edit');
+    setSelectedOwnedCollection(nextCollection);
+    setIsCollectionEditorOpen(true);
+  };
+
+  const handleSaveCollection = async (draft: {
+    name: string;
+    category: string;
+    bio: string;
+    tags: string[];
+    coverImage: string;
+    itemIds: string[];
+  }) => {
+    if (!profileAddress || !isOwnProfile) return;
+
+    const allowed = await requireWalletActionAsync({
+      capability: 'protocol_asset_write',
+      actionLabel: collectionEditorMode === 'create' ? 'create a collection' : 'edit this collection',
+      fallbackPage: 'profile',
+    });
+    if (!allowed) return;
+
+    if (collectionEditorMode === 'create') {
+      const created = createCollection(profileAddress, draft);
+      setSelectedOwnedCollection(created);
+      toast.success(`Created collection "${created.name}"`);
+    } else if (selectedOwnedCollection) {
+      const updated = updateCollection(profileAddress, selectedOwnedCollection.id, draft);
+      if (updated) {
+        setSelectedOwnedCollection(updated);
+        toast.success(`Updated collection "${updated.name}"`);
+      }
+    }
+
+    setIsCollectionEditorOpen(false);
   };
 
   const handleToggleFollowProfile = () => {
@@ -439,7 +541,7 @@ export function EnhancedProfile({
   const updateStoryBlock = (id: string, nextContent: string) => {
     if (!isOwnProfile) return;
 
-    setStoryBlocks((prev) => {
+    setStoryDraftBlocks((prev) => {
       const targetBlock = prev.find((block) => block.id === id);
       if (!targetBlock) return prev;
       if (targetBlock.type === 'image') {
@@ -454,10 +556,10 @@ export function EnhancedProfile({
     });
   };
 
-  const addStoryBlock = (type: StoryBlock['type'], atIndex = storyBlocks.length) => {
+  const addStoryBlock = (type: StoryBlock['type'], atIndex = storyDraftBlocks.length) => {
     if (!isOwnProfile) return;
 
-    setStoryBlocks((prev) => {
+    setStoryDraftBlocks((prev) => {
       const next = [...prev];
       next.splice(atIndex, 0, createStoryBlock(type));
       return next;
@@ -467,13 +569,13 @@ export function EnhancedProfile({
   const removeStoryBlock = (id: string) => {
     if (!isOwnProfile) return;
 
-    setStoryBlocks((prev) => prev.filter((block) => block.id !== id));
+    setStoryDraftBlocks((prev) => prev.filter((block) => block.id !== id));
   };
 
   const requestStoryImageInsert = (atIndex: number) => {
     if (!isOwnProfile) return;
 
-    if (countStoryImages(storyBlocks) >= STORY_IMAGE_LIMIT) {
+    if (countStoryImages(storyDraftBlocks) >= STORY_IMAGE_LIMIT) {
       toast.error(`Maximum ${STORY_IMAGE_LIMIT} images per article`);
       return;
     }
@@ -496,14 +598,14 @@ export function EnhancedProfile({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (countStoryImages(storyBlocks) >= STORY_IMAGE_LIMIT) {
+    if (countStoryImages(storyDraftBlocks) >= STORY_IMAGE_LIMIT) {
       toast.error(`Maximum ${STORY_IMAGE_LIMIT} images per article`);
       event.target.value = '';
       return;
     }
 
     const imageUrl = URL.createObjectURL(file);
-    setStoryBlocks((prev) => {
+    setStoryDraftBlocks((prev) => {
       const next = [...prev];
       const insertAt = pendingStoryImageIndex ?? next.length;
       next.splice(insertAt, 0, createStoryBlock('image', imageUrl));
@@ -514,23 +616,61 @@ export function EnhancedProfile({
     event.target.value = '';
   };
 
-  const handleStorySettingsAction = () => {
+  const persistStoryDocument = (nextStory: UserStoryDocument, successMessage: string) => {
+    if (!profile || !profileAddress || !isOwnProfile) return;
+
+    const updatedProfile: UserProfile = {
+      ...profile,
+      story: nextStory,
+    };
+
+    setProfile(updatedProfile);
+    saveUserProfile(updatedProfile);
+    setSavedStoryDraftBlocks(cloneStoryBlocks(nextStory.draftBlocks));
+    setSavedStoryDraftSettings({ ...nextStory.draftSettings });
+    setStoryDraftBlocks(cloneStoryBlocks(nextStory.draftBlocks));
+    setStoryDraftSettings({ ...nextStory.draftSettings });
+    toast.success(successMessage);
+  };
+
+  const handleSaveStoryDraft = () => {
+    if (!profile || !isOwnProfile) return;
+
+    const normalizedSettings: StorySettings = {
+      category: (storyDraftSettings.category || DEFAULT_STORY_SETTINGS.category).trim() || DEFAULT_STORY_SETTINGS.category,
+      tags: (storyDraftSettings.tags || '').trim(),
+    };
+
+    persistStoryDocument(
+      createStoryDocument(profile, storyDraftBlocks, normalizedSettings),
+      'Story draft saved'
+    );
+  };
+
+  const handlePublishStory = () => {
+    if (!profile || !isOwnProfile) return;
+
+    const normalizedSettings: StorySettings = {
+      category: (storyDraftSettings.category || DEFAULT_STORY_SETTINGS.category).trim() || DEFAULT_STORY_SETTINGS.category,
+      tags: (storyDraftSettings.tags || '').trim(),
+    };
+
+    persistStoryDocument(
+      createStoryDocument(profile, storyDraftBlocks, normalizedSettings, {
+        publishedBlocks: cloneStoryBlocks(storyDraftBlocks),
+        publishedSettings: { ...normalizedSettings },
+        publishedAt: Date.now(),
+      }),
+      'Story published'
+    );
+  };
+
+  const handleDiscardStoryChanges = () => {
     if (!isOwnProfile) return;
 
-    if (isStorySettingsEditing) {
-      const normalized: StorySettingsState = {
-        category: (storyDraftSettings.category || 'Institutional').trim(),
-        tags: (storyDraftSettings.tags || '').trim(),
-      };
-      setStorySettings(normalized);
-      setStoryDraftSettings(normalized);
-      setIsStorySettingsEditing(false);
-      toast.success('Story settings saved');
-      return;
-    }
-
-    setStoryDraftSettings(storySettings);
-    setIsStorySettingsEditing(true);
+    setStoryDraftBlocks(cloneStoryBlocks(savedStoryDraftBlocks));
+    setStoryDraftSettings({ ...savedStoryDraftSettings });
+    toast.success('Story changes discarded');
   };
 
   const handleSaveProfile = (updates: Partial<UserProfile>) => {
@@ -582,11 +722,13 @@ export function EnhancedProfile({
   const tabs = [
     { id: 'overview' as ProfileTab, label: 'Overview', icon: Grid3x3 },
     { id: 'story' as ProfileTab, label: 'Story', icon: Gem },
-    { id: 'activity' as ProfileTab, label: 'Activity', icon: ActivityIcon },
+    { id: 'activity' as ProfileTab, label: isOwnProfile ? 'My Collections' : 'Collections', icon: ActivityIcon },
     { id: 'favorites' as ProfileTab, label: 'Favorites', icon: Heart },
   ];
-  const storyCharacterCount = countStoryCharacters(storyBlocks);
-  const storyImageCount = countStoryImages(storyBlocks);
+  const publishedStoryBlocks = profile.story?.publishedBlocks || [];
+  const displayedStoryBlocks = isOwnProfile ? storyDraftBlocks : publishedStoryBlocks;
+  const storyCharacterCount = countStoryCharacters(displayedStoryBlocks);
+  const storyImageCount = countStoryImages(displayedStoryBlocks);
 
   return (
     <section className="h-full bg-ui-page overflow-hidden relative">
@@ -707,12 +849,13 @@ export function EnhancedProfile({
               </>
             ) : (
               <>
-                <button
+                <ProfileFollowButton
+                  following={isFollowingProfile}
                   onClick={handleToggleFollowProfile}
-                  className={`px-6 py-2 font-bold text-xs rounded-lg transition-colors shadow-lg ${isFollowingProfile ? 'bg-zinc-900 border border-[var(--color-primary-custom)]/40 text-primary hover:bg-zinc-800' : 'bg-[var(--color-primary-custom)] text-black hover:bg-[var(--color-primary-custom)]/90'}`}
+                  className="shadow-[0_16px_32px_-22px_rgba(0,0,0,0.9)]"
                 >
                   {isFollowingProfile ? 'Following' : 'Follow'}
-                </button>
+                </ProfileFollowButton>
                 <button
                   onClick={handleOpenMessage}
                   className="p-2 bg-black/60 border border-[var(--color-panel-border)] rounded-lg text-white hover:bg-zinc-800 transition-colors backdrop-blur-md shadow-lg"
@@ -977,71 +1120,81 @@ export function EnhancedProfile({
                   {storyCharacterCount}/{STORY_CHARACTER_LIMIT} chars • {storyImageCount}/{STORY_IMAGE_LIMIT} images
                 </div>
               )}
-              <div className="space-y-3">
-                {storyBlocks.map((block, index) => (
-                  <div key={block.id} className="relative">
-                    {isOwnProfile && (
-                      <button
-                        onClick={() => removeStoryBlock(block.id)}
-                        className="absolute right-1 top-1 z-20 flex h-6 w-6 items-center justify-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] text-ui-secondary transition-colors hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
-                        title="Remove block"
-                      >
-                        <X size={15} />
-                      </button>
-                    )}
-
-                    {block.type === 'heading' && (
-                      <input
-                        value={block.content}
-                        onChange={(e) => updateStoryBlock(block.id, e.target.value)}
-                        readOnly={!isOwnProfile}
-                        className={`block w-full appearance-none rounded-[12px] border border-transparent bg-transparent px-3 py-1.5 text-2xl font-semibold text-ui-primary outline-none placeholder:text-ui-muted transition-colors ${
-                          isOwnProfile ? 'pr-10 focus:border-primary focus:ring-primary/35 focus:outline-none' : 'pr-3'
-                        }`}
-                        placeholder="Heading"
-                      />
-                    )}
-
-                    {block.type === 'paragraph' && (
-                      <textarea
-                        value={block.content}
-                        onChange={(e) => updateStoryBlock(block.id, e.target.value)}
-                        onInput={(e) => autoResizeTextarea(e.currentTarget)}
-                        ref={autoResizeTextarea}
-                        readOnly={!isOwnProfile}
-                        className={`block w-full appearance-none resize-none overflow-hidden rounded-[12px] border border-transparent bg-transparent px-3 py-1.5 text-lg leading-[1.6] text-ui-secondary outline-none placeholder:text-ui-muted transition-colors ${
-                          isOwnProfile ? 'pr-10 focus:border-primary focus:ring-primary/35 focus:outline-none' : 'pr-3'
-                        }`}
-                        rows={1}
-                        placeholder="Write your story..."
-                      />
-                    )}
-
-                    {block.type === 'image' && (
-                      <div className="rounded-[24px] overflow-hidden">
-                        <ImageWithFallback
-                          src={block.content}
-                          alt="Story Asset"
-                          className="w-full h-[320px] object-cover opacity-85"
-                          loading="lazy"
-                        />
-                      </div>
-                    )}
-
-                    <div className="group relative flex h-14 items-center justify-center">
+              {displayedStoryBlocks.length === 0 ? (
+                <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-6 py-10 text-center text-sm text-ui-secondary">
+                  {isOwnProfile ? 'Start building your story draft.' : 'No story published yet.'}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {displayedStoryBlocks.map((block, index) => (
+                    <div key={block.id} className="relative">
                       {isOwnProfile && (
                         <button
-                          onClick={() => requestStoryImageInsert(index + 1)}
-                          className="absolute flex h-12 w-12 items-center justify-center rounded-full bg-ui-input text-ui-secondary opacity-0 shadow-[0_10px_24px_-16px_rgba(0,0,0,0.45)] transition-opacity group-hover:opacity-100 hover:text-ui-primary"
-                          title="Insert image"
+                          onClick={() => removeStoryBlock(block.id)}
+                          className="absolute right-1 top-1 z-20 flex h-6 w-6 items-center justify-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] text-ui-secondary transition-colors hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
+                          title="Remove block"
                         >
-                          <ImagePlus size={24} className="mx-auto" />
+                          <X size={15} />
                         </button>
                       )}
+
+                      {block.type === 'heading' &&
+                        (isOwnProfile ? (
+                          <input
+                            value={block.content}
+                            onChange={(e) => updateStoryBlock(block.id, e.target.value)}
+                            className="block w-full appearance-none rounded-[12px] border border-transparent bg-transparent px-3 py-1.5 pr-10 text-2xl font-semibold text-ui-primary outline-none placeholder:text-ui-muted transition-colors focus:border-primary focus:ring-primary/35 focus:outline-none"
+                            placeholder="Heading"
+                          />
+                        ) : (
+                          <h3 className="px-3 py-1.5 text-2xl font-semibold leading-tight text-ui-primary whitespace-pre-wrap [overflow-wrap:anywhere]">
+                            {block.content}
+                          </h3>
+                        ))}
+
+                      {block.type === 'paragraph' &&
+                        (isOwnProfile ? (
+                          <textarea
+                            value={block.content}
+                            onChange={(e) => updateStoryBlock(block.id, e.target.value)}
+                            onInput={(e) => autoResizeTextarea(e.currentTarget)}
+                            ref={autoResizeTextarea}
+                            className="block w-full appearance-none resize-none overflow-hidden rounded-[12px] border border-transparent bg-transparent px-3 py-1.5 pr-10 text-lg leading-[1.6] text-ui-secondary outline-none placeholder:text-ui-muted transition-colors focus:border-primary focus:ring-primary/35 focus:outline-none"
+                            rows={1}
+                            placeholder="Write your story..."
+                          />
+                        ) : (
+                          <p className="px-3 py-1.5 text-lg leading-[1.6] text-ui-secondary whitespace-pre-wrap [overflow-wrap:anywhere]">
+                            {block.content}
+                          </p>
+                        ))}
+
+                      {block.type === 'image' && (
+                        <div className="rounded-[24px] overflow-hidden">
+                          <ImageWithFallback
+                            src={block.content}
+                            alt="Story Asset"
+                            className="w-full h-[320px] object-cover opacity-85"
+                            loading="lazy"
+                          />
+                        </div>
+                      )}
+
+                      <div className="group relative flex h-14 items-center justify-center">
+                        {isOwnProfile && (
+                          <button
+                            onClick={() => requestStoryImageInsert(index + 1)}
+                            className="absolute flex h-12 w-12 items-center justify-center rounded-full bg-ui-input text-ui-secondary opacity-0 shadow-[0_10px_24px_-16px_rgba(0,0,0,0.45)] transition-opacity group-hover:opacity-100 hover:text-ui-primary"
+                            title="Insert image"
+                          >
+                            <ImagePlus size={24} className="mx-auto" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
               {isOwnProfile && (
                 <div className="sticky bottom-6 z-20 flex justify-center pt-8">
@@ -1061,7 +1214,7 @@ export function EnhancedProfile({
                       <AlignLeft size={22} />
                     </button>
                     <button
-                      onClick={() => requestStoryImageInsert(storyBlocks.length)}
+                      onClick={() => requestStoryImageInsert(storyDraftBlocks.length)}
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--t-surface-5)] text-ui-secondary transition-colors hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
                       title="Add image"
                     >
@@ -1084,111 +1237,104 @@ export function EnhancedProfile({
 
           {/* Activity Tab */}
           {activeTab === 'activity' && (
-            <div>
-              <h3 className="text-lg font-bold text-ui-primary mb-6">
-                All Activity
-                {realActivities.length > 0 && (
-                  <span className="text-ui-secondary text-sm font-normal ml-2">({realActivities.length})</span>
-                )}
-              </h3>
-              <div className="bg-[var(--t-surface-2)] border-0 rounded-2xl overflow-hidden">
-                {realActivities.length > 0 ? (
-                  <table className="w-full text-left">
-                    <thead className="border-b border-[var(--color-panel-border)] bg-[var(--t-surface-5)]">
-                      <tr className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">
-                        <th className="px-6 py-4">Transaction</th>
-                        <th className="px-6 py-4">Asset</th>
-                        <th className="px-6 py-4">Price</th>
-                        <th className="px-6 py-4">Status</th>
-                        <th className="px-6 py-4">Date</th>
-                        <th className="px-6 py-4 text-right">Link</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--color-panel-border)]">
-                      {realActivities.map((activity) => {
-                        const config = activityTypeConfig[activity.type] || { label: activity.type, color: 'bg-zinc-500' };
-                        return (
-                          <tr key={activity.id} className="hover:bg-[var(--t-surface-hover)] transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${config.color}`}></span>
-                                <span className="text-sm font-medium text-ui-primary">{config.label}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="text-sm text-ui-secondary font-mono">{activity.assetName}</span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="text-sm text-ui-primary font-bold">{activity.price ? `${activity.price} ETH` : '—'}</span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className={`text-xs font-bold px-2 py-0.5 rounded ${activity.status === 'completed' ? 'bg-[var(--color-primary-custom)]/10 text-primary' :
-                                  activity.status === 'pending' ? 'bg-yellow-500/10 text-yellow-400' :
-                                    'bg-red-500/10 text-red-400'
-                                }`}>
-                                {activity.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="text-xs text-ui-secondary">{formatActivityTime(activity.timestamp)}</span>
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              {activity.txHash ? (
-                                <a href={`https://etherscan.io/tx/${activity.txHash}`} target="_blank" rel="noopener noreferrer" className="text-primary text-xs font-bold flex items-center justify-end gap-1 hover:underline">
-                                  View TX <ExternalLink size={14} />
-                                </a>
-                              ) : (
-                                <span className="text-xs text-ui-muted">—</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="py-16 px-6 text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-[var(--t-surface-5)] border border-ui-border-subtle flex items-center justify-center mx-auto mb-5">
-                      <ActivityIcon size={28} className="text-ui-muted" />
-                    </div>
-                    <h4 className="text-2xl font-bold text-ui-primary mb-2">No activity yet</h4>
-                    <p className="text-sm text-ui-secondary max-w-sm mx-auto">
-                      Your transaction history will appear here once you start minting, buying, or selling assets.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
+            <CollectionsGridPanel
+              title={isOwnProfile ? 'My Collections' : 'Collections'}
+              subtitle={
+                isOwnProfile
+                  ? 'Create, edit, and curate collections tied to this wallet.'
+                  : 'Curated collections published by this wallet.'
+              }
+              collections={ownedCollections}
+              actionLabel={isOwnProfile ? 'Manage Collection' : 'View Collection'}
+              emptyTitle={isOwnProfile ? 'No collections yet' : 'No collections published'}
+              emptyDescription={
+                isOwnProfile
+                  ? 'Create your first collection to group owned or listed assets into a curated set.'
+                  : 'This profile has not published any collections yet.'
+              }
+              headerActions={
+                isOwnProfile ? (
+                  <StudioActionButton
+                    type="button"
+                    onClick={handleOpenCreateCollection}
+                    variant="primary"
+                    size="lg"
+                    className="text-sm font-bold tracking-tight shadow-lg shadow-[#2CC295]/20"
+                  >
+                    Create Collection
+                  </StudioActionButton>
+                ) : undefined
+              }
+              onCollectionClick={(collectionId) => {
+                handleCollectionCardClick(collectionId);
+              }}
+            />
           )}
 
           {/* Favorites Tab */}
           {activeTab === 'favorites' && (
             <div>
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between gap-4 mb-6">
                 <h3 className="text-lg font-bold text-ui-primary">
-                  Favorite Assets <span className="text-ui-secondary text-sm font-normal ml-2">({favoriteAssets.length} Items)</span>
+                  {favoritesViewMode === 'assets' ? 'Favorite Assets' : 'Favorite Collections'}
+                  <span className="text-ui-secondary text-sm font-normal ml-2">
+                    ({favoritesViewMode === 'assets' ? favoriteAssets.length : favoriteCollections.length} Items)
+                  </span>
                 </h3>
+                <StudioPillGroup compact>
+                  <StudioPillButton active={favoritesViewMode === 'assets'} onClick={() => setFavoritesViewMode('assets')}>
+                    Assets
+                  </StudioPillButton>
+                  <StudioPillButton active={favoritesViewMode === 'collections'} onClick={() => setFavoritesViewMode('collections')}>
+                    Collections
+                  </StudioPillButton>
+                </StudioPillGroup>
               </div>
-              {favoriteAssets.length === 0 ? (
+              {favoritesViewMode === 'assets' ? (
+                favoriteAssets.length === 0 ? (
+                  <div className="py-20 text-center">
+                    <div className="w-20 h-20 bg-[var(--t-surface-5)] rounded-full flex items-center justify-center mx-auto mb-6 border border-ui-border-subtle">
+                      <Heart size={40} className="text-ui-muted" />
+                    </div>
+                    <h3 className="text-xl font-bold text-ui-primary mb-2">No favorites yet</h3>
+                    <p className="text-sm text-ui-secondary">Start adding assets to your favorites</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {favoriteAssets.map((asset) => {
+                      return (
+                        <div key={asset.id} className="flex justify-start">
+                          <SearchResultCard
+                            asset={asset}
+                            viewMode="grid"
+                            isLiked={true}
+                            onLike={handleToggleFavorite}
+                            onClick={handleCardClick}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+              ) : favoriteCollections.length === 0 ? (
                 <div className="py-20 text-center">
                   <div className="w-20 h-20 bg-[var(--t-surface-5)] rounded-full flex items-center justify-center mx-auto mb-6 border border-ui-border-subtle">
                     <Heart size={40} className="text-ui-muted" />
                   </div>
-                  <h3 className="text-xl font-bold text-ui-primary mb-2">No favorites yet</h3>
-                  <p className="text-sm text-ui-secondary">Start adding assets to your favorites</p>
+                  <h3 className="text-xl font-bold text-ui-primary mb-2">No favorite collections yet</h3>
+                  <p className="text-sm text-ui-secondary">Start adding collections to your favorites from Marketplace or Search.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {favoriteAssets.map((asset) => {
-                    const marketplaceAsset = getMarketplaceAssetById(String(asset.id)) ?? favoriteAssetToMarketplaceAsset(asset);
+                  {favoriteCollections.map((collection) => {
                     return (
-                      <div key={asset.id} className="flex justify-start">
-                        <SearchResultCard
-                          asset={marketplaceAsset}
+                      <div key={collection.id} className="flex justify-start">
+                        <CollectionCard
+                          collection={collection}
                           viewMode="grid"
                           isLiked={true}
-                          onLike={handleToggleFavorite}
-                          onClick={handleCardClick}
+                          onLike={isOwnProfile ? handleToggleFavoriteCollection : undefined}
+                          onClick={handleCollectionCardClick}
                         />
                       </div>
                     );
@@ -1219,12 +1365,11 @@ export function EnhancedProfile({
                   <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ui-muted">Category</p>
                   <div className="relative">
                     <select
-                      value={isStorySettingsEditing ? storyDraftSettings.category : storySettings.category}
+                      value={storyDraftSettings.category}
                       onChange={(event) =>
                         setStoryDraftSettings((prev) => ({ ...prev, category: event.target.value }))
                       }
-                      disabled={!isStorySettingsEditing}
-                      className="w-full h-[42px] appearance-none rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-2)] px-4 pr-9 text-sm text-ui-primary focus:outline-none focus:border-primary focus:ring-primary/35 disabled:opacity-100 disabled:cursor-default"
+                      className="w-full h-[42px] appearance-none rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-2)] px-4 pr-9 text-sm text-ui-primary focus:outline-none focus:border-primary focus:ring-primary/35"
                     >
                       <option value="Institutional">Institutional</option>
                       <option value="Retail">Retail</option>
@@ -1238,27 +1383,36 @@ export function EnhancedProfile({
                   <div className="relative">
                     <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ui-muted">#</span>
                     <input
-                      value={isStorySettingsEditing ? storyDraftSettings.tags : storySettings.tags}
+                      value={storyDraftSettings.tags}
                       onChange={(event) =>
                         setStoryDraftSettings((prev) => ({ ...prev, tags: event.target.value }))
                       }
-                      disabled={!isStorySettingsEditing}
-                      className="w-full h-[42px] rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-2)] pl-8 pr-4 text-sm text-ui-primary focus:outline-none focus:border-primary focus:ring-primary/35 disabled:opacity-100 disabled:cursor-default"
+                      className="w-full h-[42px] rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-2)] pl-8 pr-4 text-sm text-ui-primary focus:outline-none focus:border-primary focus:ring-primary/35"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="pt-4">
+              <div className="grid grid-cols-3 gap-3 pt-4">
                 <button
-                  onClick={handleStorySettingsAction}
-                  className={`w-full h-[43px] rounded-full text-[11px] font-bold uppercase tracking-[0.05em] transition-colors ${
-                    isStorySettingsEditing
-                      ? 'border border-white bg-white text-black hover:bg-zinc-100'
-                      : 'border border-ui-border text-ui-secondary hover:text-ui-primary'
-                  }`}
+                  onClick={handleDiscardStoryChanges}
+                  disabled={!storyHasUnsavedChanges}
+                  className="h-[43px] rounded-full border border-ui-border text-[11px] font-bold uppercase tracking-[0.05em] text-ui-secondary transition-colors hover:text-ui-primary disabled:cursor-default disabled:opacity-50"
                 >
-                  {isStorySettingsEditing ? 'Save' : 'Edit'}
+                  Discard
+                </button>
+                <button
+                  onClick={handleSaveStoryDraft}
+                  className="h-[43px] rounded-full border border-ui-border text-[11px] font-bold uppercase tracking-[0.05em] text-ui-primary transition-colors hover:bg-[var(--t-surface-hover)]"
+                >
+                  Save Draft
+                </button>
+                <button
+                  onClick={handlePublishStory}
+                  disabled={storyDraftBlocks.length === 0}
+                  className="h-[43px] rounded-full border border-white bg-white text-[11px] font-bold uppercase tracking-[0.05em] text-black transition-colors hover:bg-zinc-100 disabled:cursor-default disabled:opacity-50"
+                >
+                  Publish
                 </button>
               </div>
             </div>
@@ -1523,6 +1677,26 @@ export function EnhancedProfile({
           onClose={() => setIsEditModalOpen(false)}
         />
       )}
+
+      <CollectionDetailsModal
+        isOpen={isCollectionModalOpen}
+        collectionId={selectedCollectionId}
+        onClose={() => {
+          setIsCollectionModalOpen(false);
+          setSelectedCollectionId(null);
+        }}
+      />
+
+      <CollectionEditorModal
+        isOpen={isCollectionEditorOpen}
+        mode={collectionEditorMode}
+        collection={selectedOwnedCollection}
+        onClose={() => {
+          setIsCollectionEditorOpen(false);
+          setSelectedOwnedCollection(null);
+        }}
+        onSubmit={handleSaveCollection}
+      />
     </section>
   );
 }

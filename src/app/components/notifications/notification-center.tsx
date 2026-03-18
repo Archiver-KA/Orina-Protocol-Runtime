@@ -133,17 +133,6 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-1">
-                      {/* Settings button */}
-                      <button
-                        onClick={() => setShowSettings(!showSettings)}
-                          className={`p-1.5 rounded-lg transition-colors ${
-                          showSettings ? 'bg-[rgba(255,255,255,0.08)] text-white' : 'hover:bg-[rgba(255,255,255,0.06)] text-zinc-400'
-                        }`}
-                        title="Settings"
-                      >
-                        <Settings size={16} />
-                      </button>
-
                       {/* Mark all as read */}
                       {unreadCount > 0 && (
                         <button
@@ -165,6 +154,17 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                           <Trash2 size={16} />
                         </button>
                       )}
+
+                      {/* Settings button */}
+                      <button
+                        onClick={() => setShowSettings(!showSettings)}
+                        className={`ml-1 p-1.5 rounded-lg transition-colors ${
+                          showSettings ? 'bg-[rgba(255,255,255,0.08)] text-white' : 'hover:bg-[rgba(255,255,255,0.06)] text-zinc-400'
+                        }`}
+                        title="Settings"
+                      >
+                        <Settings size={16} />
+                      </button>
                     </div>
                   </div>
 

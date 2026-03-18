@@ -7,7 +7,12 @@ import { useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { useUser } from '@/contexts/UserContext';
 import { getAvatarTypeForAddress, getDefaultUsername } from '@/utils/avatarUtils';
-import { loadUserProfile, shortenUserDisplayName } from '@/utils/profileUtils';
+import {
+  forceHydrateProfileFromSupabase,
+  loadUserProfile,
+  loadUserProfileLocalOnlySnapshot,
+  shortenUserDisplayName,
+} from '@/utils/profileUtils';
 import { migrateConversationsToAddressBased } from '@/utils/conversationUtils';
 import { migrateFavoritesToAddressBased } from '@/utils/favoritesUtils';
 import { migrateNotificationsToAddressBased } from '@/utils/notifications';
@@ -46,7 +51,7 @@ export function useUserInitialization() {
         console.log(`[Orina] Checking for existing profile...`);
         
         // PRIORITY 1: Check Profile System (studio_user_profile_${userId})
-        const savedProfile = loadUserProfile(address);
+        const savedProfile = loadUserProfileLocalOnlySnapshot(address);
         if (savedProfile) {
           hasExistingProfile = true;
           const avatarType = getAvatarTypeForAddress(address);
@@ -136,6 +141,26 @@ export function useUserInitialization() {
         // Still run migration check in case it hasn't been done yet
         runDataMigration(address);
       }
+
+      void forceHydrateProfileFromSupabase(address).then(() => {
+        const hydratedProfile = loadUserProfile(address);
+        if (!hydratedProfile) return;
+
+        const avatarType = getAvatarTypeForAddress(address);
+        updateUserData({
+          address,
+          avatarType,
+          displayName: hydratedProfile.displayName,
+          username: hydratedProfile.username,
+          avatarUrl: hydratedProfile.avatarUrl || hydratedProfile.avatar,
+          bannerUrl: hydratedProfile.bannerUrl || hydratedProfile.banner,
+          bio: hydratedProfile.bio,
+          twitter: hydratedProfile.socialLinks?.twitter,
+          website: hydratedProfile.socialLinks?.website,
+        });
+      }).catch((error) => {
+        console.debug('[Orina] Profile hydrate on connect skipped:', error);
+      });
     }
   }, [address, isConnected]);
   // ✅ ONLY depend on address and isConnected from wagmi

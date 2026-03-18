@@ -24,6 +24,48 @@ const formatDuration = (expiresAt: number) => {
   return `${days}d ${hours}h ${minutes}m`;
 };
 
+function createAssetLocationSnapshot({
+  displayAddress,
+  countryCode,
+  countryNameSnapshot,
+  geoPath,
+  lat,
+  lng,
+}: {
+  displayAddress: string;
+  countryCode: string;
+  countryNameSnapshot: string;
+  geoPath: Array<{
+    placeId: string;
+    kind: string;
+    name: string;
+    label: string;
+  }>;
+  lat: number;
+  lng: number;
+}) {
+  return {
+    sourceMode: 'other' as const,
+    displayAddress,
+    countryCode,
+    countryNameSnapshot,
+    geoPath,
+    leafPlaceId: geoPath[geoPath.length - 1]?.placeId,
+    coordinates: { lat, lng },
+    precision: (geoPath[geoPath.length - 1]?.kind || 'unstructured') as
+      | 'country'
+      | 'admin1'
+      | 'admin2'
+      | 'admin3'
+      | 'admin4'
+      | 'admin5'
+      | 'locality'
+      | 'sublocality'
+      | 'unstructured',
+    capturedAt: Date.now(),
+  };
+}
+
 export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
   // ============================================================================
   // REAL ESTATE CATEGORY
@@ -69,6 +111,18 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: true,
     featured: true,
     tags: ['luxury', 'beachfront', 'investment', 'thailand'],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: 'Patong Beach, Kathu District, Phuket 83150, Thailand',
+      countryCode: 'TH',
+      countryNameSnapshot: 'Thailand',
+      geoPath: [
+        { placeId: 'th-phuket', kind: 'admin1', name: 'Phuket', label: 'Province / City' },
+        { placeId: 'th-kathu', kind: 'admin2', name: 'Kathu District', label: 'District' },
+        { placeId: 'th-patong', kind: 'locality', name: 'Patong Beach', label: 'Ward / Locality' },
+      ],
+      lat: 7.8963,
+      lng: 98.2966,
+    }),
     
     blockchain: 'BSC',
     network: 'testnet',
@@ -114,6 +168,17 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: true,
     featured: true,
     tags: ['luxury', 'dubai', 'apartment', 'investment'],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: 'Dubai Marina, Dubai, United Arab Emirates',
+      countryCode: 'AE',
+      countryNameSnapshot: 'United Arab Emirates',
+      geoPath: [
+        { placeId: 'ae-dubai', kind: 'admin1', name: 'Dubai', label: 'Province / City' },
+        { placeId: 'ae-dubai-marina', kind: 'locality', name: 'Dubai Marina', label: 'Ward / Locality' },
+      ],
+      lat: 25.0800,
+      lng: 55.1403,
+    }),
     
     blockchain: 'Ethereum',
     network: 'mainnet',
@@ -158,6 +223,17 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: false,
     featured: false,
     tags: ['tokyo', 'loft', 'urban', 'japan'],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: 'Shibuya, Tokyo 150-0002, Japan',
+      countryCode: 'JP',
+      countryNameSnapshot: 'Japan',
+      geoPath: [
+        { placeId: 'jp-tokyo', kind: 'admin1', name: 'Tokyo', label: 'Province / City' },
+        { placeId: 'jp-shibuya', kind: 'locality', name: 'Shibuya', label: 'Ward / Locality' },
+      ],
+      lat: 35.6595,
+      lng: 139.7005,
+    }),
     
     blockchain: 'Ethereum',
     network: 'mainnet',
@@ -206,6 +282,17 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: true,
     featured: true,
     tags: ['rolex', 'luxury', 'watch', 'collectible'],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: 'Rue du Rhone, Geneva 1204, Switzerland',
+      countryCode: 'CH',
+      countryNameSnapshot: 'Switzerland',
+      geoPath: [
+        { placeId: 'ch-geneva', kind: 'admin1', name: 'Geneva', label: 'Province / City' },
+        { placeId: 'ch-rue-rhone', kind: 'locality', name: 'Rue du Rhone', label: 'Ward / Locality' },
+      ],
+      lat: 46.2044,
+      lng: 6.1432,
+    }),
     
     blockchain: 'Ethereum',
     network: 'mainnet',
@@ -251,6 +338,17 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: true,
     featured: true,
     tags: ['patek', 'nautilus', 'rare', 'investment'],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: 'Plan-les-Ouates, Geneva, Switzerland',
+      countryCode: 'CH',
+      countryNameSnapshot: 'Switzerland',
+      geoPath: [
+        { placeId: 'ch-geneva', kind: 'admin1', name: 'Geneva', label: 'Province / City' },
+        { placeId: 'ch-plan-les-ouates', kind: 'locality', name: 'Plan-les-Ouates', label: 'Ward / Locality' },
+      ],
+      lat: 46.1674,
+      lng: 6.1166,
+    }),
     
     blockchain: 'Ethereum',
     network: 'mainnet',
@@ -295,6 +393,17 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: false,
     featured: false,
     tags: ['omega', 'speedmaster', 'moonwatch', 'classic'],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: 'Biel/Bienne, Bern, Switzerland',
+      countryCode: 'CH',
+      countryNameSnapshot: 'Switzerland',
+      geoPath: [
+        { placeId: 'ch-bern', kind: 'admin1', name: 'Bern', label: 'Province / City' },
+        { placeId: 'ch-biel', kind: 'locality', name: 'Biel/Bienne', label: 'Ward / Locality' },
+      ],
+      lat: 47.1367,
+      lng: 7.2468,
+    }),
     
     blockchain: 'Polygon',
     network: 'mainnet',
@@ -338,6 +447,17 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: true,
     featured: false,
     tags: ['art', 'abstract', 'neon', 'digital'],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: 'Kreuzberg, Berlin 10997, Germany',
+      countryCode: 'DE',
+      countryNameSnapshot: 'Germany',
+      geoPath: [
+        { placeId: 'de-berlin', kind: 'admin1', name: 'Berlin', label: 'Province / City' },
+        { placeId: 'de-kreuzberg', kind: 'locality', name: 'Kreuzberg', label: 'Ward / Locality' },
+      ],
+      lat: 52.4986,
+      lng: 13.4034,
+    }),
     
     blockchain: 'Ethereum',
     network: 'mainnet',
@@ -383,6 +503,17 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: true,
     featured: false,
     tags: ['art', 'urban', 'cyberpunk', 'limited'],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: 'Shinjuku City, Tokyo 160-0022, Japan',
+      countryCode: 'JP',
+      countryNameSnapshot: 'Japan',
+      geoPath: [
+        { placeId: 'jp-tokyo', kind: 'admin1', name: 'Tokyo', label: 'Province / City' },
+        { placeId: 'jp-shinjuku', kind: 'locality', name: 'Shinjuku City', label: 'Ward / Locality' },
+      ],
+      lat: 35.6938,
+      lng: 139.7034,
+    }),
     
     blockchain: 'Arbitrum',
     network: 'mainnet',
@@ -431,6 +562,17 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: true,
     featured: true,
     tags: ['pokemon', 'collectible', 'rare', 'psa'],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: 'Beverly Hills, California 90210, United States',
+      countryCode: 'US',
+      countryNameSnapshot: 'United States',
+      geoPath: [
+        { placeId: 'us-california', kind: 'admin1', name: 'California', label: 'Province / City' },
+        { placeId: 'us-beverly-hills', kind: 'locality', name: 'Beverly Hills', label: 'Ward / Locality' },
+      ],
+      lat: 34.0736,
+      lng: -118.4004,
+    }),
     
     blockchain: 'Ethereum',
     network: 'mainnet',
@@ -476,6 +618,17 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: true,
     featured: true,
     tags: ['sneakers', 'jordan', 'vintage', 'nike'],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: 'Chicago, Illinois 60607, United States',
+      countryCode: 'US',
+      countryNameSnapshot: 'United States',
+      geoPath: [
+        { placeId: 'us-illinois', kind: 'admin1', name: 'Illinois', label: 'Province / City' },
+        { placeId: 'us-chicago', kind: 'locality', name: 'Chicago', label: 'Ward / Locality' },
+      ],
+      lat: 41.8781,
+      lng: -87.6298,
+    }),
     
     blockchain: 'Ethereum',
     network: 'mainnet',
@@ -524,6 +677,17 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: true,
     featured: true,
     tags: ['lamborghini', 'supercar', 'luxury', 'vehicle'],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: "Sant'Agata Bolognese, Emilia-Romagna, Italy",
+      countryCode: 'IT',
+      countryNameSnapshot: 'Italy',
+      geoPath: [
+        { placeId: 'it-emilia-romagna', kind: 'admin1', name: 'Emilia-Romagna', label: 'Province / City' },
+        { placeId: 'it-santagata', kind: 'locality', name: "Sant'Agata Bolognese", label: 'Ward / Locality' },
+      ],
+      lat: 44.6645,
+      lng: 11.1345,
+    }),
     
     blockchain: 'Ethereum',
     network: 'mainnet',
@@ -568,6 +732,17 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: false,
     featured: false,
     tags: ['tesla', 'electric', 'luxury', 'tech'],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: 'Palo Alto, California 94301, United States',
+      countryCode: 'US',
+      countryNameSnapshot: 'United States',
+      geoPath: [
+        { placeId: 'us-california', kind: 'admin1', name: 'California', label: 'Province / City' },
+        { placeId: 'us-palo-alto', kind: 'locality', name: 'Palo Alto', label: 'Ward / Locality' },
+      ],
+      lat: 37.4419,
+      lng: -122.1430,
+    }),
     
     blockchain: 'Polygon',
     network: 'mainnet',
@@ -616,6 +791,53 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: true,
     featured: true,
     tags: ['wine', 'bordeaux', 'vintage', 'investment'],
+    configurableAttributes: [
+      {
+        id: 'bottle-format',
+        label: 'Bottle Format',
+        helpText: 'Choose the physical bottle format for settlement and delivery.',
+        required: true,
+        selectionMode: 'single',
+        options: [
+          { id: 'standard-750ml', label: '750ml Standard' },
+          { id: 'magnum-1-5l', label: '1.5L Magnum' },
+        ],
+      },
+      {
+        id: 'storage-transfer',
+        label: 'Storage Transfer',
+        helpText: 'Select how the wine should be transferred after settlement.',
+        required: true,
+        selectionMode: 'single',
+        options: [
+          { id: 'ship-to-buyer', label: 'Ship to Buyer' },
+          { id: 'keep-in-vault', label: 'Keep in Seller Vault' },
+        ],
+      },
+      {
+        id: 'presentation',
+        label: 'Presentation',
+        helpText: 'Optional extras packaged with the bottle.',
+        required: false,
+        selectionMode: 'multi',
+        options: [
+          { id: 'wooden-case', label: 'Wooden Case' },
+          { id: 'auth-documents', label: 'Auth Documents' },
+          { id: 'insurance-slip', label: 'Insurance Slip' },
+        ],
+      },
+    ],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: 'Pauillac, Bordeaux 33250, France',
+      countryCode: 'FR',
+      countryNameSnapshot: 'France',
+      geoPath: [
+        { placeId: 'fr-nouvelle-aquitaine', kind: 'admin1', name: 'Nouvelle-Aquitaine', label: 'Province / City' },
+        { placeId: 'fr-pauillac', kind: 'locality', name: 'Pauillac', label: 'Ward / Locality' },
+      ],
+      lat: 45.2001,
+      lng: -0.7485,
+    }),
     
     blockchain: 'Ethereum',
     network: 'mainnet',
@@ -664,6 +886,55 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: true,
     featured: true,
     tags: ['jewelry', 'diamond', 'tiffany', 'luxury'],
+    configurableAttributes: [
+      {
+        id: 'ring-size',
+        label: 'Ring Size',
+        helpText: 'Pick the desired ring size for final handover.',
+        required: true,
+        selectionMode: 'single',
+        options: [
+          { id: 'size-5', label: 'US 5' },
+          { id: 'size-6', label: 'US 6' },
+          { id: 'size-7', label: 'US 7' },
+          { id: 'size-8', label: 'US 8' },
+        ],
+      },
+      {
+        id: 'certificate-package',
+        label: 'Certificate Package',
+        helpText: 'Select which certificate bundle should be included.',
+        required: true,
+        selectionMode: 'single',
+        options: [
+          { id: 'gia-only', label: 'GIA Only' },
+          { id: 'gia-tiffany', label: 'GIA + Tiffany Warranty' },
+        ],
+      },
+      {
+        id: 'delivery-extras',
+        label: 'Delivery Extras',
+        helpText: 'Optional extras for insured delivery.',
+        required: false,
+        selectionMode: 'multi',
+        options: [
+          { id: 'gift-box', label: 'Gift Box' },
+          { id: 'premium-insurance', label: 'Premium Insurance' },
+          { id: 'private-courier', label: 'Private Courier' },
+        ],
+      },
+    ],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: 'Fifth Avenue, New York, NY 10022, United States',
+      countryCode: 'US',
+      countryNameSnapshot: 'United States',
+      geoPath: [
+        { placeId: 'us-new-york', kind: 'admin1', name: 'New York', label: 'Province / City' },
+        { placeId: 'us-manhattan', kind: 'locality', name: 'Manhattan', label: 'Ward / Locality' },
+      ],
+      lat: 40.7580,
+      lng: -73.9787,
+    }),
     
     blockchain: 'Ethereum',
     network: 'mainnet',
@@ -712,6 +983,17 @@ export const MOCK_MARKETPLACE_ASSETS: MarketplaceAsset[] = [
     verified: true,
     featured: false,
     tags: ['guitar', 'music', 'signed', 'clapton'],
+    assetLocationSnapshot: createAssetLocationSnapshot({
+      displayAddress: 'Soho, London W1D, United Kingdom',
+      countryCode: 'GB',
+      countryNameSnapshot: 'United Kingdom',
+      geoPath: [
+        { placeId: 'gb-england', kind: 'admin1', name: 'England', label: 'Province / City' },
+        { placeId: 'gb-london-soho', kind: 'locality', name: 'Soho', label: 'Ward / Locality' },
+      ],
+      lat: 51.5136,
+      lng: -0.1365,
+    }),
     
     blockchain: 'Ethereum',
     network: 'mainnet',

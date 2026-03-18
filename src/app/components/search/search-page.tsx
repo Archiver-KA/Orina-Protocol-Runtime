@@ -6,6 +6,8 @@ import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
 import { FilterTags } from './filter-tags';
 import { SearchResultCard } from '@/app/components/search-result-card';
 import { ProfileSearchCard } from '@/app/components/profile-search-card';
+import { CollectionCard } from '@/app/components/collection-card';
+import { CollectionDetailsModal } from '@/app/components/collections/collection-details-modal';
 import { PriceRangeSlider } from './price-range-slider';
 import { SearchFilters } from '@/types/search';
 import { MarketplaceAsset } from '@/app/types/asset';
@@ -21,7 +23,16 @@ import { StudioPageHeader } from '@/app/components/ui/studio-page-header';
 import { StudioPillGroup, StudioPillButton } from '@/app/components/ui/studio-pill-group';
 import { StudioSidebarShell, StudioSidebarHeader, StudioSidebarScroll } from '@/app/components/ui/studio-sidebar';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
-import { MOCK_MARKETPLACE_ASSETS, getAllBlockchains as getMarketplaceBlockchains, getAllCategories as getMarketplaceCategories } from '@/utils/mockMarketplaceData';
+import { COLLECTIONS_SYNC_EVENT, loadCollectionFavorites, loadRuntimeCollections, toggleCollectionFavorite } from '@/utils/collectionsUtils';
+import type { CollectionSummary } from '@/types/collection';
+import {
+  getMarketplaceCatalogAssetById,
+  getMarketplaceCatalogBlockchains,
+  getMarketplaceCatalogCategories,
+  hydrateMarketplaceCatalogFromSupabase,
+  loadMarketplaceCatalogSync,
+  MARKETPLACE_CATALOG_SYNC_EVENT,
+} from '@/utils/marketplaceCatalog';
 
 interface SearchPageProps {
   initialQuery?: string;
@@ -36,12 +47,17 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
     query: initialQuery,
   }));
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-  const [contentMode, setContentMode] = useState<'assets' | 'profiles'>('assets');
+  const [contentMode, setContentMode] = useState<'assets' | 'profiles' | 'collections'>('assets');
   const [likedAssets, setLikedAssets] = useState<Set<string>>(new Set());
+  const [likedCollections, setLikedCollections] = useState<Set<string>>(new Set());
   const [selectedAsset, setSelectedAsset] = useState<MarketplaceAsset | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
   const { address } = useAccount();
   const [sellerProfiles, setSellerProfiles] = useState(() => getMockSellerProfiles());
+  const [runtimeCollections, setRuntimeCollections] = useState<CollectionSummary[]>(() => loadRuntimeCollections());
+  const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
 
   useEffect(() => {
     const refresh = () => setSellerProfiles(getMockSellerProfiles());
@@ -60,15 +76,56 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
     }
   }, [initialQuery]);
 
-  const marketplaceAssets = useMemo(() => MOCK_MARKETPLACE_ASSETS, []);
-  const marketplaceCategories = useMemo(() => getMarketplaceCategories(), []);
-  const marketplaceBlockchains = useMemo(() => getMarketplaceBlockchains(), []);
+  const marketplaceCategories = useMemo(() => getMarketplaceCatalogCategories(marketplaceAssets), [marketplaceAssets]);
+  const collectionCategories = useMemo(
+    () => Array.from(new Set(runtimeCollections.map((collection) => collection.category))).sort(),
+    [runtimeCollections]
+  );
+  const marketplaceBlockchains = useMemo(() => getMarketplaceCatalogBlockchains(marketplaceAssets), [marketplaceAssets]);
   const marketplacePriceRange = useMemo(() => getMarketplacePriceRange(marketplaceAssets), [marketplaceAssets]);
+  const visibleCategories = contentMode === 'collections' ? collectionCategories : marketplaceCategories;
+
+  useEffect(() => {
+    const syncCatalog = () => {
+      setMarketplaceAssets(loadMarketplaceCatalogSync());
+    };
+
+    syncCatalog();
+    void hydrateMarketplaceCatalogFromSupabase().then(syncCatalog);
+    window.addEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
+    return () => {
+      window.removeEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
+    };
+  }, []);
 
   // Filter results
   const filteredAssets = useMemo(() => {
     return filterMarketplaceResults(marketplaceAssets, filters);
   }, [marketplaceAssets, filters]);
+
+  const filteredCollections = useMemo(() => {
+    let filtered = [...runtimeCollections];
+
+    if (filters.query.trim()) {
+      const query = filters.query.trim().toLowerCase();
+      filtered = filtered.filter((collection) =>
+        collection.name.toLowerCase().includes(query) ||
+        collection.description.toLowerCase().includes(query) ||
+        collection.category.toLowerCase().includes(query) ||
+        collection.tags.some((tag) => tag.toLowerCase().includes(query))
+      );
+    }
+
+    if (filters.categories.length > 0) {
+      filtered = filtered.filter((collection) => filters.categories.includes(collection.category));
+    }
+
+    if (filters.verifiedOnly) {
+      filtered = filtered.filter((collection) => collection.verified);
+    }
+
+    return filtered;
+  }, [filters.categories, filters.query, filters.verifiedOnly, runtimeCollections]);
 
   const filteredProfiles = useMemo(() => {
     const q = filters.query.trim().toLowerCase();
@@ -93,13 +150,66 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
   }, [filters.query]);
 
   useEffect(() => {
-    if (!address) {
-      setLikedAssets(new Set());
+    const syncLikes = () => {
+      if (!address) {
+        setLikedAssets(new Set());
+        setLikedCollections(new Set());
+        return;
+      }
+      const favorites = loadFavorites(address);
+      setLikedAssets(new Set(favorites.map((fav) => fav.assetId)));
+      const collectionFavorites = loadCollectionFavorites(address);
+      setLikedCollections(new Set(collectionFavorites.map((favorite) => favorite.collectionId)));
+    };
+
+    syncLikes();
+    window.addEventListener(COLLECTIONS_SYNC_EVENT, syncLikes as EventListener);
+    return () => {
+      window.removeEventListener(COLLECTIONS_SYNC_EVENT, syncLikes as EventListener);
+    };
+  }, [address]);
+
+  useEffect(() => {
+    const syncCollections = () => {
+      setRuntimeCollections(loadRuntimeCollections());
+    };
+
+    window.addEventListener(COLLECTIONS_SYNC_EVENT, syncCollections as EventListener);
+    return () => {
+      window.removeEventListener(COLLECTIONS_SYNC_EVENT, syncCollections as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (contentMode === 'profiles') {
+      if (filters.categories.length > 0 || filters.blockchains.length > 0 || filters.priceRange.min !== null || filters.priceRange.max !== null) {
+        setFilters((prev) => ({
+          ...prev,
+          categories: [],
+          blockchains: [],
+          priceRange: { min: null, max: null },
+        }));
+      }
       return;
     }
-    const favorites = loadFavorites(address);
-    setLikedAssets(new Set(favorites.map((fav) => fav.assetId)));
-  }, [address]);
+
+    if (contentMode === 'collections') {
+      const nextCategories = filters.categories.filter((category) => collectionCategories.includes(category));
+      if (
+        nextCategories.length !== filters.categories.length ||
+        filters.blockchains.length > 0 ||
+        filters.priceRange.min !== null ||
+        filters.priceRange.max !== null
+      ) {
+        setFilters((prev) => ({
+          ...prev,
+          categories: nextCategories,
+          blockchains: [],
+          priceRange: { min: null, max: null },
+        }));
+      }
+    }
+  }, [collectionCategories, contentMode, filters.blockchains.length, filters.categories, filters.priceRange.max, filters.priceRange.min]);
 
   const handleRemoveFilter = (key: string, value?: any) => {
     let newFilters = { ...filters };
@@ -151,19 +261,58 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
     });
   };
 
+  const handleCollectionLike = (collectionId: string) => {
+    if (!address) {
+      toast.error('Please connect wallet to use collection favorites');
+      return;
+    }
+    const isFav = toggleCollectionFavorite(address, collectionId);
+    setLikedCollections((prev) => {
+      const next = new Set(prev);
+      if (isFav) next.add(collectionId);
+      else next.delete(collectionId);
+      return next;
+    });
+    toast.success(isFav ? 'Added collection to favorites' : 'Removed collection from favorites');
+  };
+
   const handleAssetClick = (assetId: string) => {
-    const asset = marketplaceAssets.find((item) => item.id === assetId);
+    const asset = getMarketplaceCatalogAssetById(assetId, marketplaceAssets);
     if (asset) {
       setSelectedAsset(asset);
       setIsModalOpen(true);
     }
   };
 
+  const handleCollectionClick = (collectionId: string) => {
+    setSelectedCollectionId(collectionId);
+    setIsCollectionModalOpen(true);
+  };
+
   const handleProfileFollowChange = () => {
     setSellerProfiles(getMockSellerProfiles());
   };
 
-  const resultCount = contentMode === 'profiles' ? filteredProfiles.length : filteredAssets.length;
+  const resultCount =
+    contentMode === 'profiles'
+      ? filteredProfiles.length
+      : contentMode === 'collections'
+      ? filteredCollections.length
+      : filteredAssets.length;
+
+  const handleContentModeChange = (nextMode: 'assets' | 'profiles' | 'collections') => {
+    setContentMode(nextMode);
+    if (nextMode !== 'assets') {
+      setFilters((prev) => ({
+        ...prev,
+        categories: nextMode === 'collections'
+          ? prev.categories.filter((category) => collectionCategories.includes(category))
+          : [],
+        blockchains: [],
+        priceRange: { min: null, max: null },
+      }));
+    }
+  };
 
   return (
     <div className="search-page-theme h-full bg-ui-page overflow-hidden">
@@ -186,30 +335,41 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
               {filters.query ? (
                 <>Results for "{filters.query}"</>
               ) : (
-                contentMode === 'profiles' ? 'Browse Profiles' : 'Browse All Assets'
+                contentMode === 'profiles'
+                  ? 'Browse Profiles'
+                  : contentMode === 'collections'
+                  ? 'Browse Collections'
+                  : 'Browse All Assets'
               )}
             </>
           }
           subtitle={
             <>
-              {resultCount} {contentMode === 'profiles' ? 'profiles' : 'items'} found in marketplace
+              {resultCount} {contentMode === 'profiles' ? 'profiles' : contentMode === 'collections' ? 'collections' : 'items'} found in marketplace
             </>
           }
           actions={
             <StudioPillGroup className="rounded-xl" compact>
             <StudioPillButton
-              onClick={() => setContentMode('assets')}
+              onClick={() => handleContentModeChange('assets')}
               active={contentMode === 'assets'}
               className={contentMode === 'assets' ? 'bg-[var(--t-surface-10)] text-ui-primary rounded-lg px-3 py-1.5 shadow-none' : 'text-ui-muted hover:text-ui-primary px-3 py-1.5 rounded-lg'}
             >
               Assets
             </StudioPillButton>
             <StudioPillButton
-              onClick={() => setContentMode('profiles')}
+              onClick={() => handleContentModeChange('profiles')}
               active={contentMode === 'profiles'}
               className={contentMode === 'profiles' ? 'bg-[var(--t-surface-10)] text-ui-primary rounded-lg px-3 py-1.5 shadow-none' : 'text-ui-muted hover:text-ui-primary px-3 py-1.5 rounded-lg'}
             >
               Profiles
+            </StudioPillButton>
+            <StudioPillButton
+              onClick={() => handleContentModeChange('collections')}
+              active={contentMode === 'collections'}
+              className={contentMode === 'collections' ? 'bg-[var(--t-surface-10)] text-ui-primary rounded-lg px-3 py-1.5 shadow-none' : 'text-ui-muted hover:text-ui-primary px-3 py-1.5 rounded-lg'}
+            >
+              Collections
             </StudioPillButton>
             <StudioPillButton
               onClick={() => setViewMode('list')}
@@ -254,14 +414,14 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
         </div>
 
         {/* Results */}
-        {(contentMode === 'assets' && filteredAssets.length === 0) || (contentMode === 'profiles' && filteredProfiles.length === 0) ? (
+        {(contentMode === 'assets' && filteredAssets.length === 0) || (contentMode === 'profiles' && filteredProfiles.length === 0) || (contentMode === 'collections' && filteredCollections.length === 0) ? (
           // Empty State
           <EmptyStateCard
             icon={<Search size={30} className="text-ui-muted" />}
-            title={contentMode === 'assets' ? 'No results found' : 'No profiles found'}
+            title={contentMode === 'assets' ? 'No results found' : contentMode === 'profiles' ? 'No profiles found' : 'No collections found'}
             description={
               filters.query
-                ? `We couldn't find any assets matching "${filters.query}". Try adjusting your search or filters.`
+                ? `We couldn't find any ${contentMode === 'profiles' ? 'profiles' : contentMode === 'collections' ? 'collections' : 'assets'} matching "${filters.query}". Try adjusting your search or filters.`
                 : 'Try adjusting your filters to see more results.'
             }
             className="py-20"
@@ -280,6 +440,10 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
           <div className={`
             ${contentMode === 'profiles'
               ? 'grid grid-cols-1 md:grid-cols-2 gap-4'
+              : contentMode === 'collections'
+              ? viewMode === 'grid'
+                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                : 'space-y-4'
               : viewMode === 'grid'
               ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
               : 'space-y-4'
@@ -305,7 +469,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                   </motion.div>
                 ))}
               </AnimatePresence>
-            ) : (
+            ) : contentMode === 'profiles' ? (
               filteredProfiles.map((profile) => (
                 <ProfileSearchCard
                   key={profile.address}
@@ -315,6 +479,26 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                   onFollowChange={handleProfileFollowChange}
                 />
               ))
+            ) : (
+              <AnimatePresence mode="popLayout">
+                {filteredCollections.map((collection) => (
+                  <motion.div
+                    key={collection.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <CollectionCard
+                      collection={collection}
+                      viewMode={viewMode}
+                      onLike={handleCollectionLike}
+                      onClick={handleCollectionClick}
+                      isLiked={likedCollections.has(collection.id)}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             )}
           </div>
         )}
@@ -338,46 +522,49 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
         <StudioSidebarScroll className="p-4 space-y-4">
           {/* Filters */}
           <div className="space-y-4">
-            {/* Price Range */}
-            <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
-              <label className="text-[10px] font-bold text-ui-muted uppercase block mb-4">
-                Price Range (ETH)
-              </label>
-              <PriceRangeSlider
-                min={marketplacePriceRange.min}
-                max={marketplacePriceRange.max}
-                value={[
-                  filters.priceRange.min ?? marketplacePriceRange.min,
-                  filters.priceRange.max ?? marketplacePriceRange.max
-                ]}
-                onChange={(value) => {
-                  setFilters({
-                    ...filters,
-                    priceRange: { min: value[0], max: value[1] }
-                  });
-                }}
-                step={0.01}
-              />
-            </div>
+            {contentMode === 'assets' && (
+              <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
+                <label className="text-[10px] font-bold text-ui-muted uppercase block mb-4">
+                  Price Range (ETH)
+                </label>
+                <PriceRangeSlider
+                  min={marketplacePriceRange.min}
+                  max={marketplacePriceRange.max}
+                  value={[
+                    filters.priceRange.min ?? marketplacePriceRange.min,
+                    filters.priceRange.max ?? marketplacePriceRange.max
+                  ]}
+                  onChange={(value) => {
+                    setFilters({
+                      ...filters,
+                      priceRange: { min: value[0], max: value[1] }
+                    });
+                  }}
+                  step={0.01}
+                />
+              </div>
+            )}
 
             {/* Blockchain */}
-            <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
-              <label className="text-[10px] font-bold text-ui-muted uppercase block mb-4">
-                Blockchain
-              </label>
-              <CustomDropdown
-                defaultValue={filters.blockchains[0] || 'all'}
-                onChange={(value) => {
-                  setFilters({ ...filters, blockchains: value === 'all' ? [] : [value] });
-                }}
-                options={[
-                  { value: 'all', label: 'All Blockchains' },
-                  ...marketplaceBlockchains.map((blockchain) => ({ value: blockchain, label: blockchain })),
-                ]}
-                variant="compact"
-                className="w-full"
-              />
-            </div>
+            {contentMode === 'assets' && (
+              <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
+                <label className="text-[10px] font-bold text-ui-muted uppercase block mb-4">
+                  Blockchain
+                </label>
+                <CustomDropdown
+                  defaultValue={filters.blockchains[0] || 'all'}
+                  onChange={(value) => {
+                    setFilters({ ...filters, blockchains: value === 'all' ? [] : [value] });
+                  }}
+                  options={[
+                    { value: 'all', label: 'All Blockchains' },
+                    ...marketplaceBlockchains.map((blockchain) => ({ value: blockchain, label: blockchain })),
+                  ]}
+                  variant="compact"
+                  className="w-full"
+                />
+              </div>
+            )}
 
             {/* Status */}
             <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
@@ -394,55 +581,61 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                     onChange={(checked) => setFilters({ ...filters, verifiedOnly: checked })}
                   />
                 </label>
-                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-[var(--t-surface-hover)] transition-colors">
-                  <span className="text-sm text-ui-secondary group-hover:text-ui-primary transition-colors">
-                    On Sale
-                  </span>
-                  <ToggleSwitch
-                    checked={false}
-                    onChange={() => {}}
-                  />
-                </label>
-                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-[var(--t-surface-hover)] transition-colors">
-                  <span className="text-sm text-ui-secondary group-hover:text-ui-primary transition-colors">
-                    New Drops
-                  </span>
-                  <ToggleSwitch
-                    checked={false}
-                    onChange={() => {}}
-                  />
-                </label>
+                {contentMode === 'assets' && (
+                  <>
+                    <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-[var(--t-surface-hover)] transition-colors">
+                      <span className="text-sm text-ui-secondary group-hover:text-ui-primary transition-colors">
+                        On Sale
+                      </span>
+                      <ToggleSwitch
+                        checked={false}
+                        onChange={() => {}}
+                      />
+                    </label>
+                    <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-[var(--t-surface-hover)] transition-colors">
+                      <span className="text-sm text-ui-secondary group-hover:text-ui-primary transition-colors">
+                        New Drops
+                      </span>
+                      <ToggleSwitch
+                        checked={false}
+                        onChange={() => {}}
+                      />
+                    </label>
+                  </>
+                )}
               </div>
             </div>
 
             {/* Categories */}
-            <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
-              <label className="text-[10px] font-bold text-ui-muted uppercase block mb-4">
-                Categories
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {marketplaceCategories.map((category) => (
-                  <button
-                    key={category}
-                    onClick={() => {
-                      const newCategories = filters.categories.includes(category)
-                        ? filters.categories.filter(c => c !== category)
-                        : [...filters.categories, category];
-                      setFilters({ ...filters, categories: newCategories });
-                    }}
-                    className={`
-                      px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors
-                      ${filters.categories.includes(category)
-                        ? 'bg-[#2CC295]/10 text-[#2CC295] border-[#2CC295]/20'
-                        : 'bg-ui-input text-ui-secondary border-ui-border-subtle hover:bg-[var(--t-surface-hover)]'
-                      }
-                    `}
-                  >
-                    {category}
-                  </button>
-                ))}
+            {contentMode !== 'profiles' && (
+              <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
+                <label className="text-[10px] font-bold text-ui-muted uppercase block mb-4">
+                  Categories
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {visibleCategories.map((category) => (
+                    <button
+                      key={category}
+                      onClick={() => {
+                        const newCategories = filters.categories.includes(category)
+                          ? filters.categories.filter(c => c !== category)
+                          : [...filters.categories, category];
+                        setFilters({ ...filters, categories: newCategories });
+                      }}
+                      className={`
+                        px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors
+                        ${filters.categories.includes(category)
+                          ? 'bg-[#2CC295]/10 text-[#2CC295] border-[#2CC295]/20'
+                          : 'bg-ui-input text-ui-secondary border-ui-border-subtle hover:bg-[var(--t-surface-hover)]'
+                        }
+                      `}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Market Trends */}
@@ -488,6 +681,15 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
           onClose={() => setIsModalOpen(false)}
         />
       )}
+
+      <CollectionDetailsModal
+        isOpen={isCollectionModalOpen}
+        collectionId={selectedCollectionId}
+        onClose={() => {
+          setIsCollectionModalOpen(false);
+          setSelectedCollectionId(null);
+        }}
+      />
       </div>
     </div>
   );

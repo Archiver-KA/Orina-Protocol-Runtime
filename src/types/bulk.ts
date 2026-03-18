@@ -4,7 +4,6 @@
 
 export type BulkAction = 
   | 'add-to-favorites'
-  | 'add-to-watchlist'
   | 'set-price-alert'
   | 'export'
   | 'delete'

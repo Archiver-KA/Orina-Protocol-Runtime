@@ -463,14 +463,14 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                     <button
                       type="button"
                       onClick={handleClose}
-                      className="studio-portal-secondary w-full h-11 rounded-full bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-[#F1F5F9] transition-colors text-lg font-semibold"
+                      className="studio-portal-secondary w-full h-[45px] rounded-full bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-[#F1F5F9] transition-colors text-sm font-bold"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={content.trim().length < 10}
-                      className="w-full h-11 rounded-full bg-[#2CC295] hover:brightness-110 disabled:bg-zinc-800 disabled:text-zinc-600 text-black transition-all text-lg font-semibold"
+                      className="w-full h-[45px] rounded-full bg-[#2CC295] hover:brightness-110 disabled:bg-zinc-800 disabled:text-zinc-600 text-black transition-all text-sm font-bold"
                     >
                       Publish Post
                     </button>

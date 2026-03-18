@@ -110,14 +110,14 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
 
   return (
     <div
-      className="studio-portal-backdrop fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+      className="studio-portal-backdrop fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/88 backdrop-blur-[30px]"
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel();
       }}
     >
       <div
         ref={modalRef}
-        className="studio-modal-theme studio-glass-modal w-full max-w-[700px] rounded-[2rem] border border-ui-border-subtle bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden"
+        className="studio-modal-theme studio-glass-modal w-full max-w-[700px] rounded-[2rem] border border-ui-border-subtle bg-[rgba(10,10,12,0.97)] backdrop-blur-[36px] shadow-[0_30px_120px_rgba(0,0,0,0.72)] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="studio-glass-header px-6 md:px-8 py-6 border-b border-[rgba(255,255,255,0.06)] flex items-start justify-between gap-4">
@@ -144,7 +144,7 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
                         new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1),
                       )
                     }
-                    className="studio-glass-secondary w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white inline-flex items-center justify-center"
+                    className="studio-glass-secondary duration-picker-hover-secondary w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white inline-flex items-center justify-center transition-all"
                   >
                     <ChevronLeft size={16} />
                   </button>
@@ -155,7 +155,7 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
                         new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1),
                       )
                     }
-                    className="studio-glass-secondary w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white inline-flex items-center justify-center"
+                    className="studio-glass-secondary duration-picker-hover-secondary w-8 h-8 rounded-lg border border-white/10 bg-white/5 text-zinc-400 hover:text-white inline-flex items-center justify-center transition-all"
                   >
                     <ChevronRight size={16} />
                   </button>
@@ -229,14 +229,14 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
                       <button
                         type="button"
                         onClick={() => handleDaysChange(days + 1)}
-                        className="studio-glass-secondary w-7 h-7 rounded-lg border border-white/10 bg-white/5 text-zinc-300 hover:text-white hover:border-white/20 inline-flex items-center justify-center"
+                        className="studio-glass-secondary duration-picker-hover-secondary w-7 h-7 rounded-lg border border-white/10 bg-white/5 text-zinc-300 hover:text-white hover:border-white/20 inline-flex items-center justify-center transition-all"
                       >
                         <Plus size={13} />
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDaysChange(days - 1)}
-                        className="studio-glass-secondary w-7 h-7 rounded-lg border border-white/10 bg-white/5 text-zinc-300 hover:text-white hover:border-white/20 inline-flex items-center justify-center"
+                        className="studio-glass-secondary duration-picker-hover-secondary w-7 h-7 rounded-lg border border-white/10 bg-white/5 text-zinc-300 hover:text-white hover:border-white/20 inline-flex items-center justify-center transition-all"
                       >
                         <Minus size={13} />
                       </button>
@@ -252,7 +252,7 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
                       </p>
                       <p className="text-lg font-bold text-white mt-1">{formatTargetDate(targetDate)}</p>
                     </div>
-                    <div className="studio-glass-secondary w-9 h-9 rounded-xl border border-white/10 bg-white/5 inline-flex items-center justify-center text-zinc-300">
+                    <div className="studio-glass-secondary duration-picker-hover-secondary w-9 h-9 rounded-xl border border-white/10 bg-white/5 inline-flex items-center justify-center text-zinc-300 transition-all">
                       <Calendar size={16} />
                     </div>
                   </div>
@@ -271,14 +271,14 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
                 onClick={onCancel}
                 variant="secondary"
                 size="lg"
-                className="flex-1 h-[45px] rounded-full justify-center"
+                className="duration-picker-hover-secondary flex-1 h-[45px] rounded-full justify-center transition-all hover:-translate-y-px"
               >
                 Cancel
               </StudioActionButton>
               <StudioActionButton
                 onClick={handleConfirm}
                 size="lg"
-                className="flex-1 h-[45px] rounded-full justify-center text-sm"
+                className="duration-picker-hover-primary flex-1 h-[45px] rounded-full justify-center text-sm transition-all hover:-translate-y-px"
               >
                 Sign
               </StudioActionButton>

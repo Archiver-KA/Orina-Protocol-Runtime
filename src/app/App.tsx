@@ -18,7 +18,7 @@ import { EnhancedProfile } from '@/app/components/profile/enhanced-profile'; // 
 import { Settings } from '@/app/components/settings';
 import { AssetDetailsPage } from '@/app/components/asset-details/asset-details-page';
 import { SearchPage } from '@/app/components/search/search-page';
-import { FavoritesWatchlistPage } from '@/app/components/favorites/favorites-watchlist-page';
+import { FavoritesFollowingPage } from '@/app/components/favorites/favorites-following-page';
 import { CommandPalette } from '@/app/components/command-palette/command-palette';
 import { WalletModals } from '@/app/components/wallet/wallet-modals';
 import { PublicHomePage } from '@/app/components/public-home-page';
@@ -250,7 +250,7 @@ function AppContent({
             className={isGuest ? 'flex-1 overflow-hidden bg-ui-page text-ui-secondary' : 'flex-1 overflow-hidden bg-ui-page text-ui-secondary'}
             style={!isGuest ? {
               display: 'grid',
-              gridTemplateColumns: (['marketplace', 'market-insights', 'messages', 'profile', 'settings', 'asset-details', 'favorites', 'watchlist', 'search'].includes(activePage))
+              gridTemplateColumns: (['marketplace', 'market-insights', 'messages', 'profile', 'settings', 'asset-details', 'favorites', 'search'].includes(activePage))
                 ? '1fr'
                 : '1fr 344px',
             } : undefined}
@@ -293,13 +293,7 @@ function AppContent({
               />
             )}
             {activePage === 'favorites' && (
-              <FavoritesWatchlistPage
-                onNavigateToAsset={handleNavigateToAsset}
-                onNavigateToUserProfile={guardedNavigateToUserProfile}
-              />
-            )}
-            {activePage === 'watchlist' && (
-              <FavoritesWatchlistPage
+              <FavoritesFollowingPage
                 onNavigateToAsset={handleNavigateToAsset}
                 onNavigateToUserProfile={guardedNavigateToUserProfile}
               />
@@ -455,7 +449,7 @@ export default function App() {
     const sidebarWidth = sidebarCollapsed ? '88px' : '248px';
 
     // Pages without right sidebar (search has its own right sidebar built-in)
-    if (activePage === 'marketplace' || activePage === 'market-insights' || activePage === 'messages' || activePage === 'profile' || activePage === 'settings' || activePage === 'asset-details' || activePage === 'favorites' || activePage === 'watchlist' || activePage === 'search') {
+    if (activePage === 'marketplace' || activePage === 'market-insights' || activePage === 'messages' || activePage === 'profile' || activePage === 'settings' || activePage === 'asset-details' || activePage === 'favorites' || activePage === 'search') {
       return `grid-cols-[${sidebarWidth}_1fr]`;
     }
 

@@ -81,25 +81,26 @@ export function UserProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!userData.address) return;
 
+    const address = userData.address;
     const syncFromProfile = () => {
-      const profile = loadUserProfile(userData.address!);
+      const profile = loadUserProfile(address);
       if (!profile) return;
 
-      const merged = normalizeUserDataShape({
-        ...userData,
-        address: profile.address,
-        username: profile.username || userData.username,
-        displayName: profile.displayName || userData.displayName,
-        bio: profile.bio ?? userData.bio,
-        avatarUrl: profile.avatarUrl || profile.avatar || userData.avatarUrl,
-        bannerUrl: profile.bannerUrl || profile.banner || userData.bannerUrl,
-        avatarType: userData.avatarType || (profile.address ? getAvatarTypeForAddress(profile.address) : undefined),
-      });
+      setUserData((prev) => {
+        const current = normalizeUserDataShape(prev);
+        const merged = normalizeUserDataShape({
+          ...prev,
+          address: profile.address,
+          username: profile.username || prev.username,
+          displayName: profile.displayName || prev.displayName,
+          bio: profile.bio ?? prev.bio,
+          avatarUrl: profile.avatarUrl || profile.avatar || prev.avatarUrl,
+          bannerUrl: profile.bannerUrl || profile.banner || prev.bannerUrl,
+          avatarType: prev.avatarType || (profile.address ? getAvatarTypeForAddress(profile.address) : undefined),
+        });
 
-      const current = normalizeUserDataShape(userData);
-      if (JSON.stringify(merged) !== JSON.stringify(current)) {
-        setUserData(merged);
-      }
+        return JSON.stringify(merged) !== JSON.stringify(current) ? merged : prev;
+      });
     };
 
     syncFromProfile();
@@ -109,7 +110,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('orina:profile-changed', syncFromProfile as EventListener);
       window.removeEventListener('storage', syncFromProfile as EventListener);
     };
-  }, [userData.address, userData]);
+  }, [userData.address]);
 
   const updateUserData = useCallback((data: Partial<UserData>) => {
     setUserData(prev => normalizeUserDataShape({

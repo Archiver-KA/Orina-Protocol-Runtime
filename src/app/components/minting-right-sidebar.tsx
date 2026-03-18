@@ -1,9 +1,49 @@
-import { Coins, Fuel, TrendingUp, ChevronRight } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useAccount } from 'wagmi';
+import { Check, Coins, FolderPlus, Fuel, TrendingUp } from 'lucide-react';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
+import { CustomDropdown } from '@/app/components/custom-dropdown';
+import type { CollectionSummary } from '@/types/collection';
+import { COLLECTIONS_SYNC_EVENT, loadCollectionsByOwner } from '@/utils/collectionsUtils';
 
 export function MintingRightSidebar() {
+  const { address } = useAccount();
+  const [ownedCollections, setOwnedCollections] = useState<CollectionSummary[]>([]);
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
+  const [protocolNetwork, setProtocolNetwork] = useState('Mainnet-V3');
   const sidebarCardClass = 'p-4 bg-[var(--t-surface-5)] rounded-xl';
   const sidebarMutedCardClass = 'p-4 bg-[var(--t-surface-2)] rounded-xl';
+  const selectedCollectionsCount = selectedCollectionIds.length;
+
+  useEffect(() => {
+    const syncCollections = () => {
+      if (!address) {
+        setOwnedCollections([]);
+        return;
+      }
+      setOwnedCollections(loadCollectionsByOwner(address));
+    };
+
+    syncCollections();
+    window.addEventListener(COLLECTIONS_SYNC_EVENT, syncCollections);
+    return () => window.removeEventListener(COLLECTIONS_SYNC_EVENT, syncCollections);
+  }, [address]);
+
+  useEffect(() => {
+    setSelectedCollectionIds((current) =>
+      current.filter((collectionId) => ownedCollections.some((collection) => collection.id === collectionId))
+    );
+  }, [ownedCollections]);
+
+  const selectedIdSet = useMemo(() => new Set(selectedCollectionIds), [selectedCollectionIds]);
+
+  const handleToggleCollection = (collectionId: string) => {
+    setSelectedCollectionIds((current) =>
+      current.includes(collectionId)
+        ? current.filter((id) => id !== collectionId)
+        : [...current, collectionId]
+    );
+  };
 
   return (
     <StudioSidebarShell widthClassName="w-full" className="minting-borderless-theme bg-ui-page border-l-0 p-2.5">
@@ -26,15 +66,26 @@ export function MintingRightSidebar() {
         {/* Engine Status */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-ui-muted uppercase">Studio Engine</span>
+            <span className="text-[10px] font-bold text-ui-muted uppercase">ATP Protocol</span>
             <span className="text-[10px] font-bold text-primary">Online</span>
           </div>
-          <div className={`${sidebarCardClass} flex items-center gap-3 group cursor-pointer hover:bg-ui-input-focus transition-colors`}>
+          <div className={`${sidebarCardClass} flex items-center gap-3 min-h-[52px] transition-colors`}>
             <div className="w-2.5 h-2.5 rounded-full bg-[#2CC295] shadow-[0_0_8px_rgba(44,194,149,0.4)]"></div>
-            <div className="flex-grow">
-              <span className="text-[10px] font-bold text-ui-primary uppercase tracking-tighter">Chain: Mainnet-V3</span>
+            <div className="flex-grow min-w-0">
+              <CustomDropdown
+                variant="compact"
+                defaultValue={protocolNetwork}
+                onChange={(value) => setProtocolNetwork(value)}
+                openOnHover
+                options={[
+                  { value: 'Mainnet-V3', label: 'Mainnet-V3' },
+                  { value: 'BSC Testnet', label: 'BSC Testnet' },
+                ]}
+                className="w-full"
+                triggerClassName="!h-[40px] !w-full !justify-between !rounded-xl !border !border-ui-border-subtle !bg-ui-input !px-4 !text-[11px] !font-bold !uppercase !tracking-tight !text-ui-secondary hover:!bg-ui-input-focus"
+                menuClassName="mt-2 rounded-[16px] z-[9999]"
+              />
             </div>
-            <ChevronRight className="text-ui-muted" size={16} />
           </div>
         </div>
 
@@ -82,44 +133,73 @@ export function MintingRightSidebar() {
           </div>
         </div>
 
-        {/* Trending Collections */}
+        {/* Add to Collection */}
         <div className="bg-[var(--t-surface-2)] rounded-[24px] p-5 backdrop-blur-[10px]">
-          <h3 className="text-[11px] uppercase font-bold text-ui-muted mb-4">Trending Collections</h3>
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-ui-input overflow-hidden flex-shrink-0">
-                <img
-                  alt="Collection"
-                  className="w-full h-full object-cover"
-                  src="https://source.unsplash.com/100x100/?cyberpunk,neon"
-                />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-ui-primary">Neo Tokyo</p>
-                <p className="text-[10px] text-ui-muted">Vol: 142.5 ETH</p>
-              </div>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-[11px] uppercase font-bold text-ui-muted">Add to Collection</h3>
+              <p className="text-[10px] text-ui-muted mt-1">Choose collections created by this wallet.</p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-ui-input overflow-hidden flex-shrink-0">
-                <img
-                  alt="Collection"
-                  className="w-full h-full object-cover"
-                  src="https://source.unsplash.com/100x100/?abstract,colorful"
-                />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-ui-primary">Abstract Punks</p>
-                <p className="text-[10px] text-ui-muted">Vol: 88.2 ETH</p>
-              </div>
-            </div>
+            {selectedCollectionsCount > 0 && (
+              <span className="px-2.5 py-1 rounded-full bg-[#2CC295]/10 text-primary text-[10px] font-bold">
+                {selectedCollectionsCount} selected
+              </span>
+            )}
           </div>
-        </div>
+          {!address ? (
+            <div className={`${sidebarMutedCardClass} text-center`}>
+              <p className="text-xs font-medium text-ui-primary">Connect wallet to manage collections</p>
+            </div>
+          ) : ownedCollections.length === 0 ? (
+            <div className={`${sidebarMutedCardClass} text-center`}>
+              <FolderPlus className="mx-auto mb-3 text-ui-muted" size={18} />
+              <p className="text-xs font-medium text-ui-primary">No collections created yet</p>
+              <p className="text-[10px] text-ui-muted mt-1">Create collections from My Collections in Profile or My Asset.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {ownedCollections.map((collection) => {
+                const isSelected = selectedIdSet.has(collection.id);
 
-        {/* Mint Button */}
-        <div className="pt-2">
-          <button className="w-full h-[45px] bg-[#2CC295] text-black font-bold rounded-full hover:opacity-90 transition-all active:scale-[0.99] uppercase text-xs tracking-widest">
-            Mint Asset
-          </button>
+                return (
+                  <button
+                    key={collection.id}
+                    type="button"
+                    onClick={() => handleToggleCollection(collection.id)}
+                    className={`${sidebarCardClass} w-full text-left transition-colors hover:bg-ui-input-focus ${
+                      isSelected ? 'ring-1 ring-[#2CC295]/30' : ''
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-ui-input overflow-hidden flex-shrink-0">
+                        <img
+                          alt={collection.name}
+                          className="w-full h-full object-cover"
+                          src={collection.coverImage}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-ui-primary truncate">{collection.name}</p>
+                        <p className="text-[10px] text-ui-muted mt-1">
+                          {collection.itemCount} items . Floor {collection.floorPrice}
+                        </p>
+                      </div>
+                      <span
+                        className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-md border transition-colors ${
+                          isSelected
+                            ? 'border-0 bg-[#2CC295] text-black'
+                            : 'border-0 bg-ui-card text-transparent'
+                        }`}
+                        aria-hidden="true"
+                      >
+                        <Check size={12} strokeWidth={3} />
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
       </div>

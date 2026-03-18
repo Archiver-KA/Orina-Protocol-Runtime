@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { readWalletThemePreference, writeWalletThemePreference } from "@/utils/themePreferences";
+import { USER_SETTINGS_SYNC_EVENT } from "@/utils/userSettingsUtils";
 
 export type Theme = "dark" | "light";
 
@@ -118,6 +119,23 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.setAttribute("data-theme", theme);
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncThemeFromSettings = () => {
+      if (!activeWalletAddress) return;
+      const nextTheme = readWalletThemePreference(activeWalletAddress);
+      setThemeState(nextTheme);
+    };
+
+    window.addEventListener(USER_SETTINGS_SYNC_EVENT, syncThemeFromSettings as EventListener);
+    window.addEventListener("storage", syncThemeFromSettings as EventListener);
+    return () => {
+      window.removeEventListener(USER_SETTINGS_SYNC_EVENT, syncThemeFromSettings as EventListener);
+      window.removeEventListener("storage", syncThemeFromSettings as EventListener);
+    };
+  }, [activeWalletAddress]);
 
   const persistWalletTheme = useCallback((nextTheme: Theme, walletAddress?: string | null) => {
     if (!walletAddress) return;

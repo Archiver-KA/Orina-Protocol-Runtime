@@ -2,6 +2,7 @@ import { Activity, ArrowLeftRight, Info, Coins } from 'lucide-react';
 import { useState } from 'react';
 import { StudioSidebarShell, StudioSidebarHeader, StudioSidebarScroll, StudioSidebarFooter } from '@/app/components/ui/studio-sidebar';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
+import { preventInvalidNumberKeyDown } from '@/utils/numericInput';
 
 export function RightSidebar() {
   const [swapFrom, setSwapFrom] = useState('ETH');
@@ -92,10 +93,14 @@ export function RightSidebar() {
               <label className="text-[10px] text-ui-muted font-bold uppercase mb-2 block">From</label>
               <div className="relative w-[248px] h-[49px]">
                 <input
-                  type="text"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.0001"
                   placeholder="0.0"
                   value={swapAmount}
                   onChange={(e) => setSwapAmount(e.target.value)}
+                  onKeyDown={preventInvalidNumberKeyDown}
                   className="right-sidebar-swap-input w-full h-[49px] px-4 py-3 pr-[120px] rounded-[12px] text-[14px] leading-[18px] font-bold text-ui-primary placeholder:text-ui-muted outline-none transition-colors"
                   style={{ boxSizing: 'border-box' }}
                 />
@@ -127,7 +132,10 @@ export function RightSidebar() {
               <label className="text-[10px] text-ui-muted font-bold uppercase mb-2 block">To</label>
               <div className="relative w-[248px] h-[49px]">
                 <input
-                  type="text"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
                   placeholder="0.0"
                   value={swapAmount ? (parseFloat(swapAmount) * 2450).toFixed(2) : ''}
                   readOnly
@@ -176,10 +184,14 @@ export function RightSidebar() {
             <div>
               <label className="text-[10px] text-ui-muted font-bold uppercase mb-2 block">Amount</label>
               <input
-                type="text"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
                 placeholder="0.0"
                 value={stakingAmount}
                 onChange={(e) => setStakingAmount(e.target.value)}
+                onKeyDown={preventInvalidNumberKeyDown}
                 className="right-sidebar-amount-input w-full max-w-[248px] h-[49px] px-4 py-3 text-[14px] leading-[18px] font-bold text-ui-primary placeholder:text-ui-muted rounded-[12px] outline-none transition-colors"
                 style={{ boxSizing: 'border-box' }}
               />

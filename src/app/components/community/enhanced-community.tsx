@@ -76,6 +76,8 @@ import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { createDefaultProfile, formatUserDisplayName, loadUserProfile, saveUserProfile } from '@/utils/profileUtils';
 import { sendCommunityNotificationViaBridge } from '@/utils/supabaseAuthClaimBridge';
 
+const COMMENT_MAX_LENGTH = 280;
+
 // ─── Sub-components ───────────────────────────────────────────
 
 function PostTypeBadge({ type }: { type: Post['type'] }) {
@@ -557,8 +559,8 @@ function CommentThread({
             <CommentAvatar className="w-full h-full" />
           )}
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="bg-ui-pill p-3 rounded-2xl border border-ui-border-subtle">
+        <div className="min-w-0 flex-1">
+          <div className="min-w-0 overflow-hidden rounded-2xl border border-ui-border-subtle bg-ui-pill p-3">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-bold text-ui-primary">{commentName}</span>
               <span className="text-[10px] text-ui-muted">
@@ -571,9 +573,11 @@ function CommentThread({
                 replying to a comment
               </p>
             )}
-            <p className="text-xs text-ui-secondary leading-relaxed">{comment.content}</p>
+            <p className="text-xs leading-relaxed text-ui-secondary [overflow-wrap:anywhere] break-all whitespace-pre-wrap">
+              {comment.content}
+            </p>
           </div>
-          <div className="flex items-center gap-3 mt-1.5 ml-1">
+          <div className="ml-1 mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <button
               onClick={() => onLikeComment(comment.id)}
               className={`text-[10px] font-bold uppercase flex items-center gap-1 transition-colors ${likedCommentIds.has(comment.id)
@@ -1054,6 +1058,10 @@ export function EnhancedCommunity({
     if (!requireWallet('comment')) return;
     const content = commentInputs[postId]?.trim();
     if (!content) return;
+    if (content.length > COMMENT_MAX_LENGTH) {
+      toast.error(`Comments are limited to ${COMMENT_MAX_LENGTH} characters.`);
+      return;
+    }
 
     const replyTarget = replyingTo[postId];
 
@@ -1675,12 +1683,16 @@ export function EnhancedCommunity({
 
                         {/* Add Comment Input - no avatar, cleaner layout */}
                         <div className="flex items-center gap-3 pt-2">
-                          <div className="flex-1 relative">
+                          <div className="flex-1">
+                            <div className="relative">
                             <input
                               ref={(el) => { commentInputRefs.current[post.id] = el; }}
                               value={commentInputs[post.id] || ''}
                               onChange={(e) =>
-                                setCommentInputs((prev) => ({ ...prev, [post.id]: e.target.value }))
+                                setCommentInputs((prev) => ({
+                                  ...prev,
+                                  [post.id]: e.target.value.slice(0, COMMENT_MAX_LENGTH),
+                                }))
                               }
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -1689,6 +1701,7 @@ export function EnhancedCommunity({
                                 }
                               }}
                               className="w-full bg-ui-input border border-ui-border-subtle rounded-xl px-4 py-2.5 text-sm focus:ring-[var(--color-primary-custom)] focus:border-[var(--color-primary-custom)] focus:outline-none text-ui-primary placeholder:text-ui-muted pr-12"
+                              maxLength={COMMENT_MAX_LENGTH}
                               placeholder={
                                 !isConnected
                                   ? 'Connect wallet to comment...'
@@ -1705,6 +1718,18 @@ export function EnhancedCommunity({
                             >
                               <Send size={16} />
                             </button>
+                          </div>
+                            <div className="mt-1 flex items-center justify-end">
+                              <span
+                                className={`text-[10px] font-medium ${
+                                  (commentInputs[post.id]?.length || 0) > COMMENT_MAX_LENGTH - 20
+                                    ? 'text-primary'
+                                    : 'text-ui-muted'
+                                }`}
+                              >
+                                {(commentInputs[post.id]?.length || 0)}/{COMMENT_MAX_LENGTH}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
