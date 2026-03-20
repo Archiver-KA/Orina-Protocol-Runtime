@@ -185,7 +185,7 @@ export function useWatchAutoCancelled(onEvent?: (orderId: bigint, reason: string
   });
 }
 
-// ── Receipt NFT Events ────────────────────────────────────────
+// ── RWA Receipt NFT Events ────────────────────────────────────
 
 /** Watch for new receipt mints */
 export function useWatchReceiptMinted(onEvent?: (tokenId: bigint, orderId: bigint, to: string) => void) {

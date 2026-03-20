@@ -8,6 +8,7 @@ import { MintingDeliverySection, type MintingDeliveryState } from '@/app/compone
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { useMintAsset } from '@/hooks/useAssets';
+import { useAllUnits } from '@/hooks/useUnits';
 import { AssetType, CONTRACTS } from '@/config/contracts';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { useTheme } from '@/app/contexts/ThemeContext';
@@ -175,7 +176,7 @@ function buildRuntimeMintedAssetRecord(
       },
     ],
     contractAddress: CONTRACTS.ORINA_RWA,
-    tokenStandard: 'ERC-721',
+    tokenStandard: 'OrinaRWA Asset Record',
     mintDate: now,
     verified: false,
     ipfsUrl: `ipfs://runtime-minted/${baseId}`,
@@ -241,6 +242,12 @@ export function Minting() {
   const [mintingDeliveryState, setMintingDeliveryState] = useState<MintingDeliveryState | null>(null);
   const [deliveryValidationAttempt, setDeliveryValidationAttempt] = useState(0);
   const [pendingRuntimeMintDraft, setPendingRuntimeMintDraft] = useState<PendingRuntimeMintDraft | null>(null);
+  const [amountError, setAmountError] = useState<string | null>(null);
+
+  // ── On-chain unit data ─────────────────────────────────────────
+  const { units: allUnits, isLoading: unitsLoading, isOnChain } = useAllUnits();
+  const selectedUnit = allUnits.find((u) => String(u.id) === unitId) ?? allUnits[0];
+
 
   const { address, isConnected } = useAccount();
   const { theme } = useTheme();
@@ -260,6 +267,36 @@ export function Minting() {
     reset();
   }, [hash, isConfirmed, pendingRuntimeMintDraft, reset]);
 
+  // ── Amount validation against UnitRegistry constraints ─────────
+  const validateAmount = (raw: string, unit: typeof selectedUnit): string | null => {
+    const n = Number(raw);
+    if (!raw || isNaN(n) || n <= 0) return 'Amount must be a positive number';
+    if (!unit) return null;
+    const amount = BigInt(Math.trunc(n));
+    if (amount < unit.minAmount) {
+      return `Minimum amount: ${unit.minAmount.toString()} (${unit.name})`;
+    }
+    if (unit.step > 0n && amount % unit.step !== 0n) {
+      return `Amount must be a multiple of ${unit.step.toString()} (step for ${unit.name})`;
+    }
+    return null;
+  };
+
+  const handleAmountChange = (raw: string) => {
+    setTotalAmount(raw);
+    if (assetType === 'RWA' && selectedUnit) {
+      setAmountError(validateAmount(raw, selectedUnit));
+    } else {
+      setAmountError(null);
+    }
+  };
+
+  const handleUnitChange = (value: string) => {
+    setUnitId(value);
+    const unit = allUnits.find((u) => String(u.id) === value);
+    if (unit) setAmountError(validateAmount(totalAmount, unit));
+  };
+
   const handleMint = async () => {
     if (!isConnected) {
       alert('Please connect your wallet first');
@@ -274,6 +311,15 @@ export function Minting() {
     ) {
       alert('Please fill in all required fields');
       return;
+    }
+
+    // ── Unit constraint validation (RWA) ──────────────────────────
+    if (assetType === 'RWA' && selectedUnit) {
+      const unitErr = validateAmount(totalAmount, selectedUnit);
+      if (unitErr) {
+        setAmountError(unitErr);
+        return;
+      }
     }
 
     if (assetType === 'RWA') {
@@ -585,8 +631,8 @@ export function Minting() {
                 </p>
                 <p className="text-xs text-ui-secondary">
                   {assetType === 'RWA'
-                    ? 'Physical assets cannot be transferred. When minted, you gain the right to sell. After buyer purchase and finalize, an NFT receipt will be minted for the buyer.'
-                    : 'Digital assets can be transferred freely. These NFTs follow standard ERC-721 protocol and can be traded on any marketplace.'
+                    ? 'Minting creates an OrinaRWA asset record. After buyer purchase and finalize, a non-transferable receipt NFT is minted for the buyer.'
+                    : 'Minting creates an NFT-type listing in Orina. After buyer purchase and finalize, a transferable NFT is minted for the buyer.'
                   }
                 </p>
               </div>
@@ -890,42 +936,62 @@ export function Minting() {
 
                   {assetType === 'RWA' && (
                     <div>
-                      <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Unit ID</label>
+                      <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">
+                        Unit
+                        {isOnChain && (
+                          <span className="ml-2 text-[9px] text-[#2CC295] font-normal normal-case tracking-normal">● on-chain</span>
+                        )}
+                      </label>
                       <CustomDropdown
                         variant="compact"
                         defaultValue={unitId}
-                        onChange={(value) => setUnitId(value)}
+                        onChange={handleUnitChange}
                         openOnHover
                         disableDefaultTriggerTone
                         triggerStyle={mintingNeutralTriggerStyle}
-                        options={[
-                          { value: '0', label: 'Unit 0 - Default' },
-                          { value: '1', label: 'Unit 1 - Gold (kg)' },
-                          { value: '2', label: 'Unit 2 - Silver (kg)' },
-                          { value: '3', label: 'Unit 3 - Oil (liter)' },
-                          { value: '4', label: 'Unit 4 - Wheat (ton)' },
-                        ]}
+                        options={
+                          unitsLoading
+                            ? [{ value: unitId, label: 'Loading units…' }]
+                            : allUnits.map((u) => ({ value: String(u.id), label: u.label }))
+                        }
                         className="w-full"
                         triggerClassName={mintingSelectTriggerClass}
                       />
-                      <p className="text-[10px] text-ui-muted mt-1">Units managed by governance</p>
+                      {selectedUnit && (
+                        <p className="text-[10px] text-ui-muted mt-1">
+                          Min: <span className="text-ui-secondary font-mono">{selectedUnit.minAmount.toString()}</span>
+                          {' · '}
+                          Step: <span className="text-ui-secondary font-mono">{selectedUnit.step.toString()}</span>
+                          {' · '}
+                          {isOnChain ? 'From UnitRegistry on-chain' : 'Fallback (connect wallet for live data)'}
+                        </p>
+                      )}
                     </div>
                   )}
 
                   <div>
                     <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Total Amount</label>
                     <input
-                      className={studioInputClass}
-                      placeholder="e.g. 1000"
+                      className={`${studioInputClass} ${amountError ? 'border-red-400/60 focus:border-red-400' : ''}`}
+                      placeholder={selectedUnit ? `Min: ${selectedUnit.minAmount.toString()}, step: ${selectedUnit.step.toString()}` : 'e.g. 1000'}
                       type="number"
                       inputMode="numeric"
                       min="0"
                       value={totalAmount}
-                      onChange={(e) => setTotalAmount(e.target.value)}
+                      onChange={(e) => handleAmountChange(e.target.value)}
                       onKeyDown={preventInvalidNumberKeyDown}
                     />
-                    {assetType === 'RWA' && (
-                      <p className="text-[10px] text-ui-muted mt-1">Example: 10 units can be sold to 10 people</p>
+                    {amountError ? (
+                      <p className="text-[10px] text-red-400 mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} />
+                        {amountError}
+                      </p>
+                    ) : assetType === 'RWA' ? (
+                      <p className="text-[10px] text-ui-muted mt-1">
+                        Each unit can be sold to one buyer · must satisfy unit constraints above
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-ui-muted mt-1">Number of NFT editions to mint</p>
                     )}
                   </div>
 
@@ -1121,8 +1187,14 @@ export function Minting() {
                 {/* Contract Info */}
                 <div className="bg-ui-card border border-ui-border-subtle rounded-2xl p-5 space-y-4">
                   <div className="flex justify-between text-sm">
-                    <span className="text-ui-muted">Contract Standard</span>
-                    <span className="text-ui-primary font-medium text-right">ERC-721</span>
+                    <span className="text-ui-muted">Mint Surface</span>
+                    <span className="text-ui-primary font-medium text-right">OrinaRWA Asset Registry</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-ui-muted">Finalize Output</span>
+                    <span className="text-ui-primary font-medium text-right ml-auto">
+                      {assetType === 'RWA' ? 'Receipt NFT · Non-Transferable' : 'NFT · Transferable'}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-ui-muted">Metadata Storage</span>

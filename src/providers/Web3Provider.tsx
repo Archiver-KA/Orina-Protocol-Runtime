@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { mainnet, sepolia, bsc, bscTestnet } from 'wagmi/chains';
-import { injected } from 'wagmi/connectors';
+import { injected, metaMask } from 'wagmi/connectors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS } from '@/config/contracts';
 
@@ -17,6 +17,7 @@ import { RPC_URLS } from '@/config/contracts';
 const config = createConfig({
   chains: [bsc, bscTestnet, sepolia, mainnet],
   connectors: [
+    metaMask(),
     injected({ shimDisconnect: true }), // MetaMask/Injected wallets don't support real disconnect; shim enables reliable app-level disconnect
   ],
   transports: {

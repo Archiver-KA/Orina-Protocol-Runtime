@@ -1,7 +1,8 @@
 /**
  * usePayOrder - Pay Order Hook (Backward Compatible)
  * ===================================================
- * Updated for ATP v3.3-final: payOrder now requires buyerSig2 (EIP-712).
+ * Updated for ATP v3.4: payOrder is only used when seller revised the delivery time,
+ * and now requires Buyer Sig #3 (EIP-712).
  * This wrapper maintains the old API for pay-order-modal.tsx.
  *
  * New code should use usePayOrder from useMarketplace.ts directly.
@@ -9,7 +10,7 @@
 
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { MARKETPLACE_ABI } from '@/config/abis';
-import { CONTRACTS } from '@/config/contracts';
+import { ACTIVE_CHAIN_ID, CONTRACTS } from '@/config/contracts';
 
 export function usePayOrder() {
   const {
@@ -23,28 +24,30 @@ export function usePayOrder() {
     isLoading: isConfirming,
     isSuccess: isConfirmed,
     error: confirmError,
-  } = useWaitForTransactionReceipt({ hash });
+  } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
 
   /**
-   * Pay order with DSCA Sig 3.
+   * Pay order with Buyer Sig #3.
    *
-   * In ATP v3.3, the buyer must provide buyerSig2 (EIP-712 signature
-   * accepting seller's estDeliverySeconds). If no sig provided, falls back
-   * to a placeholder - this will fail on-chain but maintains UI compatibility.
+   * In ATP v3.4, Buyer Sig #3 is required only when the seller changed
+   * the delivery time. Same-time seller confirmation now auto-pays on-chain.
    *
    * @param orderId - Order to pay
-   * @param grossPrice - Gross price (kept for backward compat, not used in v3.3 as it's ERC20-based)
-   * @param buyerSig2 - Optional EIP-712 signature (Sig 3)
+   * @param grossPrice - Kept for backward compat, not used by the contract
+   * @param buyerSig2 - EIP-712 buyer signature on the revised delivery time
    */
   const payOrder = async (orderId: bigint, grossPrice: bigint, buyerSig2?: `0x${string}`) => {
     try {
-      const sig = buyerSig2 || '0x' as `0x${string}`;
+      if (!buyerSig2) {
+        throw new Error('Buyer Sig #3 is required when seller revises the delivery time');
+      }
 
       await writeContract({
+        chainId: ACTIVE_CHAIN_ID,
         address: CONTRACTS.MARKETPLACE_ATP,
         abi: MARKETPLACE_ABI,
         functionName: 'payOrder',
-        args: [orderId, sig],
+        args: [orderId, buyerSig2],
       });
     } catch (err) {
       console.error('Failed to pay order:', err);

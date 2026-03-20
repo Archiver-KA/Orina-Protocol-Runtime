@@ -1,4 +1,5 @@
-import { formatEther } from 'viem';
+import { ACTIVE_CHAIN_ID, EXPLORER_URLS } from '@/config/contracts';
+import { formatOrderGrossPrice } from '@/utils/orderDisplay';
 
 // Order state type
 export type OrderState = 0 | 1 | 2 | 3;
@@ -159,10 +160,12 @@ export function formatDetailedTimestamp(date: Date): string {
 }
 
 // Get Etherscan transaction URL
-export function getEtherscanTxUrl(txHash: string, chainId: number = 11155111): string {
+export function getEtherscanTxUrl(txHash: string, chainId: number = ACTIVE_CHAIN_ID): string {
   const baseUrls: Record<number, string> = {
     1: 'https://etherscan.io',
     5: 'https://goerli.etherscan.io',
+    56: 'https://bscscan.com',
+    97: 'https://testnet.bscscan.com',
     11155111: 'https://sepolia.etherscan.io',
   };
 
@@ -171,10 +174,12 @@ export function getEtherscanTxUrl(txHash: string, chainId: number = 11155111): s
 }
 
 // Get Etherscan address URL
-export function getEtherscanAddressUrl(address: string, chainId: number = 11155111): string {
+export function getEtherscanAddressUrl(address: string, chainId: number = ACTIVE_CHAIN_ID): string {
   const baseUrls: Record<number, string> = {
     1: 'https://etherscan.io',
     5: 'https://goerli.etherscan.io',
+    56: 'https://bscscan.com',
+    97: 'https://testnet.bscscan.com',
     11155111: 'https://sepolia.etherscan.io',
   };
 
@@ -253,12 +258,16 @@ export function formatOrderData(order: {
   assetId: bigint;
   amount: bigint;
   grossPrice: bigint;
+  paymentTokenSymbol?: string;
+  paymentTokenDecimals?: number;
   payDeadline: bigint;
   autoReleaseAt: bigint;
   state: OrderState;
   finalized: boolean;
 }): string {
   const stateInfo = getOrderStateInfo(order.state);
+  const grossPriceLabel = formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
+  const explorerBaseUrl = EXPLORER_URLS[ACTIVE_CHAIN_ID] ?? EXPLORER_URLS[97];
   
   return `
 🔖 ORDER DETAILS #${order.orderId.toString()}
@@ -273,11 +282,14 @@ Seller: ${order.seller}
 📦 ASSET DETAILS
 Asset ID: #${order.assetId.toString()}
 Amount:   ${order.amount.toString()}
-Price:    ${formatEther(order.grossPrice)} ETH
+Price:    ${grossPriceLabel}
 
 ⏰ DEADLINES
 Payment Deadline:  ${new Date(Number(order.payDeadline) * 1000).toLocaleString()}
 Auto-Release At:   ${new Date(Number(order.autoReleaseAt) * 1000).toLocaleString()}
+
+🔗 EXPLORER
+Network Explorer: ${explorerBaseUrl}
 
 Generated: ${new Date().toLocaleString()}
 `.trim();

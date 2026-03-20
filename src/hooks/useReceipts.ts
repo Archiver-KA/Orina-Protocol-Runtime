@@ -1,10 +1,9 @@
 /**
- * useReceipts - FractionalReceiptNFT Hooks
+ * useReceipts - RWAReceiptNFT Hooks
  * =========================================
- * Updated for ATP v3.3-final:
- *   - receipts() now returns assetType field
- *   - Added transfer check (RWA = non-transferable)
- *   - Added ownerOf hook
+ * RWA redeploy branch:
+ *   - receipt NFTs are always non-transferable
+ *   - NFT direct-buy lives in a separate future branch
  */
 
 import { useReadContract } from 'wagmi';
@@ -13,7 +12,7 @@ import { RECEIPT_NFT_ABI } from '@/config/abis';
 
 /**
  * Receipt NFT structure returned from smart contract
- * Updated: includes assetType for transfer control
+ * Kept ABI-compatible with the current receipt mapping shape.
  */
 export interface Receipt {
   orderId: bigint;
@@ -93,10 +92,9 @@ export function useReceiptOwner(tokenId: bigint | number) {
 }
 
 /**
- * Check if a receipt can be transferred.
- * RWA receipts are non-transferable (_beforeTokenTransfer blocks it).
- * NFT receipts are freely transferable.
+ * RWA receipts are non-transferable in the split RWA branch.
  */
 export function isReceiptTransferable(receipt: Receipt): boolean {
-  return receipt.assetType === AssetType.NFT;
+  void receipt;
+  return false;
 }

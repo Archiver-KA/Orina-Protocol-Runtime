@@ -2,7 +2,7 @@
  * Orina ATP Protocol v3.3-final - Complete Contract ABIs
  * ======================================================
  * Generated from Solidity source code.
- * All 7 contracts: MarketplaceATP, OrinaRWA, FractionalReceiptNFT,
+ * All core contracts: MarketplaceATP, OrinaRWA, RWAReceiptNFT,
  * DisputeManager, AutoTimeManager, FeeManager, PaymentGateway,
  * UnitRegistry, ShippingRegistry
  */
@@ -29,11 +29,23 @@ export const MARKETPLACE_ABI = [
       { name: 'payDeadline', type: 'uint256' },
       { name: 'state', type: 'uint8' },
       { name: 'settlementType', type: 'uint8' },
+      {
+        name: 'split',
+        type: 'tuple',
+        components: [
+          { name: 'buyerShareBps', type: 'uint256' },
+          { name: 'sellerShareBps', type: 'uint256' },
+        ],
+      },
       { name: 'platformFeeBpsSnapshot', type: 'uint256' },
       { name: 'daoFeeBpsSnapshot', type: 'uint256' },
       { name: 'burnFeeBpsSnapshot', type: 'uint256' },
+      { name: 'referralFeeBpsSnapshot', type: 'uint256' },
       { name: 'finalized', type: 'bool' },
       { name: 'sellerConfirmed', type: 'bool' },
+      { name: 'buyerSig1', type: 'bytes' },
+      { name: 'sellerSig', type: 'bytes' },
+      { name: 'buyerSig2', type: 'bytes' },
     ],
     stateMutability: 'view',
     type: 'function',
@@ -178,6 +190,25 @@ export const MARKETPLACE_ABI = [
     type: 'function',
   },
   {
+    inputs: [{ name: 'orderId', type: 'uint256' }],
+    name: 'phase1Deadline',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'orderId', type: 'uint256' },
+      { name: 'verdict', type: 'uint8' },
+      { name: 'buyerShareBps', type: 'uint256' },
+      { name: 'sellerShareBps', type: 'uint256' },
+    ],
+    name: 'agreementDigest',
+    outputs: [{ name: '', type: 'bytes32' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
     inputs: [],
     name: 'feeManager',
     outputs: [{ name: '', type: 'address' }],
@@ -270,6 +301,14 @@ export const MARKETPLACE_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
+  // Seller voluntary cancel during the initial 24h seller window
+  {
+    inputs: [{ name: 'orderId', type: 'uint256' }],
+    name: 'cancelBySeller',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
   // Buyer voluntary cancel
   {
     inputs: [{ name: 'orderId', type: 'uint256' }],
@@ -278,7 +317,7 @@ export const MARKETPLACE_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
-  // Open dispute (buyer or seller, within 3-day window)
+  // Open dispute (buyer only, within 3-day window)
   {
     inputs: [{ name: 'orderId', type: 'uint256' }],
     name: 'openDispute',
@@ -413,6 +452,12 @@ export const MARKETPLACE_ABI = [
     anonymous: false,
     inputs: [{ indexed: true, name: 'orderId', type: 'uint256' }],
     name: 'OrderCancelled',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [{ indexed: true, name: 'orderId', type: 'uint256' }],
+    name: 'OrderCancelledBySeller',
     type: 'event',
   },
   {
@@ -668,7 +713,7 @@ export const ORINA_RWA_ABI = [
 ] as const;
 
 // ============================================================
-// 3. FRACTIONAL RECEIPT NFT - ERC721 + Transfer Control
+// 3. RWA RECEIPT NFT - ERC721 + Soulbound Receipt
 // ============================================================
 export const RECEIPT_NFT_ABI = [
   // ── ERC721 Standard Read ────────────────────────────────────
@@ -906,6 +951,22 @@ export const DISPUTE_MANAGER_ABI = [
     stateMutability: 'nonpayable',
     type: 'function',
   },
+  // 2/3 agreement on any dispute proposal
+  {
+    inputs: [
+      { name: 'orderId', type: 'uint256' },
+      { name: 'verdict', type: 'uint8' },
+      { name: 'buyerShareBps', type: 'uint256' },
+      { name: 'sellerShareBps', type: 'uint256' },
+      { name: 'buyerSig', type: 'bytes' },
+      { name: 'sellerSig', type: 'bytes' },
+      { name: 'arbiterSig', type: 'bytes' },
+    ],
+    name: 'resolveByAgreement',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
   // Mutual resolution - both parties sign EIP-712 → 50/50 split
   {
     inputs: [
@@ -961,6 +1022,50 @@ export const DISPUTE_MANAGER_ABI = [
       { indexed: false, name: 'sellerShareBps', type: 'uint256' },
     ],
     name: 'DisputeResolved',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'orderId', type: 'uint256' },
+      { indexed: false, name: 'phase1Deadline', type: 'uint256' },
+      { indexed: false, name: 'finalDeadline', type: 'uint256' },
+    ],
+    name: 'DisputeExtended',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'orderId', type: 'uint256' },
+      { indexed: false, name: 'verdict', type: 'uint8' },
+      { indexed: false, name: 'buyerShareBps', type: 'uint256' },
+      { indexed: false, name: 'sellerShareBps', type: 'uint256' },
+      { indexed: false, name: 'signatureCount', type: 'uint256' },
+    ],
+    name: 'DisputeResolvedByAgreement',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'orderId', type: 'uint256' },
+      { indexed: false, name: 'verdict', type: 'uint8' },
+      { indexed: false, name: 'buyerShareBps', type: 'uint256' },
+      { indexed: false, name: 'sellerShareBps', type: 'uint256' },
+    ],
+    name: 'DisputeResolvedByArbiter',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'orderId', type: 'uint256' },
+      { indexed: false, name: 'buyerShareBps', type: 'uint256' },
+      { indexed: false, name: 'sellerShareBps', type: 'uint256' },
+      { indexed: false, name: 'extended', type: 'bool' },
+    ],
+    name: 'DisputeAutoSplit',
     type: 'event',
   },
 ] as const;
@@ -1072,6 +1177,20 @@ export const FEE_MANAGER_ABI = [
   // ── Read Functions ──────────────────────────────────────────
   {
     inputs: [],
+    name: 'STABLECOIN_PLATFORM_FEE_BPS',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'ORI_PLATFORM_FEE_BPS',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
     name: 'platformFeeBps',
     outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'view',
@@ -1088,6 +1207,20 @@ export const FEE_MANAGER_ABI = [
     inputs: [],
     name: 'burnFeeBps',
     outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'referralFeeBps',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'referralVault',
+    outputs: [{ name: '', type: 'address' }],
     stateMutability: 'view',
     type: 'function',
   },
@@ -1120,12 +1253,49 @@ export const FEE_MANAGER_ABI = [
     type: 'function',
   },
   {
+    inputs: [{ name: 'paymentToken', type: 'address' }],
+    name: 'getPlatformFeeBpsForToken',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'paymentToken', type: 'address' }],
+    name: 'getTotalFeeBpsForToken',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'paymentToken', type: 'address' }],
+    name: 'platformFeePresetByToken',
+    outputs: [{ name: '', type: 'uint8' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
     inputs: [{ name: 'amount', type: 'uint256' }],
     name: 'calculateFees',
     outputs: [
       { name: 'platform', type: 'uint256' },
       { name: 'dao', type: 'uint256' },
       { name: 'burn', type: 'uint256' },
+      { name: 'referral', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'paymentToken', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    name: 'calculateFeesForToken',
+    outputs: [
+      { name: 'platform', type: 'uint256' },
+      { name: 'dao', type: 'uint256' },
+      { name: 'burn', type: 'uint256' },
+      { name: 'referral', type: 'uint256' },
     ],
     stateMutability: 'view',
     type: 'function',
@@ -1133,12 +1303,37 @@ export const FEE_MANAGER_ABI = [
 
   // ── Write Functions (GOVERNANCE_ROLE) ───────────────────────
   {
+    inputs: [{ name: 'newPlatformFeeBps', type: 'uint256' }],
+    name: 'setPlatformFeeBps',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
     inputs: [
       { name: 'newPlatformFeeBps', type: 'uint256' },
       { name: 'newDaoFeeBps', type: 'uint256' },
       { name: 'newBurnFeeBps', type: 'uint256' },
+      { name: 'newReferralFeeBps', type: 'uint256' },
     ],
     name: 'setFees',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'token', type: 'address' },
+      { name: 'preset', type: 'uint8' },
+    ],
+    name: 'setPlatformFeePreset',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'newVault', type: 'address' }],
+    name: 'setReferralVault',
     outputs: [],
     stateMutability: 'nonpayable',
     type: 'function',
@@ -1151,8 +1346,25 @@ export const FEE_MANAGER_ABI = [
       { indexed: false, name: 'platformBps', type: 'uint256' },
       { indexed: false, name: 'daoBps', type: 'uint256' },
       { indexed: false, name: 'burnBps', type: 'uint256' },
+      { indexed: false, name: 'referralBps', type: 'uint256' },
     ],
     name: 'FeesUpdated',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'token', type: 'address' },
+      { indexed: false, name: 'preset', type: 'uint8' },
+      { indexed: false, name: 'platformBps', type: 'uint256' },
+    ],
+    name: 'PlatformFeePresetUpdated',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [{ indexed: true, name: 'newVault', type: 'address' }],
+    name: 'ReferralVaultUpdated',
     type: 'event',
   },
 ] as const;

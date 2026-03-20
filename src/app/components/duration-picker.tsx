@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Calendar, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
+import { ProtocolChainBanner } from '@/app/components/ui/protocol-chain-banner';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
+import { useProtocolChain } from '@/hooks/useProtocolChain';
 
 interface DurationPickerProps {
   defaultDays?: number;
@@ -18,6 +20,7 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
   });
   const modalRef = useRef<HTMLDivElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
+  const protocolChain = useProtocolChain();
 
   const DAY_MS = 24 * 60 * 60 * 1000;
   const startOfDay = (date: Date) => {
@@ -61,6 +64,12 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
   const handleConfirm = () => {
     onConfirm(effectiveDays, targetDate);
   };
+
+  const primaryLabel = !protocolChain.isConnected
+    ? 'Connect Wallet'
+    : !protocolChain.isOnProtocolChain
+      ? 'Switch Network'
+      : 'Sign';
 
   // Generate calendar days
   const getDaysInMonth = (date: Date) => {
@@ -207,6 +216,16 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
 
           {/* Right: Summary */}
           <div className="space-y-4">
+            <ProtocolChainBanner
+              isConnected={protocolChain.isConnected}
+              isOnProtocolChain={protocolChain.isOnProtocolChain}
+              currentChainLabel={protocolChain.currentChainLabel}
+              targetChainLabel={protocolChain.targetChainLabel}
+              isSwitching={protocolChain.isSwitching}
+              onSwitch={() => protocolChain.ensureProtocolChainAsync('seller confirm the delivery time')}
+              showWhenMatched={false}
+            />
+
             <div className="studio-glass-surface rounded-2xl border-0 bg-[rgba(255,255,255,0.02)] p-4">
               <p className="text-[10px] font-bold tracking-[0.18em] text-zinc-500 uppercase mb-3">
                 Order Summary
@@ -280,7 +299,7 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
                 size="lg"
                 className="duration-picker-hover-primary flex-1 h-[45px] rounded-full justify-center text-sm transition-all hover:-translate-y-px"
               >
-                Sign
+                {primaryLabel}
               </StudioActionButton>
             </div>
           </div>

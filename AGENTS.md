@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **ATP2** (30499 symbols, 81343 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **ATP2** (29079 symbols, 61597 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -97,25 +97,5 @@ To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.
 | Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
 | Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-| Work in the Web area (384 symbols) | `.claude/skills/generated/web/SKILL.md` |
-| Work in the Cmd area (350 symbols) | `.claude/skills/generated/cmd/SKILL.md` |
-| Work in the Contracts area (271 symbols) | `.claude/skills/generated/contracts/SKILL.md` |
-| Work in the V2 area (271 symbols) | `.claude/skills/generated/v2/SKILL.md` |
-| Work in the Resolver area (247 symbols) | `.claude/skills/generated/resolver/SKILL.md` |
-| Work in the Client area (227 symbols) | `.claude/skills/generated/client/SKILL.md` |
-| Work in the Txmgr area (209 symbols) | `.claude/skills/generated/txmgr/SKILL.md` |
-| Work in the Functions area (150 symbols) | `.claude/skills/generated/functions/SKILL.md` |
-| Work in the Mocks area (146 symbols) | `.claude/skills/generated/mocks/SKILL.md` |
-| Work in the Evm area (144 symbols) | `.claude/skills/generated/evm/SKILL.md` |
-| Work in the Components area (144 symbols) | `.claude/skills/generated/components/SKILL.md` |
-| Work in the Smoke area (138 symbols) | `.claude/skills/generated/smoke/SKILL.md` |
-| Work in the Logprovider area (132 symbols) | `.claude/skills/generated/logprovider/SKILL.md` |
-| Work in the Logpoller area (114 symbols) | `.claude/skills/generated/logpoller/SKILL.md` |
-| Work in the Secp256k1 area (104 symbols) | `.claude/skills/generated/secp256k1/SKILL.md` |
-| Work in the S4 area (97 symbols) | `.claude/skills/generated/s4/SKILL.md` |
-| Work in the Pipeline area (95 symbols) | `.claude/skills/generated/pipeline/SKILL.md` |
-| Work in the Actions area (91 symbols) | `.claude/skills/generated/actions/SKILL.md` |
-| Work in the Mercury area (91 symbols) | `.claude/skills/generated/mercury/SKILL.md` |
-| Work in the Ocrcommon area (90 symbols) | `.claude/skills/generated/ocrcommon/SKILL.md` |
 
 <!-- gitnexus:end -->

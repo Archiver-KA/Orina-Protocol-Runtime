@@ -3,12 +3,12 @@ import { useAccount, useSignMessage } from 'wagmi';
 import { toast } from 'sonner';
 import { buildWalletAuthMessage, setWalletAuthSession } from '@/utils/walletAuthSession';
 import { clearGuestModeForced } from '@/utils/guestMode';
-import { WalletModalStep, WalletModalState, SignatureRequestData, TransactionResult } from '@/types/wallet';
+import { WalletModalState, SignatureRequestData, TransactionResult, WalletModalConfirmHandler } from '@/types/wallet';
 
 interface WalletModalContextValue {
   modalState: WalletModalState;
   openConnectModal: () => void;
-  openSignatureModal: (data: SignatureRequestData, onConfirm?: () => void) => void;
+  openSignatureModal: (data: SignatureRequestData, onConfirm?: WalletModalConfirmHandler) => void;
   showProcessing: () => void;
   showSuccess: (result: TransactionResult) => void;
   closeModal: () => void;
@@ -26,10 +26,11 @@ export function WalletModalProvider({ children }: { children: ReactNode }) {
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
 
-  const openSignatureModal = useCallback((signatureData: SignatureRequestData, onConfirm?: () => void) => {
+  const openSignatureModal = useCallback((signatureData: SignatureRequestData, onConfirm?: WalletModalConfirmHandler) => {
     setModalState({
       step: 'signature',
       source: 'tx',
+      isBusy: false,
       signatureData,
       onConfirm,
     });
@@ -82,38 +83,31 @@ export function WalletModalProvider({ children }: { children: ReactNode }) {
           closeModal();
           return;
         }
-        showProcessing();
+        setModalState((prev) => ({ ...prev, isBusy: true }));
         const authMessage = buildWalletAuthMessage(address);
         const signature = await signMessageAsync({ message: authMessage });
         setWalletAuthSession(address, signature, { message: authMessage });
         clearGuestModeForced();
-        showSuccess({
-          hash: `0x${Math.random().toString(16).substring(2, 66)}`,
-          networkFee: '0 ETH',
-          timestamp: Date.now(),
-        });
+        toast.success('Wallet session authenticated.');
+        closeModal();
         return;
       }
 
+      setModalState((prev) => ({ ...prev, isBusy: true }));
       if (modalState.onConfirm) {
-        modalState.onConfirm();
+        const result = await modalState.onConfirm();
+        if (result) {
+          showSuccess(result);
+          return;
+        }
       }
-      showProcessing();
-
-      // Simulate transaction processing (in real app, this would be actual blockchain interaction)
-      setTimeout(() => {
-        showSuccess({
-          hash: `0x${Math.random().toString(16).substring(2, 66)}`,
-          networkFee: '0.002 ETH',
-          timestamp: Date.now(),
-        });
-      }, 3000);
+      closeModal();
     } catch (error) {
       console.error('[Wallet Auth] Signature rejected/failed:', error);
       // Do not stack a toast over the auth modal; keep the user in the same modal and let them retry.
-      setModalState((prev) => ({ ...prev, step: 'signature', source: prev.source || 'auth' }));
+      setModalState((prev) => ({ ...prev, step: 'signature', source: prev.source || 'auth', isBusy: false }));
     }
-  }, [modalState, showProcessing, showSuccess, signMessageAsync, address, closeModal]);
+  }, [modalState, showSuccess, signMessageAsync, address, closeModal]);
 
   const handleSignatureCancel = useCallback(() => {
     closeModal();

@@ -1,6 +1,6 @@
 import { AlertCircle, Package, CheckCircle2, Shield, TrendingUp } from 'lucide-react';
-import { formatEther } from 'viem';
 import { formatAddress } from '@/utils/format';
+import { ACTIVE_CHAIN_ID, EXPLORER_URLS } from '@/config/contracts';
 import { useConfirmRelease } from '@/hooks/useOrders';
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
@@ -10,6 +10,7 @@ import { StudioNoticePanel } from '@/app/components/ui/studio-notice-panel';
 import { StudioModalBody, StudioModalCloseButton, StudioModalFooter, StudioModalHeader, StudioModalPanel, StudioModalShell } from '@/app/components/ui/studio-modal';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
+import { formatOrderGrossPrice, formatOrderQuantity } from '@/utils/orderDisplay';
 
 interface ConfirmReleaseModalProps {
   isOpen: boolean;
@@ -20,7 +21,10 @@ interface ConfirmReleaseModalProps {
     seller: `0x${string}`;
     assetId: bigint;
     amount: bigint;
+    unitName?: string;
     grossPrice: bigint;
+    paymentTokenSymbol?: string;
+    paymentTokenDecimals?: number;
     payDeadline: bigint;
     autoReleaseAt: bigint;
     state: number;
@@ -33,6 +37,9 @@ export function ConfirmReleaseModal({ isOpen, onClose, order, onSuccess }: Confi
   const { confirmRelease, hash, isPending, isConfirming, isConfirmed, error } = useConfirmRelease();
   const { requireWalletActionAsync } = useRequireWalletAction();
   const [txStatus, setTxStatus] = useState<'idle' | 'preparing' | 'pending' | 'confirming' | 'success' | 'error'>('idle');
+  const paymentValueLabel = formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
+  const quantityLabel = formatOrderQuantity(order.amount, order.unitName);
+  const explorerBaseUrl = EXPLORER_URLS[ACTIVE_CHAIN_ID] ?? EXPLORER_URLS[97];
 
   // Reset status when modal opens
   useEffect(() => {
@@ -144,7 +151,7 @@ export function ConfirmReleaseModal({ isOpen, onClose, order, onSuccess }: Confi
 
             <div className="flex items-center justify-between">
               <span className="text-sm text-ui-secondary">Amount</span>
-              <span className="text-sm text-ui-primary font-bold">{order.amount.toString()} units</span>
+              <span className="text-sm text-ui-primary font-bold">{quantityLabel}</span>
             </div>
 
             <div className="flex items-center justify-between py-2 border-t border-ui-border-subtle">
@@ -160,7 +167,7 @@ export function ConfirmReleaseModal({ isOpen, onClose, order, onSuccess }: Confi
             <div className="flex items-center justify-between py-2 border-t border-ui-border-subtle">
               <span className="text-sm text-ui-secondary">Payment Amount</span>
               <span className="text-sm text-[#2CC295] font-bold font-mono">
-                {formatEther(order.grossPrice)} ETH
+                {paymentValueLabel}
               </span>
             </div>
           </div>
@@ -200,7 +207,7 @@ export function ConfirmReleaseModal({ isOpen, onClose, order, onSuccess }: Confi
                 (error?.message || 'An error occurred. Please try again.')
               }
               hash={hash}
-              explorerUrl={hash && txStatus !== 'error' ? `https://etherscan.io/tx/${hash}` : undefined}
+              explorerUrl={hash && txStatus !== 'error' ? `${explorerBaseUrl}/tx/${hash}` : undefined}
             />
           )}
 

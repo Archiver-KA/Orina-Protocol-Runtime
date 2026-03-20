@@ -1,7 +1,8 @@
 import { AlertCircle, Package, TrendingUp, Shield, Clock, CheckCircle2 } from 'lucide-react';
-import { formatEther } from 'viem';
 import { formatAddress } from '@/utils/format';
-import { usePayOrder } from '@/hooks/usePayOrder';
+import { ACTIVE_CHAIN_ID, EXPLORER_URLS } from '@/config/contracts';
+import { usePayOrder } from '@/hooks/useMarketplace';
+import { useBuyerSign3 } from '@/hooks/useEIP712Sign';
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
@@ -10,6 +11,7 @@ import { StudioNoticePanel } from '@/app/components/ui/studio-notice-panel';
 import { StudioModalBody, StudioModalCloseButton, StudioModalFooter, StudioModalHeader, StudioModalPanel, StudioModalShell } from '@/app/components/ui/studio-modal';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
+import { formatOrderGrossPrice, formatOrderQuantity } from '@/utils/orderDisplay';
 
 interface PayOrderModalProps {
   isOpen: boolean;
@@ -20,9 +22,13 @@ interface PayOrderModalProps {
     seller: `0x${string}`;
     assetId: bigint;
     amount: bigint;
+    unitName?: string;
     grossPrice: bigint;
+    paymentTokenSymbol?: string;
+    paymentTokenDecimals?: number;
     payDeadline: bigint;
     autoReleaseAt: bigint;
+    estDeliverySeconds: bigint;
     state: number;
   };
   onSuccess?: () => void;
@@ -31,8 +37,12 @@ interface PayOrderModalProps {
 export function PayOrderModal({ isOpen, onClose, order, onSuccess }: PayOrderModalProps) {
   const { address } = useAccount();
   const { payOrder, hash, isPending, isConfirming, isConfirmed, error } = usePayOrder();
+  const buyerSign3 = useBuyerSign3();
   const { requireWalletActionAsync } = useRequireWalletAction();
   const [txStatus, setTxStatus] = useState<'idle' | 'preparing' | 'pending' | 'confirming' | 'success' | 'error'>('idle');
+  const paymentValueLabel = formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
+  const quantityLabel = formatOrderQuantity(order.amount, order.unitName);
+  const explorerBaseUrl = EXPLORER_URLS[ACTIVE_CHAIN_ID] ?? EXPLORER_URLS[97];
 
   // Reset status when modal opens
   useEffect(() => {
@@ -82,7 +92,14 @@ export function PayOrderModal({ isOpen, onClose, order, onSuccess }: PayOrderMod
     setTxStatus('preparing');
     
     try {
-      await payOrder(order.orderId, order.grossPrice);
+      const buyerSig3 = await buyerSign3.sign({
+        orderId: order.orderId,
+        seller: order.seller,
+        grossPrice: order.grossPrice,
+        amount: order.amount,
+        estDeliverySeconds: order.estDeliverySeconds,
+      });
+      await payOrder(order.orderId, buyerSig3);
     } catch (err) {
       console.error('Failed to pay order:', err);
       setTxStatus('error');
@@ -160,7 +177,7 @@ export function PayOrderModal({ isOpen, onClose, order, onSuccess }: PayOrderMod
 
             <div className="flex items-center justify-between">
               <span className="text-sm text-ui-secondary">Amount</span>
-              <span className="text-sm text-ui-primary font-bold">{order.amount.toString()} units</span>
+              <span className="text-sm text-ui-primary font-bold">{quantityLabel}</span>
             </div>
 
             <div className="flex items-center justify-between py-2 border-t border-ui-border-subtle">
@@ -191,7 +208,7 @@ export function PayOrderModal({ isOpen, onClose, order, onSuccess }: PayOrderMod
               <Shield className="text-[#2CC295]" size={16} />
             </div>
             <div className="text-3xl font-bold text-[#2CC295] font-mono">
-              {formatEther(order.grossPrice)} ETH
+              {paymentValueLabel}
             </div>
             <p className="text-xs text-[#2CC295] mt-2">
               Funds will be held in escrow until delivery is confirmed
@@ -213,11 +230,11 @@ export function PayOrderModal({ isOpen, onClose, order, onSuccess }: PayOrderMod
                 txStatus === 'preparing' ? 'Building transaction...' :
                 txStatus === 'pending' ? 'Please confirm the transaction in your wallet' :
                 txStatus === 'confirming' ? 'Waiting for blockchain confirmation...' :
-                txStatus === 'success' ? 'Order has been paid successfully. Waiting for seller confirmation.' :
+                txStatus === 'success' ? 'Buyer Sig #3 accepted the revised delivery time and the order is now paid.' :
                 (error?.message || 'An error occurred. Please try again.')
               }
               hash={hash}
-              explorerUrl={hash && txStatus !== 'error' ? `https://etherscan.io/tx/${hash}` : undefined}
+              explorerUrl={hash && txStatus !== 'error' ? `${explorerBaseUrl}/tx/${hash}` : undefined}
             />
           )}
 
@@ -266,7 +283,7 @@ export function PayOrderModal({ isOpen, onClose, order, onSuccess }: PayOrderMod
             ) : (
               <>
                 <TrendingUp size={18} />
-                Pay {formatEther(order.grossPrice)} ETH
+                Pay {paymentValueLabel}
               </>
             )}
           </StudioActionButton>

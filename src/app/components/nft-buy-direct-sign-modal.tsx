@@ -6,9 +6,12 @@ import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
 import { MarketplaceAsset } from '@/app/types/asset';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
+import { ProtocolChainBanner } from '@/app/components/ui/protocol-chain-banner';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 import { useBuyerSign1, useSignOrder } from '@/hooks/useEIP712Sign';
+import { useProtocolChain } from '@/hooks/useProtocolChain';
 import { CONTRACTS } from '@/config/contracts';
+import { getWalletErrorMessage } from '@/utils/walletErrors';
 
 interface NftBuyDirectSignModalProps {
   asset: MarketplaceAsset;
@@ -25,7 +28,7 @@ function isValidEvmAddress(value: string): value is `0x${string}` {
 function parseAssetPriceToBaseUnits(price: string, currency: MarketplaceAsset['currency']): bigint | null {
   const raw = price.replace(/[^\d.]/g, '');
   if (!raw) return null;
-  const decimals = currency === 'USDC' ? 6 : 18;
+  const decimals = currency === 'USDC' || currency === 'USDT' ? 6 : 18;
   try {
     return parseUnits(raw, decimals);
   } catch {
@@ -39,6 +42,7 @@ export function NftBuyDirectSignModal({
   onClose,
 }: NftBuyDirectSignModalProps) {
   const { address } = useAccount();
+  const protocolChain = useProtocolChain();
   const buyerSig1 = useBuyerSign1();
   const previewSigner = useSignOrder();
   const [signedPayload, setSignedPayload] = useState<{
@@ -71,6 +75,10 @@ export function NftBuyDirectSignModal({
   const handleSign = async () => {
     if (!address || !isValidEvmAddress(address) || !sellerAddress || grossPrice === null) {
       toast.error('Missing wallet or valid NFT order data for signing');
+      return;
+    }
+
+    if (!(await protocolChain.ensureProtocolChainAsync('sign the NFT buy intent'))) {
       return;
     }
 
@@ -108,7 +116,7 @@ export function NftBuyDirectSignModal({
       toast.success('NFT buy signature created');
     } catch (error) {
       console.error('[NFT Buy Modal] Sign failed:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to sign NFT buy intent');
+      toast.error(getWalletErrorMessage(error, 'Failed to sign NFT buy intent'));
     }
   };
 
@@ -146,6 +154,16 @@ export function NftBuyDirectSignModal({
 
           <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-5">
             <div className="space-y-4">
+              <ProtocolChainBanner
+                isConnected={protocolChain.isConnected}
+                isOnProtocolChain={protocolChain.isOnProtocolChain}
+                currentChainLabel={protocolChain.currentChainLabel}
+                targetChainLabel={protocolChain.targetChainLabel}
+                isSwitching={protocolChain.isSwitching}
+                onSwitch={() => protocolChain.ensureProtocolChainAsync('sign the NFT buy intent')}
+                showWhenMatched={false}
+              />
+
               <div className="studio-glass-surface rounded-2xl border border-ui-border-subtle bg-[rgba(255,255,255,0.02)] p-4">
                 <div className="flex items-start gap-4">
                   <div className="w-24 h-24 rounded-2xl overflow-hidden bg-zinc-800 border border-white/5 shrink-0">
@@ -243,7 +261,13 @@ export function NftBuyDirectSignModal({
                   disabled={!canSign || isSigning}
                   className="flex-[1.15] rounded-xl py-3 justify-center text-sm"
                 >
-                  {isSigning ? 'Signing...' : 'Sign Buy Intent'}
+                  {isSigning
+                    ? 'Signing...'
+                    : !protocolChain.isConnected
+                      ? 'Connect Wallet'
+                      : !protocolChain.isOnProtocolChain
+                        ? 'Switch Network'
+                        : 'Sign Buy Intent'}
                 </StudioActionButton>
               </div>
             </div>

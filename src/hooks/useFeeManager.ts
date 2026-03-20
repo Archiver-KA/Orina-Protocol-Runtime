@@ -11,11 +11,14 @@ import { useMemo } from 'react';
 
 // ── Read Current Fee Rates ────────────────────────────────────
 
-export function useFeeRates() {
+export function useFeeRates(paymentToken?: `0x${string}`) {
+  const useTokenPreset = !!paymentToken;
+
   const platform = useReadContract({
     address: CONTRACTS.FEE_MANAGER,
     abi: FEE_MANAGER_ABI,
-    functionName: 'platformFeeBps',
+    functionName: useTokenPreset ? 'getPlatformFeeBpsForToken' : 'platformFeeBps',
+    args: paymentToken ? [paymentToken] : undefined,
   });
   const dao = useReadContract({
     address: CONTRACTS.FEE_MANAGER,
@@ -27,42 +30,63 @@ export function useFeeRates() {
     abi: FEE_MANAGER_ABI,
     functionName: 'burnFeeBps',
   });
+  const referral = useReadContract({
+    address: CONTRACTS.FEE_MANAGER,
+    abi: FEE_MANAGER_ABI,
+    functionName: 'referralFeeBps',
+  });
   const total = useReadContract({
     address: CONTRACTS.FEE_MANAGER,
     abi: FEE_MANAGER_ABI,
-    functionName: 'getTotalFeeBps',
+    functionName: useTokenPreset ? 'getTotalFeeBpsForToken' : 'getTotalFeeBps',
+    args: paymentToken ? [paymentToken] : undefined,
   });
   const maxTotal = useReadContract({
     address: CONTRACTS.FEE_MANAGER,
     abi: FEE_MANAGER_ABI,
     functionName: 'MAX_TOTAL_BPS',
   });
+  const stablePreset = useReadContract({
+    address: CONTRACTS.FEE_MANAGER,
+    abi: FEE_MANAGER_ABI,
+    functionName: 'STABLECOIN_PLATFORM_FEE_BPS',
+  });
+  const oriPreset = useReadContract({
+    address: CONTRACTS.FEE_MANAGER,
+    abi: FEE_MANAGER_ABI,
+    functionName: 'ORI_PLATFORM_FEE_BPS',
+  });
 
-  const isLoading = platform.isLoading || dao.isLoading || burn.isLoading;
+  const isLoading = platform.isLoading || dao.isLoading || burn.isLoading || referral.isLoading;
 
   return {
     platformFeeBps: platform.data as bigint | undefined,
     daoFeeBps: dao.data as bigint | undefined,
     burnFeeBps: burn.data as bigint | undefined,
+    referralFeeBps: referral.data as bigint | undefined,
     totalFeeBps: total.data as bigint | undefined,
     maxTotalBps: maxTotal.data as bigint | undefined,
+    stablecoinPlatformFeeBps: stablePreset.data as bigint | undefined,
+    oriPlatformFeeBps: oriPreset.data as bigint | undefined,
     isLoading,
     // Formatted percentages
     platformPercent: platform.data ? Number(platform.data) / 100 : undefined,
     daoPercent: dao.data ? Number(dao.data) / 100 : undefined,
     burnPercent: burn.data ? Number(burn.data) / 100 : undefined,
+    referralPercent: referral.data ? Number(referral.data) / 100 : undefined,
     totalPercent: total.data ? Number(total.data) / 100 : undefined,
   };
 }
 
 // ── Calculate Fees for an Amount ──────────────────────────────
 
-export function useCalculateFees(amount: bigint | undefined) {
+export function useCalculateFees(amount: bigint | undefined, paymentToken?: `0x${string}`) {
+  const useTokenPreset = !!paymentToken;
   return useReadContract({
     address: CONTRACTS.FEE_MANAGER,
     abi: FEE_MANAGER_ABI,
-    functionName: 'calculateFees',
-    args: amount !== undefined ? [amount] : undefined,
+    functionName: useTokenPreset ? 'calculateFeesForToken' : 'calculateFees',
+    args: amount !== undefined ? (paymentToken ? [paymentToken, amount] : [amount]) : undefined,
     query: { enabled: amount !== undefined && amount > 0n },
   });
 }

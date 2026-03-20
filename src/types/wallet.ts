@@ -36,12 +36,15 @@ export interface TransactionResult {
   timestamp: number;
 }
 
+export type WalletModalConfirmHandler = () => Promise<TransactionResult | void> | TransactionResult | void;
+
 export interface WalletModalState {
   step: WalletModalStep;
   source?: 'connect' | 'auth' | 'tx';
+  isBusy?: boolean;
   signatureData?: SignatureRequestData;
   transactionResult?: TransactionResult;
-  onConfirm?: () => void;
+  onConfirm?: WalletModalConfirmHandler;
   onCancel?: () => void;
 }
 

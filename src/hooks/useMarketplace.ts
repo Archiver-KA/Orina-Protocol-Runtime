@@ -6,7 +6,7 @@
  */
 
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { CONTRACTS } from '@/config/contracts';
+import { ACTIVE_CHAIN_ID, CONTRACTS } from '@/config/contracts';
 import { MARKETPLACE_ABI } from '@/config/abis';
 
 // ── Read Hooks ────────────────────────────────────────────────
@@ -14,6 +14,7 @@ import { MARKETPLACE_ABI } from '@/config/abis';
 /** Get total number of orders */
 export function useNextOrderId() {
   return useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
     address: CONTRACTS.MARKETPLACE_ATP,
     abi: MARKETPLACE_ABI,
     functionName: 'nextOrderId',
@@ -23,6 +24,7 @@ export function useNextOrderId() {
 /** Get order data by ID (public mapping auto-getter) */
 export function useOrder(orderId: bigint | undefined) {
   return useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
     address: CONTRACTS.MARKETPLACE_ATP,
     abi: MARKETPLACE_ABI,
     functionName: 'orders',
@@ -34,6 +36,7 @@ export function useOrder(orderId: bigint | undefined) {
 /** Get enriched order status with remaining time and text */
 export function useOrderStatus(orderId: bigint | undefined) {
   return useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
     address: CONTRACTS.MARKETPLACE_ATP,
     abi: MARKETPLACE_ABI,
     functionName: 'getOrderStatus',
@@ -45,6 +48,7 @@ export function useOrderStatus(orderId: bigint | undefined) {
 /** Check individual order state flags */
 export function useIsPendingConfirm(orderId: bigint | undefined) {
   return useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
     address: CONTRACTS.MARKETPLACE_ATP,
     abi: MARKETPLACE_ABI,
     functionName: 'isPendingConfirm',
@@ -55,6 +59,7 @@ export function useIsPendingConfirm(orderId: bigint | undefined) {
 
 export function useIsPaid(orderId: bigint | undefined) {
   return useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
     address: CONTRACTS.MARKETPLACE_ATP,
     abi: MARKETPLACE_ABI,
     functionName: 'isPaid',
@@ -65,6 +70,7 @@ export function useIsPaid(orderId: bigint | undefined) {
 
 export function useIsOrderDisputed(orderId: bigint | undefined) {
   return useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
     address: CONTRACTS.MARKETPLACE_ATP,
     abi: MARKETPLACE_ABI,
     functionName: 'isOrderDisputed',
@@ -75,6 +81,7 @@ export function useIsOrderDisputed(orderId: bigint | undefined) {
 
 export function useIsFinalized(orderId: bigint | undefined) {
   return useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
     address: CONTRACTS.MARKETPLACE_ATP,
     abi: MARKETPLACE_ABI,
     functionName: 'isFinalized',
@@ -85,6 +92,7 @@ export function useIsFinalized(orderId: bigint | undefined) {
 
 export function useIsSellerConfirmed(orderId: bigint | undefined) {
   return useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
     address: CONTRACTS.MARKETPLACE_ATP,
     abi: MARKETPLACE_ABI,
     functionName: 'isSellerConfirmed',
@@ -96,16 +104,19 @@ export function useIsSellerConfirmed(orderId: bigint | undefined) {
 /** Read protocol constants */
 export function useProtocolConstants() {
   const sellerWindow = useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
     address: CONTRACTS.MARKETPLACE_ATP,
     abi: MARKETPLACE_ABI,
     functionName: 'SELLER_CONFIRM_WINDOW',
   });
   const payTimeout = useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
     address: CONTRACTS.MARKETPLACE_ATP,
     abi: MARKETPLACE_ABI,
     functionName: 'PAY_TIMEOUT',
   });
   const buyerWindow = useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
     address: CONTRACTS.MARKETPLACE_ATP,
     abi: MARKETPLACE_ABI,
     functionName: 'BUYER_ACTION_WINDOW',
@@ -122,8 +133,8 @@ export function useProtocolConstants() {
 
 /** Buyer creates order (Sig 1) */
 export function useCreateOrder() {
-  const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
 
   const createOrder = async (
     seller: `0x${string}`,
@@ -134,7 +145,8 @@ export function useCreateOrder() {
     proposedEstDeliverySeconds: bigint,
     buyerSig1: `0x${string}`,
   ) => {
-    writeContract({
+    return writeContractAsync({
+      chainId: ACTIVE_CHAIN_ID,
       address: CONTRACTS.MARKETPLACE_ATP,
       abi: MARKETPLACE_ABI,
       functionName: 'createOrder',
@@ -147,15 +159,16 @@ export function useCreateOrder() {
 
 /** Seller confirms with delivery time (Sig 2) */
 export function useSellerConfirm() {
-  const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
 
   const sellerConfirm = async (
     orderId: bigint,
     estDeliverySeconds: bigint,
     sellerSig: `0x${string}`,
   ) => {
-    writeContract({
+    return writeContractAsync({
+      chainId: ACTIVE_CHAIN_ID,
       address: CONTRACTS.MARKETPLACE_ATP,
       abi: MARKETPLACE_ABI,
       functionName: 'sellerConfirm',
@@ -168,11 +181,12 @@ export function useSellerConfirm() {
 
 /** Buyer pays order (Sig 3 - accepts seller's delivery time) */
 export function usePayOrder() {
-  const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
 
   const payOrder = async (orderId: bigint, buyerSig2: `0x${string}`) => {
-    writeContract({
+    return writeContractAsync({
+      chainId: ACTIVE_CHAIN_ID,
       address: CONTRACTS.MARKETPLACE_ATP,
       abi: MARKETPLACE_ABI,
       functionName: 'payOrder',
@@ -185,11 +199,12 @@ export function usePayOrder() {
 
 /** Buyer confirms delivery → finalize with FULL_RELEASE */
 export function useConfirmDelivery() {
-  const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
 
   const confirmDelivery = async (orderId: bigint) => {
-    writeContract({
+    return writeContractAsync({
+      chainId: ACTIVE_CHAIN_ID,
       address: CONTRACTS.MARKETPLACE_ATP,
       abi: MARKETPLACE_ABI,
       functionName: 'confirmDelivery',
@@ -200,13 +215,32 @@ export function useConfirmDelivery() {
   return { confirmDelivery, hash, isPending, isConfirming, isConfirmed, error, reset };
 }
 
-/** Buyer voluntary cancel (before payment) */
+/** Seller voluntary cancel during the initial 24h seller window */
+export function useCancelBySeller() {
+  const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+
+  const cancelBySeller = async (orderId: bigint) => {
+    return writeContractAsync({
+      chainId: ACTIVE_CHAIN_ID,
+      address: CONTRACTS.MARKETPLACE_ATP,
+      abi: MARKETPLACE_ABI,
+      functionName: 'cancelBySeller',
+      args: [orderId],
+    });
+  };
+
+  return { cancelBySeller, hash, isPending, isConfirming, isConfirmed, error, reset };
+}
+
+/** Buyer voluntary cancel during the buyer re-sign window */
 export function useCancelByBuyer() {
-  const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
 
   const cancelByBuyer = async (orderId: bigint) => {
-    writeContract({
+    return writeContractAsync({
+      chainId: ACTIVE_CHAIN_ID,
       address: CONTRACTS.MARKETPLACE_ATP,
       abi: MARKETPLACE_ABI,
       functionName: 'cancelByBuyer',
@@ -217,13 +251,14 @@ export function useCancelByBuyer() {
   return { cancelByBuyer, hash, isPending, isConfirming, isConfirmed, error, reset };
 }
 
-/** Open dispute (buyer or seller, within 3-day window after autoReleaseAt) */
+/** Open dispute (buyer only, within the 3-day window after agreed delivery ends) */
 export function useOpenDispute() {
-  const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
 
   const openDispute = async (orderId: bigint) => {
-    writeContract({
+    return writeContractAsync({
+      chainId: ACTIVE_CHAIN_ID,
       address: CONTRACTS.MARKETPLACE_ATP,
       abi: MARKETPLACE_ABI,
       functionName: 'openDispute',

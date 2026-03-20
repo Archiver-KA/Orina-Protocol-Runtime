@@ -1,6 +1,6 @@
 import { AlertCircle, XCircle, CheckCircle2, Shield, DollarSign } from 'lucide-react';
-import { formatEther } from 'viem';
 import { formatAddress } from '@/utils/format';
+import { ACTIVE_CHAIN_ID, EXPLORER_URLS } from '@/config/contracts';
 import { useCancelOrder } from '@/hooks/useOrders';
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
@@ -11,6 +11,7 @@ import { StudioFieldHint, StudioFieldLabel, StudioTextareaField } from '@/app/co
 import { StudioModalBody, StudioModalCloseButton, StudioModalFooter, StudioModalHeader, StudioModalPanel, StudioModalShell } from '@/app/components/ui/studio-modal';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
+import { formatOrderGrossPrice, formatOrderQuantity } from '@/utils/orderDisplay';
 
 interface CancelOrderModalProps {
   isOpen: boolean;
@@ -21,7 +22,10 @@ interface CancelOrderModalProps {
     seller: `0x${string}`;
     assetId: bigint;
     amount: bigint;
+    unitName?: string;
     grossPrice: bigint;
+    paymentTokenSymbol?: string;
+    paymentTokenDecimals?: number;
     payDeadline: bigint;
     autoReleaseAt: bigint;
     state: number;
@@ -35,6 +39,9 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
   const { requireWalletActionAsync } = useRequireWalletAction();
   const [txStatus, setTxStatus] = useState<'idle' | 'preparing' | 'pending' | 'confirming' | 'success' | 'error'>('idle');
   const [cancelReason, setCancelReason] = useState('');
+  const paymentValueLabel = formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
+  const quantityLabel = formatOrderQuantity(order.amount, order.unitName);
+  const explorerBaseUrl = EXPLORER_URLS[ACTIVE_CHAIN_ID] ?? EXPLORER_URLS[97];
 
   // Reset status when modal opens
   useEffect(() => {
@@ -163,7 +170,7 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
 
             <div className="flex items-center justify-between">
               <span className="text-sm text-ui-secondary">Amount</span>
-              <span className="text-sm text-ui-primary font-bold">{order.amount.toString()} units</span>
+              <span className="text-sm text-ui-primary font-bold">{quantityLabel}</span>
             </div>
 
             <div className="flex items-center justify-between py-2 border-t border-ui-border-subtle">
@@ -179,7 +186,7 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
             <div className="flex items-center justify-between py-2 border-t border-ui-border-subtle">
               <span className="text-sm text-ui-secondary">Order Value</span>
               <span className="text-sm text-ui-primary font-bold font-mono">
-                {formatEther(order.grossPrice)} ETH
+                {paymentValueLabel}
               </span>
             </div>
 
@@ -210,7 +217,7 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
                 <div className="flex-1">
                   <h3 className="text-sm font-bold text-amber-400 mb-2">Refund Information</h3>
                   <div className="space-y-2 text-xs text-ui-secondary">
-                    <p>💰 Payment amount: <strong className="text-amber-400">{formatEther(order.grossPrice)} ETH</strong></p>
+                    <p>💰 Payment amount: <strong className="text-amber-400">{paymentValueLabel}</strong></p>
                     <p>↩️ Refund to: <strong className="text-ui-primary font-mono">{formatAddress(order.buyer)}</strong></p>
                     <p>⏱️ Timing: Immediate (same transaction)</p>
                     <p>🔐 Security: Funds returned from escrow</p>
@@ -275,7 +282,7 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
                 (error?.message || 'An error occurred. Please try again.')
               }
               hash={hash}
-              explorerUrl={hash && txStatus !== 'error' ? `https://etherscan.io/tx/${hash}` : undefined}
+              explorerUrl={hash && txStatus !== 'error' ? `${explorerBaseUrl}/tx/${hash}` : undefined}
             />
           )}
 

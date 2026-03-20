@@ -23,6 +23,7 @@ import {
   DeliveryAddressBlock,
   type DeliveryAddressBlockHandle,
 } from '@/app/components/settings/delivery-address-block';
+import { RuntimeStatusPanel } from '@/app/components/settings/runtime-status-panel';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
 import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
 import { useTheme } from '@/app/contexts/ThemeContext';
@@ -427,6 +428,13 @@ export function Settings() {
                     <ToggleSwitch checked={settings.animations} onChange={(checked) => updateSetting('animations', checked)} />
                   </div>
                 </div>
+              </div>
+
+              {/* ══════════════════════════════════════════════ */}
+              {/* SECTION 8: Protocol Runtime Status            */}
+              {/* ══════════════════════════════════════════════ */}
+              <div className={settingsPanelClass}>
+                <RuntimeStatusPanel />
               </div>
 
               {/* Export & Delete */}

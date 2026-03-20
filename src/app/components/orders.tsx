@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Search, CheckCircle, XCircle, Package, User, Store, Info, Check, Timer, ExternalLink, AlertTriangle } from 'lucide-react';
-import { useAccount } from 'wagmi';
-import { formatEther } from 'viem';
+import { useAccount, usePublicClient } from 'wagmi';
+import { BaseError } from 'viem';
 import { AnimatePresence, motion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { formatAddress } from '@/utils/format';
+import { MARKETPLACE_ABI } from '@/config/abis';
+import { ACTIVE_CHAIN_ID, CONTRACTS } from '@/config/contracts';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { DurationPicker } from '@/app/components/duration-picker';
 import { ConfirmDeliveryModal } from '@/app/components/confirm-delivery-modal';
@@ -18,20 +20,55 @@ import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { StudioStatusBadge } from '@/app/components/ui/studio-status-badge';
 import { StudioProgressBar } from '@/app/components/ui/studio-progress-bar';
 import { StudioTimelineItem } from '@/app/components/ui/studio-list-parts';
+import { ProtocolChainBanner } from '@/app/components/ui/protocol-chain-banner';
 import type { OrderUiRecord } from '@/types/order';
+import { useUserOrders } from '@/hooks/useUserOrders';
 import {
   useSellerConfirm,
   usePayOrder,
   useConfirmDelivery,
+  useCancelBySeller,
   useCancelByBuyer,
   useOpenDispute,
 } from '@/hooks/useMarketplace';
 import { useSellerSign2, useBuyerSign3 } from '@/hooks/useEIP712Sign';
+import { upsertRuntimeOrder } from '@/utils/runtimeOrders';
+import { createDisputeProjection } from '@/utils/disputeCase';
 import {
-  hydrateRuntimeOrdersFromSupabase,
-  loadRuntimeOrders,
-  subscribeToRuntimeOrders,
-} from '@/utils/runtimeOrders';
+  formatOrderGrossPrice,
+  formatOrderQuantity,
+  getOrderGrossPriceNumber,
+  getOrderShippingDetails,
+  hasOrderShippingDetails,
+} from '@/utils/orderDisplay';
+import {
+  canBuyerAcceptRevisedTime,
+  canBuyerCancelOrder,
+  canConfirmDelivery,
+  canOpenDispute,
+  canSellerCancelOrder,
+  canSellerConfirm,
+  canViewerBuyerAcceptRevisedTime,
+  canViewerBuyerCancelOrder,
+  canViewerConfirmDelivery,
+  canViewerOpenDispute,
+  canViewerSellerCancelOrder,
+  canViewerSellerConfirm,
+  getOrderCountdownDeadline,
+  getOrderLifecycleLabel,
+  getOrderLifecyclePhase,
+  isBuyerForOrder,
+  isSellerForOrder,
+  reconcileOrderFromChain,
+  type MarketplaceOrderSnapshot,
+} from '@/utils/orderLifecycle';
+import { useAccessGuard } from '@/hooks/useAccessGuard';
+import { useProtocolChain } from '@/hooks/useProtocolChain';
+import {
+  getWalletErrorMessage,
+  isWalletChainMismatchError,
+  isWalletRequestPendingError,
+} from '@/utils/walletErrors';
 
 const TEAL = '#2CC295';
 
@@ -91,6 +128,7 @@ const NETWORK_OPTIONS = [
 ];
 
 type OrderActionNoticeTone = 'success' | 'warning' | 'danger';
+const ACTION_NOTICE_MS = 4500;
 
 interface OrderActionNoticeState {
   id: number;
@@ -98,7 +136,7 @@ interface OrderActionNoticeState {
   description: string;
   assetName: string;
   assetImage: string;
-  assetValueEth: string;
+  assetValueLabel: string;
   tone: OrderActionNoticeTone;
 }
 
@@ -174,7 +212,7 @@ function OrderActionNoticeModal({
                 />
                 <div className="flex-1 text-left min-w-0">
                   <p className="text-xs font-bold text-ui-primary leading-tight truncate">{notice.assetName}</p>
-                  <p className="text-xs text-ui-muted mt-0.5">{notice.assetValueEth} ETH</p>
+                  <p className="text-xs text-ui-muted mt-0.5">{notice.assetValueLabel}</p>
                 </div>
                 {toneStyles.trailing}
               </div>
@@ -391,9 +429,14 @@ interface OrdersProps {
 
 export function Orders({ onNavigateToPage }: OrdersProps) {
   const { address, isConnected } = useAccount();
+  const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN_ID });
+  const accessGuard = useAccessGuard(onNavigateToPage);
+  const protocolChain = useProtocolChain();
+  const { orders: canonicalOrders, refresh: refreshOrders } = useUserOrders(address);
   const sellerConfirmTx = useSellerConfirm();
   const payOrderTx = usePayOrder();
   const confirmDeliveryTx = useConfirmDelivery();
+  const cancelBySellerTx = useCancelBySeller();
   const cancelByBuyerTx = useCancelByBuyer();
   const openDisputeTx = useOpenDispute();
   const sellerSign2 = useSellerSign2();
@@ -401,12 +444,9 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedNetwork, setSelectedNetwork] = useState('all');
   const [selectedFilter, setSelectedFilter] = useState('all');
-  const [runtimeOrdersVersion, setRuntimeOrdersVersion] = useState(0);
   const allOrders = useMemo(() => {
-    const runtimeOrders = loadRuntimeOrders(address);
-    const baseOrders = runtimeOrders.length > 0 ? runtimeOrders : mockOrders;
-    return [...baseOrders].sort((a, b) => Number(b.proposedAt - a.proposedAt));
-  }, [address, runtimeOrdersVersion]);
+    return [...canonicalOrders].sort((a, b) => Number(b.proposedAt - a.proposedAt));
+  }, [canonicalOrders]);
   const [selectedOrder, setSelectedOrder] = useState<OrderUiRecord>(allOrders[0] ?? mockOrders[0]);
   const [showDurationPicker, setShowDurationPicker] = useState(false);
   const [confirmingOrderId, setConfirmingOrderId] = useState<bigint | null>(null);
@@ -415,6 +455,15 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   const [showDisputeResolutionModal, setShowDisputeResolutionModal] = useState(false);
   const [showOrderDetailsModal, setShowOrderDetailsModal] = useState(false);
   const [actionNotice, setActionNotice] = useState<OrderActionNoticeState | null>(null);
+  const [activeActionKey, setActiveActionKey] = useState<string | null>(null);
+  const formatOrderValueLabel = (order: OrderUiRecord) =>
+    formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
+  const formatOrderQuantityLabel = (order: OrderUiRecord) =>
+    formatOrderQuantity(order.amount, order.unitName);
+  const selectedOrderShipping = getOrderShippingDetails(
+    selectedOrder.shippingAddressSnapshot,
+    selectedOrder.shippingMethodLabel,
+  );
 
   // Auto-update timers
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -423,16 +472,31 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (address) {
-      void hydrateRuntimeOrdersFromSupabase(address).then(() => {
-        setRuntimeOrdersVersion((value) => value + 1);
-      });
+  const currentTimeSec = Math.floor(currentTime / 1000);
+
+  const requireBuyerRole = (order: OrderUiRecord, actionLabel: string) => {
+    if (!address) {
+      accessGuard.denyToGuest('orders');
+      return false;
     }
-    return subscribeToRuntimeOrders(() => {
-      setRuntimeOrdersVersion((value) => value + 1);
-    });
-  }, [address]);
+    if (!isBuyerForOrder(order, address)) {
+      showActionNotice('warning', 'Buyer Action Only', `Only the buyer can ${actionLabel} for this order.`, order);
+      return false;
+    }
+    return true;
+  };
+
+  const requireSellerRole = (order: OrderUiRecord, actionLabel: string) => {
+    if (!address) {
+      accessGuard.denyToGuest('orders');
+      return false;
+    }
+    if (!isSellerForOrder(order, address)) {
+      showActionNotice('warning', 'Seller Action Only', `Only the seller can ${actionLabel} for this order.`, order);
+      return false;
+    }
+    return true;
+  };
 
   useEffect(() => {
     if (!allOrders.length) return;
@@ -451,11 +515,175 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
     return allOrders.find((order) => order.orderId === orderId);
   };
 
+  const getActionKey = (action: string, orderId: bigint) => `${action}:${orderId.toString()}`;
+
+  const waitForMarketplaceReceipt = async (hash: `0x${string}`) => {
+    if (!publicClient) {
+      throw new Error('Public client unavailable');
+    }
+    return publicClient.waitForTransactionReceipt({ hash });
+  };
+
+  const rereadOrderFromChain = async (order: OrderUiRecord) => {
+    if (!publicClient) {
+      throw new Error('Public client unavailable');
+    }
+
+    const chainOrder = await publicClient.readContract({
+      chainId: ACTIVE_CHAIN_ID,
+      address: CONTRACTS.MARKETPLACE_ATP,
+      abi: MARKETPLACE_ABI,
+      functionName: 'orders',
+      args: [order.orderId],
+    }) as unknown as MarketplaceOrderSnapshot;
+
+    return reconcileOrderFromChain(order, chainOrder);
+  };
+
+  const syncOrderAfterWrite = async (order: OrderUiRecord) => {
+    const reconciledOrder = await rereadOrderFromChain(order);
+    upsertRuntimeOrder(reconciledOrder);
+    setSelectedOrder(reconciledOrder);
+    void refreshOrders();
+    return reconciledOrder;
+  };
+
+  const shortTxHash = (hash: `0x${string}`) => `${hash.slice(0, 10)}...${hash.slice(-6)}`;
+
+  const formatOnChainDateTime = (timestamp?: bigint) => {
+    if (!timestamp || timestamp <= 0n) return 'n/a';
+    const millis = Number(timestamp) * 1000;
+    if (!Number.isFinite(millis)) return timestamp.toString();
+    return new Date(millis).toLocaleString('en-GB', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZoneName: 'short',
+    });
+  };
+
+  const describeOnChainOrderState = (order: OrderUiRecord) => {
+    const phase = getOrderLifecyclePhase(order, currentTimeSec);
+
+    switch (phase) {
+      case 'waiting_seller_confirm':
+        return `Buyer Sig #1 is locked in. Seller has until ${formatOnChainDateTime(getOrderCountdownDeadline(order, currentTimeSec))} to accept, revise delivery time, or cancel. Buyer is waiting only. If seller does nothing, the order becomes auto-cancelable after this window.`;
+      case 'seller_confirm_expired':
+        return 'Seller confirm window expired. No manual party action remains in phase 1, and the auto-time flow can now cancel this pending order on-chain.';
+      case 'waiting_buyer_accept':
+        return `Seller changed the delivery time. Buyer Sig #3 is required before ${formatOnChainDateTime(order.payDeadline)} to lock the order. Buyer may cancel instead during this same 24-hour window.`;
+      case 'buyer_accept_expired':
+        return 'Buyer re-sign window expired. No manual party action remains in phase 2, and the auto-time flow can now cancel this pending order on-chain.';
+      case 'agreed_delivery':
+        return order.disputeDeadline && order.disputeDeadline > 0n
+          ? `Agreed delivery time is active until ${formatOnChainDateTime(order.autoReleaseAt)}. Buyer can confirm delivery earlier. When this timer ends, Awaiting Auto Finalize begins and buyer may still either confirm delivery or open dispute until ${formatOnChainDateTime(order.disputeDeadline)}.`
+          : `Agreed delivery time is active until ${formatOnChainDateTime(order.autoReleaseAt)}. Buyer can confirm delivery earlier, then the order moves into Awaiting Auto Finalize before protocol finalization.`;
+      case 'awaiting_auto_finalize':
+        return order.disputeDeadline && order.disputeDeadline > 0n
+          ? `Agreed delivery time ended. This is the 3-day Awaiting Auto Finalize window. Buyer may still confirm delivery or open dispute until ${formatOnChainDateTime(order.disputeDeadline)}. If no buyer action happens, protocol auto-finalize takes over at that deadline.`
+          : 'Agreed delivery time ended. This is the Awaiting Auto Finalize window before protocol finalization.';
+      case 'auto_finalize_ready':
+        return 'Agreed delivery time and the 3-day Awaiting Auto Finalize window are over. Order is now waiting for protocol auto-finalize execution.';
+      case 'disputed':
+        return order.disputeDeadline && order.disputeDeadline > 0n
+          ? `On-chain DISPUTED. Arbiter flow remains open until ${formatOnChainDateTime(order.disputeDeadline)}.`
+          : 'On-chain DISPUTED. Arbiter resolution is required before settlement can complete.';
+      case 'finalized':
+        return 'On-chain FINALIZED. Receipt and asset settlement should already be complete.';
+      case 'cancelled':
+        return 'On-chain CANCELLED. Escrow should already be refunded or closed.';
+      default:
+        return 'On-chain state is being refreshed.';
+    }
+  };
+
+  const extractTxFailureReason = (error: unknown) => {
+    if (error instanceof BaseError) {
+      return error.shortMessage || error.details || error.message;
+    }
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return 'Transaction failed before on-chain finalization.';
+  };
+
+  const syncOrderForDiagnostics = async (order: OrderUiRecord) => {
+    try {
+      return await syncOrderAfterWrite(order);
+    } catch (syncError) {
+      console.warn('Failed to refresh order from chain for diagnostics', {
+        orderId: order.orderId.toString(),
+        syncError,
+      });
+      return order;
+    }
+  };
+
+  const getOrderChainHint = (order: OrderUiRecord) => {
+    const phase = getOrderLifecyclePhase(order, currentTimeSec);
+
+    if (phase === 'finalized' || phase === 'cancelled') return null;
+
+    if (phase === 'waiting_seller_confirm') {
+      if (isSellerForOrder(order, address)) {
+        return 'Seller has 24 hours to accept the current agreed delivery time, revise it, or cancel the order. Buyer cannot cancel in this phase.';
+      }
+      if (isBuyerForOrder(order, address)) {
+        return 'Buyer Sig #1 is already submitted. Buyer now waits for seller confirm or seller cancel within the 24-hour seller window.';
+      }
+      return 'Waiting for seller confirm within the 24-hour seller window.';
+    }
+
+    if (phase === 'waiting_buyer_accept') {
+      return isBuyerForOrder(order, address)
+        ? 'Seller revised the agreed delivery time. Buyer now has 24 hours to re-sign from this Orders card or cancel the order before lock.'
+        : 'Waiting for buyer Sig #3 during the 24-hour buyer re-sign window before lock can happen.';
+    }
+
+    if (phase === 'seller_confirm_expired') {
+      return 'Seller did not act within 24 hours. The order is now pending auto-cancel on-chain.';
+    }
+
+    if (phase === 'buyer_accept_expired') {
+      return 'Buyer did not re-sign within 24 hours. The order is now pending auto-cancel on-chain.';
+    }
+
+    if (phase === 'agreed_delivery') {
+      return isBuyerForOrder(order, address)
+        ? 'This countdown is the agreed delivery time set by buyer and seller. Buyer can confirm early, and if that timer ends the 3-day Awaiting Auto Finalize window opens.'
+        : isSellerForOrder(order, address)
+          ? 'This countdown is the agreed delivery time. Seller waits for buyer confirm or for the order to move into Awaiting Auto Finalize.'
+          : 'This countdown is the agreed delivery time. Delivery confirmation is buyer-only.';
+    }
+
+    if (phase === 'awaiting_auto_finalize') {
+      return isBuyerForOrder(order, address)
+        ? 'This 3-day countdown is Awaiting Auto Finalize. During this window the buyer may still confirm delivery or open dispute; otherwise protocol auto-finalize takes over at the end.'
+        : isSellerForOrder(order, address)
+          ? 'This 3-day countdown is Awaiting Auto Finalize. Seller is waiting for buyer confirm, buyer dispute, or protocol auto-finalize.'
+          : 'This 3-day countdown is Awaiting Auto Finalize. Waiting for buyer confirm, buyer dispute, or protocol auto-finalize at the end of the window.';
+    }
+
+    if (phase === 'auto_finalize_ready') {
+      return 'No party action remains. The Awaiting Auto Finalize window has ended, and protocol auto-finalize execution is now pending.';
+    }
+
+    if (phase === 'disputed') {
+      return 'Escrow is frozen in dispute resolution.';
+    }
+
+    return describeOnChainOrderState(order);
+  };
+
   const showActionNotice = (
     tone: OrderActionNoticeTone,
     title: string,
     description: string,
-    orderForNotice: (typeof mockOrders)[number],
+    orderForNotice: OrderUiRecord,
   ) => {
     const id = Date.now();
     setActionNotice({
@@ -465,12 +693,36 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
       description,
       assetName: orderForNotice.assetName,
       assetImage: orderForNotice.assetImage,
-      assetValueEth: formatEther(orderForNotice.grossPrice),
+      assetValueLabel: formatOrderGrossPrice(
+        orderForNotice.grossPrice,
+        orderForNotice.paymentTokenSymbol,
+        orderForNotice.paymentTokenDecimals,
+      ),
     });
 
     window.setTimeout(() => {
       setActionNotice((current) => (current?.id === id ? null : current));
-    }, 1500);
+    }, ACTION_NOTICE_MS);
+  };
+
+  const showWalletActionFailure = (
+    orderForNotice: OrderUiRecord,
+    title: string,
+    error: unknown,
+    fallbackMessage: string,
+  ) => {
+    const pending = isWalletRequestPendingError(error);
+    const wrongNetwork = isWalletChainMismatchError(error);
+    showActionNotice(
+      pending || wrongNetwork ? 'warning' : 'danger',
+      pending ? 'Wallet Request Pending' : wrongNetwork ? 'Wrong Network' : title,
+      getWalletErrorMessage(error, fallbackMessage),
+      orderForNotice,
+    );
+  };
+
+  const handleSwitchProtocolChain = async () => {
+    await protocolChain.ensureProtocolChainAsync('continue with order actions');
   };
 
   // Filter orders
@@ -498,11 +750,11 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
 
   // Stats
   const stats = useMemo(() => ({
-    total: 1284,
-    active: 42,
-    completed: 1190,
-    volume: 842.15,
-  }), []);
+    total: allOrders.length,
+    active: allOrders.filter((order) => order.state === 1 || order.state === 2).length,
+    completed: allOrders.filter((order) => order.finalized || order.state === 3).length,
+    volume: allOrders.reduce((sum, order) => sum + getOrderGrossPriceNumber(order.grossPrice, order.paymentTokenDecimals), 0),
+  }), [allOrders]);
 
   // Format countdown timer
   const formatCountdown = (deadline: bigint) => {
@@ -531,8 +783,56 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
     return { days, hours, mins, secs };
   };
 
+  const getOrderBadgeVariant = (order: OrderUiRecord) => {
+    switch (getOrderLifecyclePhase(order, currentTimeSec)) {
+      case 'waiting_seller_confirm':
+      case 'waiting_buyer_accept':
+        return 'warning';
+      case 'agreed_delivery':
+        return 'success';
+      case 'awaiting_auto_finalize':
+      case 'disputed':
+      case 'seller_confirm_expired':
+      case 'buyer_accept_expired':
+        return 'danger';
+      case 'auto_finalize_ready':
+        return 'muted';
+      case 'finalized':
+        return 'info';
+      default:
+        return 'muted';
+    }
+  };
+
+  const getOrderCountdownTitle = (order: OrderUiRecord) => {
+    switch (getOrderLifecyclePhase(order, currentTimeSec)) {
+      case 'waiting_seller_confirm':
+      case 'seller_confirm_expired':
+        return 'Seller Window';
+      case 'waiting_buyer_accept':
+      case 'buyer_accept_expired':
+        return 'Buyer Re-Sign';
+      case 'agreed_delivery':
+        return 'Agreed Delivery';
+      case 'awaiting_auto_finalize':
+        return 'Awaiting Auto Finalize';
+      default:
+        return null;
+    }
+  };
+
   // Handle seller confirm
   const handleSellerConfirm = (orderId: bigint) => {
+    const order = resolveOrderById(orderId);
+    if (!order) return;
+    if (!requireSellerRole(order, 'confirm the delivery time')) return;
+    if (!canSellerConfirm(order)) {
+      if (order) {
+        showActionNotice('warning', 'Order Already Updated', 'This order is no longer waiting for seller confirmation.', order);
+      }
+      return;
+    }
+    setSelectedOrder(order);
     setConfirmingOrderId(orderId);
     setShowDurationPicker(true);
   };
@@ -545,22 +845,53 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
       return;
     }
 
+    if (!(await protocolChain.ensureProtocolChainAsync('seller confirm the delivery time'))) {
+      return;
+    }
+
+    const actionKey = getActionKey('sellerConfirm', order.orderId);
+    if (activeActionKey === actionKey) return;
     try {
+      const currentOrder = await rereadOrderFromChain(order);
+      if (!canSellerConfirm(currentOrder)) {
+        showActionNotice('warning', 'Order Already Updated', 'This order is no longer waiting for seller confirmation.', currentOrder);
+        return;
+      }
+
+      setActiveActionKey(actionKey);
       const estDeliverySeconds = BigInt(days) * 24n * 60n * 60n;
+      const sellerChangedTime = currentOrder.estDeliverySeconds !== estDeliverySeconds;
       const sellerSig = await sellerSign2.sign({
-        orderId: order.orderId,
-        buyer: order.buyer,
-        grossPrice: order.grossPrice,
-        amount: order.amount,
+        orderId: currentOrder.orderId,
+        buyer: currentOrder.buyer,
+        grossPrice: currentOrder.grossPrice,
+        amount: currentOrder.amount,
         estDeliverySeconds,
       });
-      await sellerConfirmTx.sellerConfirm(order.orderId, estDeliverySeconds, sellerSig);
-      showActionNotice('success', 'Seller Confirmed!', 'Delivery duration has been set. Redirecting to orders...', order);
+      const txHash = await sellerConfirmTx.sellerConfirm(currentOrder.orderId, estDeliverySeconds, sellerSig);
+      await waitForMarketplaceReceipt(txHash);
+      const reconciledOrder = await syncOrderAfterWrite(currentOrder);
+      showActionNotice(
+        'success',
+        sellerChangedTime ? 'Seller Updated Delivery Time' : 'Seller Accepted Buyer Time',
+        sellerChangedTime
+          ? 'Buyer Sig #3 is now required to accept the revised delivery time.'
+          : 'Seller kept the buyer delivery time, so the order locks immediately.',
+        reconciledOrder,
+      );
     } catch (error) {
       console.error('sellerConfirm failed', { orderId: order.orderId.toString(), days, targetDate, error });
+      showWalletActionFailure(
+        order,
+        'Seller Confirmation Failed',
+        error,
+        'Seller confirmation failed before the wallet request completed.',
+      );
+    } finally {
+      setActiveActionKey((current) => (current === actionKey ? null : current));
+      setShowDurationPicker(false);
+      setConfirmingOrderId(null);
     }
-    setShowDurationPicker(false);
-    setConfirmingOrderId(null);
   };
 
   const handleDurationCancel = () => {
@@ -568,13 +899,54 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
     setConfirmingOrderId(null);
   };
 
+  const handleSellerCancelOrder = async (orderId: bigint) => {
+    const order = resolveOrderById(orderId);
+    if (!order) return;
+    if (!requireSellerRole(order, 'cancel this order')) return;
+
+    if (!(await protocolChain.ensureProtocolChainAsync('cancel this order as seller'))) {
+      return;
+    }
+
+    const actionKey = getActionKey('cancelBySeller', order.orderId);
+    if (activeActionKey === actionKey) return;
+
+    try {
+      const currentOrder = await rereadOrderFromChain(order);
+      if (!canSellerCancelOrder(currentOrder)) {
+        showActionNotice('warning', 'Order Already Updated', 'This order can no longer be cancelled by the seller.', currentOrder);
+        return;
+      }
+
+      setActiveActionKey(actionKey);
+      const txHash = await cancelBySellerTx.cancelBySeller(currentOrder.orderId);
+      await waitForMarketplaceReceipt(txHash);
+      const reconciledOrder = await syncOrderAfterWrite(currentOrder);
+      showActionNotice('warning', 'Order Cancelled By Seller', 'Seller cancelled during the initial 24-hour decision window. Escrow has been refunded.', reconciledOrder);
+    } catch (error) {
+      console.error('cancelBySeller failed', { orderId: order.orderId.toString(), error });
+      showWalletActionFailure(
+        order,
+        'Seller Cancel Failed',
+        error,
+        'Seller cancellation failed before the wallet request completed.',
+      );
+    } finally {
+      setActiveActionKey((current) => (current === actionKey ? null : current));
+    }
+  };
+
   // Handle confirm delivery
   const handleConfirmDelivery = (orderId: bigint) => {
     const order = resolveOrderById(orderId);
-    if (order) {
-      setSelectedOrder(order);
-      setShowConfirmDeliveryModal(true);
+    if (!order) return;
+    if (!requireBuyerRole(order, 'confirm delivery')) return;
+    if (!canConfirmDelivery(order)) {
+      showActionNotice('warning', 'Order Not Actionable', 'This order is no longer in the delivery confirmation window.', order);
+      return;
     }
+    setSelectedOrder(order);
+    setShowConfirmDeliveryModal(true);
   };
 
   const handleDeliveryConfirm = async () => {
@@ -583,37 +955,134 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
       setShowConfirmDeliveryModal(false);
       return;
     }
+
+    if (!(await protocolChain.ensureProtocolChainAsync('confirm delivery'))) {
+      return;
+    }
+
+    const actionKey = getActionKey('confirmDelivery', order.orderId);
+    if (activeActionKey === actionKey) return;
     try {
-      await confirmDeliveryTx.confirmDelivery(order.orderId);
-      showActionNotice('success', 'Delivery Confirmed!', 'Delivery confirmation has been submitted onchain.', order);
+      const currentOrder = await rereadOrderFromChain(order);
+      if (!canConfirmDelivery(currentOrder)) {
+        showActionNotice(
+          'warning',
+          currentOrder.finalized ? 'Order Already Finalized' : 'Order Not Actionable',
+          currentOrder.finalized
+            ? 'This order has already been finalized on-chain.'
+            : describeOnChainOrderState(currentOrder),
+          currentOrder,
+        );
+        return;
+      }
+
+      setActiveActionKey(actionKey);
+      const txHash = await confirmDeliveryTx.confirmDelivery(currentOrder.orderId);
+      const receipt = await waitForMarketplaceReceipt(txHash);
+      if (receipt.status !== 'success') {
+        const latestOrder = await syncOrderForDiagnostics(currentOrder);
+        showActionNotice(
+          'danger',
+          'Delivery Tx Reverted',
+          `${describeOnChainOrderState(latestOrder)} Tx ${shortTxHash(txHash)} reverted before finalization.`,
+          latestOrder,
+        );
+        return;
+      }
+      const reconciledOrder = await syncOrderAfterWrite(currentOrder);
+      if (reconciledOrder.finalized || reconciledOrder.state === 3) {
+        showActionNotice(
+          'success',
+          'Delivery Finalized On-Chain',
+          `Order finalized successfully on-chain. Tx ${shortTxHash(txHash)} has been reconciled with the runtime projection.`,
+          reconciledOrder,
+        );
+        return;
+      }
+
+      showActionNotice(
+        'warning',
+        'Chain Still Shows PAID',
+        `${describeOnChainOrderState(reconciledOrder)} Tx ${shortTxHash(txHash)} mined, but no finalization was detected.`,
+        reconciledOrder,
+      );
     } catch (error) {
       console.error('confirmDelivery failed', { orderId: order.orderId.toString(), error });
+      const latestOrder = await syncOrderForDiagnostics(order);
+      const walletMessage = getWalletErrorMessage(error, extractTxFailureReason(error));
+      const pending = isWalletRequestPendingError(error);
+      const wrongNetwork = isWalletChainMismatchError(error);
+      showActionNotice(
+        pending || wrongNetwork ? 'warning' : 'danger',
+        pending ? 'Wallet Request Pending' : wrongNetwork ? 'Wrong Network' : 'Delivery Not Finalized',
+        `${walletMessage} ${describeOnChainOrderState(latestOrder)}`,
+        latestOrder,
+      );
+    } finally {
+      setActiveActionKey((current) => (current === actionKey ? null : current));
+      setShowConfirmDeliveryModal(false);
     }
-    setShowConfirmDeliveryModal(false);
   };
 
   // Handle open dispute
   const handleOpenDispute = (orderId: bigint) => {
     const order = resolveOrderById(orderId);
-    if (order) {
-      setSelectedOrder(order);
-      setShowOpenDisputeModal(true);
+    if (!order) return;
+    if (!requireBuyerRole(order, 'open dispute')) return;
+    if (!canOpenDispute(order)) {
+      showActionNotice('warning', 'Dispute Window Closed', 'This order cannot open a dispute in its current on-chain state.', order);
+      return;
     }
+    setSelectedOrder(order);
+    setShowOpenDisputeModal(true);
   };
 
-  const handleDisputeConfirm = async () => {
+  const handleDisputeConfirm = async (reason: string[], comment: string, evidenceUrls: string[]) => {
     const order = resolveOrderById(selectedOrder.orderId);
     if (!order) {
       setShowOpenDisputeModal(false);
       return;
     }
+
+    if (!(await protocolChain.ensureProtocolChainAsync('open dispute'))) {
+      return;
+    }
+
+    const actionKey = getActionKey('openDispute', order.orderId);
+    if (activeActionKey === actionKey) return;
     try {
-      await openDisputeTx.openDispute(order.orderId);
-      showActionNotice('warning', 'Dispute Opened', 'Arbiter notified and escrow is now frozen.', order);
+      const currentOrder = await rereadOrderFromChain(order);
+      if (!canOpenDispute(currentOrder)) {
+        showActionNotice('warning', 'Dispute Window Closed', 'This order cannot open a dispute in its current on-chain state.', currentOrder);
+        return;
+      }
+
+      setActiveActionKey(actionKey);
+      const txHash = await openDisputeTx.openDispute(currentOrder.orderId);
+      await waitForMarketplaceReceipt(txHash);
+      const reconciledOrder = await syncOrderAfterWrite(currentOrder);
+      const projectedOrder = createDisputeProjection(reconciledOrder, {
+        reasons: reason,
+        comment,
+        evidenceUrls,
+        openerRole: 'buyer',
+        openerAddress: currentOrder.buyer,
+      });
+      upsertRuntimeOrder(projectedOrder);
+      setSelectedOrder(projectedOrder);
+      showActionNotice('warning', 'Dispute Opened', 'Arbiter notified and escrow is now frozen.', reconciledOrder);
     } catch (error) {
       console.error('openDispute failed', { orderId: order.orderId.toString(), error });
+      showWalletActionFailure(
+        order,
+        'Open Dispute Failed',
+        error,
+        'Dispute request failed before the wallet request completed.',
+      );
+    } finally {
+      setActiveActionKey((current) => (current === actionKey ? null : current));
+      setShowOpenDisputeModal(false);
     }
-    setShowOpenDisputeModal(false);
   };
 
   const handleDisputeCancel = () => {
@@ -646,20 +1115,45 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   // Handle buyer confirm order (Sig 2 + Pay)
   const handleBuyerConfirmOrder = async (orderId: bigint) => {
     const order = resolveOrderById(orderId);
-    if (!order || order.estDeliverySeconds <= 0n) return;
+    if (!order) return;
+    if (!requireBuyerRole(order, 're-sign the revised delivery time')) return;
+
+    if (!(await protocolChain.ensureProtocolChainAsync('re-sign the revised delivery time'))) {
+      return;
+    }
+
+    const actionKey = getActionKey('payOrder', order.orderId);
+    if (activeActionKey === actionKey) return;
 
     try {
+      const currentOrder = await rereadOrderFromChain(order);
+      if (!canBuyerAcceptRevisedTime(currentOrder)) {
+        showActionNotice('warning', 'Order Already Updated', 'Buyer Sig #3 is no longer required for this order.', currentOrder);
+        return;
+      }
+
+      setActiveActionKey(actionKey);
       const buyerSig2 = await buyerSign3.sign({
-        orderId: order.orderId,
-        seller: order.seller,
-        grossPrice: order.grossPrice,
-        amount: order.amount,
-        estDeliverySeconds: order.estDeliverySeconds,
+        orderId: currentOrder.orderId,
+        seller: currentOrder.seller,
+        grossPrice: currentOrder.grossPrice,
+        amount: currentOrder.amount,
+        estDeliverySeconds: currentOrder.estDeliverySeconds,
       });
-      await payOrderTx.payOrder(order.orderId, buyerSig2);
-      showActionNotice('success', 'Order Confirmed!', 'Buyer signature submitted. Proceeding to payment...', order);
+      const txHash = await payOrderTx.payOrder(currentOrder.orderId, buyerSig2);
+      await waitForMarketplaceReceipt(txHash);
+      const reconciledOrder = await syncOrderAfterWrite(currentOrder);
+      showActionNotice('success', 'Buyer Accepted Revised Time', 'Buyer Sig #3 submitted. Asset lock and escrow payment are now active.', reconciledOrder);
     } catch (error) {
       console.error('payOrder failed', { orderId: order.orderId.toString(), error });
+      showWalletActionFailure(
+        order,
+        'Buyer Re-Sign Failed',
+        error,
+        'Buyer Sig #3 failed before the wallet request completed.',
+      );
+    } finally {
+      setActiveActionKey((current) => (current === actionKey ? null : current));
     }
   };
 
@@ -667,35 +1161,37 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   const handleBuyerCancelOrder = async (orderId: bigint) => {
     const order = resolveOrderById(orderId);
     if (!order) return;
+    if (!requireBuyerRole(order, 'cancel this order')) return;
+
+    if (!(await protocolChain.ensureProtocolChainAsync('cancel this order'))) {
+      return;
+    }
+
+    const actionKey = getActionKey('cancelByBuyer', order.orderId);
+    if (activeActionKey === actionKey) return;
 
     try {
-      await cancelByBuyerTx.cancelByBuyer(order.orderId);
-      showActionNotice('warning', 'Order Cancelled', 'Order has been cancelled and escrow flow stopped.', order);
+      const currentOrder = await rereadOrderFromChain(order);
+      if (!canBuyerCancelOrder(currentOrder)) {
+        showActionNotice('warning', 'Order Already Updated', 'This order can no longer be cancelled by the buyer.', currentOrder);
+        return;
+      }
+
+      setActiveActionKey(actionKey);
+      const txHash = await cancelByBuyerTx.cancelByBuyer(currentOrder.orderId);
+      await waitForMarketplaceReceipt(txHash);
+      const reconciledOrder = await syncOrderAfterWrite(currentOrder);
+      showActionNotice('warning', 'Order Cancelled', 'Order has been cancelled and escrow flow stopped.', reconciledOrder);
     } catch (error) {
       console.error('cancelByBuyer failed', { orderId: order.orderId.toString(), error });
-    }
-  };
-
-  // Handle seller reject order
-  const handleSellerRejectOrder = (orderId: bigint) => {
-    console.log('Seller rejecting order:', orderId.toString());
-    // TODO: Call smart contract sellerReject(orderId)
-    const order = resolveOrderById(orderId);
-    if (order) {
-      showActionNotice('danger', 'Order Rejected', 'Proposal rejected by seller. Redirecting to orders...', order);
-    }
-  };
-
-  // Handle confirm release (auto-release path)
-  const handleConfirmRelease = async (orderId: bigint) => {
-    const order = resolveOrderById(orderId);
-    if (!order) return;
-
-    try {
-      await confirmDeliveryTx.confirmDelivery(order.orderId);
-      showActionNotice('success', 'Release Confirmed!', 'Escrow settlement finalized for this order.', order);
-    } catch (error) {
-      console.error('confirmRelease failed', { orderId: order.orderId.toString(), error });
+      showWalletActionFailure(
+        order,
+        'Buyer Cancel Failed',
+        error,
+        'Buyer cancellation failed before the wallet request completed.',
+      );
+    } finally {
+      setActiveActionKey((current) => (current === actionKey ? null : current));
     }
   };
 
@@ -705,14 +1201,8 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
     return circumference - (progress / 100) * circumference;
   };
 
-  // Check if order is in dispute window
-  const isInDisputeWindow = (order: OrderUiRecord) => {
-    if (order.state !== 1) return false; // Only PAID state
-    const now = Math.floor(Date.now() / 1000);
-    const autoReleasePassed = now > Number(order.autoReleaseAt);
-    const disputeDeadlineNotPassed = order.disputeDeadline ? now <= Number(order.disputeDeadline) : true;
-    return autoReleasePassed && disputeDeadlineNotPassed;
-  };
+  const isAwaitingBuyerSig3 = (order: OrderUiRecord) => canViewerBuyerAcceptRevisedTime(order, address, currentTimeSec);
+  const isAwaitingAutoFinalize = (order: OrderUiRecord) => getOrderLifecyclePhase(order, currentTimeSec) === 'awaiting_auto_finalize';
 
   return (
     <>
@@ -722,6 +1212,17 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
           .hidden-scrollbar::-webkit-scrollbar { display: none; }
         `}</style>
         <div className="p-8">
+          <div className="mb-6">
+            <ProtocolChainBanner
+              isConnected={isConnected}
+              isOnProtocolChain={protocolChain.isOnProtocolChain}
+              currentChainLabel={protocolChain.currentChainLabel}
+              targetChainLabel={protocolChain.targetChainLabel}
+              isSwitching={protocolChain.isSwitching}
+              onSwitch={handleSwitchProtocolChain}
+            />
+          </div>
+
           {/* Header */}
           <div className="flex items-center justify-start mb-8">
             <div className="flex w-full flex-wrap lg:flex-nowrap gap-3">
@@ -778,7 +1279,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
               className="bg-[var(--t-card-bg)] border-0 backdrop-blur-[10px]"
             />
             <StudioStatsCard
-              label="Volume (ETH)"
+              label="Volume"
               value={stats.volume.toFixed(2)}
               className="bg-[var(--t-card-bg)] border-0 backdrop-blur-[10px]"
             />
@@ -852,29 +1353,11 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                                     #ORD-{order.orderId.toString()}
                                   </span>
                                   <StudioStatusBadge
-                                    variant={
-                                      order.state === 0
-                                        ? 'warning'
-                                        : order.state === 1
-                                          ? 'success'
-                                          : order.state === 2
-                                            ? 'danger'
-                                            : order.state === 3
-                                              ? 'info'
-                                              : 'muted'
-                                    }
+                                    variant={getOrderBadgeVariant(order)}
                                     size="sm"
                                     className="px-2 py-0.5 text-[10px]"
                                   >
-                                    {order.state === 0
-                                      ? 'Pending Confirm'
-                                      : order.state === 1
-                                        ? 'Paid'
-                                        : order.state === 2
-                                          ? 'Disputed'
-                                          : order.state === 3
-                                            ? 'Finalized'
-                                            : 'Cancelled'}
+                                    {getOrderLifecycleLabel(order, currentTimeSec)}
                                   </StudioStatusBadge>
                                 </div>
                                 <div className="mt-2 flex items-center gap-2 min-w-0">
@@ -920,21 +1403,26 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                               Order Value
                             </p>
                             <p className="text-2xl font-black text-ui-primary">
-                              {formatEther(order.grossPrice)} ETH
+                              {formatOrderValueLabel(order)}
                             </p>
                             <div className="mt-1 flex items-center justify-end gap-2 text-[11px] font-semibold text-ui-secondary">
                               <span className="uppercase tracking-wide text-ui-muted">Qty</span>
                               <span className="font-mono text-ui-primary">
-                                {order.amount.toString()}
+                                {formatOrderQuantityLabel(order)}
                               </span>
                             </div>
                           </div>
 
                           {(() => {
-                            const deadline = order.state === 1 ? order.autoReleaseAt : order.payDeadline;
-                            const { days, hours, mins, secs } = parseCountdown(deadline);
+                            const countdownDeadline = getOrderCountdownDeadline(order, currentTimeSec);
+                            const countdownTitle = getOrderCountdownTitle(order);
+                            if (!countdownTitle || countdownDeadline <= 0n) return null;
+                            const { days, hours, mins, secs } = parseCountdown(countdownDeadline);
                             return (
                               <div className="mt-4 ml-auto w-fit rounded-xl border border-ui-border-subtle bg-ui-input px-3 py-2 backdrop-blur-sm">
+                                <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-ui-muted text-center">
+                                  {countdownTitle}
+                                </p>
                                 <div className="flex items-center justify-center gap-2">
                                   <div className="flex flex-col items-center w-6">
                                     <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{days.toString().padStart(2, '0')}</span>
@@ -977,120 +1465,235 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                       >
                         Details
                       </StudioActionButton>
-                      <div className="flex flex-wrap items-center justify-end gap-3">
-                        {order.state === 1 ? (
-                          <>
-                            {isInDisputeWindow(order) ? (
-                              <>
+                      <div className="flex max-w-[420px] flex-col items-end gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-3">
+                          {(() => {
+                            const phase = getOrderLifecyclePhase(order, currentTimeSec);
+                            const canViewerBuyerCancelPending = canViewerBuyerCancelOrder(order, address, currentTimeSec);
+                            const canViewerSellerCancelPending = canViewerSellerCancelOrder(order, address, currentTimeSec);
+
+                            if (canViewerSellerConfirm(order, address, currentTimeSec)) {
+                              return (
+                                <>
+                                  {canViewerSellerCancelPending ? (
+                                    <StudioActionButton
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSellerCancelOrder(order.orderId);
+                                      }}
+                                      disabled={activeActionKey === getActionKey('cancelBySeller', order.orderId)}
+                                      variant="secondary"
+                                      size="lg"
+                                      className="orders-secondary-hover h-[45px] px-5 text-sm text-ui-secondary"
+                                      leftIcon={<XCircle size={14} />}
+                                    >
+                                      Cancel Order
+                                    </StudioActionButton>
+                                  ) : null}
+                                  <StudioActionButton
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleSellerConfirm(order.orderId);
+                                    }}
+                                    disabled={activeActionKey === getActionKey('sellerConfirm', order.orderId)}
+                                    variant="primary"
+                                    size="lg"
+                                    className="orders-primary-hover h-[45px] text-sm px-5"
+                                    leftIcon={<Check size={14} />}
+                                  >
+                                    Seller Confirm
+                                  </StudioActionButton>
+                                </>
+                              );
+                            }
+
+                            if (isAwaitingBuyerSig3(order)) {
+                              return (
+                                <>
+                                  <StudioActionButton
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleBuyerCancelOrder(order.orderId);
+                                    }}
+                                    disabled={activeActionKey === getActionKey('cancelByBuyer', order.orderId)}
+                                    variant="secondary"
+                                    size="lg"
+                                    className="orders-secondary-hover h-[45px] px-5 text-sm text-ui-secondary"
+                                    leftIcon={<XCircle size={14} />}
+                                  >
+                                    Cancel Order
+                                  </StudioActionButton>
+                                  <StudioActionButton
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleBuyerConfirmOrder(order.orderId);
+                                    }}
+                                    disabled={activeActionKey === getActionKey('payOrder', order.orderId)}
+                                    variant="primary"
+                                    size="lg"
+                                    className="orders-primary-hover h-[45px] text-sm px-5"
+                                    leftIcon={<Check size={14} />}
+                                  >
+                                    Re-Sign New Time
+                                  </StudioActionButton>
+                                </>
+                              );
+                            }
+
+                            if (phase === 'agreed_delivery') {
+                              const canViewerConfirm = canViewerConfirmDelivery(order, address, currentTimeSec);
+
+                              if (canViewerConfirm) {
+                                return (
+                                  <StudioActionButton
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleConfirmDelivery(order.orderId);
+                                    }}
+                                    disabled={activeActionKey === getActionKey('confirmDelivery', order.orderId)}
+                                    variant="primary"
+                                    size="lg"
+                                    className="orders-primary-hover h-[45px] text-sm px-5"
+                                    leftIcon={<Check size={14} />}
+                                  >
+                                    Confirm Delivery
+                                  </StudioActionButton>
+                                );
+                              }
+
+                              return (
+                                <StudioStatusBadge variant="success" className="px-3 py-2 text-[10px]">
+                                  Agreed Delivery
+                                </StudioStatusBadge>
+                              );
+                            }
+
+                            if (isAwaitingAutoFinalize(order)) {
+                              const canViewerConfirm = canViewerConfirmDelivery(order, address, currentTimeSec);
+                              const canViewerDispute = canViewerOpenDispute(order, address, currentTimeSec);
+
+                              if (canViewerConfirm || canViewerDispute) {
+                                return (
+                                  <>
+                                    {canViewerDispute ? (
+                                      <StudioActionButton
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenDispute(order.orderId);
+                                        }}
+                                        disabled={activeActionKey === getActionKey('openDispute', order.orderId)}
+                                        size="lg"
+                                        className="orders-warning-hover h-[45px] bg-orange-500 text-black border-transparent text-sm px-5"
+                                        leftIcon={<XCircle size={14} />}
+                                      >
+                                        Open Dispute
+                                      </StudioActionButton>
+                                    ) : null}
+                                    {canViewerConfirm ? (
+                                      <StudioActionButton
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleConfirmDelivery(order.orderId);
+                                        }}
+                                        disabled={activeActionKey === getActionKey('confirmDelivery', order.orderId)}
+                                        variant="primary"
+                                        size="lg"
+                                        className="orders-primary-hover h-[45px] text-sm px-5"
+                                        leftIcon={<Check size={14} />}
+                                      >
+                                        Confirm Delivery
+                                      </StudioActionButton>
+                                    ) : null}
+                                  </>
+                                );
+                              }
+
+                              return (
+                                <StudioStatusBadge variant="warning" className="px-3 py-2 text-[10px]">
+                                  Awaiting Auto Finalize
+                                </StudioStatusBadge>
+                              );
+                            }
+
+                            if (phase === 'disputed') {
+                              return (
                                 <StudioActionButton
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleOpenDispute(order.orderId);
+                                    handleDisputeResolution(order.orderId);
                                   }}
                                   size="lg"
                                   className="orders-warning-hover h-[45px] bg-orange-500 text-black border-transparent text-sm px-5"
-                                  leftIcon={<XCircle size={14} />}
+                                  leftIcon={<Timer size={14} />}
                                 >
-                                  Open Dispute
+                                  View Dispute
                                 </StudioActionButton>
-                                <StudioActionButton
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleConfirmDelivery(order.orderId);
-                                  }}
-                                  variant="primary"
-                                  size="lg"
-                                  className="orders-primary-hover h-[45px] text-sm px-5"
-                                  leftIcon={<Check size={14} />}
-                                >
-                                  Confirm Delivery
-                                </StudioActionButton>
-                              </>
-                            ) : (
-                              <StudioActionButton
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleConfirmRelease(order.orderId);
-                                  }}
-                                  variant="primary"
-                                  size="lg"
-                                  className="orders-primary-hover h-[45px] text-sm px-5"
-                                  leftIcon={<Check size={14} />}
-                                >
-                                  Confirm Release
-                                </StudioActionButton>
-                            )}
-                          </>
-                        ) : order.state === 0 ? (
-                          <>
-                            {!order.sellerConfirmed ? (
-                              <>
-                                <StudioActionButton
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSellerRejectOrder(order.orderId);
-                                  }}
-                                  variant="secondary"
-                                  size="lg"
-                                  className="orders-secondary-hover h-[45px] px-5 text-sm text-ui-secondary"
-                                  leftIcon={<XCircle size={14} />}
-                                >
-                                  Reject
-                                </StudioActionButton>
-                                <StudioActionButton
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSellerConfirm(order.orderId);
-                                  }}
-                                  variant="primary"
-                                  size="lg"
-                                  className="orders-primary-hover h-[45px] text-sm px-5"
-                                  leftIcon={<Check size={14} />}
-                                >
-                                  Seller Confirm
-                                </StudioActionButton>
-                              </>
-                            ) : (
-                              <>
-                                <StudioActionButton
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleBuyerCancelOrder(order.orderId);
-                                  }}
-                                  variant="secondary"
-                                  size="lg"
-                                  className="orders-secondary-hover h-[45px] px-5 text-sm text-ui-secondary"
-                                  leftIcon={<XCircle size={14} />}
-                                >
-                                  Cancel Order
-                                </StudioActionButton>
-                                <StudioActionButton
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleBuyerConfirmOrder(order.orderId);
-                                  }}
-                                  variant="primary"
-                                  size="lg"
-                                  className="orders-primary-hover h-[45px] text-sm px-5"
-                                  leftIcon={<Check size={14} />}
-                                >
-                                  Confirm Order
-                                </StudioActionButton>
-                              </>
-                            )}
-                          </>
-                        ) : order.state === 2 ? (
-                          <StudioActionButton
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDisputeResolution(order.orderId);
-                            }}
-                            size="lg"
-                            className="orders-warning-hover h-[45px] bg-orange-500 text-black border-transparent text-sm px-5"
-                            leftIcon={<Timer size={14} />}
-                          >
-                            View Dispute
-                          </StudioActionButton>
+                              );
+                            }
+
+                            if (phase === 'waiting_seller_confirm') {
+                              return (
+                                <StudioStatusBadge variant="muted" className="px-3 py-2 text-[10px]">
+                                  Waiting Seller Confirm
+                                </StudioStatusBadge>
+                              );
+                            }
+
+                            if (phase === 'waiting_buyer_accept') {
+                              return (
+                                <StudioStatusBadge variant="muted" className="px-3 py-2 text-[10px]">
+                                  Waiting Buyer Re-Sign
+                                </StudioStatusBadge>
+                              );
+                            }
+
+                            if (phase === 'agreed_delivery') {
+                              return (
+                                <StudioStatusBadge variant="success" className="px-3 py-2 text-[10px]">
+                                  Agreed Delivery
+                                </StudioStatusBadge>
+                              );
+                            }
+
+                            if (phase === 'seller_confirm_expired') {
+                              return (
+                                <StudioStatusBadge variant="warning" className="px-3 py-2 text-[10px]">
+                                  Seller Window Expired
+                                </StudioStatusBadge>
+                              );
+                            }
+
+                            if (phase === 'buyer_accept_expired') {
+                              return (
+                                <StudioStatusBadge variant="warning" className="px-3 py-2 text-[10px]">
+                                  Buyer Re-Sign Expired
+                                </StudioStatusBadge>
+                              );
+                            }
+
+                            if (phase === 'awaiting_auto_finalize') {
+                              return (
+                                <StudioStatusBadge variant="warning" className="px-3 py-2 text-[10px]">
+                                  Awaiting Auto Finalize
+                                </StudioStatusBadge>
+                              );
+                            }
+
+                            if (phase === 'auto_finalize_ready') {
+                              return (
+                                <StudioStatusBadge variant="muted" className="px-3 py-2 text-[10px]">
+                                  Auto Finalize Ready
+                                </StudioStatusBadge>
+                              );
+                            }
+
+                            return null;
+                          })()}
+                        </div>
+                        {getOrderChainHint(order) ? (
+                          <p className="max-w-[420px] text-right text-[11px] leading-5 text-ui-muted">
+                            {getOrderChainHint(order)}
+                          </p>
                         ) : null}
                       </div>
                     </div>
@@ -1114,6 +1717,18 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
           </StudioSidebarHeader>
 
           <StudioSidebarScroll className="p-4 space-y-4">
+            <div className="p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px] space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">Canonical On-Chain Status</span>
+                <StudioStatusBadge variant="muted" className="px-2 py-1 text-[10px]">
+                  {getOrderLifecycleLabel(selectedOrder, currentTimeSec).toUpperCase()}
+                </StudioStatusBadge>
+              </div>
+              <p className="text-xs leading-5 text-ui-secondary">
+                {describeOnChainOrderState(selectedOrder)}
+              </p>
+            </div>
+
             {/* Signature Status */}
             <div
               className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px] space-y-5"
@@ -1169,7 +1784,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                       )}
                     </div>
                     <span className={`text-xs font-semibold ${selectedOrder.signatures.buyer2 ? 'text-ui-primary' : 'text-ui-muted'}`}>
-                      Buyer Sig 2
+                      Buyer Sig 3
                     </span>
                   </div>
                   {!selectedOrder.signatures.buyer2 && (
@@ -1200,7 +1815,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                     <StudioTimelineItem
                       tone="success"
                       title="Funds Deposited"
-                      description={`${formatEther(selectedOrder.grossPrice)} ETH sent to Escrow`}
+                      description={`${formatOrderValueLabel(selectedOrder)} sent to Escrow`}
                       timestamp="2 mins ago"
                     />
                     <StudioTimelineItem
@@ -1235,15 +1850,37 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[10px] text-ui-muted">Qty:</span>
                         <span className="text-[10px] font-mono font-bold text-primary">
-                          {selectedOrder.amount.toString()}.0
+                          {formatOrderQuantityLabel(selectedOrder)}
                         </span>
                         <span className="text-[10px] text-ui-muted ml-1">Price:</span>
                         <span className="text-[10px] font-mono font-bold text-ui-primary">
-                          {formatEther(selectedOrder.grossPrice)} ETH
+                          {formatOrderValueLabel(selectedOrder)}
                         </span>
                       </div>
                     </div>
                   </div>
+                  {hasOrderShippingDetails(selectedOrderShipping) ? (
+                    <div className="mt-3 border-t border-ui-border-subtle pt-3 space-y-1.5">
+                      <p className="text-[10px] font-bold text-ui-muted uppercase tracking-wider">Shipping Snapshot</p>
+                      {selectedOrderShipping.methodLabel ? (
+                        <p className="text-[10px] font-semibold text-primary">{selectedOrderShipping.methodLabel}</p>
+                      ) : null}
+                      {selectedOrderShipping.recipientName ? (
+                        <p className="text-[11px] text-ui-primary">{selectedOrderShipping.recipientName}</p>
+                      ) : null}
+                      {selectedOrderShipping.address ? (
+                        <p className="text-[10px] leading-5 text-ui-secondary">{selectedOrderShipping.address}</p>
+                      ) : null}
+                      {selectedOrderShipping.phone ? (
+                        <p className="text-[10px] text-ui-muted">{selectedOrderShipping.phone}</p>
+                      ) : null}
+                      {selectedOrderShipping.instructions ? (
+                        <p className="text-[10px] leading-5 text-ui-muted">
+                          Instructions: {selectedOrderShipping.instructions}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -1294,7 +1931,12 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
             assetImage: selectedOrder.assetImage,
             grossPrice: selectedOrder.grossPrice,
             amount: selectedOrder.amount,
+            unitName: selectedOrder.unitName,
             seller: selectedOrder.seller,
+            paymentTokenSymbol: selectedOrder.paymentTokenSymbol,
+            paymentTokenDecimals: selectedOrder.paymentTokenDecimals,
+            shippingAddressSnapshot: selectedOrder.shippingAddressSnapshot,
+            shippingMethodLabel: selectedOrder.shippingMethodLabel,
           }}
           onConfirm={handleDeliveryConfirm}
           onCancel={() => setShowConfirmDeliveryModal(false)}
@@ -1310,7 +1952,12 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
             assetImage: selectedOrder.assetImage,
             grossPrice: selectedOrder.grossPrice,
             amount: selectedOrder.amount,
+            unitName: selectedOrder.unitName,
             seller: selectedOrder.seller,
+            paymentTokenSymbol: selectedOrder.paymentTokenSymbol,
+            paymentTokenDecimals: selectedOrder.paymentTokenDecimals,
+            shippingAddressSnapshot: selectedOrder.shippingAddressSnapshot,
+            shippingMethodLabel: selectedOrder.shippingMethodLabel,
           }}
           onConfirm={handleDisputeConfirm}
           onCancel={handleDisputeCancel}
@@ -1320,25 +1967,16 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
       {/* Dispute Resolution Modal */}
       {showDisputeResolutionModal && (
         <DisputeResolutionModal
-          order={{
-            orderId: selectedOrder.orderId,
-            assetName: selectedOrder.assetName,
-            assetImage: selectedOrder.assetImage,
-            grossPrice: selectedOrder.grossPrice,
-            amount: selectedOrder.amount,
-            buyer: selectedOrder.buyer,
-            seller: selectedOrder.seller,
-            disputeOpenedAt: selectedOrder.disputeOpenedAt || BigInt(Math.floor(Date.now() / 1000) - 3600 * 12),
-            disputeDeadline: selectedOrder.disputeDeadline || BigInt(Math.floor(Date.now() / 1000) + 3600 * 24 * 14),
-            disputeReason: ['Product damaged or defective', 'Not as described in listing'],
-            disputeComment: 'The watch received is not in the condition described. The crystal has scratches that were not mentioned in the listing.',
-            disputeEvidence: [
-              'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=400&h=400&fit=crop',
-              'https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?w=400&h=400&fit=crop',
-            ],
-          }}
+          order={selectedOrder}
           currentUser={address || '0x8aC7fe5b2c5d9f8e32a1' as `0x${string}`}
-          userRole="buyer"
+          userRole={
+            isBuyerForOrder(selectedOrder, address)
+              ? 'buyer'
+              : isSellerForOrder(selectedOrder, address)
+                ? 'seller'
+                : 'arbiter'
+          }
+          onOrderUpdate={setSelectedOrder}
           onClose={handleResolutionCancel}
         />
       )}

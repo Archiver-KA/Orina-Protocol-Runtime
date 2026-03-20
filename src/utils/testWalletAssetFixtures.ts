@@ -1,8 +1,8 @@
 import type { MyAssetNft, MyAssetReceipt, MyAssetRwa } from '@/app/components/cards/my-asset-cards';
 import type { AssetDetails } from '@/types/asset';
 
-export const TEST_WALLET_A = '0x282Be18838D7079C215F49749a9606d77e00888b';
-export const TEST_WALLET_B = '0x335AD6D59Bc128394dC5A6B176be9Aafe0302aa0';
+export const TEST_WALLET_A = '0xB43F3f31fae56C4e8C0be36EC6f84dD5B1571c14';
+export const TEST_WALLET_B = '0x282Be18838D7079C215F49749a9606d77e00888b';
 
 function normalize(address?: string | null): string {
   return (address || '').toLowerCase();

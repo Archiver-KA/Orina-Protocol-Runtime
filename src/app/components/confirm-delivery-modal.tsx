@@ -1,10 +1,18 @@
 import { Check, AlertTriangle, Award, Coins, Star } from 'lucide-react';
-import { formatEther } from 'viem';
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { AssetThumb } from '@/app/components/asset-thumb';
+import { ProtocolChainBanner } from '@/app/components/ui/protocol-chain-banner';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
+import { useProtocolChain } from '@/hooks/useProtocolChain';
+import type { OrderShippingAddressSnapshot } from '@/types/order';
+import {
+  formatOrderGrossPrice,
+  formatOrderQuantity,
+  getOrderShippingDetails,
+  hasOrderShippingDetails,
+} from '@/utils/orderDisplay';
 
 interface ConfirmDeliveryModalProps {
   order: {
@@ -13,17 +21,26 @@ interface ConfirmDeliveryModalProps {
     assetImage: string;
     grossPrice: bigint;
     amount: bigint;
+    unitName?: string;
     seller: `0x${string}`;
+    paymentTokenSymbol?: string;
+    paymentTokenDecimals?: number;
+    shippingAddressSnapshot?: OrderShippingAddressSnapshot | null;
+    shippingMethodLabel?: string;
   };
-  onConfirm: () => void;
+  onConfirm: () => Promise<void> | void;
   onCancel: () => void;
 }
 
 export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeliveryModalProps) {
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [review, setReview] = useState('');
+  const protocolChain = useProtocolChain();
+  const quantityLabel = formatOrderQuantity(order.amount, order.unitName);
+  const grossPriceLabel = formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
+  const shippingDetails = getOrderShippingDetails(order.shippingAddressSnapshot, order.shippingMethodLabel);
 
   // Prevent body scroll while modal is mounted
   useEffect(() => {
@@ -33,7 +50,9 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
     };
   }, []);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    if (isSubmitting) return;
+
     // Save rating & review to localStorage (or send to backend)
     if (rating > 0) {
       const reviewData = {
@@ -49,30 +68,34 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
       existingReviews.push(reviewData);
       localStorage.setItem('orina_order_reviews', JSON.stringify(existingReviews));
     }
-    
-    setIsSuccess(true);
-    
-    // Auto close after 1.5 seconds
-    setTimeout(() => {
-      onConfirm();
-    }, 1500);
+
+    try {
+      setIsSubmitting(true);
+      await onConfirm();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  const primaryLabel = isSubmitting
+    ? 'Open MetaMask...'
+    : !protocolChain.isConnected
+      ? 'Connect Wallet'
+      : !protocolChain.isOnProtocolChain
+        ? 'Switch Network'
+        : 'Confirm';
 
   if (typeof document === 'undefined') return null;
 
   return createPortal(
     <div className="studio-portal-backdrop fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]">
-      <AnimatePresence mode="wait">
-        {!isSuccess ? (
-          <motion.div
-            key="form"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="studio-modal-theme studio-portal-modal confirm-delivery-theme relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.2 }}
+        className="studio-modal-theme studio-portal-modal confirm-delivery-theme relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border-0 bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
             <style>{`
               .hidden-scrollbar::-webkit-scrollbar { display: none; }
             `}</style>
@@ -93,7 +116,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                   <span className="h-7 px-3 inline-flex items-center bg-[#2CC295]/15 rounded-full border border-[#2CC295]/30 text-[9px] font-bold text-[#2CC295] uppercase tracking-widest">
                     Delivery Check
                   </span>
-                  <StudioModalCloseButton onClick={onCancel} />
+                  <StudioModalCloseButton onClick={onCancel} disabled={isSubmitting} />
                 </div>
               </div>
             </div>
@@ -116,7 +139,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                           <p className="text-base font-bold text-white leading-tight truncate">{order.assetName}</p>
                           <p className="mt-1 text-[10px] text-zinc-500 uppercase tracking-widest">
                             Qty
-                            <span className="ml-2 text-[#2CC295] font-bold">{order.amount.toString()}</span>
+                            <span className="ml-2 text-[#2CC295] font-bold">{quantityLabel}</span>
                           </p>
                         </div>
                       </div>
@@ -128,14 +151,29 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-zinc-500">Quantity</span>
-                          <span className="text-xs font-bold text-white">{order.amount.toString()}</span>
+                          <span className="text-xs font-bold text-white">{quantityLabel}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-zinc-500">Amount</span>
-                          <span className="text-xl font-bold text-white">{formatEther(order.grossPrice)} ETH</span>
+                          <span className="text-xl font-bold text-white">{grossPriceLabel}</span>
                         </div>
                       </div>
                     </div>
+
+                    {hasOrderShippingDetails(shippingDetails) ? (
+                      <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
+                        <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Shipping Snapshot</h4>
+                        {shippingDetails.methodLabel ? <p className="text-xs font-bold text-[#2CC295]">{shippingDetails.methodLabel}</p> : null}
+                        {shippingDetails.recipientName ? <p className="text-xs text-white">{shippingDetails.recipientName}</p> : null}
+                        {shippingDetails.address ? <p className="text-[11px] text-zinc-400 leading-relaxed">{shippingDetails.address}</p> : null}
+                        {shippingDetails.phone ? <p className="text-[10px] text-zinc-500">{shippingDetails.phone}</p> : null}
+                        {shippingDetails.instructions ? (
+                          <p className="text-[10px] text-zinc-500 leading-relaxed">
+                            Instructions: {shippingDetails.instructions}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
 
                     {/* What happens next */}
                     <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
@@ -180,6 +218,16 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
 
                   {/* Right Column */}
                   <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
+                    <ProtocolChainBanner
+                      isConnected={protocolChain.isConnected}
+                      isOnProtocolChain={protocolChain.isOnProtocolChain}
+                      currentChainLabel={protocolChain.currentChainLabel}
+                      targetChainLabel={protocolChain.targetChainLabel}
+                      isSwitching={protocolChain.isSwitching}
+                      onSwitch={() => protocolChain.ensureProtocolChainAsync('confirm delivery')}
+                      showWhenMatched={false}
+                    />
+
                     {/* Rating & Review */}
                     <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
                       <div className="flex items-center gap-2">
@@ -231,98 +279,37 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                         </p>
                       </div>
                       <p className="text-[11px] text-zinc-400 leading-relaxed">
-                        Confirm only when you have received the correct asset in good condition. This action releases escrow immediately.
+                        Confirm only when you have received the correct asset in good condition. This action releases escrow immediately on {protocolChain.targetChainLabel}.
                       </p>
+                      {isSubmitting ? (
+                        <p className="mt-3 text-[11px] text-[#2CC295] leading-relaxed">
+                          Waiting for MetaMask confirmation...
+                        </p>
+                      ) : null}
                     </div>
 
                     {/* Actions */}
                     <div className="grid grid-cols-2 gap-3 pt-1">
                       <button
                         onClick={onCancel}
+                        disabled={isSubmitting}
                         className="studio-portal-secondary h-12 px-6 bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-white font-bold text-base rounded-full transition-colors"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={handleConfirm}
-                        className="h-12 px-6 bg-[#2CC295] hover:bg-[#25a882] text-black font-bold text-base rounded-full transition-all shadow-lg shadow-[#2CC295]/20"
+                        disabled={isSubmitting}
+                        className="h-12 px-6 bg-[#2CC295] hover:bg-[#25a882] text-black font-bold text-base rounded-full transition-all shadow-lg shadow-[#2CC295]/20 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        Confirm
+                        {primaryLabel}
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
             </section>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="success"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.3 }}
-            className="studio-modal-theme studio-portal-modal bg-[rgba(18,18,18,0.9)] border-0 rounded-[24px] shadow-2xl max-w-md w-full overflow-hidden"
-          >
-            <div className="p-12 flex flex-col items-center justify-center space-y-6 text-center">
-              {/* Success Icon */}
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.1, type: 'spring', stiffness: 200 }}
-                className="relative"
-              >
-                <div className="w-24 h-24 rounded-full bg-[#2CC295]/20 border-4 border-[#2CC295]/30 flex items-center justify-center">
-                  <Check className="text-[#2CC295]" size={48} strokeWidth={3} />
-                </div>
-                {/* Pulse rings */}
-                <motion.div
-                  initial={{ scale: 1, opacity: 0.5 }}
-                  animate={{ scale: 1.5, opacity: 0 }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                  className="absolute inset-0 rounded-full border-2 border-[#2CC295]"
-                />
-              </motion.div>
-
-              {/* Success Message */}
-              <div className="space-y-2">
-                <h3 className="text-xl font-bold text-white">Order Finalized!</h3>
-                <p className="text-sm text-zinc-400">
-                  Transaction successful. Redirecting to orders...
-                </p>
-              </div>
-
-              {/* Order Summary */}
-              <div className="studio-portal-subsurface w-full p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <AssetThumb
-                    src={order.assetImage}
-                    alt="Product"
-                    className="w-12 h-12 rounded-lg bg-zinc-800 border border-[#27272a] shrink-0"
-                  />
-                  <div className="flex-1 text-left">
-                    <p className="text-xs font-bold text-white leading-tight">{order.assetName}</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      {formatEther(order.grossPrice)} ETH
-                    </p>
-                  </div>
-                  <Check className="text-[#2CC295]" size={20} />
-                </div>
-              </div>
-
-              {/* Loading bar */}
-              <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: '0%' }}
-                  animate={{ width: '100%' }}
-                  transition={{ duration: 1.5, ease: 'linear' }}
-                  className="h-full bg-[#2CC295]"
-                />
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </motion.div>
     </div>,
     document.body
   );

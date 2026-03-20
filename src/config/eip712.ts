@@ -2,21 +2,22 @@
  * EIP-712 Configuration for DSCA 3-Signature Protocol
  * ====================================================
  * Matches the Solidity EIP712("MarketplaceATP", VERSION) domain
- * and ORDER_TYPEHASH used in sellerConfirm() and payOrder().
+ * and ORDER_TYPEHASH used across createOrder(), sellerConfirm(), and payOrder().
  *
  * DSCA Flow:
  *   Sig 1: Buyer proposes order → signed off-chain, passed to createOrder()
- *   Sig 2: Seller confirms with estDeliverySeconds → sellerConfirm() verifies on-chain
- *   Sig 3: Buyer accepts seller's estDeliverySeconds → payOrder() verifies all 3 on-chain
+ *   Sig 2: Seller confirms or revises estDeliverySeconds → sellerConfirm() verifies on-chain
+ *   Sig 3: Buyer re-accepts seller's revised estDeliverySeconds → payOrder() verifies on-chain only when seller changed time
  */
 
 import { CONTRACTS, ACTIVE_CHAIN_ID } from './contracts';
 
 // ── EIP-712 Domain ────────────────────────────────────────────
-// Must match: EIP712("MarketplaceATP", "3.3-final") in Solidity
+// Must match: EIP712("MarketplaceATP", VERSION) in Solidity
+// MarketplaceATP.sol: string public constant VERSION = "3.4"
 export const EIP712_DOMAIN = {
   name: 'MarketplaceATP',
-  version: '3.3-final',
+  version: '3.4',
   chainId: ACTIVE_CHAIN_ID,
   verifyingContract: CONTRACTS.MARKETPLACE_ATP,
 } as const;
@@ -46,6 +47,25 @@ export const MUTUAL_SPLIT_TYPES = {
   ],
 } as const;
 
+// ── Dispute Agreement EIP-712 Types (DisputeManager v3.4) ───
+// Must match: keccak256("DisputeAgreement(uint256 orderId,uint8 verdict,uint256 buyerShareBps,uint256 sellerShareBps,uint256 openedAt)")
+export const DISPUTE_AGREEMENT_DOMAIN = {
+  name: 'DisputeManager',
+  version: '3.4',
+  chainId: ACTIVE_CHAIN_ID,
+  verifyingContract: CONTRACTS.DISPUTE_MANAGER,
+} as const;
+
+export const DISPUTE_AGREEMENT_TYPES = {
+  DisputeAgreement: [
+    { name: 'orderId', type: 'uint256' },
+    { name: 'verdict', type: 'uint8' },
+    { name: 'buyerShareBps', type: 'uint256' },
+    { name: 'sellerShareBps', type: 'uint256' },
+    { name: 'openedAt', type: 'uint256' },
+  ],
+} as const;
+
 // ── Helper: Build order message for signing ───────────────────
 export interface OrderSignMessage {
   orderId: bigint;
@@ -60,8 +80,8 @@ export interface OrderSignMessage {
  * Build the EIP-712 typed data object for signing an order.
  * Used by:
  *   - Buyer (Sig 1): Before createOrder (orderId may be predicted from nextOrderId)
- *   - Seller (Sig 2): During sellerConfirm (orderId known, seller sets estDeliverySeconds)
- *   - Buyer (Sig 3): During payOrder (orderId known, accepts seller's estDeliverySeconds)
+ *   - Seller (Sig 2): During sellerConfirm (orderId known, seller can keep or revise estDeliverySeconds)
+ *   - Buyer (Sig 3): During payOrder only if seller revised estDeliverySeconds
  */
 export function buildOrderTypedData(message: OrderSignMessage) {
   return {
@@ -92,4 +112,27 @@ export function buildOrderTypedData(message: OrderSignMessage) {
 export interface MutualSplitSignMessage {
   orderId: bigint;
   deadline: bigint;
+}
+
+export interface DisputeAgreementSignMessage {
+  orderId: bigint;
+  verdict: number;
+  buyerShareBps: bigint;
+  sellerShareBps: bigint;
+  openedAt: bigint;
+}
+
+export function buildDisputeAgreementTypedData(message: DisputeAgreementSignMessage) {
+  return {
+    domain: DISPUTE_AGREEMENT_DOMAIN,
+    types: DISPUTE_AGREEMENT_TYPES,
+    primaryType: 'DisputeAgreement' as const,
+    message: {
+      orderId: message.orderId,
+      verdict: message.verdict,
+      buyerShareBps: message.buyerShareBps,
+      sellerShareBps: message.sellerShareBps,
+      openedAt: message.openedAt,
+    },
+  };
 }

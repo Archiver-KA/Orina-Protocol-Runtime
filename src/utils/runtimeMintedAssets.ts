@@ -9,7 +9,8 @@ import {
 } from "@/utils/supabaseRest";
 import type { AssetDetails, MyAssetNft, MyAssetRwa } from "@/types/asset";
 
-const RUNTIME_MINTED_ASSETS_STORAGE_KEY = "orina_runtime_minted_assets_v1";
+const CURRENT_ASSET_CONTRACT = CONTRACTS.ORINA_RWA.toLowerCase();
+const RUNTIME_MINTED_ASSETS_STORAGE_KEY = `orina_runtime_minted_assets_v2:${ACTIVE_CHAIN_ID}:${CURRENT_ASSET_CONTRACT}`;
 export const RUNTIME_MINTED_ASSETS_CHANGED_EVENT = "orina:runtime-minted-assets-changed";
 
 export interface RuntimeMintedAssetRecord {
@@ -125,9 +126,10 @@ function extractAmounts(record: RuntimeMintedAssetRecord) {
 function toProtocolAssetRow(record: RuntimeMintedAssetRecord): ProtocolAssetRow {
   const { totalAmount, availableAmount } = extractAmounts(record);
   const ownerAddress = record.walletAddress.toLowerCase();
+  const assetContract = (record.details.contractAddress || CONTRACTS.ORINA_RWA).toLowerCase();
   return {
     chain_id: ACTIVE_CHAIN_ID,
-    asset_contract: record.details.contractAddress || CONTRACTS.ORINA_RWA,
+    asset_contract: assetContract,
     token_id: record.details.tokenId ?? record.id,
     // Owner-facing runtime shadow. Canonical ownership still comes from trusted chain projection.
     owner_address: ownerAddress,
@@ -135,11 +137,15 @@ function toProtocolAssetRow(record: RuntimeMintedAssetRecord): ProtocolAssetRow 
     available_amount: String(availableAmount),
     total_amount: String(totalAmount),
     metadata: {
-      runtimeMintedAssetVersion: 1,
+      runtimeMintedAssetVersion: 2,
       projection_state: 'pending_indexing',
       owner_source: 'runtime_shadow',
       canonical_owner_source: 'chain_projection',
       listing_state: 'pending_projection',
+      deploymentScope: {
+        chainId: ACTIVE_CHAIN_ID,
+        assetContract,
+      },
       runtimeRecord: toPersistedRecord(record),
       details: record.details,
       myAsset: record.myAsset,
@@ -186,6 +192,8 @@ export async function hydrateRuntimeMintedAssetsFromSupabase(walletAddress?: str
     const remoteRows = await restSelect<ProtocolAssetRow>(
       "protocol_assets",
       toQuery({
+        chain_id: encodeEq(ACTIVE_CHAIN_ID),
+        asset_contract: encodeEq(CURRENT_ASSET_CONTRACT),
         owner_address: encodeEq(normalized),
         status: encodeEq('pending_indexing'),
       }),
@@ -204,7 +212,10 @@ export async function hydrateRuntimeMintedAssetsFromSupabase(walletAddress?: str
 }
 
 export function loadRuntimeMintedAssets(walletAddress?: string | null) {
-  const records = readLocalRuntimeMintedAssets();
+  const records = readLocalRuntimeMintedAssets().filter((record) => {
+    const assetContract = String(record.details.contractAddress || CONTRACTS.ORINA_RWA).toLowerCase();
+    return assetContract === CURRENT_ASSET_CONTRACT;
+  });
   if (!walletAddress) return records;
   const normalized = walletAddress.toLowerCase();
   return records.filter((record) => record.walletAddress.toLowerCase() === normalized);

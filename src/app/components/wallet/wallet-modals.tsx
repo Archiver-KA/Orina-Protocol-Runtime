@@ -21,7 +21,7 @@ export function WalletModals() {
     handleSignatureCancel,
   } = useWalletModalContext();
 
-  const { step, signatureData, transactionResult } = modalState;
+  const { step, signatureData, transactionResult, isBusy } = modalState;
 
   if (!step) return null;
 
@@ -34,6 +34,7 @@ export function WalletModals() {
       {step === 'signature' && signatureData && (
         <SignatureRequestModal
           data={signatureData}
+          isSigning={Boolean(isBusy)}
           onSign={handleSignatureConfirm}
           onCancel={handleSignatureCancel}
         />

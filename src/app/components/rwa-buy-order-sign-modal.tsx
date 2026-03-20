@@ -7,16 +7,28 @@ import {
   Plus,
   ShieldCheck,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { parseUnits } from 'viem';
 import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
 import { MarketplaceAsset, RwaSelectedAttribute } from '@/app/types/asset';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
+import { ProtocolChainBanner } from '@/app/components/ui/protocol-chain-banner';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 import { useBuyerSign1, useSignOrder } from '@/hooks/useEIP712Sign';
-import { CONTRACTS } from '@/config/contracts';
+import { useProtocolChain } from '@/hooks/useProtocolChain';
+import { useCreateOrder } from '@/hooks/useOrders';
+import { CONTRACTS, PAYMENT_TOKENS, type PaymentTokenSymbol } from '@/config/contracts';
 import { createRuntimeOrderFromRwaIntent } from '@/utils/runtimeOrders';
+import { StudioTxStatePanel } from '@/app/components/ui/studio-tx-state-panel';
+import { getWalletErrorMessage } from '@/utils/walletErrors';
+import type { DeliveryAddressRecord } from '@/types/address';
+import type { OrderShippingAddressSnapshot } from '@/types/order';
+import {
+  formatDeliveryAddressPreview,
+  getPreferredDeliveryAddress,
+  loadUserDeliveryAddresses,
+} from '@/utils/deliveryAddressUtils';
 
 interface RwaBuyOrderSignModalProps {
   asset: MarketplaceAsset;
@@ -55,7 +67,7 @@ function isValidEvmAddress(value: string): value is `0x${string}` {
 function parseAssetPriceToBaseUnits(price: string, currency: MarketplaceAsset['currency']): bigint | null {
   const raw = price.replace(/[^\d.]/g, '');
   if (!raw) return null;
-  const decimals = currency === 'USDC' ? 6 : 18;
+  const decimals = currency === 'USDC' || currency === 'USDT' ? 6 : 18;
   try {
     return parseUnits(raw, decimals);
   } catch {
@@ -69,6 +81,46 @@ function formatDateLong(date: Date) {
 
 function formatDateShort(date: Date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function resolveProtocolPaymentToken(currency: MarketplaceAsset['currency']): {
+  symbol: PaymentTokenSymbol;
+  address: `0x${string}`;
+  decimals: number;
+} {
+  if (currency === 'USDC') {
+    return {
+      symbol: 'USDC',
+      address: PAYMENT_TOKENS.USDC,
+      decimals: 6,
+    };
+  }
+
+  return {
+    symbol: 'WBNB',
+    address: PAYMENT_TOKENS.WBNB,
+    decimals: 18,
+  };
+}
+
+function toOrderShippingSnapshot(
+  addressRecord: DeliveryAddressRecord | null | undefined,
+): OrderShippingAddressSnapshot | null {
+  if (!addressRecord) return null;
+  return {
+    label: addressRecord.label ?? undefined,
+    recipientName: addressRecord.recipientName,
+    phoneE164: addressRecord.phoneE164 ?? undefined,
+    countryCode: addressRecord.countryCode,
+    countryNameSnapshot: addressRecord.countryNameSnapshot,
+    geoPath: addressRecord.geoPath,
+    leafPlaceId: addressRecord.leafPlaceId ?? undefined,
+    postalCode: addressRecord.postalCode ?? undefined,
+    addressLine1: addressRecord.addressLine1,
+    addressLine2: addressRecord.addressLine2 ?? undefined,
+    deliveryInstructions: addressRecord.deliveryInstructions ?? undefined,
+    formatted: formatDeliveryAddressPreview(addressRecord),
+  };
 }
 
 function buildMonthGrid(monthDate: Date) {
@@ -93,19 +145,48 @@ export function RwaBuyOrderSignModal({
   onClose,
 }: RwaBuyOrderSignModalProps) {
   const { address } = useAccount();
+  const protocolChain = useProtocolChain();
   const buyerSig1 = useBuyerSign1();
   const previewSigner = useSignOrder();
+  const { createOrder, hash: orderHash, isPending: orderPending, isConfirming: orderConfirming, isConfirmed: orderConfirmed, error: orderError, reset: resetOrder } = useCreateOrder();
+  const paymentToken = useMemo(() => resolveProtocolPaymentToken(asset.currency), [asset.currency]);
 
   const today = useMemo(() => startOfLocalDay(new Date()), []);
   const [deliveryDays, setDeliveryDays] = useState(7);
   const [targetDate, setTargetDate] = useState(() => addDays(today, 7));
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const [preferredShippingAddress, setPreferredShippingAddress] = useState<DeliveryAddressRecord | null>(null);
   const [signedPayload, setSignedPayload] = useState<{
     signature: `0x${string}`;
     signedAt: number;
     mode: 'preview' | 'predicted-live';
     note: string;
   } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!address) {
+      setPreferredShippingAddress(null);
+      return () => {
+        active = false;
+      };
+    }
+
+    void loadUserDeliveryAddresses(address)
+      .then((addresses) => {
+        if (!active) return;
+        setPreferredShippingAddress(getPreferredDeliveryAddress(addresses));
+      })
+      .catch(() => {
+        if (!active) return;
+        setPreferredShippingAddress(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [address]);
 
   const unitPriceBase = useMemo(() => parseAssetPriceToBaseUnits(asset.price, asset.currency), [asset.price, asset.currency]);
   const totalPriceBase = useMemo(
@@ -168,11 +249,15 @@ export function RwaBuyOrderSignModal({
       return;
     }
 
+    if (!(await protocolChain.ensureProtocolChainAsync('sign the order'))) {
+      return;
+    }
+
     try {
       const amount = BigInt(quantity);
       let signature: `0x${string}`;
       let mode: 'preview' | 'predicted-live' = 'preview';
-      let note = 'D1 preview signature created (contracts/payment mapping not fully configured).';
+      let note = 'Buyer Sig #1 ready (preview mode — orderId may differ at submission).';
 
       if (canUsePredictedSignature && predictedOrderId !== undefined) {
         signature = await buyerSig1.sign({
@@ -207,12 +292,44 @@ export function RwaBuyOrderSignModal({
         quantity,
         grossPrice: totalPriceBase,
         estDeliverySeconds,
+        paymentToken: paymentToken.address,
+        paymentTokenSymbol: paymentToken.symbol,
+        paymentTokenDecimals: paymentToken.decimals,
+        shippingAddressSnapshot: toOrderShippingSnapshot(preferredShippingAddress),
+        shippingMethodLabel: preferredShippingAddress ? 'Buyer default delivery address' : undefined,
         selectedAttributes,
       });
       toast.success('Buyer signature created');
     } catch (error) {
       console.error('[RWA Buy Modal] Sign failed:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to sign order intent');
+      toast.error(getWalletErrorMessage(error, 'Failed to sign order intent'));
+    }
+  };
+
+  // ── Step 2: Submit signed order on-chain ──────────────────────
+  const handleSubmitOrder = async () => {
+    if (!signedPayload || !address || !sellerAddress || totalPriceBase === null) {
+      toast.error('Signature missing — please sign first');
+      return;
+    }
+
+    if (!(await protocolChain.ensureProtocolChainAsync('submit the order'))) {
+      return;
+    }
+
+    try {
+      await createOrder(
+        sellerAddress as `0x${string}`,
+        paymentToken.address,
+        asset.id as unknown as bigint,
+        BigInt(quantity),
+        totalPriceBase,
+        estDeliverySeconds,
+        signedPayload.signature,
+      );
+    } catch (err) {
+      console.error('[RWA Modal] Submit order failed:', err);
+      toast.error(getWalletErrorMessage(err, 'Order submission failed'));
     }
   };
 
@@ -315,6 +432,16 @@ export function RwaBuyOrderSignModal({
             </div>
 
             <div className="space-y-4">
+              <ProtocolChainBanner
+                isConnected={protocolChain.isConnected}
+                isOnProtocolChain={protocolChain.isOnProtocolChain}
+                currentChainLabel={protocolChain.currentChainLabel}
+                targetChainLabel={protocolChain.targetChainLabel}
+                isSwitching={protocolChain.isSwitching}
+                onSwitch={() => protocolChain.ensureProtocolChainAsync('sign the order')}
+                showWhenMatched={false}
+              />
+
               <div className="studio-glass-surface rounded-2xl border border-ui-border-subtle bg-[rgba(255,255,255,0.02)] p-4">
                 <p className="text-[10px] font-bold tracking-[0.18em] text-zinc-500 uppercase mb-3">Order Summary</p>
                 <div className="mb-3 rounded-xl border border-[rgba(255,255,255,0.06)] overflow-hidden">
@@ -394,6 +521,21 @@ export function RwaBuyOrderSignModal({
                     </>
                   )}
                   <div className="h-px bg-white/5" />
+                  <div className="flex items-start justify-between gap-3 text-xs">
+                    <span className="text-zinc-400">Payment Token</span>
+                    <span className="text-right font-semibold text-white">
+                      {paymentToken.symbol}
+                    </span>
+                  </div>
+                  <div className="flex items-start justify-between gap-3 text-xs">
+                    <span className="text-zinc-400">Shipping Snapshot</span>
+                    <span className="text-right font-semibold text-white max-w-[18rem]">
+                      {preferredShippingAddress
+                        ? formatDeliveryAddressPreview(preferredShippingAddress)
+                        : 'No default address saved'}
+                    </span>
+                  </div>
+                  <div className="h-px bg-white/5" />
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-300 font-semibold">Total</span>
                     <div className="text-right">
@@ -418,7 +560,7 @@ export function RwaBuyOrderSignModal({
                 <div className="rounded-2xl border border-[rgba(44,194,149,0.2)] bg-[rgba(44,194,149,0.04)] p-4">
                   <div className="flex items-center gap-2 text-[#2CC295] mb-2">
                     <ShieldCheck size={16} />
-                    <p className="text-sm font-bold">Signature Ready</p>
+                    <p className="text-sm font-bold">Buyer Sig #1 Ready</p>
                   </div>
                   <p className="text-[11px] text-zinc-400 mb-2">{signedPayload.note}</p>
                   <div className="rounded-xl border border-white/5 bg-black/20 p-3">
@@ -430,6 +572,21 @@ export function RwaBuyOrderSignModal({
                 </div>
               )}
 
+              {/* On-chain tx status */}
+              {(orderPending || orderConfirming || orderConfirmed || orderError) && (
+                <StudioTxStatePanel
+                  className="rounded-xl"
+                  variant={orderConfirmed ? 'success' : orderError ? 'error' : 'loading'}
+                  title={
+                    orderConfirmed ? 'Order submitted — awaiting seller confirmation' :
+                    orderError     ? `Error: ${orderError.message}` :
+                    orderConfirming ? 'Confirming on blockchain…' :
+                                      'Submitting order…'
+                  }
+                  hash={orderHash}
+                />
+              )}
+
               <div className="flex items-center gap-3 pt-1">
                 <StudioActionButton
                   onClick={onClose}
@@ -437,16 +594,42 @@ export function RwaBuyOrderSignModal({
                   size="lg"
                   className="flex-1 h-[45px] rounded-full justify-center"
                 >
-                  Cancel
+                  {orderConfirmed ? 'Close' : 'Cancel'}
                 </StudioActionButton>
-                <StudioActionButton
-                  onClick={handleSignBuyerIntent}
-                  disabled={!canSignPreview || isSigning}
-                  size="lg"
-                  className="flex-1 h-[45px] rounded-full justify-center text-sm"
-                >
-                  {isSigning ? 'Signing...' : 'Sign'}
-                </StudioActionButton>
+
+                {!signedPayload ? (
+                  <StudioActionButton
+                    onClick={handleSignBuyerIntent}
+                    disabled={!canSignPreview || isSigning}
+                    size="lg"
+                    className="flex-1 h-[45px] rounded-full justify-center text-sm"
+                  >
+                    {isSigning
+                      ? 'Signing…'
+                      : !protocolChain.isConnected
+                        ? 'Connect Wallet'
+                        : !protocolChain.isOnProtocolChain
+                          ? 'Switch Network'
+                          : 'Sign Order'}
+                  </StudioActionButton>
+                ) : (
+                  <StudioActionButton
+                    onClick={handleSubmitOrder}
+                    disabled={orderPending || orderConfirming || orderConfirmed}
+                    size="lg"
+                    className="flex-1 h-[45px] rounded-full justify-center text-sm"
+                  >
+                    {orderPending || orderConfirming
+                      ? 'Submitting…'
+                      : orderConfirmed
+                        ? 'Submitted!'
+                        : !protocolChain.isConnected
+                          ? 'Connect Wallet'
+                          : !protocolChain.isOnProtocolChain
+                            ? 'Switch Network'
+                            : 'Submit Order →'}
+                  </StudioActionButton>
+                )}
               </div>
             </div>
           </div>

@@ -81,7 +81,7 @@ export interface LockedAmount {
   lockedAt: bigint;
 }
 
-// ── FractionalReceiptNFT ──────────────────────────────────────
+// ── RWAReceiptNFT ─────────────────────────────────────────────
 
 export interface Receipt {
   orderId: bigint;

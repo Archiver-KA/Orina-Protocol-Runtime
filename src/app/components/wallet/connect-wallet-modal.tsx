@@ -3,6 +3,7 @@ import { WalletProvider, MOCK_REVIEWS } from '@/types/wallet';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
+import { getWalletErrorMessage, isWalletRequestPendingError, isWalletRequestRejectedError } from '@/utils/walletErrors';
 
 interface ConnectWalletModalProps {
   onClose: () => void;
@@ -14,7 +15,19 @@ export function ConnectWalletModal({ onClose, onConnect }: ConnectWalletModalPro
   const { address, isConnected } = useAccount();
   const [showReviews, setShowReviews] = useState(false);
 
-  const hasConnector = (id: string) => connectors.some(c => c.id === id);
+  const resolveConnector = (providerId: string) => {
+    if (providerId === 'injected') {
+      return connectors.find((c) => c.id === 'metaMask') ??
+        connectors.find((c) => /meta.?mask/i.test(String(c.name || ''))) ??
+        connectors.find((c) =>
+          c.id === 'injected' ||
+          /injected/i.test(String(c.type || ''))
+        );
+    }
+    return connectors.find((c) => c.id === providerId);
+  };
+
+  const hasConnector = (providerId: string) => Boolean(resolveConnector(providerId));
 
   const walletProviders: WalletProvider[] = [
     {
@@ -56,17 +69,6 @@ export function ConnectWalletModal({ onClose, onConnect }: ConnectWalletModalPro
     },
   ];
 
-  const resolveConnector = (providerId: string) => {
-    if (providerId === 'injected') {
-      return connectors.find((c) =>
-        c.id === 'injected' ||
-        /meta.?mask/i.test(String(c.name || '')) ||
-        /injected/i.test(String(c.type || ''))
-      );
-    }
-    return connectors.find((c) => c.id === providerId);
-  };
-
   const handleWalletClick = async (providerId: string) => {
     const connector = resolveConnector(providerId);
     if (!connector) {
@@ -85,7 +87,7 @@ export function ConnectWalletModal({ onClose, onConnect }: ConnectWalletModalPro
       await connectAsync({ connector });
       onConnect(providerId);
     } catch (error) {
-      const message = String((error as Error)?.message || error || '');
+      const message = getWalletErrorMessage(error, 'Wallet connection failed. Please try again.');
 
       // Some wallets return an "already connected" style error instead of opening a popup.
       if (/already connected|connector.*connected/i.test(message) && isConnected && address) {
@@ -93,18 +95,17 @@ export function ConnectWalletModal({ onClose, onConnect }: ConnectWalletModalPro
         return;
       }
 
-      // MetaMask often reports pending requests if the extension popup is already open/focused.
-      if (/already pending|already processing|request of type .* already pending/i.test(message)) {
-        toast.info('Complete the pending request in MetaMask.');
+      if (isWalletRequestPendingError(error)) {
+        toast.info(message);
         return;
       }
 
-      if (/user rejected|user denied|rejected the request/i.test(message)) {
-        toast.error('Wallet connection request was cancelled.');
+      if (isWalletRequestRejectedError(error)) {
+        toast.error(message);
         return;
       }
 
-      toast.error('Wallet connection failed. Please try again.');
+      toast.error(message);
     }
   };
 

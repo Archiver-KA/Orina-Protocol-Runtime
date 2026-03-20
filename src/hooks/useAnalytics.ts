@@ -131,13 +131,13 @@ function convertOrdersToTrades(orders: any[], userAddress: string): TradePerform
 
       return {
         assetId: order.assetId.toString(),
-        assetName: `Asset #${order.assetId}`,
+        assetName: order.assetName ?? `Asset #${order.assetId}`,
         buyPrice,
         currentPrice,
         profit,
         profitPercentage,
         holdingTime,
-        status: order.status === 2 ? 'sold' : 'holding',
+        status: order.finalized || order.state === 3 ? 'sold' : 'holding',
       } as TradePerformance;
     });
 }

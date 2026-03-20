@@ -2,11 +2,12 @@ import { SignatureRequestData } from '@/types/wallet';
 
 interface SignatureRequestModalProps {
   data: SignatureRequestData;
+  isSigning?: boolean;
   onSign: () => void;
   onCancel: () => void;
 }
 
-export function SignatureRequestModal({ data, onSign, onCancel }: SignatureRequestModalProps) {
+export function SignatureRequestModal({ data, isSigning = false, onSign, onCancel }: SignatureRequestModalProps) {
   const { origin, action, message } = data;
   const isAuthSession = action === 'Authenticate Session';
 
@@ -138,18 +139,20 @@ export function SignatureRequestModal({ data, onSign, onCancel }: SignatureReque
         <div className="p-10 pt-8 grid grid-cols-2 gap-4">
           <button
             onClick={onCancel}
+            disabled={isSigning}
             className="py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-2xl transition-all border border-white/10 text-[13px] uppercase tracking-wider"
           >
             Cancel
           </button>
           <button
             onClick={onSign}
-            className="py-4 bg-[#2CC295] hover:bg-[#34d3a3] text-black font-extrabold rounded-2xl transition-all text-[13px] uppercase tracking-widest"
+            disabled={isSigning}
+            className="py-4 bg-[#2CC295] hover:bg-[#34d3a3] disabled:bg-[#2CC295]/70 disabled:cursor-not-allowed text-black font-extrabold rounded-2xl transition-all text-[13px] uppercase tracking-widest"
             style={{
               boxShadow: '0 0 20px rgba(44, 194, 149, 0.3), 0 0 40px rgba(44, 194, 149, 0.1)',
             }}
           >
-            Sign
+            {isSigning ? 'Open MetaMask...' : 'Sign'}
           </button>
         </div>
 

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
-import { useConnect, useAccount, useSignMessage } from 'wagmi';
-import { WalletModalStep, WalletModalState, SignatureRequestData, TransactionResult } from '@/types/wallet';
+import { useConnect, useAccount } from 'wagmi';
+import { WalletModalState, SignatureRequestData, TransactionResult, WalletModalConfirmHandler } from '@/types/wallet';
 
 export function useWalletModal() {
   const [modalState, setModalState] = useState<WalletModalState>({
@@ -18,9 +18,10 @@ export function useWalletModal() {
   }, []);
 
   // Open signature request modal with data
-  const openSignatureModal = useCallback((signatureData: SignatureRequestData, onConfirm?: () => void) => {
+  const openSignatureModal = useCallback((signatureData: SignatureRequestData, onConfirm?: WalletModalConfirmHandler) => {
     setModalState({
       step: 'signature',
+      isBusy: false,
       signatureData,
       onConfirm,
     });
@@ -57,12 +58,23 @@ export function useWalletModal() {
   }, [closeModal]);
 
   // Handle signature confirmation
-  const handleSignatureConfirm = useCallback(() => {
-    if (modalState.onConfirm) {
-      modalState.onConfirm();
+  const handleSignatureConfirm = useCallback(async () => {
+    setModalState((prev) => ({ ...prev, isBusy: true }));
+
+    try {
+      if (modalState.onConfirm) {
+        const result = await modalState.onConfirm();
+        if (result) {
+          showSuccess(result);
+          return;
+        }
+      }
+      closeModal();
+    } catch (error) {
+      console.error('[Wallet Modal] Signature action failed:', error);
+      setModalState((prev) => ({ ...prev, step: 'signature', isBusy: false }));
     }
-    showProcessing();
-  }, [modalState, showProcessing]);
+  }, [modalState, showSuccess, closeModal]);
 
   // Handle signature cancel
   const handleSignatureCancel = useCallback(() => {

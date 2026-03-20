@@ -1,29 +1,29 @@
 /**
  * Orina ATP Protocol v3.4 - Contract Configuration
  * ======================================================
- * BSC Testnet deployment — 2026-03-14
- * Namespace: orina-atp-v3.4-bsc-testnet
+ * BSC Testnet deployment — 2026-03-20
+ * Namespace: orina-atp-v3.4-rwa-split-unit-fix-bsc-testnet-20260320
  */
 
-// ── Contract Addresses (v3.4 — BSC Testnet) ───────────────────
+// ── Contract Addresses (v3.4 RWA split-unit branch — BSC Testnet) ─
 export const CONTRACTS = {
   // Core
-  MARKETPLACE_ATP: '0xe2919d800e8984d5d18f07925195a4492a6f60e2' as `0x${string}`,
-  ORINA_RWA:       '0x91e93aca1d3fbef5a1379d8d7861c6822d7d3b49' as `0x${string}`,
-  RECEIPT_NFT:     '0xc58625106f38f2549da0cf1f49f6aff9f8e40d5a' as `0x${string}`,
-  PAYMENT_GATEWAY: '0x79fec7b4a533e12e24122f615b1896f4a197984a' as `0x${string}`,
+  MARKETPLACE_ATP: '0x6154d16f4f52c1a4157928f136a53ac3b83b510b' as `0x${string}`,
+  ORINA_RWA:       '0xa0c34b5a941420626146bc61e15893bc1f86bf39' as `0x${string}`,
+  RECEIPT_NFT:     '0x63db5c2e0935314b3b4f924c38771cf034cc6a2f' as `0x${string}`,
+  PAYMENT_GATEWAY: '0x318cb728d91a2abd1854f31ba1d32687763b9335' as `0x${string}`,
 
   // Management
-  FEE_MANAGER:       '0x8b0cfd0480404e2e10979ed7393540be90fc8ebf' as `0x${string}`,
-  AUTOTIME_MANAGER:  '0x6df6751a1925c60e6f0bf72c680e6c6a7c34e987' as `0x${string}`,
-  DISPUTE_MANAGER:   '0x21744c4904e55b49c2c6538b9c4dd6f8d4e76fae' as `0x${string}`,
+  FEE_MANAGER:       '0x768f5d3eb747d029cd4cbd15ff70688394c9141d' as `0x${string}`,
+  AUTOTIME_MANAGER:  '0xb0986ad420b5d7babd2a7b797b3cb47a76780050' as `0x${string}`,
+  DISPUTE_MANAGER:   '0x33dceb1e8aec7fe69d8a1390de0cc0e879035949' as `0x${string}`,
 
   // Registries
-  UNIT_REGISTRY:     '0x938698dcc54ccac6530967a86c04a5ac0e2d9268' as `0x${string}`,
-  SHIPPING_REGISTRY: '0x3894a6e0412a3def1124bd232244d46e12b24ee7' as `0x${string}`,
+  UNIT_REGISTRY:     '0xcf55ba3f1ade6e2ea84fb92ac11e473c55535a3e' as `0x${string}`,
+  SHIPPING_REGISTRY: '0xc648fb2152e6c4d60fcc65ede51f9061ea157ae4' as `0x${string}`,
 
   // Governance
-  TIMELOCK:    '0x231e4485ffe1355f67d6f3216ab49a4eaf199485' as `0x${string}`,
+  TIMELOCK:    '0x4f2209c00ef899eb2eebda1a2160869d254710a1' as `0x${string}`,
   GNOSIS_SAFE: '0x554c4F489846e293bA251fb8B863FE1241306138' as `0x${string}`,
 
   // Fee vaults (v3.4: dao vault riêng)
@@ -95,6 +95,8 @@ export const PROTOCOL = {
   DEFAULT_DAO_FEE_BPS: 50,               // 0.5%
   DEFAULT_BURN_FEE_BPS: 50,              // 0.5%
   DEFAULT_REFERRAL_FEE_BPS: 0,           // 0% (disabled at launch)
+  STABLECOIN_PLATFORM_FEE_BPS: 200,      // 2% preset
+  ORI_PLATFORM_FEE_BPS: 100,             // 1% preset
 
   // Hard caps (contract enforced)
   MAX_PROTOCOL_BPS: 500,                 // platform+dao+burn ≤ 5%
@@ -139,8 +141,8 @@ export enum OrderStatus {
 }
 
 export enum AssetType {
-  RWA = 0,  // Receipt non-transferable
-  NFT = 1,  // Receipt transferable
+  RWA = 0,  // RWA asset -> finalizes into non-transferable receipt
+  NFT = 1,  // Reserved for future direct-buy transferable NFT branch
 }
 
 export enum DisputeVerdict {

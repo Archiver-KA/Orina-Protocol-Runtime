@@ -5,7 +5,7 @@
  */
 
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { CONTRACTS } from '@/config/contracts';
+import { ACTIVE_CHAIN_ID, CONTRACTS } from '@/config/contracts';
 import { DISPUTE_MANAGER_ABI } from '@/config/abis';
 
 // ── Read Hooks ────────────────────────────────────────────────
@@ -13,6 +13,7 @@ import { DISPUTE_MANAGER_ABI } from '@/config/abis';
 /** Get dispute details for an order */
 export function useDispute(orderId: bigint | undefined) {
   return useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
     address: CONTRACTS.DISPUTE_MANAGER,
     abi: DISPUTE_MANAGER_ABI,
     functionName: 'disputes',
@@ -24,31 +25,74 @@ export function useDispute(orderId: bigint | undefined) {
 /** Read protocol constants */
 export function useDisputeConstants() {
   const period = useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
     address: CONTRACTS.DISPUTE_MANAGER,
     abi: DISPUTE_MANAGER_ABI,
     functionName: 'DISPUTE_PERIOD',
   });
   const feeBps = useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
     address: CONTRACTS.DISPUTE_MANAGER,
     abi: DISPUTE_MANAGER_ABI,
     functionName: 'DISPUTE_FEE_BPS',
+  });
+  const version = useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
+    address: CONTRACTS.DISPUTE_MANAGER,
+    abi: DISPUTE_MANAGER_ABI,
+    functionName: 'VERSION',
   });
 
   return {
     disputePeriod: period.data as bigint | undefined,
     disputeFeeBps: feeBps.data as bigint | undefined,
+    version: version.data as string | undefined,
   };
+}
+
+export function useDisputePhase1Deadline(orderId: bigint | undefined) {
+  return useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
+    address: CONTRACTS.DISPUTE_MANAGER,
+    abi: DISPUTE_MANAGER_ABI,
+    functionName: 'phase1Deadline',
+    args: orderId !== undefined ? [orderId] : undefined,
+    query: { enabled: orderId !== undefined },
+  });
+}
+
+export function useDisputeAgreementDigest(
+  orderId: bigint | undefined,
+  verdict: number | undefined,
+  buyerShareBps: bigint | undefined,
+  sellerShareBps: bigint | undefined,
+) {
+  const enabled =
+    orderId !== undefined
+    && verdict !== undefined
+    && buyerShareBps !== undefined
+    && sellerShareBps !== undefined;
+
+  return useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
+    address: CONTRACTS.DISPUTE_MANAGER,
+    abi: DISPUTE_MANAGER_ABI,
+    functionName: 'agreementDigest',
+    args: enabled ? [orderId!, verdict!, buyerShareBps!, sellerShareBps!] : undefined,
+    query: { enabled },
+  });
 }
 
 // ── Write Hooks ───────────────────────────────────────────────
 
 /** Arbiter extends dispute deadline by 14 days (once) */
 export function useExtendDispute() {
-  const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
 
   const extendDispute = async (orderId: bigint) => {
-    writeContract({
+    return writeContractAsync({
+      chainId: ACTIVE_CHAIN_ID,
       address: CONTRACTS.DISPUTE_MANAGER,
       abi: DISPUTE_MANAGER_ABI,
       functionName: 'extendDispute',
@@ -61,8 +105,8 @@ export function useExtendDispute() {
 
 /** Mutual resolution - both parties agree to 50/50 split */
 export function useResolveMutualSplit() {
-  const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
 
   const resolveMutualSplit = async (
     orderId: bigint,
@@ -71,7 +115,8 @@ export function useResolveMutualSplit() {
     buyerSig: `0x${string}`,
     sellerSig: `0x${string}`,
   ) => {
-    writeContract({
+    return writeContractAsync({
+      chainId: ACTIVE_CHAIN_ID,
       address: CONTRACTS.DISPUTE_MANAGER,
       abi: DISPUTE_MANAGER_ABI,
       functionName: 'resolveMutualSplit',
@@ -82,10 +127,36 @@ export function useResolveMutualSplit() {
   return { resolveMutualSplit, hash, isPending, isConfirming, isConfirmed, error, reset };
 }
 
+/** 2/3 agreement resolution - buyer/seller/arbiter any 2 valid signatures */
+export function useResolveByAgreement() {
+  const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+
+  const resolveByAgreement = async (
+    orderId: bigint,
+    verdict: number,
+    buyerShareBps: bigint,
+    sellerShareBps: bigint,
+    buyerSig: `0x${string}`,
+    sellerSig: `0x${string}`,
+    arbiterSig: `0x${string}`,
+  ) => {
+    return writeContractAsync({
+      chainId: ACTIVE_CHAIN_ID,
+      address: CONTRACTS.DISPUTE_MANAGER,
+      abi: DISPUTE_MANAGER_ABI,
+      functionName: 'resolveByAgreement',
+      args: [orderId, verdict, buyerShareBps, sellerShareBps, buyerSig, sellerSig, arbiterSig],
+    });
+  };
+
+  return { resolveByAgreement, hash, isPending, isConfirming, isConfirmed, error, reset };
+}
+
 /** Arbiter resolves dispute with verdict */
 export function useResolveDispute() {
-  const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
 
   const resolveDispute = async (
     orderId: bigint,
@@ -93,7 +164,8 @@ export function useResolveDispute() {
     buyerShareBps: bigint,  // Only for SPLIT
     sellerShareBps: bigint, // Only for SPLIT
   ) => {
-    writeContract({
+    return writeContractAsync({
+      chainId: ACTIVE_CHAIN_ID,
       address: CONTRACTS.DISPUTE_MANAGER,
       abi: DISPUTE_MANAGER_ABI,
       functionName: 'resolveDispute',
@@ -106,11 +178,12 @@ export function useResolveDispute() {
 
 /** Resolve stale dispute (after deadline passes) - permissionless-like */
 export function useResolveStaleDispute() {
-  const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
 
   const resolveStaleDispute = async (orderId: bigint) => {
-    writeContract({
+    return writeContractAsync({
+      chainId: ACTIVE_CHAIN_ID,
       address: CONTRACTS.DISPUTE_MANAGER,
       abi: DISPUTE_MANAGER_ABI,
       functionName: 'resolveStaleDispute',
