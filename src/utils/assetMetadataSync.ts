@@ -1,6 +1,7 @@
-import { getMarketplaceAssetById } from '@/utils/mockMarketplaceData';
-import { generateMockAsset } from '@/utils/mockAssetData';
-import { getTestWalletMyAssets } from '@/utils/testWalletAssetFixtures';
+import {
+  getDeterministicOwnedAssetDetailsById,
+  getTestWalletMyAssets,
+} from '@/utils/testWalletAssetFixtures';
 import {
   getLocalSupabaseId,
   isSupabaseRestEnabled,
@@ -48,10 +49,6 @@ function normalizeAssetUid(assetId: string): string {
   return String(assetId || '').trim().toLowerCase();
 }
 
-function isListingAssetId(assetId: string): boolean {
-  return /^asset-\d{3}$/i.test(assetId);
-}
-
 function isOwnedFixtureAssetId(assetId: string): boolean {
   return /^twf-[a-z0-9-]+$/i.test(assetId);
 }
@@ -97,8 +94,8 @@ function buildSeedItemFromAssetId(assetId: string): AssetMetadataSeedItem | null
   const normalized = normalizeAssetUid(assetId);
   if (!normalized) return null;
 
-  const listing = getMarketplaceAssetById(normalized);
-  const details = generateMockAsset(normalized);
+  const details = getDeterministicOwnedAssetDetailsById(normalized);
+  if (!details) return null;
   const galleryImages = uniqueStrings(details.images?.length ? details.images : [details.image]);
   const media = galleryImages.map((url, index) => ({
     mediaType: 'image' as const,
@@ -107,33 +104,26 @@ function buildSeedItemFromAssetId(assetId: string): AssetMetadataSeedItem | null
     metadata: index === 0 ? { role: 'cover' } : {},
   }));
 
-  const namespace = isOwnedFixtureAssetId(normalized)
-    ? 'owned_fixture'
-    : isListingAssetId(normalized)
-      ? 'marketplace_listing'
-      : 'generic_mock';
+  const namespace = isOwnedFixtureAssetId(normalized) ? 'owned_fixture' : 'owned_asset';
 
   const tags = uniqueStrings([
-    ...(listing?.tags || []),
     String(details.category || '').toLowerCase(),
     namespace,
     String(details.blockchain || '').toLowerCase(),
   ]).map((tag) => slugify(tag)).filter(Boolean);
 
-  const title = details.name || listing?.name || normalized;
+  const title = details.name || normalized;
   const slug = slugify(`${normalized}-${title}`) || slugify(normalized) || normalized;
-  const chainId = listing
-    ? mapChainId(listing.blockchain, listing.network)
-    : mapChainId(details.blockchain, isOwnedFixtureAssetId(normalized) ? 'testnet' : undefined);
+  const chainId = mapChainId(details.blockchain, isOwnedFixtureAssetId(normalized) ? 'testnet' : undefined);
 
   return {
     assetUid: normalized,
     title,
     slug,
-    category: details.category || listing?.category || null,
+    category: details.category || null,
     subcategory: null,
-    description: details.description || listing?.description || null,
-    coverImageUrl: details.image || listing?.image || null,
+    description: details.description || null,
+    coverImageUrl: details.image || null,
     galleryImages,
     attributes: propertiesToAttributes(details.properties),
     metadata: {
@@ -141,44 +131,42 @@ function buildSeedItemFromAssetId(assetId: string): AssetMetadataSeedItem | null
       asset_namespace: namespace,
       local_asset_id: normalized,
       name: title,
-      description: details.description || listing?.description || null,
-      image: details.image || listing?.image || null,
+      description: details.description || null,
+      image: details.image || null,
       images: galleryImages,
-      seller: listing?.seller || details.seller || null,
-      price: listing?.price || null,
-      priceUSD: listing?.priceUSD || null,
-      currency: listing?.currency || null,
-      availableSlots: listing?.availableSlots ?? null,
-      totalSlots: listing?.totalSlots ?? null,
-      minPurchaseSlots: listing?.minPurchaseSlots ?? null,
-      maxPurchaseSlots: listing?.maxPurchaseSlots ?? null,
-      listedAt: listing?.listedAt || null,
-      expiresAt: listing?.expiresAt || null,
-      listingDuration: listing?.listingDuration || null,
-      views: listing?.views ?? null,
-      likes: listing?.likes ?? null,
-      rank: listing?.rank ?? null,
+      seller: details.seller || null,
+      price: null,
+      priceUSD: null,
+      currency: null,
+      availableSlots: null,
+      totalSlots: null,
+      minPurchaseSlots: null,
+      maxPurchaseSlots: null,
+      listedAt: null,
+      expiresAt: null,
+      listingDuration: null,
+      views: details.views ?? null,
+      likes: details.favorites ?? null,
+      rank: null,
       verified: !!details.verified,
-      featured: !!listing?.featured,
-      seller_wallet: listing?.seller?.address || details.seller?.address || null,
-      blockchain: listing?.blockchain || details.blockchain || null,
-      network: listing?.network || null,
-      listing_network: listing?.network || null,
-      listing_stats: listing ? { views: listing.views, likes: listing.likes, rank: listing.rank ?? null } : null,
-      configurableAttributes: listing?.configurableAttributes || null,
-      deliverySnapshot: listing?.deliverySnapshot || null,
-      assetLocationSnapshot: listing?.assetLocationSnapshot || null,
+      featured: false,
+      seller_wallet: details.seller?.address || null,
+      blockchain: details.blockchain || null,
+      network: isOwnedFixtureAssetId(normalized) ? 'testnet' : null,
+      listing_network: null,
+      listing_stats: null,
+      configurableAttributes: null,
+      deliverySnapshot: null,
+      assetLocationSnapshot: null,
       tags,
-      createdAt: listing?.createdAt || null,
-      updatedAt: listing?.updatedAt || null,
+      createdAt: details.mintDate || null,
+      updatedAt: details.lastSale || details.mintDate || null,
     },
-    contractAddress: details.contractAddress || listing?.contractAddress || null,
-    tokenId: details.tokenId || listing?.tokenId || null,
+    contractAddress: details.contractAddress || null,
+    tokenId: details.tokenId || null,
     chainId,
-    // Critical separation invariant:
-    // - marketplace/search/favorites assets (asset-*) are active listings
-    // - My Assets fixture rows (twf-*) are owned metadata, not public listings
-    isActive: isListingAssetId(normalized),
+    // Owned fixture metadata must never leak into the public marketplace/search catalog.
+    isActive: false,
     media,
     tags,
   };
@@ -284,7 +272,6 @@ export async function ensureAssetMetadataSeedForWalletFixtures(walletAddress?: s
     ...fixture.rwaAssets.map((a) => a.id),
     ...fixture.receiptAssets.map((a) => a.id),
     ...fixture.nftAssets.map((a) => a.id),
-    ...fixture.favoriteListingAssetIds,
   ];
 
   await ensureAssetMetadataSeedForIds(assetIds);

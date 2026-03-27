@@ -12,9 +12,18 @@ import {
   Shield,
   TrendingUp,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { createPortal } from 'react-dom';
+import { formatUnits } from 'viem';
+import { useAccount } from 'wagmi';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
+import { StudioStatusBadge } from '@/app/components/ui/studio-status-badge';
+import { useUserOrders } from '@/hooks/useUserOrders';
+import { OrderState } from '@/config/contracts';
+import type { OrderUiRecord } from '@/types/order';
+import { formatAddress } from '@/utils/format';
+import { formatOrderGrossPrice, formatOrderQuantity } from '@/utils/orderDisplay';
+import { getOrderLifecycleLabel, getOrderLifecyclePhase } from '@/utils/orderLifecycle';
 import { extractNumericValue, preventInvalidNumberKeyDown } from '@/utils/numericInput';
 
 interface SellerAsset {
@@ -22,11 +31,12 @@ interface SellerAsset {
   name: string;
   category: string;
   image: string;
-  totalAmount: string;
-  availableAmount: string;
+  totalAmount: string | number;
+  availableAmount: string | number;
   minPrice: string;
   status: string;
   mintedDate: string;
+  tokenId?: string;
 }
 
 interface SellerAssetManagementModalProps {
@@ -37,11 +47,111 @@ interface SellerAssetManagementModalProps {
 
 type SellerTab = 'overview' | 'active' | 'history' | 'manage';
 
+function normalize(value?: string | number | bigint | null) {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+function parseAmount(value: string | number, fallback = 0) {
+  const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''));
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function trimNumericString(value: string) {
+  return value.replace(/\.?0+$/, '');
+}
+
+function formatAggregateOrderValue(orders: OrderUiRecord[]) {
+  if (orders.length === 0) return '0';
+
+  const totals = new Map<string, { symbol: string; decimals: number; value: bigint }>();
+  for (const order of orders) {
+    const decimals = Number.isFinite(order.paymentTokenDecimals) ? order.paymentTokenDecimals ?? 18 : 18;
+    const symbol = order.paymentTokenSymbol?.trim() || 'ERC20';
+    const key = `${symbol}:${decimals}`;
+    const current = totals.get(key);
+    totals.set(key, {
+      symbol,
+      decimals,
+      value: (current?.value ?? 0n) + order.grossPrice,
+    });
+  }
+
+  return Array.from(totals.values())
+    .map((entry) => `${trimNumericString(formatUnits(entry.value, entry.decimals))} ${entry.symbol}`)
+    .join(' + ');
+}
+
+function formatOrderDate(order: OrderUiRecord) {
+  const timestampMs =
+    (typeof order.updatedAt === 'number' && order.updatedAt > 0 ? order.updatedAt : 0)
+    || (order.proposedAt > 0n ? Number(order.proposedAt) * 1000 : 0)
+    || (typeof order.createdAt === 'number' ? order.createdAt : 0);
+
+  if (!timestampMs || !Number.isFinite(timestampMs)) return 'Unknown time';
+  return new Date(timestampMs).toLocaleString(undefined, {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function getPhaseBadgeVariant(order: OrderUiRecord): 'success' | 'warning' | 'danger' | 'muted' {
+  const phase = getOrderLifecyclePhase(order);
+  switch (phase) {
+    case 'finalized':
+      return 'success';
+    case 'awaiting_auto_finalize':
+    case 'seller_confirm_expired':
+    case 'buyer_accept_expired':
+      return 'warning';
+    case 'cancelled':
+      return 'danger';
+    default:
+      return 'muted';
+  }
+}
+
+function matchOrderToAsset(order: OrderUiRecord, asset: SellerAsset) {
+  const orderAssetId = normalize(order.assetId.toString());
+  const assetId = normalize(asset.id);
+  const assetTokenId = normalize(asset.tokenId);
+  if (assetId && orderAssetId === assetId) return true;
+  if (assetTokenId && orderAssetId === assetTokenId) return true;
+
+  const orderName = normalize(order.assetName);
+  const assetName = normalize(asset.name);
+  if (assetName && orderName === assetName) return true;
+
+  const orderImage = normalize(order.assetImage);
+  const assetImage = normalize(asset.image);
+  return Boolean(orderImage && assetImage && orderImage === assetImage && orderName === assetName);
+}
+
+function EmptyOrderPanel({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 text-center">
+      <Package size={28} className="text-zinc-700 mx-auto mb-3" />
+      <p className="text-sm font-bold text-white">{title}</p>
+      <p className="text-xs text-zinc-500 mt-2 leading-5">{description}</p>
+    </div>
+  );
+}
+
 export function SellerAssetManagementModal({
   isOpen,
   onClose,
   asset,
 }: SellerAssetManagementModalProps) {
+  const { address } = useAccount();
+  const { orders, isLoading } = useUserOrders(address);
   const [activeTab, setActiveTab] = useState<SellerTab>('overview');
 
   useEffect(() => {
@@ -57,10 +167,71 @@ export function SellerAssetManagementModal({
 
   const soldUnits = useMemo(() => {
     if (!asset) return 0;
-    const total = Number.parseInt(asset.totalAmount, 10) || 0;
-    const available = Number.parseInt(asset.availableAmount, 10) || 0;
-    return Math.max(0, total - available);
+    const total = parseAmount(asset.totalAmount, 0);
+    const available = parseAmount(asset.availableAmount, 0);
+    return Math.max(0, Math.trunc(total - available));
   }, [asset]);
+
+  const sellerOrders = useMemo(() => {
+    if (!address) return [] as OrderUiRecord[];
+    const normalizedAddress = address.toLowerCase();
+    return orders.filter((order) => order.seller.toLowerCase() === normalizedAddress);
+  }, [address, orders]);
+
+  const assetOrders = useMemo(() => {
+    if (!asset) return [] as OrderUiRecord[];
+    return [...sellerOrders]
+      .filter((order) => matchOrderToAsset(order, asset))
+      .sort((left, right) => Number(right.proposedAt - left.proposedAt));
+  }, [asset, sellerOrders]);
+
+  const activeOrders = useMemo(
+    () =>
+      assetOrders.filter((order) => {
+        const phase = getOrderLifecyclePhase(order);
+        return phase !== 'finalized' && phase !== 'cancelled';
+      }),
+    [assetOrders],
+  );
+
+  const historyOrders = useMemo(
+    () =>
+      assetOrders.filter((order) => {
+        const phase = getOrderLifecyclePhase(order);
+        return phase === 'finalized' || phase === 'cancelled';
+      }),
+    [assetOrders],
+  );
+
+  const metrics = useMemo(() => {
+    const finalizedOrders = assetOrders.filter(
+      (order) => order.finalized || order.state === OrderState.FINALIZED,
+    );
+    const cancelledOrders = assetOrders.filter((order) => order.state === OrderState.CANCELLED);
+    const totalSupply = Math.max(1, parseAmount(asset?.totalAmount ?? 0, 1));
+    const sellThrough = `${Math.round((soldUnits / totalSupply) * 100)}%`;
+
+    return {
+      totalOrders: assetOrders.length,
+      finalizedOrders: finalizedOrders.length,
+      cancelledOrders: cancelledOrders.length,
+      activeOrders: activeOrders.length,
+      revenueLabel: formatAggregateOrderValue(finalizedOrders),
+      averageOrderValueLabel:
+        finalizedOrders.length > 0
+          ? formatAggregateOrderValue([
+              {
+                ...finalizedOrders[0],
+                grossPrice:
+                  finalizedOrders.reduce((sum, order) => sum + order.grossPrice, 0n)
+                  / BigInt(finalizedOrders.length),
+              },
+            ])
+          : '0',
+      sellThrough,
+      latestOrders: assetOrders.slice(0, 3),
+    };
+  }, [activeOrders.length, asset?.totalAmount, assetOrders, soldUnits]);
 
   if (!isOpen || !asset || typeof document === 'undefined') return null;
 
@@ -137,16 +308,16 @@ export function SellerAssetManagementModal({
                   <div className="flex items-center gap-3">
                     <div className="flex -space-x-2">
                       <span className="studio-glass-chip w-8 h-8 rounded-full bg-[#27272A] border-2 border-[#141417] text-[10px] font-bold text-zinc-300 inline-flex items-center justify-center">
-                        1
+                        A
                       </span>
                       <span className="studio-glass-chip w-8 h-8 rounded-full bg-[#3F3F46] border-2 border-[#141417] text-[10px] font-bold text-zinc-300 inline-flex items-center justify-center">
-                        2
+                        O
                       </span>
                       <span className="studio-glass-chip w-8 h-8 rounded-full bg-[#52525B] border-2 border-[#141417] text-[10px] font-bold text-zinc-300 inline-flex items-center justify-center">
-                        3
+                        H
                       </span>
                       <span className="w-8 h-8 rounded-full bg-[#2CC295] border-2 border-[#141417] text-[10px] font-bold text-black inline-flex items-center justify-center">
-                        {soldUnits}
+                        {assetOrders.length}
                       </span>
                     </div>
                     <span className="text-[10px] leading-[15px] font-medium text-[#71717A]">
@@ -155,8 +326,8 @@ export function SellerAssetManagementModal({
                   </div>
 
                   <div className="grid grid-cols-4 gap-2">
-                    <StatTile label="Total Minted" value={asset.totalAmount} />
-                    <StatTile label="Available" value={asset.availableAmount} valueClassName="text-[#2CC295]" />
+                    <StatTile label="Total Minted" value={String(asset.totalAmount)} />
+                    <StatTile label="Available" value={String(asset.availableAmount)} valueClassName="text-[#2CC295]" />
                     <StatTile label="Sold Units" value={`${soldUnits}`} />
                     <StatTile label="Min Price" value={asset.minPrice} />
                   </div>
@@ -192,9 +363,17 @@ export function SellerAssetManagementModal({
                     </div>
                   </div>
 
-                  {activeTab === 'overview' && <OverviewTab asset={asset} soldUnits={soldUnits} />}
-                  {activeTab === 'active' && <ActiveTab />}
-                  {activeTab === 'history' && <HistoryTab />}
+                  {activeTab === 'overview' && (
+                    <OverviewTab
+                      asset={asset}
+                      soldUnits={soldUnits}
+                      metrics={metrics}
+                      orders={assetOrders}
+                      isLoading={isLoading}
+                    />
+                  )}
+                  {activeTab === 'active' && <ActiveTab orders={activeOrders} isLoading={isLoading} />}
+                  {activeTab === 'history' && <HistoryTab orders={historyOrders} isLoading={isLoading} />}
                   {activeTab === 'manage' && <ManageTab asset={asset} />}
                 </div>
               </div>
@@ -254,9 +433,24 @@ function StatTile({
 function OverviewTab({
   asset,
   soldUnits,
+  metrics,
+  orders,
+  isLoading,
 }: {
   asset: SellerAsset;
   soldUnits: number;
+  metrics: {
+    totalOrders: number;
+    finalizedOrders: number;
+    cancelledOrders: number;
+    activeOrders: number;
+    revenueLabel: string;
+    averageOrderValueLabel: string;
+    sellThrough: string;
+    latestOrders: OrderUiRecord[];
+  };
+  orders: OrderUiRecord[];
+  isLoading: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -270,103 +464,162 @@ function OverviewTab({
           <InfoRow label="Category" value={asset.category} />
           <InfoRow label="Minted Date" value={asset.mintedDate} />
           <InfoRow label="Sold Units" value={`${soldUnits}/${asset.totalAmount}`} />
+          <InfoRow label="Seller Orders" value={`${metrics.totalOrders}`} />
         </div>
       </div>
 
       <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
         <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A] mb-4">Live Snapshot</h3>
         <div className="grid grid-cols-2 gap-4">
-          <MiniStat icon={<DollarSign size={14} className="text-[#2CC295]" />} label="Revenue" value="47.5 ETH" />
-          <MiniStat icon={<Package size={14} className="text-blue-400" />} label="Orders" value="55" />
-          <MiniStat icon={<Activity size={14} className="text-purple-400" />} label="Active" value="3" />
-          <MiniStat icon={<TrendingUp size={14} className="text-amber-400" />} label="Growth" value="+12.4%" />
+          <MiniStat icon={<DollarSign size={14} className="text-[#2CC295]" />} label="Revenue" value={metrics.revenueLabel} />
+          <MiniStat icon={<Package size={14} className="text-blue-400" />} label="Finalized" value={`${metrics.finalizedOrders}`} />
+          <MiniStat icon={<Activity size={14} className="text-purple-400" />} label="Active" value={`${metrics.activeOrders}`} />
+          <MiniStat icon={<TrendingUp size={14} className="text-amber-400" />} label="Sell Through" value={metrics.sellThrough} />
         </div>
       </div>
 
-      <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 h-40 flex items-center justify-center">
-        <div className="text-center">
-          <TrendingUp size={36} className="text-zinc-700 mx-auto mb-3" />
-          <p className="text-xs text-zinc-500">Sales chart coming soon</p>
+      <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Recent Order Activity</h3>
+          <StudioStatusBadge variant="muted">{metrics.totalOrders} Orders</StudioStatusBadge>
         </div>
+        {isLoading ? (
+          <p className="text-xs text-zinc-500">Loading canonical seller orders…</p>
+        ) : metrics.latestOrders.length === 0 ? (
+          <p className="text-xs text-zinc-500">No seller-side orders linked to this asset yet.</p>
+        ) : (
+          <div className="space-y-4">
+            {metrics.latestOrders.map((order, index) => (
+              <div key={order.orderId.toString()} className="space-y-1">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-bold text-white">#{order.orderId.toString()}</p>
+                  <StudioStatusBadge variant={getPhaseBadgeVariant(order)}>
+                    {getOrderLifecycleLabel(order)}
+                  </StudioStatusBadge>
+                </div>
+                <p className="text-[11px] text-zinc-500">
+                  Buyer {formatAddress(order.buyer)} · {formatOrderQuantity(order.amount, order.unitName)}
+                </p>
+                <p className="text-[11px] text-zinc-500">{formatOrderDate(order)}</p>
+                {index < metrics.latestOrders.length - 1 ? <div className="pt-2 border-b border-white/5" /> : null}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <MiniStat icon={<DollarSign size={14} className="text-[#2CC295]" />} label="Avg Price" value="2.64 ETH" />
-        <MiniStat icon={<Activity size={14} className="text-blue-400" />} label="Conversion" value="68%" />
+        <MiniStat icon={<DollarSign size={14} className="text-[#2CC295]" />} label="Avg Order" value={metrics.averageOrderValueLabel} />
+        <MiniStat
+          icon={<CheckCircle2 size={14} className="text-blue-400" />}
+          label="Cancelled"
+          value={`${metrics.cancelledOrders}`}
+        />
       </div>
+
+      {!isLoading && orders.length === 0 ? (
+        <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
+          <p className="text-xs text-zinc-500 leading-5">
+            This asset does not have any canonical seller orders yet. It can still appear in warehouse inventory and listing management while waiting for marketplace activity.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function ActiveTab() {
-  const orders = [
-    { id: 'ORD-1245', buyer: '0x742d...9c4F', amount: '2', total: '5.0 ETH', status: 'Pending Payment' },
-    { id: 'ORD-1244', buyer: '0x8f3a...2b1D', amount: '1', total: '2.5 ETH', status: 'Paid - Awaiting Release' },
-    { id: 'ORD-1243', buyer: '0x1c7e...5a9B', amount: '3', total: '7.5 ETH', status: 'Pending Payment' },
-  ];
+function ActiveTab({
+  orders,
+  isLoading,
+}: {
+  orders: OrderUiRecord[];
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return <EmptyOrderPanel title="Loading active orders" description="Reading canonical seller-side order state from the current runtime and chain overlay." />;
+  }
+
+  if (orders.length === 0) {
+    return <EmptyOrderPanel title="No active orders" description="Active seller-side orders for this asset will appear here once buyers start the protocol flow." />;
+  }
 
   return (
     <div className="space-y-4">
       {orders.map((order) => (
-        <div key={order.id} className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-4">
+        <div key={order.orderId.toString()} className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-bold text-white">{order.id}</p>
-              <p className="text-[10px] text-zinc-500 mt-1">Buyer: {order.buyer}</p>
+              <p className="text-xs font-bold text-white">#{order.orderId.toString()}</p>
+              <p className="text-[10px] text-zinc-500 mt-1">Buyer: {formatAddress(order.buyer)}</p>
             </div>
-            <span
-              className={`px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${
-                order.status.includes('Paid')
-                  ? 'bg-green-500/20 text-green-300 border-green-500/30'
-                  : 'bg-orange-500/20 text-orange-300 border-orange-500/30'
-              }`}
-            >
-              {order.status}
-            </span>
+            <StudioStatusBadge variant={getPhaseBadgeVariant(order)} size="sm">
+              {getOrderLifecycleLabel(order)}
+            </StudioStatusBadge>
           </div>
-          <div className="flex items-center justify-between text-[10px]">
-            <span className="text-zinc-500">
-              Amount: <span className="text-white font-bold">{order.amount}</span>
-            </span>
-            <span className="text-[#2CC295] font-bold">{order.total}</span>
+          <div className="grid grid-cols-2 gap-3 text-[10px]">
+            <div>
+              <p className="text-zinc-500 uppercase tracking-widest font-bold">Quantity</p>
+              <p className="text-white font-bold mt-1">{formatOrderQuantity(order.amount, order.unitName)}</p>
+            </div>
+            <div>
+              <p className="text-zinc-500 uppercase tracking-widest font-bold">Gross Value</p>
+              <p className="text-[#2CC295] font-bold mt-1">
+                {formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals)}
+              </p>
+            </div>
           </div>
-          <button className="w-full h-[45px] rounded-full bg-[#2CC295] text-black text-sm font-bold tracking-tight hover:brightness-110 transition-all">
-            Release Asset
-          </button>
+          <div className="space-y-1.5">
+            <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Lifecycle</p>
+            <p className="text-xs text-zinc-300">
+              {getOrderLifecycleLabel(order)} · submitted {formatOrderDate(order)}
+            </p>
+            {order.shippingMethodLabel ? (
+              <p className="text-[10px] text-zinc-500">Shipping: {order.shippingMethodLabel}</p>
+            ) : null}
+          </div>
         </div>
       ))}
     </div>
   );
 }
 
-function HistoryTab() {
-  const sales = [
-    { id: 'ORD-1240', buyer: '0x9a2b...3c4D', amount: '1', total: '2.5 ETH', date: '2024-02-01' },
-    { id: 'ORD-1238', buyer: '0x5e6f...7g8H', amount: '2', total: '5.0 ETH', date: '2024-01-28' },
-    { id: 'ORD-1235', buyer: '0x1i2j...3k4L', amount: '1', total: '2.5 ETH', date: '2024-01-25' },
-  ];
+function HistoryTab({
+  orders,
+  isLoading,
+}: {
+  orders: OrderUiRecord[];
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return <EmptyOrderPanel title="Loading order history" description="Canonical finalized and cancelled seller orders are being hydrated." />;
+  }
+
+  if (orders.length === 0) {
+    return <EmptyOrderPanel title="No order history" description="Finalized or cancelled seller-side orders for this asset will appear here once the lifecycle is completed." />;
+  }
 
   return (
     <div className="space-y-4">
-      {sales.map((sale) => (
-        <div key={sale.id} className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
-          <div className="flex items-start justify-between">
+      {orders.map((order) => (
+        <div key={order.orderId.toString()} className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-bold text-white">{sale.id}</p>
-              <p className="text-[10px] text-zinc-500 mt-1">Buyer: {sale.buyer}</p>
+              <p className="text-xs font-bold text-white">#{order.orderId.toString()}</p>
+              <p className="text-[10px] text-zinc-500 mt-1">Buyer: {formatAddress(order.buyer)}</p>
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-500/20 rounded-full border border-green-500/30">
-              <CheckCircle2 size={10} className="text-green-400" />
-              <span className="text-[9px] font-bold text-green-300 uppercase tracking-widest">Finalized</span>
-            </div>
+            <StudioStatusBadge variant={getPhaseBadgeVariant(order)} size="sm">
+              {getOrderLifecycleLabel(order)}
+            </StudioStatusBadge>
           </div>
           <div className="flex items-center justify-between text-[10px]">
             <span className="text-zinc-500">
-              Amount: <span className="text-white font-bold">{sale.amount}</span>
+              Amount: <span className="text-white font-bold">{formatOrderQuantity(order.amount, order.unitName)}</span>
             </span>
-            <span className="text-[#2CC295] font-bold">{sale.total}</span>
+            <span className="text-[#2CC295] font-bold">
+              {formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals)}
+            </span>
           </div>
-          <p className="text-[10px] text-zinc-600">{sale.date}</p>
+          <p className="text-[10px] text-zinc-600">{formatOrderDate(order)}</p>
         </div>
       ))}
     </div>

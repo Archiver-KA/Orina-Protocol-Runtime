@@ -1,5 +1,12 @@
 import { SearchFilters, SearchResult, SearchHistoryItem, SortOption } from '@/types/search';
 import { MarketplaceAsset } from '@/app/types/asset';
+import {
+  getCategoryDisplayLabel,
+  getTaxonomySearchText,
+  normalizeCategoryFilterValue,
+  normalizeCategoryFilterValues,
+  normalizeTaxonomySearchKey,
+} from '@/utils/taxonomy';
 
 const SEARCH_HISTORY_KEY = 'studio_search_history';
 const MAX_HISTORY_ITEMS = 10;
@@ -26,21 +33,22 @@ export function getDefaultFilters(): SearchFilters {
  */
 export function filterResults(results: SearchResult[], filters: SearchFilters): SearchResult[] {
   let filtered = [...results];
+  const normalizedCategoryFilters = normalizeCategoryFilterValues(filters.categories);
 
   // Text search
   if (filters.query.trim()) {
-    const query = filters.query.toLowerCase();
+    const query = normalizeTaxonomySearchKey(filters.query);
     filtered = filtered.filter((item) => 
-      item.name.toLowerCase().includes(query) ||
-      item.description.toLowerCase().includes(query) ||
-      item.category.toLowerCase().includes(query)
+      normalizeTaxonomySearchKey(item.name).includes(query) ||
+      normalizeTaxonomySearchKey(item.description).includes(query) ||
+      normalizeTaxonomySearchKey(getTaxonomySearchText(item.category)).includes(query)
     );
   }
 
   // Category filter
-  if (filters.categories.length > 0) {
+  if (normalizedCategoryFilters.length > 0) {
     filtered = filtered.filter((item) => 
-      filters.categories.includes(item.category)
+      normalizedCategoryFilters.includes(normalizeCategoryFilterValue(item.category))
     );
   }
 
@@ -84,21 +92,24 @@ function parseMarketplacePrice(price: string): number {
  */
 export function filterMarketplaceResults(results: MarketplaceAsset[], filters: SearchFilters): MarketplaceAsset[] {
   let filtered = [...results];
+  const normalizedCategoryFilters = normalizeCategoryFilterValues(filters.categories);
 
   if (filters.query.trim()) {
-    const query = filters.query.toLowerCase();
+    const query = normalizeTaxonomySearchKey(filters.query);
     filtered = filtered.filter((item) =>
-      item.name.toLowerCase().includes(query) ||
-      item.description?.toLowerCase().includes(query) ||
-      item.category.toLowerCase().includes(query) ||
-      item.tags?.some((tag) => tag.toLowerCase().includes(query)) ||
-      item.seller.ensName?.toLowerCase().includes(query) ||
-      item.seller.address.toLowerCase().includes(query)
+      normalizeTaxonomySearchKey(item.name).includes(query) ||
+      normalizeTaxonomySearchKey(item.description || '').includes(query) ||
+      normalizeTaxonomySearchKey(getTaxonomySearchText(item.category)).includes(query) ||
+      item.tags?.some((tag) => normalizeTaxonomySearchKey(tag).includes(query)) ||
+      normalizeTaxonomySearchKey(item.seller.ensName || '').includes(query) ||
+      normalizeTaxonomySearchKey(item.seller.address).includes(query)
     );
   }
 
-  if (filters.categories.length > 0) {
-    filtered = filtered.filter((item) => filters.categories.includes(item.category));
+  if (normalizedCategoryFilters.length > 0) {
+    filtered = filtered.filter((item) =>
+      normalizedCategoryFilters.includes(normalizeCategoryFilterValue(item.category))
+    );
   }
 
   if (filters.priceRange.min !== null) {
@@ -269,7 +280,8 @@ export function deleteSearchHistoryItem(query: string): void {
 export function getCategoryCounts(results: SearchResult[]): Record<string, number> {
   const counts: Record<string, number> = {};
   results.forEach((item) => {
-    counts[item.category] = (counts[item.category] || 0) + 1;
+    const categorySlug = normalizeCategoryFilterValue(item.category);
+    counts[categorySlug] = (counts[categorySlug] || 0) + 1;
   });
   return counts;
 }
@@ -319,7 +331,7 @@ export function getFilterTagLabel(key: string, value: any): string {
     case 'query':
       return `"${value}"`;
     case 'category':
-      return value;
+      return getCategoryDisplayLabel(value);
     case 'blockchain':
       return value;
     case 'priceMin':

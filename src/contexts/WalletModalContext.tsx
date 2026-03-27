@@ -67,12 +67,25 @@ export function WalletModalProvider({ children }: { children: ReactNode }) {
   const handleWalletConnect = useCallback(
     (_connectorId: string) => {
       // Permission-level connect completed successfully.
-      // By product decision, this is enough to unlock social/profile features.
-      // Protocol auth signature is deferred until direct protocol interaction.
-      clearGuestModeForced();
-      closeModal();
+      // Immediate signature flow override: trigger auth signature right after connect.
+      setModalState({
+        step: 'signature',
+        source: 'auth',
+        isBusy: false,
+        signatureData: {
+          action: 'Authenticate Session',
+          origin: window.location.hostname || 'MarketplaceATP',
+          message: {
+            item: 'Orina Session',
+            timestamp: Date.now(),
+          },
+          details: [
+            { label: 'Message', value: 'Please sign this message to securely authenticate your session with the protocol.' }
+          ]
+        }
+      });
     },
-    [closeModal]
+    []
   );
 
   const handleSignatureConfirm = useCallback(async () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Bot, MessageSquare, Zap, Settings, Check, AlertCircle } from 'lucide-react';
 import { AIAgentConfig, AIAgentBehavior } from '@/app/types/ai-agent';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
@@ -18,14 +18,35 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
   const [autoReply, setAutoReply] = useState(true);
   const [greetingMessage, setGreetingMessage] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [runtimeError, setRuntimeError] = useState('');
+  const hasRemoteConfig = useMemo(() => Boolean(projectId && publicAnonKey), []);
 
   useEffect(() => {
-    loadConfig();
+    let cancelled = false;
+
+    const run = async () => {
+      if (!hasRemoteConfig || !walletAddress) {
+        if (!cancelled) {
+          setLoading(false);
+          setRuntimeError(hasRemoteConfig ? '' : 'AI settings service is not configured in this environment.');
+        }
+        return;
+      }
+
+      await loadConfig(cancelled);
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
   }, [walletAddress]);
 
-  const loadConfig = async () => {
+  const loadConfig = async (cancelled = false) => {
     try {
       setLoading(true);
+      setRuntimeError('');
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ai/config/${walletAddress}`,
         {
@@ -36,7 +57,8 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
       );
 
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json().catch(() => null);
+        if (cancelled || !data) return;
         if (data.success && data.config) {
           setConfig(data.config);
           setEnabled(data.config.enabled);
@@ -48,19 +70,30 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
       } else if (response.status === 404) {
         // Config doesn't exist yet - this is normal for first-time users
         console.log('AI Agent config not found - will create on first save');
+      } else if (!cancelled) {
+        setRuntimeError('Unable to load AI agent configuration right now.');
       }
     } catch (error) {
+      if (cancelled) return;
       console.error('Error loading AI Agent config:', error);
-      // Don't show error to user - config might just not exist yet
+      setRuntimeError('Unable to reach the AI configuration service.');
     } finally {
-      setLoading(false);
+      if (!cancelled) {
+        setLoading(false);
+      }
     }
   };
 
   const handleSave = async () => {
+    if (!hasRemoteConfig) {
+      setRuntimeError('AI settings service is not configured in this environment.');
+      return;
+    }
+
     try {
       setSaving(true);
       setSaveSuccess(false);
+      setRuntimeError('');
 
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ai/config`,
@@ -82,15 +115,18 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
       );
 
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json().catch(() => null);
         if (data.success) {
           setConfig(data.config);
           setSaveSuccess(true);
           setTimeout(() => setSaveSuccess(false), 3000);
         }
+      } else {
+        setRuntimeError('Unable to save AI agent configuration right now.');
       }
     } catch (error) {
       console.error('Error saving AI Agent config:', error);
+      setRuntimeError('Unable to save AI agent configuration right now.');
     } finally {
       setSaving(false);
     }
@@ -118,6 +154,12 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
           </p>
         </div>
       </div>
+
+      {runtimeError ? (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-xs text-red-200">
+          {runtimeError}
+        </div>
+      ) : null}
 
       {/* Enable Toggle */}
       <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-5">
@@ -256,7 +298,7 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
       <div className="flex items-center gap-3 pt-2">
         <button
           onClick={handleSave}
-          disabled={saving || !enabled || !agentName.trim()}
+          disabled={saving || !enabled || !agentName.trim() || !hasRemoteConfig}
           className="flex-1 px-4 py-2.5 bg-[#2CC295] text-black rounded-full text-sm font-bold hover:bg-[#25a67d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {saving ? (

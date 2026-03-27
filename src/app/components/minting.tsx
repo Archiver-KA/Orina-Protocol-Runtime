@@ -1,12 +1,14 @@
-import { Sparkles, Upload, AlertCircle, CheckCircle, Eye, Heart, Loader2, Image as ImageIcon, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { Sparkles, AlertCircle, Heart, Loader2, Image as ImageIcon, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { PillSegmentedToggle } from '@/app/components/pill-segmented-toggle';
 import { StandardToggle } from '@/app/components/standard-toggle';
 import { ImageUpload, UploadedImage } from '@/app/components/image-upload';
 import { MultiImageUpload } from '@/app/components/multi-image-upload';
 import { MintingDeliverySection, type MintingDeliveryState } from '@/app/components/minting-delivery-section';
+import { MintingDraftsList } from '@/app/components/minting-drafts-list';
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
+import { toast } from 'sonner';
 import { useMintAsset } from '@/hooks/useAssets';
 import { useAllUnits } from '@/hooks/useUnits';
 import { AssetType, CONTRACTS } from '@/config/contracts';
@@ -18,6 +20,17 @@ import type { AssetDeliverySnapshot, AssetDetails, AssetLocationSnapshot } from 
 import type { MyAssetNft, MyAssetRwa } from '@/app/components/cards/my-asset-cards';
 import { shortenAddress } from '@/utils/profileUtils';
 import { upsertRuntimeMintedAsset, type RuntimeMintedAssetRecord } from '@/utils/runtimeMintedAssets';
+import {
+  createMintingDraftId,
+  deleteMintingDraft,
+  loadMintingDrafts,
+  subscribeToMintingDrafts,
+  upsertMintingDraft,
+  type MintingDraftDeliveryState,
+  type MintingDraftMedia,
+  type MintingDraftRecord,
+} from '@/utils/mintingDrafts';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
 function createMintingAttributeId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -44,6 +57,9 @@ function createMintingAttributeGroup(): RwaConfigurableAttributeGroup {
 type PendingRuntimeMintDraft = {
   walletAddress: string;
   assetType: 'RWA' | 'NFT';
+  sourceDraftId?: string | null;
+  category?: string;
+  subcategory?: string;
   name: string;
   description: string;
   blockchain: string;
@@ -57,6 +73,104 @@ type PendingRuntimeMintDraft = {
   assetLocationSnapshot?: AssetLocationSnapshot;
   requestedAt: number;
 };
+
+type MintingWorkspaceMode = 'Create' | 'Drafts';
+
+function cloneMintingAttributeOptions(options: RwaConfigurableAttributeGroup['options']) {
+  return options.map((option) => ({ ...option }));
+}
+
+function cloneMintingAttributeGroups(groups: RwaConfigurableAttributeGroup[]) {
+  return groups.map((group) => ({
+    ...group,
+    options: cloneMintingAttributeOptions(group.options),
+  }));
+}
+
+function normalizeDraftMedia(value: Partial<UploadedImage> | null | undefined): MintingDraftMedia | null {
+  if (!value?.url) return null;
+  return {
+    ipfsHash: String(value.ipfsHash || ''),
+    url: String(value.url || ''),
+    fileName: String(value.fileName || ''),
+    fileSize: Number(value.fileSize || 0),
+    mimeType: String(value.mimeType || ''),
+  };
+}
+
+function toUploadedImage(value: MintingDraftMedia | null | undefined): UploadedImage | null {
+  if (!value?.url) return null;
+  return {
+    ipfsHash: String(value.ipfsHash || ''),
+    url: String(value.url || ''),
+    fileName: String(value.fileName || ''),
+    fileSize: Number(value.fileSize || 0),
+    mimeType: String(value.mimeType || ''),
+  };
+}
+
+function toUploadedImages(values: MintingDraftMedia[]): UploadedImage[] {
+  return values
+    .map((value) => toUploadedImage(value))
+    .filter((value): value is UploadedImage => Boolean(value));
+}
+
+function hasMeaningfulDraftContent(input: {
+  assetName: string;
+  description: string;
+  price: string;
+  totalAmount: string;
+  uploadedMedia: UploadedImage | null;
+  uploadedImages: UploadedImage[];
+  configurableAttributes: RwaConfigurableAttributeGroup[];
+  draftSubcategory: string;
+}) {
+  return Boolean(
+    input.assetName.trim() ||
+    input.description.trim() ||
+    input.price.trim() ||
+    input.totalAmount.trim() ||
+    input.uploadedMedia?.url ||
+    input.uploadedImages.length > 0 ||
+    input.configurableAttributes.length > 0 ||
+    input.draftSubcategory.trim()
+  );
+}
+
+function computeDraftCompleteness(input: {
+  assetType: 'RWA' | 'NFT';
+  assetName: string;
+  description: string;
+  price: string;
+  totalAmount: string;
+  uploadedMedia: UploadedImage | null;
+  uploadedImages: UploadedImage[];
+  category: string;
+  subcategory: string;
+  blockchain: string;
+  deliveryState: MintingDraftDeliveryState | null;
+}) {
+  const checks = [
+    Boolean(input.assetName.trim()),
+    Boolean(input.description.trim()),
+    Boolean(input.price.trim()),
+    Boolean(input.totalAmount.trim()),
+    Boolean(input.category.trim()),
+    Boolean(input.blockchain.trim()),
+  ];
+
+  if (input.assetType === 'RWA') {
+    checks.push(input.uploadedImages.length > 0);
+    checks.push(Boolean(input.subcategory.trim()));
+    checks.push(Boolean(input.deliveryState?.isValid));
+  } else {
+    checks.push(Boolean(input.uploadedMedia?.url));
+    checks.push(Boolean(input.subcategory.trim()));
+  }
+
+  const passed = checks.filter(Boolean).length;
+  return Math.round((passed / checks.length) * 100);
+}
 
 function formatMintedDate(timestamp: number): string {
   return new Date(timestamp).toISOString().slice(0, 10);
@@ -126,12 +240,16 @@ function buildRuntimeMintedAssetRecord(
   const baseId = `mint-${txHash.slice(2, 10)}-${draft.requestedAt.toString(36)}`;
   const tokenId = `${draft.requestedAt}`;
   const totalAmountNumber = Math.max(1, Math.trunc(parsePositiveNumber(draft.totalAmount, 1)));
+  const categoryLabel = getCategoryDisplayLabel(
+    draft.category || (draft.assetType === 'RWA' ? 'physical_goods' : 'digital_assets'),
+    draft.subcategory
+  );
   const details: AssetDetails = {
     id: baseId,
     tokenId,
     name: draft.name,
     description: draft.description || `${draft.name} minted on Orina.`,
-    category: draft.assetType === 'RWA' ? 'Real World Asset' : 'Digital Art',
+    category: categoryLabel,
     blockchain: normalizedBlockchain,
     currentPrice,
     currentPriceUsd: formatRuntimeUsd(priceNumber, draft.priceCurrency),
@@ -192,7 +310,7 @@ function buildRuntimeMintedAssetRecord(
           id: baseId,
           name: draft.name,
           type: 'RWA',
-          category: 'Real World Asset',
+          category: categoryLabel,
           image,
           status: 'Paused',
           availableAmount: totalAmountNumber,
@@ -204,7 +322,7 @@ function buildRuntimeMintedAssetRecord(
           id: baseId,
           name: draft.name,
           type: 'NFT',
-          category: 'Digital Art',
+          category: categoryLabel,
           image,
           currentPrice,
           floorPrice,
@@ -224,7 +342,9 @@ function buildRuntimeMintedAssetRecord(
 }
 
 export function Minting() {
+  const [workspaceMode, setWorkspaceMode] = useState<MintingWorkspaceMode>('Create');
   const [assetType, setAssetType] = useState<'RWA' | 'NFT'>('RWA');
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [assetName, setAssetName] = useState('');
   const [description, setDescription] = useState('');
   const [blockchain, setBlockchain] = useState('Ethereum Mainnet');
@@ -232,6 +352,8 @@ export function Minting() {
   const [totalAmount, setTotalAmount] = useState('1000');
   const [price, setPrice] = useState('');
   const [priceCurrency, setPriceCurrency] = useState('ETH');
+  const [draftCategory, setDraftCategory] = useState(assetType === 'RWA' ? 'physical_goods' : 'digital_assets');
+  const [draftSubcategory, setDraftSubcategory] = useState('');
   const [expiryType, setExpiryType] = useState<'Expiry' | 'Non-Expiry'>('Expiry');
   const [expiryDays, setExpiryDays] = useState('30');
   const [uploadedMedia, setUploadedMedia] = useState<UploadedImage | null>(null);
@@ -239,7 +361,10 @@ export function Minting() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0); // For image carousel
   const [imageLoadError, setImageLoadError] = useState(false); // Track image load errors
   const [configurableAttributes, setConfigurableAttributes] = useState<RwaConfigurableAttributeGroup[]>([]);
+  const [mintingDrafts, setMintingDrafts] = useState<MintingDraftRecord[]>([]);
   const [mintingDeliveryState, setMintingDeliveryState] = useState<MintingDeliveryState | null>(null);
+  const [deliveryStateSeed, setDeliveryStateSeed] = useState<MintingDraftDeliveryState | null>(null);
+  const [deliverySectionVersion, setDeliverySectionVersion] = useState(0);
   const [deliveryValidationAttempt, setDeliveryValidationAttempt] = useState(0);
   const [pendingRuntimeMintDraft, setPendingRuntimeMintDraft] = useState<PendingRuntimeMintDraft | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
@@ -254,18 +379,229 @@ export function Minting() {
   const { mintAsset, hash, isPending, isConfirming, isConfirmed, error, reset } = useMintAsset();
   const { requireWalletActionAsync } = useRequireWalletAction();
 
+  const syncMintingDrafts = () => {
+    setMintingDrafts(loadMintingDrafts(address));
+  };
+
+  const resetMintingEditor = (nextAssetType: 'RWA' | 'NFT' = assetType) => {
+    setAssetType(nextAssetType);
+    setEditingDraftId(null);
+    setAssetName('');
+    setDescription('');
+    setBlockchain('Ethereum Mainnet');
+    setUnitId('0');
+    setTotalAmount('1000');
+    setPrice('');
+    setPriceCurrency('ETH');
+    setDraftCategory(nextAssetType === 'RWA' ? 'physical_goods' : 'digital_assets');
+    setDraftSubcategory('');
+    setExpiryType('Expiry');
+    setExpiryDays('30');
+    setUploadedMedia(null);
+    setUploadedImages([]);
+    setCurrentImageIndex(0);
+    setImageLoadError(false);
+    setConfigurableAttributes([]);
+    setMintingDeliveryState(null);
+    setDeliveryStateSeed(null);
+    setDeliverySectionVersion((current) => current + 1);
+    setDeliveryValidationAttempt(0);
+    setPendingRuntimeMintDraft(null);
+    setAmountError(null);
+    reset();
+  };
+
+  const handleAssetTypeChange = (value: 'RWA' | 'NFT') => {
+    setAssetType(value);
+    setDraftCategory(value === 'RWA' ? 'physical_goods' : 'digital_assets');
+    setDraftSubcategory('');
+    setAmountError(null);
+  };
+
+  const buildCurrentMintingDraft = (): MintingDraftRecord | null => {
+    if (!address) return null;
+
+    const hasContent = hasMeaningfulDraftContent({
+      assetName,
+      description,
+      price,
+      totalAmount,
+      uploadedMedia,
+      uploadedImages,
+      configurableAttributes,
+      draftSubcategory,
+    });
+    if (!hasContent) return null;
+
+    const now = Date.now();
+    const draftId = editingDraftId || createMintingDraftId();
+    const uploadedMediaDraft = normalizeDraftMedia(uploadedMedia);
+    const uploadedImageDrafts = uploadedImages
+      .map((image) => normalizeDraftMedia(image))
+      .filter((image): image is MintingDraftMedia => Boolean(image));
+    const previewImage = uploadedImageDrafts[0]?.url || uploadedMediaDraft?.url || '';
+    const completeness = computeDraftCompleteness({
+      assetType,
+      assetName,
+      description,
+      price,
+      totalAmount,
+      uploadedMedia,
+      uploadedImages,
+      category: draftCategory,
+      subcategory: draftSubcategory,
+      blockchain,
+      deliveryState: (mintingDeliveryState as MintingDraftDeliveryState | null) ?? null,
+    });
+    const existingDraft = editingDraftId ? mintingDrafts.find((draft) => draft.id === editingDraftId) : null;
+
+    return {
+      id: draftId,
+      walletAddress: address.toLowerCase(),
+      status: 'draft',
+      assetType,
+      name: assetName.trim(),
+      description: description.trim(),
+      category: draftCategory,
+      subcategory: draftSubcategory,
+      blockchain,
+      unitId,
+      totalAmount,
+      price,
+      priceCurrency,
+      expiryType,
+      expiryDays,
+      uploadedMedia: uploadedMediaDraft,
+      uploadedImages: uploadedImageDrafts,
+      configurableAttributes: cloneMintingAttributeGroups(configurableAttributes),
+      deliveryState: (mintingDeliveryState as MintingDraftDeliveryState | null) ?? null,
+      previewImage,
+      completeness,
+      createdAt: existingDraft?.createdAt ?? now,
+      updatedAt: now,
+    };
+  };
+
+  const handleSaveDraft = () => {
+    if (!address) {
+      toast.error('Connect wallet to save a draft');
+      return;
+    }
+
+    const draft = buildCurrentMintingDraft();
+    if (!draft) {
+      toast.error('Add some asset details before saving a draft');
+      return;
+    }
+
+    upsertMintingDraft(draft);
+    setWorkspaceMode('Drafts');
+    toast.success(editingDraftId ? 'Draft updated' : 'Draft saved');
+    resetMintingEditor(draft.assetType);
+  };
+
+  const handleEditDraft = (draftId: string) => {
+    const draft = getDraftById(draftId);
+    if (!draft) {
+      toast.error('Draft not found');
+      return;
+    }
+
+    setWorkspaceMode('Create');
+    setEditingDraftId(draft.id);
+    setAssetType(draft.assetType);
+    setAssetName(draft.name);
+    setDescription(draft.description);
+    setBlockchain(draft.blockchain);
+    setUnitId(draft.unitId || '0');
+    setTotalAmount(draft.totalAmount || '1000');
+    setPrice(draft.price || '');
+    setPriceCurrency(draft.priceCurrency || 'ETH');
+    setDraftCategory(draft.category || (draft.assetType === 'RWA' ? 'physical_goods' : 'digital_assets'));
+    setDraftSubcategory(draft.subcategory || '');
+    setExpiryType(draft.expiryType);
+    setExpiryDays(draft.expiryDays);
+    setUploadedMedia(toUploadedImage(draft.uploadedMedia));
+    setUploadedImages(toUploadedImages(draft.uploadedImages));
+    setCurrentImageIndex(0);
+    setImageLoadError(false);
+    setConfigurableAttributes(cloneMintingAttributeGroups(draft.configurableAttributes));
+    setMintingDeliveryState((draft.deliveryState as MintingDeliveryState | null) ?? null);
+    setDeliveryStateSeed((draft.deliveryState as MintingDraftDeliveryState | null) ?? null);
+    setDeliverySectionVersion((current) => current + 1);
+    setDeliveryValidationAttempt(0);
+    setPendingRuntimeMintDraft(null);
+    setAmountError(null);
+    reset();
+  };
+
+  const handleDeleteDraft = (draftId: string) => {
+    if (!address) return;
+
+    const draft = mintingDrafts.find((item) => item.id === draftId);
+    if (!draft) return;
+
+    const confirmed = window.confirm(`Delete draft "${draft.name || `${draft.assetType} draft`}"?`);
+    if (!confirmed) return;
+
+    deleteMintingDraft(address, draftId);
+    if (editingDraftId === draftId) {
+      resetMintingEditor(draft.assetType);
+    }
+    toast.success('Draft deleted');
+  };
+
+  const getDraftById = (draftId: string) => {
+    return mintingDrafts.find((draft) => draft.id === draftId) || null;
+  };
+
+  useEffect(() => {
+    syncMintingDrafts();
+    const unsubscribe = subscribeToMintingDrafts(syncMintingDrafts);
+    return () => unsubscribe();
+  }, [address]);
+
   useEffect(() => {
     if (!error || !pendingRuntimeMintDraft) return;
     setPendingRuntimeMintDraft(null);
   }, [error, pendingRuntimeMintDraft]);
 
   useEffect(() => {
+    if (uploadedImages.length === 0) {
+      setCurrentImageIndex(0);
+      return;
+    }
+
+    if (currentImageIndex >= uploadedImages.length) {
+      setCurrentImageIndex(uploadedImages.length - 1);
+    }
+  }, [currentImageIndex, uploadedImages]);
+
+  useEffect(() => {
     if (!isConfirmed || !hash || !pendingRuntimeMintDraft) return;
 
     upsertRuntimeMintedAsset(buildRuntimeMintedAssetRecord(pendingRuntimeMintDraft, hash));
+    if (pendingRuntimeMintDraft.sourceDraftId) {
+      deleteMintingDraft(pendingRuntimeMintDraft.walletAddress, pendingRuntimeMintDraft.sourceDraftId);
+    }
     setPendingRuntimeMintDraft(null);
+    setEditingDraftId(null);
     reset();
   }, [hash, isConfirmed, pendingRuntimeMintDraft, reset]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail) return;
+      if (detail.name) setAssetName(detail.name);
+      if (detail.description) setDescription(detail.description);
+      if (detail.estimatedPrice?.suggested) setPrice(String(detail.estimatedPrice.suggested));
+      if (detail.category) setDraftCategory(String(detail.category));
+      if (detail.subcategory) setDraftSubcategory(String(detail.subcategory));
+    };
+    window.addEventListener('ai:mint-draft', handler);
+    return () => window.removeEventListener('ai:mint-draft', handler);
+  }, []);
 
   // ── Amount validation against UnitRegistry constraints ─────────
   const validateAmount = (raw: string, unit: typeof selectedUnit): string | null => {
@@ -359,6 +695,9 @@ export function Minting() {
       setPendingRuntimeMintDraft({
         walletAddress: address,
         assetType,
+        sourceDraftId: editingDraftId,
+        category: draftCategory,
+        subcategory: draftSubcategory || undefined,
         name: assetName.trim(),
         description: description.trim(),
         blockchain,
@@ -574,22 +913,59 @@ export function Minting() {
         <div className="p-8 relative z-10">
           {/* Header */}
           <header className="mb-8">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-ui-primary">Asset Creation</h1>
-                <p className="text-sm text-ui-muted mt-1">Design, mint and deploy your Web3 assets across multiple chains.</p>
+                <p className="text-sm text-ui-muted mt-1">
+                  Design, mint and deploy your Web3 assets across multiple chains.
+                </p>
               </div>
 
-              {/* Asset Type Toggle */}
-              <PillSegmentedToggle
-                options={['RWA', 'NFT']}
-                value={assetType}
-                onChange={(value) => setAssetType(value as 'RWA' | 'NFT')}
-                className="w-full sm:w-1/2 sm:min-w-[280px] sm:max-w-[460px]"
-              />
+              <div className="w-full space-y-3 lg:max-w-[460px]">
+                <PillSegmentedToggle
+                  options={['Create', 'Drafts']}
+                  value={workspaceMode}
+                  onChange={(value) => setWorkspaceMode(value as MintingWorkspaceMode)}
+                  className="w-full"
+                />
+                {workspaceMode === 'Create' && (
+                  <PillSegmentedToggle
+                    options={['RWA', 'NFT']}
+                    value={assetType}
+                    onChange={(value) => handleAssetTypeChange(value as 'RWA' | 'NFT')}
+                    className="w-full"
+                  />
+                )}
+              </div>
             </div>
+            {workspaceMode === 'Create' && editingDraftId && (
+              <div className="mt-4 inline-flex items-center rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest text-primary">
+                Editing Draft
+              </div>
+            )}
           </header>
 
+          {workspaceMode === 'Drafts' ? (
+            <div className="space-y-6">
+              <div className="rounded-xl border border-[#2CC295]/20 bg-[#2CC295]/5 p-4">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="mt-0.5 text-primary" size={18} />
+                  <div className="flex-1">
+                    <p className="mb-1 text-sm font-bold text-ui-primary">Saved Drafts</p>
+                    <p className="text-xs text-ui-secondary">
+                      Resume any in-progress RWA or NFT, or remove drafts you no longer need.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <MintingDraftsList
+                drafts={mintingDrafts}
+                onEdit={handleEditDraft}
+                onDelete={handleDeleteDraft}
+              />
+            </div>
+          ) : (
+            <>
           {/* Transaction Status Banner */}
           {(isPending || isConfirming || isConfirmed || error) && (
             <div className={`mb-6 p-4 rounded-xl border ${isConfirmed
@@ -602,7 +978,7 @@ export function Minting() {
                 {isPending || isConfirming ? (
                   <Loader2 className="animate-spin text-blue-400" size={20} />
                 ) : isConfirmed ? (
-                  <CheckCircle className="text-primary" size={20} />
+                  <Sparkles className="text-primary" size={20} />
                 ) : (
                   <AlertCircle className="text-red-400" size={20} />
                 )}
@@ -651,6 +1027,7 @@ export function Minting() {
                 </div>
                 {assetType === 'RWA' ? (
                   <MultiImageUpload
+                    value={uploadedImages}
                     onImagesChange={(images) => {
                       setUploadedImages(images);
                       setCurrentImageIndex(0); // Reset to first image
@@ -1044,25 +1421,37 @@ export function Minting() {
                 </div>
                 {assetType === 'RWA' && (
                   <MintingDeliverySection
+                    key={`delivery-${deliverySectionVersion}`}
                     walletAddress={address}
                     submitAttempt={deliveryValidationAttempt}
+                    initialState={deliveryStateSeed as MintingDeliveryState | null}
                     onChange={setMintingDeliveryState}
                   />
                 )}
-                <button
-                  className={`w-full h-[45px] px-6 ${assetType === 'RWA' ? 'mt-6' : ''} bg-[#2CC295] text-black rounded-full text-sm font-bold hover:opacity-90 transition-all disabled:opacity-60 disabled:cursor-not-allowed`}
-                  onClick={handleMint}
-                  disabled={isPending || isConfirming}
-                >
-                  {isPending || isConfirming ? (
-                    <div className="flex items-center justify-center">
-                      <Loader2 className="animate-spin mr-2" size={16} />
-                      {statusMessage}
-                    </div>
-                  ) : (
-                    'Mint Asset'
-                  )}
-                </button>
+                <div className={`grid gap-3 ${assetType === 'RWA' ? 'mt-6 md:grid-cols-[220px_minmax(0,1fr)]' : 'md:grid-cols-[220px_minmax(0,1fr)]'}`}>
+                  <button
+                    type="button"
+                    className="h-[45px] rounded-full border border-ui-border-subtle bg-ui-input px-6 text-sm font-bold text-ui-primary transition-all hover:bg-ui-input-focus disabled:opacity-60 disabled:cursor-not-allowed"
+                    onClick={handleSaveDraft}
+                    disabled={isPending || isConfirming}
+                  >
+                    {editingDraftId ? 'Update Draft' : 'Save Draft'}
+                  </button>
+                  <button
+                    className="h-[45px] rounded-full bg-[#2CC295] px-6 text-sm font-bold text-black transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={handleMint}
+                    disabled={isPending || isConfirming}
+                  >
+                    {isPending || isConfirming ? (
+                      <div className="flex items-center justify-center">
+                        <Loader2 className="mr-2 animate-spin" size={16} />
+                        {statusMessage}
+                      </div>
+                    ) : (
+                      'Mint Asset'
+                    )}
+                  </button>
+                </div>
                 {statusMessage && !isPending && !isConfirming && (
                   <p className="mt-2 text-sm text-ui-muted">
                     {statusMessage}
@@ -1204,6 +1593,8 @@ export function Minting() {
               </div>
             </div>
           </div>
+            </>
+          )}
         </div>
       </div>
     </section>

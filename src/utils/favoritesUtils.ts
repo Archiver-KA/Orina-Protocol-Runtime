@@ -58,6 +58,10 @@ function localAssetMapKey(assetUid: string): string {
   return toCanonicalFavoriteAssetId(assetUid).toLowerCase();
 }
 
+function isLegacyMockFavoriteAssetId(assetId: string): boolean {
+  return /^asset-\d{3}$/i.test(String(assetId || '').trim());
+}
+
 function readLocalArraySafe<T>(key: string): T[] {
   try {
     const raw = localStorage.getItem(key);
@@ -169,6 +173,30 @@ function migrateFavoriteIdsToCanonical(walletAddress: string, favorites: Favorit
   }
 
   return deduped;
+}
+
+function pruneMissingLegacyMockFavorites(walletAddress: string, favorites: FavoriteAsset[]): FavoriteAsset[] {
+  if (!Array.isArray(favorites) || favorites.length === 0) return [];
+
+  const catalog = loadMarketplaceCatalogSync();
+  const next = favorites.filter((favorite) => {
+    const assetId = String(favorite?.assetId || '').trim();
+    if (!assetId) return false;
+    if (!isLegacyMockFavoriteAssetId(assetId)) return true;
+    return Boolean(getMarketplaceCatalogAssetById(assetId, catalog));
+  });
+
+  if (next.length === favorites.length) return next;
+
+  try {
+    const key = getFavoritesKey(walletAddress);
+    localStorage.setItem(key, JSON.stringify(next));
+    localStorage.setItem(`${key}${FAVORITES_MIGRATION_BACKUP_SUFFIX}`, JSON.stringify(favorites));
+  } catch (error) {
+    console.debug('[Favorites] Legacy mock prune persistence skipped:', error);
+  }
+
+  return next;
 }
 
 async function resolveAssetUidsByDbIds(assetIds: string[]): Promise<Record<string, string>> {
@@ -357,8 +385,9 @@ export function loadFavorites(walletAddress: string): FavoriteAsset[] {
     if (!Array.isArray(parsed)) return [];
 
     const migrated = migrateFavoriteIdsToCanonical(walletAddress, parsed as FavoriteAsset[]);
+    const pruned = pruneMissingLegacyMockFavorites(walletAddress, migrated);
     if (walletAddress) void hydrateFavoritesFromSupabase(walletAddress);
-    return migrated;
+    return pruned;
   } catch (error) {
     console.error('[Favorites] Failed to load:', error);
     return [];

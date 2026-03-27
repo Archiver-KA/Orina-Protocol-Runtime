@@ -4,14 +4,26 @@ import { DISPUTE_MANAGER_ABI, MARKETPLACE_ABI } from '@/config/abis';
 import { ACTIVE_CHAIN_ID, CONTRACTS, OrderState } from '@/config/contracts';
 import type { OrderUiRecord } from '@/types/order';
 import {
+  ProtocolOrderRow,
   loadRuntimeOrders,
   mergeOrderRecords,
   readProjectedOrdersForWallet,
   subscribeToRuntimeOrders,
 } from '@/utils/runtimeOrders';
 import { reconcileOrderFromChain, type MarketplaceOrderSnapshot } from '@/utils/orderLifecycle';
+import { encodeIn, isSupabaseRestEnabled, restSelect } from '@/utils/supabaseRest';
 
 type DisputeSnapshot = readonly [boolean, number, bigint, bigint, boolean, bigint, bigint];
+interface ProtocolOrderEventRow {
+  id?: string | null;
+  order_id?: string | null;
+  event_name?: string | null;
+  tx_hash?: string | null;
+  log_index?: number | null;
+  block_number?: number | null;
+  block_time?: string | null;
+  payload?: Record<string, unknown> | null;
+}
 
 export type OrderData = OrderUiRecord;
 
@@ -199,18 +211,68 @@ export function useUserStats(userAddress?: string) {
  * Hook to fetch order events from blockchain
  */
 export function useOrderEvents(userAddress?: string, fromBlock?: bigint) {
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<ProtocolOrderEventRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (!userAddress) {
-      setIsLoading(false);
-      return;
-    }
+    let cancelled = false;
 
-    // TODO: Replace with event projection / getLogs for full timeline.
-    setEvents([]);
-    setIsLoading(false);
+    const loadEvents = async () => {
+      if (!userAddress || !isSupabaseRestEnabled()) {
+        setEvents([]);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const normalized = userAddress.toLowerCase();
+        const orderRows = await restSelect<ProtocolOrderRow>(
+          'protocol_orders',
+          `?select=id,order_uid,buyer_address,seller_address&chain_id=eq.${ACTIVE_CHAIN_ID}&marketplace_contract=eq.${CONTRACTS.MARKETPLACE_ATP.toLowerCase()}&or=(buyer_address.eq.${normalized},seller_address.eq.${normalized})`,
+        );
+        const orderIds = orderRows
+          .map((row) => row.id)
+          .filter((value): value is string => Boolean(value && value.length > 0));
+
+        if (orderIds.length === 0) {
+          if (!cancelled) setEvents([]);
+          return;
+        }
+
+        const minBlockFilter =
+          typeof fromBlock === 'bigint'
+            ? `&block_number=gte.${fromBlock.toString()}`
+            : '';
+        const rows = await restSelect<ProtocolOrderEventRow>(
+          'protocol_order_events',
+          `?select=id,order_id,event_name,tx_hash,log_index,block_number,block_time,payload&order=block_time.desc.nullslast,created_at.desc&order_id=${encodeIn(orderIds)}${minBlockFilter}`,
+        );
+
+        if (!cancelled) {
+          setEvents(rows);
+        }
+      } catch (error) {
+        console.warn('[useOrderEvents] Failed to load projected order events', error);
+        if (!cancelled) {
+          setEvents([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadEvents();
+    const poller = window.setInterval(() => {
+      void loadEvents();
+    }, 15_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(poller);
+    };
   }, [userAddress, fromBlock]);
 
   return { events, isLoading };

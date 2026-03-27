@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { formatAddress } from '@/utils/format';
 import { MARKETPLACE_ABI } from '@/config/abis';
-import { ACTIVE_CHAIN_ID, CONTRACTS } from '@/config/contracts';
+import { ACTIVE_CHAIN_ID, CONTRACTS, EXPLORER_URLS, PAYMENT_TOKENS } from '@/config/contracts';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { DurationPicker } from '@/app/components/duration-picker';
 import { ConfirmDeliveryModal } from '@/app/components/confirm-delivery-modal';
@@ -71,6 +71,9 @@ import {
 } from '@/utils/walletErrors';
 
 const TEAL = '#2CC295';
+const ACTIVE_EXPLORER_URL = EXPLORER_URLS[ACTIVE_CHAIN_ID] ?? 'https://testnet.bscscan.com';
+const ACTIVE_EXPLORER_LABEL =
+  ACTIVE_CHAIN_ID === 56 || ACTIVE_CHAIN_ID === 97 ? 'View on BscScan' : 'View on Explorer';
 
 function NetworkIconEth() {
   return (
@@ -234,195 +237,6 @@ function OrderActionNoticeModal({
   );
 }
 
-// Mock orders matching the HTML design
-const mockOrders: OrderUiRecord[] = [
-  {
-    orderId: BigInt(88220),
-    buyer: '0x71C7fe5b2c5d9f8e4f22' as `0x${string}`,
-    seller: '0x742d35Cc6634C0532925' as `0x${string}`,
-    assetId: BigInt(15),
-    assetName: 'Urban Property Token #15',
-    network: 'eth',
-    assetImage: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=400&fit=crop',
-    amount: BigInt(1),
-    grossPrice: BigInt('2100000000000000000'), // 2.10 ETH
-    payDeadline: BigInt(Math.floor(Date.now() / 1000) + 3600 * 2.75), // 02:45:11
-    autoReleaseAt: BigInt(0),
-    state: 0, // PENDING_CONFIRM - Buyer đã sig 1, chờ Seller Confirm/Reject
-    finalized: false,
-    proposedAt: BigInt(Math.floor(Date.now() / 1000) - 180), // 3 mins ago
-    paidAt: BigInt(0),
-    depositedAt: BigInt(0),
-    sellerConfirmedAt: BigInt(0),
-    estDeliverySeconds: BigInt(0),
-    paymentToken: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-    platformFeeBpsSnapshot: BigInt(250),
-    daoFeeBpsSnapshot: BigInt(50),
-    burnFeeBpsSnapshot: BigInt(25),
-    selectedAttributes: [],
-    settlementType: 0,
-    sellerConfirmed: false,
-    progress: 0,
-    signatures: {
-      buyer1: true,  // Buyer đã sig 1
-      seller: false, // Chờ seller confirm
-      buyer2: false, // Chờ buyer sig 2
-    }
-  },
-  {
-    orderId: BigInt(88219),
-    buyer: '0x9aC7fe5b2c5d9f8e12e8' as `0x${string}`,
-    seller: '0x3Bf9a7c2e4d1f92a' as `0x${string}`,
-    assetId: BigInt(12),
-    assetName: 'Project Genesis #12',
-    network: 'eth',
-    assetImage: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=400&h=400&fit=crop',
-    amount: BigInt(1),
-    grossPrice: BigInt('1450000000000000000'), // 1.45 ETH
-    payDeadline: BigInt(Math.floor(Date.now() / 1000) + 3600 * 4), // 4 hours to pay
-    autoReleaseAt: BigInt(0),
-    state: 0, // PENDING_CONFIRM - Nhưng seller đã confirm, chờ Buyer Sig 2
-    finalized: false,
-    proposedAt: BigInt(Math.floor(Date.now() / 1000) - 720), // 12 mins ago
-    paidAt: BigInt(0),
-    depositedAt: BigInt(0),
-    sellerConfirmedAt: BigInt(Math.floor(Date.now() / 1000) - 300), // Seller confirmed 5 mins ago
-    estDeliverySeconds: BigInt(3600 * 24 * 7), // 7 days delivery time
-    paymentToken: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-    platformFeeBpsSnapshot: BigInt(250),
-    daoFeeBpsSnapshot: BigInt(50),
-    burnFeeBpsSnapshot: BigInt(25),
-    selectedAttributes: [],
-    settlementType: 0,
-    sellerConfirmed: true, // ✅ Seller ĐÃ confirm delivery time
-    progress: 25, // Seller đã confirm, chờ buyer accept
-    signatures: {
-      buyer1: true,  // ✅ Buyer đã sig 1
-      seller: true,  // ✅ Seller đã confirm delivery time
-      buyer2: false, // ⏳ CHỜ BUYER SIG 2
-    }
-  },
-  {
-    orderId: BigInt(88221),
-    buyer: '0x8aC7fe5b2c5d9f8e32a1' as `0x${string}`,
-    seller: '0x6Bf9a7c2e4d1f92b' as `0x${string}`,
-    assetId: BigInt(22),
-    assetName: 'Gold Reserve Certificate #22',
-    network: 'arb',
-    assetImage: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?w=400&h=400&fit=crop',
-    amount: BigInt(10),
-    grossPrice: BigInt('3200000000000000000'), // 3.2 ETH
-    payDeadline: BigInt(0),
-    autoReleaseAt: BigInt(Math.floor(Date.now() / 1000) - 3600 * 6), // 6 hours AGO (passed!)
-    disputeDeadline: BigInt(Math.floor(Date.now() / 1000) + 3600 * 24 * 3 - 3600 * 6), // 3 days from autoRelease - 6 hours
-    disputeOpenedAt: BigInt(0),
-    state: 1, // PAID - in dispute window (autoRelease đã qua, chờ dispute deadline)
-    finalized: false,
-    proposedAt: BigInt(Math.floor(Date.now() / 1000) - 3600 * 48),
-    paidAt: BigInt(Math.floor(Date.now() / 1000) - 3600 * 36),
-    depositedAt: BigInt(Math.floor(Date.now() / 1000) - 3600 * 36),
-    sellerConfirmedAt: BigInt(Math.floor(Date.now() / 1000) - 3600 * 47),
-    estDeliverySeconds: BigInt(3600 * 24 * 3),
-    paymentToken: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-    platformFeeBpsSnapshot: BigInt(250),
-    daoFeeBpsSnapshot: BigInt(50),
-    burnFeeBpsSnapshot: BigInt(25),
-    selectedAttributes: [
-      {
-        groupId: 'bar-size',
-        groupLabel: 'Bar Size',
-        values: ['1kg'],
-      },
-      {
-        groupId: 'vault-location',
-        groupLabel: 'Vault Location',
-        values: ['Singapore Vault'],
-      },
-      {
-        groupId: 'packaging',
-        groupLabel: 'Packaging',
-        values: ['Sealed Case'],
-      },
-    ],
-    settlementType: 0,
-    sellerConfirmed: true,
-    progress: 85,
-    signatures: {
-      buyer1: true,
-      seller: true,
-      buyer2: true,
-    }
-  },
-  {
-    orderId: BigInt(88222),
-    buyer: '0x8aC7fe5b2c5d9f8e32a1' as `0x${string}`,
-    seller: '0x6Bf9a7c2e4d1f92b' as `0x${string}`,
-    assetId: BigInt(27),
-    assetName: 'Vintage Watch Collection #27',
-    network: 'poly',
-    assetImage: 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=400&h=400&fit=crop',
-    amount: BigInt(1),
-    grossPrice: BigInt('4500000000000000000'), // 4.5 ETH
-    payDeadline: BigInt(0),
-    autoReleaseAt: BigInt(Math.floor(Date.now() / 1000) + 3600 * 2), // 2 hours
-    disputeOpenedAt: BigInt(Math.floor(Date.now() / 1000) - 3600 * 12), // 12 hours ago
-    disputeDeadline: BigInt(Math.floor(Date.now() / 1000) + 3600 * 24 * 14 - 3600 * 12), // 14 days - 12 hours
-    state: 2, // DISPUTED
-    finalized: false,
-    proposedAt: BigInt(Math.floor(Date.now() / 1000) - 3600 * 48),
-    paidAt: BigInt(Math.floor(Date.now() / 1000) - 3600 * 36),
-    depositedAt: BigInt(Math.floor(Date.now() / 1000) - 3600 * 36),
-    sellerConfirmedAt: BigInt(Math.floor(Date.now() / 1000) - 3600 * 47),
-    estDeliverySeconds: BigInt(3600 * 24 * 3),
-    paymentToken: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-    platformFeeBpsSnapshot: BigInt(250),
-    daoFeeBpsSnapshot: BigInt(50),
-    burnFeeBpsSnapshot: BigInt(25),
-    selectedAttributes: [],
-    settlementType: 0,
-    sellerConfirmed: true,
-    progress: 80,
-    signatures: {
-      buyer1: true,
-      seller: true,
-      buyer2: true,
-    }
-  },
-  {
-    orderId: BigInt(88223),
-    buyer: '0x9aC7fe5b2c5d9f8e12e8' as `0x${string}`,
-    seller: '0x3Bf9a7c2e4d1f92a' as `0x${string}`,
-    assetId: BigInt(8),
-    assetName: 'Digital Art Collection #8',
-    network: 'bnb',
-    assetImage: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&h=400&fit=crop',
-    amount: BigInt(1),
-    grossPrice: BigInt('880000000000000000'), // 0.88 ETH
-    payDeadline: BigInt(0),
-    autoReleaseAt: BigInt(0),
-    state: 3, // FINALIZED
-    finalized: true,
-    proposedAt: BigInt(Math.floor(Date.now() / 1000) - 3600 * 72),
-    paidAt: BigInt(Math.floor(Date.now() / 1000) - 3600 * 60),
-    depositedAt: BigInt(Math.floor(Date.now() / 1000) - 3600 * 60),
-    sellerConfirmedAt: BigInt(Math.floor(Date.now() / 1000) - 3600 * 71),
-    estDeliverySeconds: BigInt(3600 * 24 * 2),
-    paymentToken: '0x0000000000000000000000000000000000000000' as `0x${string}`,
-    platformFeeBpsSnapshot: BigInt(250),
-    daoFeeBpsSnapshot: BigInt(50),
-    burnFeeBpsSnapshot: BigInt(25),
-    selectedAttributes: [],
-    settlementType: 0,
-    sellerConfirmed: true,
-    progress: 100,
-    signatures: {
-      buyer1: true,
-      seller: true,
-      buyer2: true,
-    }
-  },
-];
-
 interface OrdersProps {
   onNavigateToPage?: (page: string) => void;
 }
@@ -447,7 +261,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   const allOrders = useMemo(() => {
     return [...canonicalOrders].sort((a, b) => Number(b.proposedAt - a.proposedAt));
   }, [canonicalOrders]);
-  const [selectedOrder, setSelectedOrder] = useState<OrderUiRecord>(allOrders[0] ?? mockOrders[0]);
+  const [selectedOrder, setSelectedOrder] = useState<OrderUiRecord | null>(allOrders[0] ?? null);
   const [showDurationPicker, setShowDurationPicker] = useState(false);
   const [confirmingOrderId, setConfirmingOrderId] = useState<bigint | null>(null);
   const [showConfirmDeliveryModal, setShowConfirmDeliveryModal] = useState(false);
@@ -461,8 +275,8 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   const formatOrderQuantityLabel = (order: OrderUiRecord) =>
     formatOrderQuantity(order.amount, order.unitName);
   const selectedOrderShipping = getOrderShippingDetails(
-    selectedOrder.shippingAddressSnapshot,
-    selectedOrder.shippingMethodLabel,
+    selectedOrder?.shippingAddressSnapshot,
+    selectedOrder?.shippingMethodLabel,
   );
 
   // Auto-update timers
@@ -499,7 +313,16 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   };
 
   useEffect(() => {
-    if (!allOrders.length) return;
+    if (!allOrders.length) {
+      if (selectedOrder !== null) {
+        setSelectedOrder(null);
+      }
+      return;
+    }
+    if (!selectedOrder) {
+      setSelectedOrder(allOrders[0]);
+      return;
+    }
     const matchedOrder = allOrders.find((order) => order.orderId === selectedOrder.orderId);
     if (matchedOrder) {
       if (matchedOrder !== selectedOrder) {
@@ -755,6 +578,129 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
     completed: allOrders.filter((order) => order.finalized || order.state === 3).length,
     volume: allOrders.reduce((sum, order) => sum + getOrderGrossPriceNumber(order.grossPrice, order.paymentTokenDecimals), 0),
   }), [allOrders]);
+
+  const hasActiveFilters = searchQuery.trim().length > 0 || selectedNetwork !== 'all' || selectedFilter !== 'all';
+
+  if (!selectedOrder) {
+    return (
+      <>
+        <section className="bg-ui-page overflow-y-auto hidden-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <style>{`
+            .hidden-scrollbar::-webkit-scrollbar { display: none; }
+          `}</style>
+          <div className="p-8">
+            <div className="mb-6">
+              <ProtocolChainBanner
+                isConnected={isConnected}
+                isOnProtocolChain={protocolChain.isOnProtocolChain}
+                currentChainLabel={protocolChain.currentChainLabel}
+                targetChainLabel={protocolChain.targetChainLabel}
+                isSwitching={protocolChain.isSwitching}
+                onSwitch={handleSwitchProtocolChain}
+              />
+            </div>
+
+            <div className="flex items-center justify-start mb-8">
+              <div className="flex w-full flex-wrap lg:flex-nowrap gap-3">
+                <div className="relative flex-1 min-w-[280px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-muted" size={18} />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by Order ID..."
+                    className="w-full h-12 rounded-full bg-[var(--t-card-bg)] border-0 pl-11 pr-4 text-sm text-ui-primary placeholder:text-ui-muted outline-none"
+                  />
+                </div>
+                <CustomDropdown
+                  options={NETWORK_OPTIONS}
+                  defaultValue={selectedNetwork}
+                  onChange={(value) => setSelectedNetwork(value)}
+                  variant="compact"
+                  splitRightPane={false}
+                  className="min-w-[210px] shrink-0"
+                />
+                <CustomDropdown
+                  options={[
+                    { value: 'all', label: 'Filter Status' },
+                    { value: '0', label: 'Pending Confirm' },
+                    { value: '1', label: 'Paid' },
+                    { value: '2', label: 'Disputed' },
+                    { value: '3', label: 'Finalized' }
+                  ]}
+                  defaultValue={selectedFilter}
+                  onChange={(value) => setSelectedFilter(value)}
+                  variant="compact"
+                  splitRightPane={false}
+                  className="min-w-[180px] shrink-0"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-4 mb-8">
+              <StudioStatsCard label="Total Orders" value={stats.total.toLocaleString()} className="bg-[var(--t-card-bg)] border-0 backdrop-blur-[10px]" />
+              <StudioStatsCard label="Active Escrow" value={stats.active} className="bg-[var(--t-card-bg)] border-0 backdrop-blur-[10px]" />
+              <StudioStatsCard label="Completed" value={stats.completed.toLocaleString()} className="bg-[var(--t-card-bg)] border-0 backdrop-blur-[10px]" />
+              <StudioStatsCard label="Volume" value={stats.volume.toFixed(2)} className="bg-[var(--t-card-bg)] border-0 backdrop-blur-[10px]" />
+            </div>
+
+            <div className="rounded-[24px] bg-[var(--t-card-bg)] border-0 backdrop-blur-[10px] p-10 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[rgba(255,255,255,0.04)]">
+                <Package className="text-ui-muted" size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-ui-primary">
+                {hasActiveFilters ? 'No Orders Match Current Filters' : 'No Canonical Orders Yet'}
+              </h3>
+              <p className="mx-auto mt-2 max-w-[540px] text-sm leading-6 text-ui-muted">
+                {hasActiveFilters
+                  ? 'The current search or filter combination returned no canonical on-chain orders. Clear the filters or search for another order.'
+                  : 'This page now reads only canonical runtime and on-chain order data. Create an order or let the runtime projection sync before using the order workflow.'}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <StudioSidebarShell widthClassName="w-full" className="bg-ui-page border-l-0 p-2.5">
+          <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+            <StudioSidebarHeader className="p-5 border-b border-[var(--t-border-subtle)]">
+              <h2 className="text-ui-primary font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
+                <CheckCircle className="text-primary" size={18} />
+                Order Summary
+              </h2>
+              <p className="text-xs text-ui-muted mt-1">Waiting for canonical order data</p>
+            </StudioSidebarHeader>
+            <StudioSidebarScroll className="p-4">
+              <div className="rounded-[24px] bg-[rgba(255,255,255,0.02)] p-5 text-sm leading-6 text-ui-muted">
+                No order is selected because there are no canonical orders for the current wallet and filters.
+              </div>
+            </StudioSidebarScroll>
+            <StudioSidebarFooter className="border-t border-[var(--t-border-subtle)] p-4 bg-transparent backdrop-blur-0 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-ui-muted uppercase">Node Health</span>
+                <span className="text-[10px] font-black text-primary flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                  <StudioStatusBadge variant="success" className="border-0 bg-transparent p-0 text-[10px]">
+                    SYNCED
+                  </StudioStatusBadge>
+                </span>
+              </div>
+              <StudioActionButton
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    window.open(`${ACTIVE_EXPLORER_URL}/address/${CONTRACTS.MARKETPLACE_ATP}`, '_blank', 'noopener,noreferrer');
+                  }
+                }}
+                className="w-full py-2.5 rounded-xl text-[11px] uppercase tracking-wider"
+                leftIcon={<ExternalLink size={14} />}
+              >
+                {ACTIVE_EXPLORER_LABEL}
+              </StudioActionButton>
+            </StudioSidebarFooter>
+          </div>
+        </StudioSidebarShell>
+      </>
+    );
+  }
 
   // Format countdown timer
   const formatCountdown = (deadline: bigint) => {
@@ -1287,32 +1233,42 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
 
           {/* Orders List */}
           <div className="space-y-4">
-            {filteredOrders.map((order) => (
-              <div
-                key={order.orderId.toString()}
-                onClick={() => {
-                  setSelectedOrder(order);
-                  setShowOrderDetailsModal(true);
-                }}
-                className={`bg-[var(--t-card-bg)] border-0 rounded-[24px] backdrop-blur-[10px] overflow-hidden cursor-pointer transition-all duration-200 ${
-                  selectedOrder.orderId === order.orderId
-                    ? 'shadow-[0_0_0_1px_rgba(44,194,149,0.2),0_8px_18px_rgba(44,194,149,0.025)]'
-                    : 'hover:shadow-[0_8px_18px_rgba(44,194,149,0.02)]'
-                }`}
-              >
-                <div className="p-6">
-                  <div className="flex flex-col gap-5">
-                    <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                      <div className="flex min-w-0 flex-1 gap-4">
-                        <AssetThumb
-                          src={order.assetImage}
-                          alt={order.assetName}
-                          loading="eager"
-                          className="w-28 h-28 rounded-[22px] border-0 bg-ui-input shrink-0"
-                        />
+            {filteredOrders.length === 0 ? (
+              <div className="rounded-[24px] bg-[var(--t-card-bg)] border-0 backdrop-blur-[10px] p-10 text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[rgba(255,255,255,0.04)]">
+                  <Search className="text-ui-muted" size={24} />
+                </div>
+                <h3 className="text-xl font-bold text-ui-primary">No Orders Match Current Filters</h3>
+                <p className="mx-auto mt-2 max-w-[520px] text-sm leading-6 text-ui-muted">
+                  Clear the current search or filters to return to the canonical order list.
+                </p>
+              </div>
+            ) : filteredOrders.map((order) => (
+                <div
+                  key={order.orderId.toString()}
+                  onClick={() => {
+                    setSelectedOrder(order);
+                    setShowOrderDetailsModal(true);
+                  }}
+                  className={`bg-[var(--t-card-bg)] border-0 rounded-[24px] backdrop-blur-[10px] overflow-hidden cursor-pointer transition-all duration-200 ${
+                    selectedOrder.orderId === order.orderId
+                      ? 'shadow-[0_0_0_1px_rgba(44,194,149,0.2),0_8px_18px_rgba(44,194,149,0.025)]'
+                      : 'hover:shadow-[0_8px_18px_rgba(44,194,149,0.02)]'
+                  }`}
+                >
+                  <div className="p-6">
+                    <div className="flex flex-col gap-5">
+                      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="flex min-w-0 flex-1 gap-4">
+                          <AssetThumb
+                            src={order.assetImage}
+                            alt={order.assetName}
+                            loading="eager"
+                            className="w-28 h-28 rounded-[22px] border-0 bg-ui-input shrink-0"
+                          />
 
-                        <div className="min-w-0 flex-1 space-y-4">
-                          <div className="flex min-w-0 items-center gap-4">
+                          <div className="min-w-0 flex-1 space-y-4">
+                            <div className="flex min-w-0 items-center gap-4">
                               <div className="relative w-10 h-10 shrink-0">
                                 <svg className="w-full h-full" viewBox="0 0 36 36">
                                   <circle
@@ -1392,96 +1348,130 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                                 </p>
                               </div>
                             </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="xl:w-[220px] xl:shrink-0">
-                        <div className="flex h-full flex-col justify-between px-2 py-1 text-right">
-                          <div>
-                            <p className="text-[10px] font-bold text-ui-muted uppercase mb-1">
-                              Order Value
-                            </p>
-                            <p className="text-2xl font-black text-ui-primary">
-                              {formatOrderValueLabel(order)}
-                            </p>
-                            <div className="mt-1 flex items-center justify-end gap-2 text-[11px] font-semibold text-ui-secondary">
-                              <span className="uppercase tracking-wide text-ui-muted">Qty</span>
-                              <span className="font-mono text-ui-primary">
-                                {formatOrderQuantityLabel(order)}
-                              </span>
                             </div>
                           </div>
+                        </div>
 
-                          {(() => {
-                            const countdownDeadline = getOrderCountdownDeadline(order, currentTimeSec);
-                            const countdownTitle = getOrderCountdownTitle(order);
-                            if (!countdownTitle || countdownDeadline <= 0n) return null;
-                            const { days, hours, mins, secs } = parseCountdown(countdownDeadline);
-                            return (
-                              <div className="mt-4 ml-auto w-fit rounded-xl border border-ui-border-subtle bg-ui-input px-3 py-2 backdrop-blur-sm">
-                                <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-ui-muted text-center">
-                                  {countdownTitle}
-                                </p>
-                                <div className="flex items-center justify-center gap-2">
-                                  <div className="flex flex-col items-center w-6">
-                                    <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{days.toString().padStart(2, '0')}</span>
-                                    <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Days</span>
-                                  </div>
-                                  <div className="h-6 w-px bg-ui-border-subtle/80"></div>
-                                  <div className="flex flex-col items-center w-6">
-                                    <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{hours.toString().padStart(2, '0')}</span>
-                                    <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Hrs</span>
-                                  </div>
-                                  <div className="h-6 w-px bg-ui-border-subtle/80"></div>
-                                  <div className="flex flex-col items-center w-6">
-                                    <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{mins.toString().padStart(2, '0')}</span>
-                                    <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Min</span>
-                                  </div>
-                                  <div className="h-6 w-px bg-ui-border-subtle/80"></div>
-                                  <div className="flex flex-col items-center w-6">
-                                    <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{secs.toString().padStart(2, '0')}</span>
-                                    <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Sec</span>
+                        <div className="xl:w-[220px] xl:shrink-0">
+                          <div className="flex h-full flex-col justify-between px-2 py-1 text-right">
+                            <div>
+                              <p className="text-[10px] font-bold text-ui-muted uppercase mb-1">
+                                Order Value
+                              </p>
+                              <p className="text-2xl font-black text-ui-primary">
+                                {formatOrderValueLabel(order)}
+                              </p>
+                              <div className="mt-1 flex items-center justify-end gap-2 text-[11px] font-semibold text-ui-secondary">
+                                <span className="uppercase tracking-wide text-ui-muted">Qty</span>
+                                <span className="font-mono text-ui-primary">
+                                  {formatOrderQuantityLabel(order)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {(() => {
+                              const countdownDeadline = getOrderCountdownDeadline(order, currentTimeSec);
+                              const countdownTitle = getOrderCountdownTitle(order);
+                              if (!countdownTitle || countdownDeadline <= 0n) return null;
+                              const { days, hours, mins, secs } = parseCountdown(countdownDeadline);
+                              return (
+                                <div className="mt-4 ml-auto w-fit rounded-xl border border-ui-border-subtle bg-ui-input px-3 py-2 backdrop-blur-sm">
+                                  <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-ui-muted text-center">
+                                    {countdownTitle}
+                                  </p>
+                                  <div className="flex items-center justify-center gap-2">
+                                    <div className="flex flex-col items-center w-6">
+                                      <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{days.toString().padStart(2, '0')}</span>
+                                      <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Days</span>
+                                    </div>
+                                    <div className="h-6 w-px bg-ui-border-subtle/80"></div>
+                                    <div className="flex flex-col items-center w-6">
+                                      <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{hours.toString().padStart(2, '0')}</span>
+                                      <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Hrs</span>
+                                    </div>
+                                    <div className="h-6 w-px bg-ui-border-subtle/80"></div>
+                                    <div className="flex flex-col items-center w-6">
+                                      <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{mins.toString().padStart(2, '0')}</span>
+                                      <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Min</span>
+                                    </div>
+                                    <div className="h-6 w-px bg-ui-border-subtle/80"></div>
+                                    <div className="flex flex-col items-center w-6">
+                                      <span className="text-sm font-bold text-ui-primary leading-none tabular-nums">{secs.toString().padStart(2, '0')}</span>
+                                      <span className="text-[7px] font-bold text-ui-muted uppercase tracking-tighter mt-0.5">Sec</span>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })()}
+                              );
+                            })()}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-ui-border-subtle">
-                      <StudioActionButton
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedOrder(order);
-                          setShowOrderDetailsModal(true);
-                        }}
-                        variant="secondary"
-                        size="lg"
-                        className="orders-secondary-hover h-[45px] px-5 text-sm text-ui-secondary hover:text-ui-primary"
-                        leftIcon={<Info size={14} />}
-                      >
-                        Details
-                      </StudioActionButton>
-                      <div className="flex max-w-[420px] flex-col items-end gap-2">
-                        <div className="flex flex-wrap items-center justify-end gap-3">
-                          {(() => {
-                            const phase = getOrderLifecyclePhase(order, currentTimeSec);
-                            const canViewerBuyerCancelPending = canViewerBuyerCancelOrder(order, address, currentTimeSec);
-                            const canViewerSellerCancelPending = canViewerSellerCancelOrder(order, address, currentTimeSec);
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-ui-border-subtle">
+                        <StudioActionButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedOrder(order);
+                            setShowOrderDetailsModal(true);
+                          }}
+                          variant="secondary"
+                          size="lg"
+                          className="orders-secondary-hover h-[45px] px-5 text-sm text-ui-secondary hover:text-ui-primary"
+                          leftIcon={<Info size={14} />}
+                        >
+                          Details
+                        </StudioActionButton>
+                        <div className="flex max-w-[420px] flex-col items-end gap-2">
+                          <div className="flex flex-wrap items-center justify-end gap-3">
+                            {(() => {
+                              const phase = getOrderLifecyclePhase(order, currentTimeSec);
+                              const canViewerBuyerCancelPending = canViewerBuyerCancelOrder(order, address, currentTimeSec);
+                              const canViewerSellerCancelPending = canViewerSellerCancelOrder(order, address, currentTimeSec);
 
-                            if (canViewerSellerConfirm(order, address, currentTimeSec)) {
-                              return (
-                                <>
-                                  {canViewerSellerCancelPending ? (
+                              if (canViewerSellerConfirm(order, address, currentTimeSec)) {
+                                return (
+                                  <>
+                                    {canViewerSellerCancelPending ? (
+                                      <StudioActionButton
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleSellerCancelOrder(order.orderId);
+                                        }}
+                                        disabled={activeActionKey === getActionKey('cancelBySeller', order.orderId)}
+                                        variant="secondary"
+                                        size="lg"
+                                        className="orders-secondary-hover h-[45px] px-5 text-sm text-ui-secondary"
+                                        leftIcon={<XCircle size={14} />}
+                                      >
+                                        Cancel Order
+                                      </StudioActionButton>
+                                    ) : null}
                                     <StudioActionButton
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleSellerCancelOrder(order.orderId);
+                                        handleSellerConfirm(order.orderId);
                                       }}
-                                      disabled={activeActionKey === getActionKey('cancelBySeller', order.orderId)}
+                                      disabled={activeActionKey === getActionKey('sellerConfirm', order.orderId)}
+                                      variant="primary"
+                                      size="lg"
+                                      className="orders-primary-hover h-[45px] text-sm px-5"
+                                      leftIcon={<Check size={14} />}
+                                    >
+                                      Seller Confirm
+                                    </StudioActionButton>
+                                  </>
+                                );
+                              }
+
+                              if (isAwaitingBuyerSig3(order)) {
+                                return (
+                                  <>
+                                    <StudioActionButton
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleBuyerCancelOrder(order.orderId);
+                                      }}
+                                      disabled={activeActionKey === getActionKey('cancelByBuyer', order.orderId)}
                                       variant="secondary"
                                       size="lg"
                                       className="orders-secondary-hover h-[45px] px-5 text-sm text-ui-secondary"
@@ -1489,56 +1479,22 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                                     >
                                       Cancel Order
                                     </StudioActionButton>
-                                  ) : null}
-                                  <StudioActionButton
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleSellerConfirm(order.orderId);
-                                    }}
-                                    disabled={activeActionKey === getActionKey('sellerConfirm', order.orderId)}
-                                    variant="primary"
-                                    size="lg"
-                                    className="orders-primary-hover h-[45px] text-sm px-5"
-                                    leftIcon={<Check size={14} />}
-                                  >
-                                    Seller Confirm
-                                  </StudioActionButton>
-                                </>
-                              );
-                            }
-
-                            if (isAwaitingBuyerSig3(order)) {
-                              return (
-                                <>
-                                  <StudioActionButton
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleBuyerCancelOrder(order.orderId);
-                                    }}
-                                    disabled={activeActionKey === getActionKey('cancelByBuyer', order.orderId)}
-                                    variant="secondary"
-                                    size="lg"
-                                    className="orders-secondary-hover h-[45px] px-5 text-sm text-ui-secondary"
-                                    leftIcon={<XCircle size={14} />}
-                                  >
-                                    Cancel Order
-                                  </StudioActionButton>
-                                  <StudioActionButton
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleBuyerConfirmOrder(order.orderId);
-                                    }}
-                                    disabled={activeActionKey === getActionKey('payOrder', order.orderId)}
-                                    variant="primary"
-                                    size="lg"
-                                    className="orders-primary-hover h-[45px] text-sm px-5"
-                                    leftIcon={<Check size={14} />}
-                                  >
-                                    Re-Sign New Time
-                                  </StudioActionButton>
-                                </>
-                              );
-                            }
+                                    <StudioActionButton
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleBuyerConfirmOrder(order.orderId);
+                                      }}
+                                      disabled={activeActionKey === getActionKey('payOrder', order.orderId)}
+                                      variant="primary"
+                                      size="lg"
+                                      className="orders-primary-hover h-[45px] text-sm px-5"
+                                      leftIcon={<Check size={14} />}
+                                    >
+                                      Re-Sign New Time
+                                    </StudioActionButton>
+                                  </>
+                                );
+                              }
 
                             if (phase === 'agreed_delivery') {
                               const canViewerConfirm = canViewerConfirmDelivery(order, address, currentTimeSec);
@@ -1687,20 +1643,21 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
                               );
                             }
 
-                            return null;
-                          })()}
+                              return null;
+                            })()}
+                          </div>
+                          {getOrderChainHint(order) ? (
+                            <p className="max-w-[420px] text-right text-[11px] leading-5 text-ui-muted">
+                              {getOrderChainHint(order)}
+                            </p>
+                          ) : null}
                         </div>
-                        {getOrderChainHint(order) ? (
-                          <p className="max-w-[420px] text-right text-[11px] leading-5 text-ui-muted">
-                            {getOrderChainHint(order)}
-                          </p>
-                        ) : null}
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            }
           </div>
         </div>
       </section>
@@ -1898,10 +1855,15 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
               </span>
             </div>
             <StudioActionButton
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.open(`${ACTIVE_EXPLORER_URL}/address/${CONTRACTS.MARKETPLACE_ATP}`, '_blank', 'noopener,noreferrer');
+                }
+              }}
               className="w-full py-2.5 rounded-xl text-[11px] uppercase tracking-wider"
               leftIcon={<ExternalLink size={14} />}
             >
-              View on Etherscan
+              {ACTIVE_EXPLORER_LABEL}
             </StudioActionButton>
           </StudioSidebarFooter>
         </div>
@@ -1968,7 +1930,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
       {showDisputeResolutionModal && (
         <DisputeResolutionModal
           order={selectedOrder}
-          currentUser={address || '0x8aC7fe5b2c5d9f8e32a1' as `0x${string}`}
+          currentUser={address}
           userRole={
             isBuyerForOrder(selectedOrder, address)
               ? 'buyer'

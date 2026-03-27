@@ -1,4 +1,6 @@
 import { Navbar } from '@/app/components/navbar';
+import { AISidebar } from '@/app/components/ai/ai-sidebar';
+import { AnimatePresence } from 'motion/react';
 import { LeftSidebar } from '@/app/components/left-sidebar';
 import { MainContent } from '@/app/components/main-content';
 import { RightSidebar } from '@/app/components/right-sidebar';
@@ -16,7 +18,7 @@ import { History } from '@/app/components/history';
 import { HistoryRightSidebar } from '@/app/components/history-right-sidebar';
 import { EnhancedProfile } from '@/app/components/profile/enhanced-profile'; // ✅ Unified profile for both owner & visitor modes
 import { Settings } from '@/app/components/settings';
-import { AssetDetailsPage } from '@/app/components/asset-details/asset-details-page';
+import { CanonicalAssetDetailsRoute } from '@/app/components/asset-details/canonical-asset-details-route';
 import { SearchPage } from '@/app/components/search/search-page';
 import { FavoritesFollowingPage } from '@/app/components/favorites/favorites-following-page';
 import { CommandPalette } from '@/app/components/command-palette/command-palette';
@@ -28,6 +30,7 @@ import { NotificationProvider, useNotifications } from '@/contexts/NotificationC
 import { WalletModalProvider } from '@/contexts/WalletModalContext';
 import { UserProvider } from '@/contexts/UserContext';
 import { WalletConnectionStatus } from '@/app/components/wallet-connection-status';
+import { RuntimeErrorBoundary } from '@/app/components/ui/runtime-error-boundary';
 import { Toaster } from '@/app/components/ui/sonner';
 import { useTheme } from '@/app/contexts/ThemeContext';
 import { useUserInitialization } from '@/hooks/useUserInitialization';
@@ -61,6 +64,7 @@ function AppContent({
   useUserInitialization();
   const { addNotification } = useNotifications();
   const { applyThemeFromWallet } = useTheme();
+  const [showAISidebar, setShowAISidebar] = useState(false);
 
   const { isGuest, effectiveConnectedAddress, canAccessPage, resolvePageForMode } = useAccessMode();
   const accessGuard = useAccessGuard(setActivePage);
@@ -218,7 +222,7 @@ function AppContent({
             <PublicHomePage />
           </div>
           <div className="absolute inset-x-0 top-0 z-20">
-            <Navbar activePage={activePage} setActivePage={guardedSetActivePage} onSearch={handleSearch} isGuest={isGuest} />
+            <Navbar activePage={activePage} setActivePage={guardedSetActivePage} onSearch={handleSearch} isGuest={isGuest} onToggleAI={() => setShowAISidebar(v => !v)} aiActive={showAISidebar} />
           </div>
         </div>
         <WalletModals />
@@ -244,7 +248,7 @@ function AppContent({
 
         {/* Right: Navbar on top + Content below */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          <Navbar activePage={activePage} setActivePage={guardedSetActivePage} onSearch={handleSearch} isGuest={isGuest} />
+          <Navbar activePage={activePage} setActivePage={guardedSetActivePage} onSearch={handleSearch} isGuest={isGuest} onToggleAI={() => setShowAISidebar(v => !v)} aiActive={showAISidebar} />
 
           <main
             className={isGuest ? 'flex-1 overflow-hidden bg-ui-page text-ui-secondary' : 'flex-1 overflow-hidden bg-ui-page text-ui-secondary'}
@@ -259,7 +263,15 @@ function AppContent({
             {activePage === 'orders' && <Orders onNavigateToPage={guardedSetActivePage} />}
             {activePage === 'marketplace' && <Marketplace onNavigateToPage={guardedSetActivePage} onNavigateToUserProfile={guardedNavigateToUserProfile} />}
             {activePage === 'market-insights' && <MarketInsights />}
-            {activePage === 'minting' && <Minting />}
+            {activePage === 'minting' && (
+              <RuntimeErrorBoundary
+                title="Minting Page Failed to Load"
+                description="The minting workspace hit a runtime error. Retry after the page resets."
+                resetKey={activePage}
+              >
+                <Minting />
+              </RuntimeErrorBoundary>
+            )}
             {activePage === 'assets' && <Assets />}
             {activePage === 'community' && <Community onNavigateToUserProfile={guardedNavigateToUserProfile} />}
             {activePage === 'messages' && <Messages onNavigateToUserProfile={guardedNavigateToUserProfile} initialConversationId={selectedConversationId} />}
@@ -273,16 +285,32 @@ function AppContent({
             )}
             {activePage === 'history' && <History />}
             {!isGuest && activePage === 'overview' && <RightSidebar />}
-            {!isGuest && activePage === 'minting' && <MintingRightSidebar />}
+            {!isGuest && activePage === 'minting' && (
+              <RuntimeErrorBoundary
+                title="Minting Sidebar Failed to Load"
+                description="The minting sidebar hit a runtime error and was isolated from the main workspace."
+                resetKey={`sidebar:${activePage}`}
+              >
+                <MintingRightSidebar />
+              </RuntimeErrorBoundary>
+            )}
             {!isGuest && activePage === 'assets' && <AssetsRightSidebar />}
             {!isGuest && activePage === 'community' && <CommunityRightSidebar />}
             {!isGuest && activePage === 'history' && <HistoryRightSidebar />}
-            {activePage === 'settings' && <Settings />}
+            {activePage === 'settings' && (
+              <RuntimeErrorBoundary
+                title="Settings Page Failed to Load"
+                description="The settings workspace hit a runtime error. Retry after the page resets."
+                resetKey={activePage}
+              >
+                <Settings />
+              </RuntimeErrorBoundary>
+            )}
             {activePage === 'asset-details' && (
-              <AssetDetailsPage
+              <CanonicalAssetDetailsRoute
                 assetId={selectedAssetId}
                 onBack={handleBackFromAssetDetails}
-                onAssetClick={handleNavigateToAsset}
+                onNavigateToSeller={guardedNavigateToUserProfile}
                 previousPage={previousPage}
               />
             )}
@@ -315,6 +343,23 @@ function AppContent({
 
       {/* Wallet Modals */}
       <WalletModals />
+
+      {/* AI Sidebar — fixed overlay */}
+      <AnimatePresence>
+        {showAISidebar && (
+          <RuntimeErrorBoundary
+            title="AI Sidebar Failed to Load"
+            description="The AI workspace hit a runtime error. Close and reopen the panel to retry."
+            compact
+            resetKey={`${activePage}:${showAISidebar ? 'open' : 'closed'}`}
+          >
+            <AISidebar
+              activePage={activePage}
+              onClose={() => setShowAISidebar(false)}
+            />
+          </RuntimeErrorBoundary>
+        )}
+      </AnimatePresence>
     </>
   );
 }

@@ -1,44 +1,95 @@
 import { Search } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NotificationCenter } from '@/app/components/notifications/notification-center';
 import { WalletConnectButton } from '@/app/components/wallet-connect-button';
 import { OrinaMark } from '@/app/components/brand/OrinaMark';
 import { OrinaWordmark } from '@/app/components/brand/OrinaWordmark';
+import {
+  hydrateMarketplaceCatalogFromSupabase,
+  loadMarketplaceCatalogSync,
+  MARKETPLACE_CATALOG_SYNC_EVENT,
+} from '@/utils/marketplaceCatalog';
+import { COLLECTIONS_SYNC_EVENT, loadRuntimeCollections } from '@/utils/collectionsUtils';
+import { loadSearchHistory } from '@/utils/searchUtils';
+import {
+  getCategoryDisplayLabel,
+  getTaxonomyCategoryOptions,
+  normalizeTaxonomySelection,
+} from '@/utils/taxonomy';
 
 interface NavbarProps {
   activePage: string;
   setActivePage: (page: string) => void;
   onSearch?: (query: string) => void;
   isGuest?: boolean;
+  onToggleAI?: () => void;
+  aiActive?: boolean;
 }
-
-const TRENDING_SEARCHES = [
-  { query: 'Luxury Real Estate', count: '1.2k' },
-  { query: 'CyberSeries NFT', count: '890' },
-  { query: 'Vintage Cars', count: '654' },
-  { query: 'Art Collection', count: '421' },
-];
-
-const RECENT_SEARCHES = ['Ethereum Land', 'Digital Art', 'Virtual Worlds'];
-
-const POPULAR_CATEGORIES = [
-  { name: 'Real Estate', count: 142 },
-  { name: 'Collectibles', count: 89 },
-  { name: 'Art', count: 67 },
-  { name: 'Music', count: 34 },
-];
 
 const PRIMARY_NAV_LINKS = [
   { id: 'marketplace', label: 'Marketplace' },
   { id: 'community', label: 'Community' },
 ];
 
-export function Navbar({ activePage, setActivePage, onSearch, isGuest = false }: NavbarProps) {
+function formatCompactCount(value: number): string {
+  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10_000 ? 0 : 1)}k`;
+  return String(value);
+}
+
+function buildCategoryCounts(values: string[]): Array<{ label: string; count: number }> {
+  const counts = new Map<string, number>();
+
+  values.forEach((value) => {
+    const label = getCategoryDisplayLabel(value);
+    counts.set(label, (counts.get(label) || 0) + 1);
+  });
+
+  return Array.from(counts.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label));
+}
+
+function formatHistoryQuery(query: string): string {
+  const trimmed = String(query || '').trim();
+  if (!trimmed) return trimmed;
+
+  const normalized = normalizeTaxonomySelection(trimmed);
+  return normalized.matchedBy === 'raw_fallback' ? trimmed : normalized.categoryLabel;
+}
+
+export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, onToggleAI, aiActive }: NavbarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [marketplaceCategories, setMarketplaceCategories] = useState<string[]>(() =>
+    loadMarketplaceCatalogSync().map((asset) => asset.category)
+  );
+  const [collectionCategories, setCollectionCategories] = useState<string[]>(() =>
+    loadRuntimeCollections().map((collection) => collection.category)
+  );
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const popularCategoryEntries = useMemo(() => {
+    const liveCounts = buildCategoryCounts([...marketplaceCategories, ...collectionCategories]);
+    if (liveCounts.length > 0) return liveCounts.slice(0, 4);
+
+    return getTaxonomyCategoryOptions()
+      .slice(0, 4)
+      .map((option) => ({ label: option.label, count: 0 }));
+  }, [collectionCategories, marketplaceCategories]);
+
+  const trendingSearches = useMemo(
+    () =>
+      popularCategoryEntries.map((entry) => ({
+        query: entry.label,
+        count: formatCompactCount(entry.count),
+      })),
+    [popularCategoryEntries]
+  );
+
+  const visibleRecentSearches = useMemo(() => recentSearches.slice(0, 3), [recentSearches]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,6 +132,37 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false }:
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    const syncCatalog = () => {
+      setMarketplaceCategories(loadMarketplaceCatalogSync().map((asset) => asset.category));
+    };
+
+    const syncCollections = () => {
+      setCollectionCategories(loadRuntimeCollections().map((collection) => collection.category));
+    };
+
+    syncCatalog();
+    syncCollections();
+    void hydrateMarketplaceCatalogFromSupabase().then(syncCatalog);
+    window.addEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
+    window.addEventListener(COLLECTIONS_SYNC_EVENT, syncCollections as EventListener);
+    return () => {
+      window.removeEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
+      window.removeEventListener(COLLECTIONS_SYNC_EVENT, syncCollections as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isSearchOpen) return;
+
+    const nextRecent = loadSearchHistory()
+      .map((item) => formatHistoryQuery(item.query))
+      .filter(Boolean)
+      .slice(0, 3);
+
+    setRecentSearches(nextRecent);
+  }, [isSearchOpen]);
 
   return (
     <nav
@@ -175,7 +257,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false }:
                 <div className="flex items-center mb-2 px-2">
                   <span className="text-section-header text-[rgba(148,163,184,0.9)]">Trending Searches</span>
                 </div>
-                {TRENDING_SEARCHES.map((item) => {
+                {trendingSearches.map((item) => {
                   return (
                     <button
                       key={item.query}
@@ -192,35 +274,37 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false }:
                 })}
               </div>
 
-              <div className="p-3">
-                <div className="flex items-center mb-2 px-2">
-                  <span className="text-section-header text-[rgba(148,163,184,0.9)]">Recent Searches</span>
+              {visibleRecentSearches.length > 0 && (
+                <div className="p-3">
+                  <div className="flex items-center mb-2 px-2">
+                    <span className="text-section-header text-[rgba(148,163,184,0.9)]">Recent Searches</span>
+                  </div>
+                  {visibleRecentSearches.map((item) => (
+                    <button
+                      key={item}
+                      onClick={() => handleSuggestionClick(item)}
+                      className="w-full flex items-center px-4 py-3 rounded-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors text-left text-[rgba(203,213,225,0.92)] hover:text-white"
+                      type="button"
+                    >
+                      <span className="text-sm">{item}</span>
+                    </button>
+                  ))}
                 </div>
-                {RECENT_SEARCHES.map((item) => (
-                  <button
-                    key={item}
-                    onClick={() => handleSuggestionClick(item)}
-                    className="w-full flex items-center px-4 py-3 rounded-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors text-left text-[rgba(203,213,225,0.92)] hover:text-white"
-                    type="button"
-                  >
-                    <span className="text-sm">{item}</span>
-                  </button>
-                ))}
-              </div>
+              )}
 
               <div className="p-3">
                 <div className="flex items-center gap-2 mb-2 px-2">
                   <span className="text-section-header text-[rgba(148,163,184,0.9)]">Popular Categories</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {POPULAR_CATEGORIES.map((cat) => (
+                  {popularCategoryEntries.map((cat) => (
                     <button
-                      key={cat.name}
-                      onClick={() => handleSuggestionClick(cat.name)}
+                      key={cat.label}
+                      onClick={() => handleSuggestionClick(cat.label)}
                       className="px-3 py-1.5 bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] rounded-full text-xs text-[rgba(203,213,225,0.9)] hover:text-white transition-all border-0"
                       type="button"
                     >
-                      {cat.name} ({cat.count})
+                      {cat.label} ({cat.count})
                     </button>
                   ))}
                 </div>
@@ -231,6 +315,16 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false }:
       </div>
 
       <div className="ml-auto flex items-center gap-3">
+        {onToggleAI && (
+          <button
+            type="button"
+            onClick={onToggleAI}
+            className={`group relative w-[43px] h-[43px] flex items-center justify-center rounded-[50px] transition-colors bg-transparent`}
+            title="ORINA AI"
+          >
+            <img src="/flower-static.svg" alt="AI" className={`w-[20px] h-[20px] transition-opacity ${aiActive ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`} />
+          </button>
+        )}
         {!isGuest && <NotificationCenter />}
         <WalletConnectButton onNavigate={setActivePage} />
       </div>

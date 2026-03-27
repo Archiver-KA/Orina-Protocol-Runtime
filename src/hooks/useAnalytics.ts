@@ -1,452 +1,744 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useAccount } from 'wagmi';
-import { useEffect, useState, useMemo } from 'react';
-import { useNextOrderId, useOrder } from './useOrders';
-import { useUserOrders, usePortfolioMetrics } from './useUserOrders';
-import type { 
-  PerformanceMetrics, 
-  CategoryPerformance, 
-  TradePerformance,
-  TimeSeriesData,
-  AnalyticsInsight,
-  TimeRange 
-} from '@/types/analytics';
+import { OrderState } from '@/config/contracts';
+import { getOrderLifecycleLabel, getOrderLifecyclePhase } from '@/utils/orderLifecycle';
+import { formatOrderGrossPrice } from '@/utils/orderDisplay';
+import { encodeIn, isSupabaseRestEnabled, restSelect } from '@/utils/supabaseRest';
+import type { ProtocolOrderRow } from '@/utils/runtimeOrders';
+import { useUserOrders } from './useUserOrders';
 
-/**
- * Hook to fetch and calculate analytics data from blockchain
- * Aggregates user's order history, portfolio performance, and insights
- */
-export function useAnalytics(timeRange: TimeRange = '30D') {
-  const { address } = useAccount();
-  const { orders, isLoading: ordersLoading } = useUserOrders(address);
-  const { metrics: portfolioMetrics, isLoading: metricsLoading } = usePortfolioMetrics(address);
-  
-  const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null);
-  const [categories, setCategories] = useState<CategoryPerformance[]>([]);
-  const [portfolioHistory, setPortfolioHistory] = useState<TimeSeriesData[]>([]);
-  const [insights, setInsights] = useState<AnalyticsInsight[]>([]);
+export type TimeRange = '7D' | '30D' | '90D' | '1Y' | 'ALL';
 
-  // Calculate days from timeRange
-  const daysToFetch = useMemo(() => {
-    switch (timeRange) {
-      case '7D': return 7;
-      case '30D': return 30;
-      case '90D': return 90;
-      case '1Y': return 365;
-      case 'ALL': return 1000;
-      default: return 30;
+export interface UserAnalyticsMetricSnapshot {
+  totalOrders: number;
+  activeOrders: number;
+  finalizedOrders: number;
+  disputedOrders: number;
+  cancelledOrders: number;
+  asBuyerCount: number;
+  asSellerCount: number;
+  upcomingActions: number;
+}
+
+export interface UserAnalyticsPoint {
+  key: string;
+  label: string;
+  timestamp: number;
+  primaryValue: number;
+  secondaryValue: number;
+  details: Array<{ label: string; value: string }>;
+}
+
+export interface UserAnalyticsEvent {
+  id: string;
+  orderId: string;
+  assetName: string;
+  title: string;
+  detail: string;
+  timestamp: number;
+  status: 'completed' | 'pending' | 'future';
+  kind: string;
+  source: 'projection' | 'derived';
+  txHash?: string;
+}
+
+export interface UserAnalyticsTokenBucket {
+  symbol: string;
+  decimals: number;
+  orderCount: number;
+  finalizedCount: number;
+  grossVolume: bigint;
+}
+
+export interface UserAnalyticsInsight {
+  type: 'success' | 'warning' | 'info';
+  title: string;
+  message: string;
+}
+
+export interface UserAnalyticsResult {
+  metrics: UserAnalyticsMetricSnapshot | null;
+  activity: UserAnalyticsPoint[];
+  calendarEvents: UserAnalyticsEvent[];
+  recentEvents: UserAnalyticsEvent[];
+  upcomingEvents: UserAnalyticsEvent[];
+  lifecycleBreakdown: Array<{ phase: string; label: string; count: number }>;
+  paymentBreakdown: UserAnalyticsTokenBucket[];
+  insights: UserAnalyticsInsight[];
+  isLoading: boolean;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+interface ProtocolOrderProjectionRow extends ProtocolOrderRow {
+  id?: string | null;
+  order_uid?: string | null;
+}
+
+interface ProtocolOrderEventRow {
+  id?: string | null;
+  order_id?: string | null;
+  event_name?: string | null;
+  chain_id?: number | null;
+  tx_hash?: string | null;
+  log_index?: number | null;
+  block_number?: number | null;
+  block_time?: string | null;
+  payload?: Record<string, unknown> | null;
+  created_at?: string | null;
+}
+
+function bigintToNumber(value?: bigint) {
+  if (typeof value !== 'bigint') return 0;
+  const result = Number(value);
+  return Number.isFinite(result) ? result : 0;
+}
+
+function toMs(value?: bigint, fallbackMs = 0) {
+  const seconds = bigintToNumber(value);
+  return seconds > 0 ? seconds * 1000 : fallbackMs;
+}
+
+function getRangeWindowStart(range: TimeRange) {
+  const now = Date.now();
+  switch (range) {
+    case '7D':
+      return now - (7 * DAY_MS);
+    case '30D':
+      return now - (30 * DAY_MS);
+    case '90D':
+      return now - (90 * DAY_MS);
+    case '1Y':
+      return now - (365 * DAY_MS);
+    case 'ALL':
+    default:
+      return 0;
+  }
+}
+
+function toDayStart(timestamp: number) {
+  const date = new Date(timestamp);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function buildTimelineEntries(order: ReturnType<typeof useUserOrders>['orders'][number]): UserAnalyticsEvent[] {
+  const orderId = order.orderId.toString();
+  const entries: UserAnalyticsEvent[] = [];
+  const createdAt = toMs(order.proposedAt, order.createdAt ?? 0);
+  const sellerConfirmedAt = toMs(order.sellerConfirmedAt);
+  const paidAt = toMs(order.paidAt);
+  const disputeOpenedAt = toMs(order.disputeOpenedAt);
+  const updatedAt = order.updatedAt ?? createdAt;
+
+  if (createdAt > 0) {
+    entries.push({
+      id: `${orderId}-created`,
+      orderId,
+      assetName: order.assetName,
+      title: 'Order Created',
+      detail: `Order #${orderId} created for ${order.assetName}.`,
+      timestamp: createdAt,
+      status: 'completed',
+      kind: 'order_created',
+      source: 'derived',
+    });
+  }
+
+  if (sellerConfirmedAt > 0) {
+    entries.push({
+      id: `${orderId}-seller-confirm`,
+      orderId,
+      assetName: order.assetName,
+      title: 'Seller Confirmed',
+      detail: `Seller confirmed order #${orderId}.`,
+      timestamp: sellerConfirmedAt,
+      status: 'completed',
+      kind: 'seller_confirmed',
+      source: 'derived',
+    });
+  }
+
+  if (paidAt > 0) {
+    entries.push({
+      id: `${orderId}-paid`,
+      orderId,
+      assetName: order.assetName,
+      title: 'Escrow Locked',
+      detail: `${formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals)} locked for order #${orderId}.`,
+      timestamp: paidAt,
+      status: 'completed',
+      kind: 'escrow_locked',
+      source: 'derived',
+    });
+  }
+
+  if (disputeOpenedAt > 0) {
+    entries.push({
+      id: `${orderId}-dispute`,
+      orderId,
+      assetName: order.assetName,
+      title: 'Dispute Opened',
+      detail: `Dispute opened for order #${orderId}.`,
+      timestamp: disputeOpenedAt,
+      status: 'completed',
+      kind: 'dispute_opened',
+      source: 'derived',
+    });
+  }
+
+  if (order.finalized || order.state === OrderState.FINALIZED) {
+    entries.push({
+      id: `${orderId}-finalized`,
+      orderId,
+      assetName: order.assetName,
+      title: 'Order Finalized',
+      detail: `Order #${orderId} finalized on-chain.`,
+      timestamp: updatedAt,
+      status: 'completed',
+      kind: 'order_finalized',
+      source: 'derived',
+    });
+  }
+
+  if (order.state === OrderState.CANCELLED) {
+    entries.push({
+      id: `${orderId}-cancelled`,
+      orderId,
+      assetName: order.assetName,
+      title: 'Order Cancelled',
+      detail: `Order #${orderId} cancelled on-chain.`,
+      timestamp: updatedAt,
+      status: 'completed',
+      kind: 'order_cancelled',
+      source: 'derived',
+    });
+  }
+
+  const phase = getOrderLifecyclePhase(order);
+  if (phase === 'waiting_seller_confirm') {
+    entries.push({
+      id: `${orderId}-waiting-seller`,
+      orderId,
+      assetName: order.assetName,
+      title: 'Waiting Seller Confirm',
+      detail: `Seller must confirm, revise, or cancel order #${orderId}.`,
+      timestamp: createdAt + DAY_MS,
+      status: 'pending',
+      kind: 'waiting_seller_confirm',
+      source: 'derived',
+    });
+  }
+
+  if (phase === 'waiting_buyer_accept') {
+    entries.push({
+      id: `${orderId}-waiting-buyer`,
+      orderId,
+      assetName: order.assetName,
+      title: 'Waiting Buyer Re-Sign',
+      detail: `Buyer must re-sign or cancel order #${orderId}.`,
+      timestamp: toMs(order.payDeadline),
+      status: 'pending',
+      kind: 'waiting_buyer_accept',
+      source: 'derived',
+    });
+  }
+
+  if (phase === 'agreed_delivery') {
+    entries.push({
+      id: `${orderId}-delivery`,
+      orderId,
+      assetName: order.assetName,
+      title: 'Agreed Delivery Ends',
+      detail: `Buyer can confirm delivery early for order #${orderId}.`,
+      timestamp: toMs(order.autoReleaseAt),
+      status: 'future',
+      kind: 'agreed_delivery_ends',
+      source: 'derived',
+    });
+  }
+
+  if (phase === 'awaiting_auto_finalize') {
+    entries.push({
+      id: `${orderId}-buyer-action`,
+      orderId,
+      assetName: order.assetName,
+      title: 'Buyer Action Window',
+      detail: `Buyer can confirm delivery or dispute order #${orderId}.`,
+      timestamp: toMs(order.disputeDeadline ?? 0n),
+      status: 'future',
+      kind: 'buyer_action_window',
+      source: 'derived',
+    });
+  }
+
+  if (phase === 'auto_finalize_ready') {
+    entries.push({
+      id: `${orderId}-auto-finalize-ready`,
+      orderId,
+      assetName: order.assetName,
+      title: 'Auto Finalize Ready',
+      detail: `Order #${orderId} is eligible for protocol auto-finalization.`,
+      timestamp: Date.now(),
+      status: 'pending',
+      kind: 'auto_finalize_ready',
+      source: 'derived',
+    });
+  }
+
+  return entries;
+}
+
+function parseTimestamp(value?: string | null, fallback = 0) {
+  if (!value) return fallback;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : fallback;
+}
+
+function normalizeProjectionEventKind(eventName?: string | null) {
+  const normalized = String(eventName || '').trim().toLowerCase();
+  if (normalized === 'orderproposed' || normalized === 'ordercreated') return 'order_created';
+  if (normalized === 'buyersigned1') return 'buyer_signed_1';
+  if (normalized === 'sellersigned') return 'seller_signed';
+  if (normalized === 'sellerconfirmed') return 'seller_confirmed';
+  if (normalized === 'deliverytimeset') return 'delivery_time_set';
+  if (normalized === 'paydeadlineset') return 'pay_deadline_set';
+  if (normalized === 'deliverytimeaccepted') return 'delivery_time_accepted';
+  if (normalized === 'buyersigned2' || normalized === 'orderpaid') return 'escrow_locked';
+  if (normalized === 'disputeopened') return 'dispute_opened';
+  if (normalized === 'disputeextended') return 'dispute_extended';
+  if (normalized === 'disputeresolvedbyagreement') return 'dispute_resolved_by_agreement';
+  if (normalized === 'disputeresolvedbyarbiter') return 'dispute_resolved_by_arbiter';
+  if (normalized === 'disputeautosplit') return 'dispute_auto_split';
+  if (normalized === 'orderfinalized' || normalized === 'autoreleased') return 'order_finalized';
+  if (normalized === 'ordercancelledbyseller') return 'order_cancelled_by_seller';
+  if (normalized === 'ordercancelledbybuyer') return 'order_cancelled_by_buyer';
+  if (normalized === 'ordercancelled') return 'order_cancelled';
+  return normalized || 'order_event';
+}
+
+function createProjectedEventDetail(
+  kind: string,
+  orderId: string,
+  assetName: string,
+  payload: Record<string, unknown> | null | undefined,
+) {
+  const args =
+    payload && typeof payload.args === 'object' && payload.args
+      ? payload.args as Record<string, unknown>
+      : null;
+  if (kind === 'order_created') return `Order #${orderId} created for ${assetName}.`;
+  if (kind === 'buyer_signed_1') return `Buyer signed the initial order proposal for order #${orderId}.`;
+  if (kind === 'seller_signed') return `Seller signed the delivery proposal for order #${orderId}.`;
+  if (kind === 'seller_confirmed') return `Seller confirmed order #${orderId}.`;
+  if (kind === 'delivery_time_set') {
+    const seconds = typeof args?.estDeliverySeconds === 'string' ? args.estDeliverySeconds : null;
+    return seconds
+      ? `Seller set agreed delivery to ${seconds} seconds for order #${orderId}.`
+      : `Seller updated agreed delivery for order #${orderId}.`;
+  }
+  if (kind === 'pay_deadline_set') {
+    const deadline = typeof args?.payDeadline === 'string' ? args.payDeadline : null;
+    return deadline
+      ? `Buyer re-sign deadline recorded for order #${orderId}: ${deadline}.`
+      : `Buyer re-sign deadline recorded for order #${orderId}.`;
+  }
+  if (kind === 'delivery_time_accepted') return `Buyer accepted the revised delivery terms for order #${orderId}.`;
+  if (kind === 'escrow_locked') return `Escrow is locked for order #${orderId}.`;
+  if (kind === 'dispute_opened') {
+    const opener = typeof args?.opener === 'string' ? args.opener : null;
+    return opener ? `Dispute opened by ${opener} for order #${orderId}.` : `Dispute opened for order #${orderId}.`;
+  }
+  if (kind === 'dispute_extended') {
+    const finalDeadline = typeof args?.finalDeadline === 'string' ? args.finalDeadline : null;
+    return finalDeadline
+      ? `Dispute for order #${orderId} extended into phase 2 until ${finalDeadline}.`
+      : `Dispute for order #${orderId} extended into phase 2.`;
+  }
+  if (kind === 'dispute_resolved_by_agreement') {
+    const buyerShare = typeof args?.buyerShareBps === 'string' ? args.buyerShareBps : null;
+    const sellerShare = typeof args?.sellerShareBps === 'string' ? args.sellerShareBps : null;
+    return buyerShare && sellerShare
+      ? `Dispute for order #${orderId} closed by 2/3 agreement with ${buyerShare}/${sellerShare} split.`
+      : `Dispute for order #${orderId} closed by 2/3 agreement.`;
+  }
+  if (kind === 'dispute_resolved_by_arbiter') return `Arbiter resolved dispute for order #${orderId}.`;
+  if (kind === 'dispute_auto_split') return `Dispute for order #${orderId} auto-settled to 50/50 after deadline.`;
+  if (kind === 'order_finalized') return `Order #${orderId} finalized on-chain.`;
+  if (kind === 'order_cancelled_by_seller') return `Seller cancelled order #${orderId} during the seller decision window.`;
+  if (kind === 'order_cancelled_by_buyer') return `Buyer cancelled order #${orderId} during the buyer re-sign window.`;
+  if (kind === 'order_cancelled') return `Order #${orderId} cancelled on-chain.`;
+  return `Protocol event recorded for order #${orderId}.`;
+}
+
+function createProjectedEventTitle(kind: string, eventName?: string | null) {
+  if (kind === 'order_created') return 'Order Created';
+  if (kind === 'buyer_signed_1') return 'Buyer Signed';
+  if (kind === 'seller_signed') return 'Seller Signed';
+  if (kind === 'seller_confirmed') return 'Seller Confirmed';
+  if (kind === 'delivery_time_set') return 'Delivery Time Set';
+  if (kind === 'pay_deadline_set') return 'Buyer Re-Sign Deadline';
+  if (kind === 'delivery_time_accepted') return 'Delivery Accepted';
+  if (kind === 'escrow_locked') return 'Escrow Locked';
+  if (kind === 'dispute_opened') return 'Dispute Opened';
+  if (kind === 'dispute_extended') return 'Dispute Extended';
+  if (kind === 'dispute_resolved_by_agreement') return 'Resolved By Agreement';
+  if (kind === 'dispute_resolved_by_arbiter') return 'Resolved By Arbiter';
+  if (kind === 'dispute_auto_split') return 'Auto Split';
+  if (kind === 'order_finalized') return 'Order Finalized';
+  if (kind === 'order_cancelled_by_seller') return 'Seller Cancelled';
+  if (kind === 'order_cancelled_by_buyer') return 'Buyer Cancelled';
+  if (kind === 'order_cancelled') return 'Order Cancelled';
+  return String(eventName || 'Order Event');
+}
+
+function mergeCompletedEvents(
+  derivedEvents: UserAnalyticsEvent[],
+  projectedEvents: UserAnalyticsEvent[],
+) {
+  const projectedKeys = new Set(projectedEvents.map((event) => `${event.orderId}:${event.kind}`));
+  const filteredDerived = derivedEvents.filter((event) => !projectedKeys.has(`${event.orderId}:${event.kind}`));
+  return [...projectedEvents, ...filteredDerived].sort((left, right) => right.timestamp - left.timestamp);
+}
+
+function buildActivityPoints(orders: ReturnType<typeof useUserOrders>['orders'], range: TimeRange): UserAnalyticsPoint[] {
+  const now = Date.now();
+  const rangeStart = getRangeWindowStart(range);
+  const effectiveStart = range === 'ALL'
+    ? (orders.length > 0
+      ? toDayStart(Math.min(...orders.map((order) => toMs(order.proposedAt, order.createdAt ?? now))))
+      : toDayStart(now))
+    : toDayStart(rangeStart);
+  const days = range === 'ALL'
+    ? Math.max(7, Math.ceil((toDayStart(now) - effectiveStart) / DAY_MS) + 1)
+    : Math.max(7, Math.ceil((toDayStart(now) - effectiveStart) / DAY_MS) + 1);
+
+  const points = Array.from({ length: days }, (_, index) => {
+    const timestamp = effectiveStart + (index * DAY_MS);
+    return {
+      key: `user-${timestamp}`,
+      label: new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase(),
+      timestamp,
+      primaryValue: 0,
+      secondaryValue: 0,
+      details: [
+        { label: 'Orders Created', value: '0' },
+        { label: 'Orders Finalized', value: '0' },
+        { label: 'Disputes Opened', value: '0' },
+      ],
+    } satisfies UserAnalyticsPoint;
+  });
+
+  for (const order of orders) {
+    const createdMs = toMs(order.proposedAt, order.createdAt ?? now);
+    const finalizedMs = order.finalized || order.state === OrderState.FINALIZED ? (order.updatedAt ?? createdMs) : 0;
+    const disputeMs = toMs(order.disputeOpenedAt);
+
+    const createdIndex = Math.floor((toDayStart(createdMs) - effectiveStart) / DAY_MS);
+    if (createdIndex >= 0 && createdIndex < points.length) {
+      points[createdIndex].primaryValue += 1;
+      points[createdIndex].details[0].value = points[createdIndex].primaryValue.toString();
     }
-  }, [timeRange]);
 
-  // Combined loading state
-  const isLoading = ordersLoading || metricsLoading;
+    const finalizedIndex = Math.floor((toDayStart(finalizedMs) - effectiveStart) / DAY_MS);
+    if (finalizedMs > 0 && finalizedIndex >= 0 && finalizedIndex < points.length) {
+      points[finalizedIndex].secondaryValue += 1;
+      points[finalizedIndex].details[1].value = points[finalizedIndex].secondaryValue.toString();
+    }
 
-  // Stable reference to orders length to prevent infinite loop
-  const ordersLength = orders?.length ?? 0;
-  const ordersString = useMemo(() => JSON.stringify(orders), [orders]);
+    const disputeIndex = Math.floor((toDayStart(disputeMs) - effectiveStart) / DAY_MS);
+    if (disputeMs > 0 && disputeIndex >= 0 && disputeIndex < points.length) {
+      const current = Number(points[disputeIndex].details[2].value);
+      points[disputeIndex].details[2].value = String(current + 1);
+    }
+  }
+
+  return points;
+}
+
+export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult {
+  const { address } = useAccount();
+  const { orders, isLoading } = useUserOrders(address);
+  const [projectedEvents, setProjectedEvents] = useState<UserAnalyticsEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
 
   useEffect(() => {
-    if (!address) {
-      // Clear data when wallet disconnected
-      setMetrics(null);
-      setCategories([]);
-      setPortfolioHistory([]);
-      setInsights([]);
-      return;
-    }
+    let cancelled = false;
 
-    // Wait for blockchain data to finish loading
-    if (ordersLoading || metricsLoading) {
-      return;
-    }
+    const loadProjectedEvents = async () => {
+      if (!address || !isSupabaseRestEnabled()) {
+        setProjectedEvents([]);
+        setEventsLoading(false);
+        return;
+      }
 
-    const fetchAnalytics = async () => {
+      setEventsLoading(true);
       try {
-        // Convert blockchain orders to trade data
-        const userTrades = convertOrdersToTrades(orders, address);
-        
-        // If no real data, use mock data for demo
-        const trades = userTrades.length > 0 
-          ? userTrades 
-          : await fetchUserTrades(address, 0, daysToFetch);
-        
-        // Only update if we have data
-        if (trades.length === 0) {
-          setMetrics(null);
-          setCategories([]);
-          setPortfolioHistory([]);
-          setInsights([]);
+        const normalized = address.toLowerCase();
+        const orderRows = await restSelect<ProtocolOrderProjectionRow>(
+          'protocol_orders',
+          `?select=id,order_uid,buyer_address,seller_address&or=(buyer_address.eq.${normalized},seller_address.eq.${normalized})`,
+        );
+        const orderIds = orderRows
+          .map((row) => row.id)
+          .filter((value): value is string => Boolean(value && value.length > 0));
+
+        if (orderIds.length === 0) {
+          if (!cancelled) setProjectedEvents([]);
           return;
         }
 
-        // Calculate performance metrics
-        const calculatedMetrics = calculatePerformanceMetrics(trades, portfolioMetrics);
-        setMetrics(calculatedMetrics);
+        const orderIdMap = new Map<string, string>();
+        for (const row of orderRows) {
+          if (row.id && row.order_uid) {
+            orderIdMap.set(row.id, row.order_uid);
+          }
+        }
 
-        // Calculate category performance
-        const categoryPerf = calculateCategoryPerformance(trades);
-        setCategories(categoryPerf);
+        const eventRows = await restSelect<ProtocolOrderEventRow>(
+          'protocol_order_events',
+          `?order=block_time.desc.nullslast,created_at.desc&order_id=${encodeIn(orderIds)}`,
+        );
 
-        // Generate portfolio history (with stable seed to prevent flickering)
-        const history = generatePortfolioHistory(trades, daysToFetch, address);
-        setPortfolioHistory(history);
+        const orderMap = new Map(orders.map((order) => [order.orderId.toString(), order]));
+        const normalizedEvents = eventRows
+          .map((row) => {
+            const orderUid = row.order_id ? orderIdMap.get(row.order_id) : null;
+            if (!orderUid) return null;
+            const order = orderMap.get(orderUid);
+            const kind = normalizeProjectionEventKind(row.event_name);
+            const timestamp = parseTimestamp(row.block_time, parseTimestamp(row.created_at, 0));
+            return {
+              id: row.id || `${orderUid}-${kind}-${row.tx_hash || row.log_index || 'event'}`,
+              orderId: orderUid,
+              assetName: order?.assetName || `Order #${orderUid}`,
+              title: createProjectedEventTitle(kind, row.event_name),
+              detail: createProjectedEventDetail(kind, orderUid, order?.assetName || `Order #${orderUid}`, row.payload),
+              timestamp,
+              status: 'completed' as const,
+              kind,
+              source: 'projection' as const,
+              txHash: row.tx_hash || undefined,
+            } satisfies UserAnalyticsEvent;
+          })
+          .filter((value): value is UserAnalyticsEvent => Boolean(value && value.timestamp > 0));
 
-        // Generate insights
-        const generatedInsights = generateInsights(calculatedMetrics, categoryPerf);
-        setInsights(generatedInsights);
+        if (!cancelled) {
+          setProjectedEvents(normalizedEvents);
+        }
       } catch (error) {
-        console.error('Error fetching analytics:', error);
+        console.warn('[useAnalytics] Failed to load projected order events', error);
+        if (!cancelled) {
+          setProjectedEvents([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setEventsLoading(false);
+        }
       }
     };
 
-    fetchAnalytics();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address, ordersString, ordersLoading, metricsLoading, daysToFetch]);
+    void loadProjectedEvents();
+    const poller = window.setInterval(() => {
+      void loadProjectedEvents();
+    }, 15000);
 
-  return {
-    metrics,
-    categories,
-    portfolioHistory,
-    insights,
-    isLoading,
-  };
-}
-
-/**
- * Convert blockchain orders to TradePerformance format
- */
-function convertOrdersToTrades(orders: any[], userAddress: string): TradePerformance[] {
-  if (!orders || orders.length === 0) return [];
-
-  return orders
-    .filter(order => order.buyer.toLowerCase() === userAddress.toLowerCase())
-    .map(order => {
-      const buyPrice = Number(order.grossPrice) / 1e18; // Convert from wei
-      const currentPrice = buyPrice * (1 + Math.random() * 0.5 - 0.1); // Mock current price
-      const profit = currentPrice - buyPrice;
-      const profitPercentage = (profit / buyPrice) * 100;
-      
-      const createdTime = Number(order.createdAt) * 1000;
-      const now = Date.now();
-      const holdingTime = Math.floor((now - createdTime) / (1000 * 60 * 60 * 24));
-
-      return {
-        assetId: order.assetId.toString(),
-        assetName: order.assetName ?? `Asset #${order.assetId}`,
-        buyPrice,
-        currentPrice,
-        profit,
-        profitPercentage,
-        holdingTime,
-        status: order.finalized || order.state === 3 ? 'sold' : 'holding',
-      } as TradePerformance;
-    });
-}
-
-/**
- * Fetch user trades from blockchain
- * This should iterate through orders and filter by user address
- */
-async function fetchUserTrades(
-  userAddress: string,
-  totalOrders: number,
-  daysToFetch: number
-): Promise<TradePerformance[]> {
-  // TODO: Replace with actual blockchain calls
-  // For now, return mock data for demo
-  const mockTrades: TradePerformance[] = [
-    {
-      assetId: '1',
-      assetName: 'CryptoPunk #1234',
-      buyPrice: 45,
-      sellPrice: 282,
-      profit: 237,
-      profitPercentage: 526.7,
-      holdingTime: 12,
-      status: 'sold',
-    },
-    {
-      assetId: '2',
-      assetName: 'BAYC #5678',
-      buyPrice: 124.5,
-      sellPrice: 82.1,
-      profit: -42.4,
-      profitPercentage: -34.2,
-      holdingTime: 8,
-      status: 'sold',
-    },
-    {
-      assetId: '3',
-      assetName: 'Azuki #9012',
-      buyPrice: 15,
-      currentPrice: 22.5,
-      profit: 7.5,
-      profitPercentage: 50,
-      holdingTime: 18,
-      status: 'holding',
-    },
-  ];
-
-  return mockTrades;
-}
-
-/**
- * Calculate performance metrics from trades
- */
-function calculatePerformanceMetrics(trades: TradePerformance[], portfolioMetrics?: any): PerformanceMetrics {
-  // If no trades yet, return empty metrics
-  if (!trades || trades.length === 0) {
-    return {
-      totalInvested: 0,
-      currentValue: 0,
-      totalProfit: 0,
-      totalLoss: 0,
-      roi: 0,
-      winRate: 0,
-      bestTrade: {
-        assetId: '',
-        assetName: 'N/A',
-        buyPrice: 0,
-        profit: 0,
-        profitPercentage: 0,
-        holdingTime: 0,
-        status: 'holding',
-      },
-      worstTrade: {
-        assetId: '',
-        assetName: 'N/A',
-        buyPrice: 0,
-        profit: 0,
-        profitPercentage: 0,
-        holdingTime: 0,
-        status: 'holding',
-      },
-      averageHoldingTime: 0,
+    return () => {
+      cancelled = true;
+      window.clearInterval(poller);
     };
-  }
+  }, [address, orders]);
 
-  const totalInvested = trades.reduce((sum, trade) => sum + trade.buyPrice, 0);
-  const currentValue = trades.reduce((sum, trade) => {
-    return sum + (trade.sellPrice || trade.currentPrice || trade.buyPrice);
-  }, 0);
-
-  const totalProfit = trades
-    .filter(t => t.profit > 0)
-    .reduce((sum, t) => sum + t.profit, 0);
-
-  const totalLoss = Math.abs(
-    trades
-      .filter(t => t.profit < 0)
-      .reduce((sum, t) => sum + t.profit, 0)
-  );
-
-  const roi = totalInvested > 0 ? ((currentValue - totalInvested) / totalInvested) * 100 : 0;
-
-  const winningTrades = trades.filter(t => t.profit > 0).length;
-  const winRate = trades.length > 0 ? (winningTrades / trades.length) * 100 : 0;
-
-  const bestTrade = trades.reduce((best, trade) => 
-    trade.profitPercentage > best.profitPercentage ? trade : best
-  , trades[0]);
-
-  const worstTrade = trades.reduce((worst, trade) =>
-    trade.profitPercentage < worst.profitPercentage ? trade : worst
-  , trades[0]);
-
-  const averageHoldingTime = trades.length > 0 
-    ? trades.reduce((sum, t) => sum + t.holdingTime, 0) / trades.length 
-    : 0;
-
-  return {
-    totalInvested,
-    currentValue,
-    totalProfit,
-    totalLoss,
-    roi,
-    winRate,
-    bestTrade,
-    worstTrade,
-    averageHoldingTime,
-  };
-}
-
-/**
- * Calculate performance by category
- */
-function calculateCategoryPerformance(trades: TradePerformance[]): CategoryPerformance[] {
-  // TODO: Categorize based on RWA asset metadata
-  // For now, return mock RWA categories
-  return [
-    {
-      category: 'Real Estate',
-      totalInvested: 85000,
-      currentValue: 123420,
-      profit: 38420,
-      profitPercentage: 45.2,
-      assetCount: 12,
-      bestAsset: 'Property Token #1234',
-    },
-    {
-      category: 'Commodities',
-      totalInvested: 45000,
-      currentValue: 50760,
-      profit: 5760,
-      profitPercentage: 12.8,
-      assetCount: 5,
-      bestAsset: 'Gold Certificate #5678',
-    },
-    {
-      category: 'Securities',
-      totalInvested: 12500,
-      currentValue: 11825,
-      profit: -675,
-      profitPercentage: -5.4,
-      assetCount: 3,
-      bestAsset: 'Bond Token #9012',
-    },
-  ];
-}
-
-/**
- * Generate portfolio value history over time
- * Uses deterministic values to prevent flickering
- */
-function generatePortfolioHistory(
-  trades: TradePerformance[],
-  days: number,
-  userAddress: string
-): TimeSeriesData[] {
-  const history: TimeSeriesData[] = [];
-  const baseValue = 142500;
-  const currentValue = 177412.5;
-  const growth = (currentValue - baseValue) / days;
-
-  // Use address as seed for deterministic "random" values
-  const seed = userAddress.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-
-  for (let i = 0; i <= days; i++) {
-    const date = new Date();
-    date.setDate(date.getDate() - (days - i));
-    
-    // Deterministic fluctuation based on day index and seed
-    // This creates a smooth curve without random flickering
-    const waveFactor = Math.sin((i / days) * Math.PI * 4 + seed) * 0.05;
-    const trendFactor = Math.sin((i / days) * Math.PI * 2 + seed) * 0.03;
-    const fluctuation = 1 + waveFactor + trendFactor;
-    
-    const value = baseValue + (growth * i * fluctuation);
-
-    history.push({
-      date: date.toISOString().split('T')[0],
-      value: Math.round(value * 100) / 100,
-      label: i % 7 === 0 ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : undefined,
-    });
-  }
-
-  return history;
-}
-
-/**
- * Generate AI-powered insights based on metrics
- */
-function generateInsights(
-  metrics: PerformanceMetrics,
-  categories: CategoryPerformance[]
-): AnalyticsInsight[] {
-  const insights: AnalyticsInsight[] = [];
-
-  // Successful delivery rate insight
-  if (metrics.winRate > 65) {
-    insights.push({
-      type: 'success',
-      category: 'Performance',
-      title: 'High Success Rate',
-      message: `Your RWA transactions have a ${metrics.winRate.toFixed(0)}% successful completion rate. Strong track record with reliable sellers.`,
-      trend: 'up',
-    });
-  }
-
-  // Concentration risk warning for RWA categories
-  const largestCategory = categories.reduce((max, cat) => 
-    cat.currentValue > max.currentValue ? cat : max
-  , categories[0]);
-
-  const concentration = (largestCategory.currentValue / metrics.currentValue) * 100;
-  if (concentration > 40) {
-    insights.push({
-      type: 'warning',
-      category: 'Risk Management',
-      title: 'Asset Concentration',
-      message: `${concentration.toFixed(0)}% of your RWA portfolio is concentrated in ${largestCategory.category}. Consider diversifying across asset categories.`,
-      trend: 'stable',
-    });
-  }
-
-  // Market activity insight for RWA marketplace
-  insights.push({
-    type: 'info',
-    category: 'Market Conditions',
-    title: 'Settlement Efficiency',
-    message: 'Average delivery time is 12% faster this month. Marketplace settlement efficiency improving across all asset categories.',
-    trend: 'up',
-  });
-
-  return insights;
-}
-
-/**
- * Hook for portfolio distribution (by chain/token)
- */
-export function usePortfolioDistribution() {
   return useMemo(() => {
-    return [
-      { name: 'Ethereum', value: 60, color: '#2CC295' },
-      { name: 'Solana', value: 25, color: '#1e8c6c' },
-      { name: 'Others', value: 15, color: '#15614a' },
-    ];
-  }, []);
+    if (!address) {
+      return {
+        metrics: null,
+        activity: [],
+        calendarEvents: [],
+        recentEvents: [],
+        upcomingEvents: [],
+        lifecycleBreakdown: [],
+        paymentBreakdown: [],
+        insights: [],
+        isLoading: isLoading || eventsLoading,
+      };
+    }
+
+    const userOrders = orders.filter((order) => {
+      const normalized = address.toLowerCase();
+      return order.buyer.toLowerCase() === normalized || order.seller.toLowerCase() === normalized;
+    });
+
+    const activeOrders = userOrders.filter((order) => (
+      order.state === OrderState.PENDING_CONFIRM
+      || order.state === OrderState.PAID
+      || order.state === OrderState.DISPUTED
+    )).length;
+    const finalizedOrders = userOrders.filter((order) => order.finalized || order.state === OrderState.FINALIZED).length;
+    const disputedOrders = userOrders.filter((order) => order.state === OrderState.DISPUTED || order.disputed).length;
+    const cancelledOrders = userOrders.filter((order) => order.state === OrderState.CANCELLED).length;
+    const asBuyerCount = userOrders.filter((order) => order.buyer.toLowerCase() === address.toLowerCase()).length;
+    const asSellerCount = userOrders.filter((order) => order.seller.toLowerCase() === address.toLowerCase()).length;
+
+    const timelineEntries = userOrders.flatMap(buildTimelineEntries);
+    const completedDerived = timelineEntries.filter((entry) => entry.status === 'completed');
+    const completedEvents = mergeCompletedEvents(completedDerived, projectedEvents);
+    const upcomingEvents = [...timelineEntries]
+      .filter((entry) => entry.status !== 'completed')
+      .sort((left, right) => left.timestamp - right.timestamp)
+      .slice(0, 10);
+    const calendarEvents = [...completedEvents, ...upcomingEvents].sort((left, right) => left.timestamp - right.timestamp);
+    const recentEvents = [...completedEvents]
+      .sort((left, right) => right.timestamp - left.timestamp)
+      .slice(0, 10);
+
+    const lifecycleMap = new Map<string, { phase: string; label: string; count: number }>();
+    const paymentMap = new Map<string, UserAnalyticsTokenBucket>();
+    for (const order of userOrders) {
+      const phase = getOrderLifecyclePhase(order);
+      const lifecycle = lifecycleMap.get(phase) ?? {
+        phase,
+        label: getOrderLifecycleLabel(order),
+        count: 0,
+      };
+      lifecycle.count += 1;
+      lifecycleMap.set(phase, lifecycle);
+
+      const symbol = order.paymentTokenSymbol || 'ERC20';
+      const token = paymentMap.get(symbol) ?? {
+        symbol,
+        decimals: order.paymentTokenDecimals ?? 18,
+        orderCount: 0,
+        finalizedCount: 0,
+        grossVolume: 0n,
+      };
+      token.orderCount += 1;
+      token.grossVolume += order.grossPrice;
+      if (order.finalized || order.state === OrderState.FINALIZED) {
+        token.finalizedCount += 1;
+      }
+      paymentMap.set(symbol, token);
+    }
+
+    const metrics: UserAnalyticsMetricSnapshot = {
+      totalOrders: userOrders.length,
+      activeOrders,
+      finalizedOrders,
+      disputedOrders,
+      cancelledOrders,
+      asBuyerCount,
+      asSellerCount,
+      upcomingActions: upcomingEvents.length,
+    };
+
+    const insights: UserAnalyticsInsight[] = [];
+    if (userOrders.length === 0) {
+      insights.push({
+        type: 'info',
+        title: 'No On-Chain Activity Yet',
+        message: 'Create or fulfill an order to start building your on-chain activity timeline.',
+      });
+    } else {
+      if (activeOrders > 0) {
+        insights.push({
+          type: 'warning',
+          title: 'Open Workflow Requires Attention',
+          message: `${activeOrders} order(s) still need action or protocol completion.`,
+        });
+      }
+      if (finalizedOrders > 0) {
+        insights.push({
+          type: 'success',
+          title: 'Settlements Confirmed On-Chain',
+          message: `${finalizedOrders} order(s) have already finalized on-chain.`,
+        });
+      }
+      if (upcomingEvents.length > 0) {
+        insights.push({
+          type: 'info',
+          title: 'Future Deadlines Tracked',
+          message: `${upcomingEvents.length} upcoming protocol milestone(s) are being tracked from order lifecycle deadlines.`,
+        });
+      }
+    }
+
+    return {
+      metrics,
+      activity: buildActivityPoints(userOrders, timeRange),
+      calendarEvents,
+      recentEvents,
+      upcomingEvents,
+      lifecycleBreakdown: Array.from(lifecycleMap.values()).sort((left, right) => right.count - left.count),
+      paymentBreakdown: Array.from(paymentMap.values()).sort((left, right) => right.orderCount - left.orderCount),
+      insights,
+      isLoading: isLoading || eventsLoading,
+    };
+  }, [address, isLoading, eventsLoading, orders, projectedEvents, timeRange]);
 }
 
-/**
- * Export analytics data to CSV
- */
-export function exportAnalytics(
-  metrics: PerformanceMetrics | null,
-  categories: CategoryPerformance[],
-  portfolioHistory: TimeSeriesData[]
-) {
-  if (!metrics) return;
+export function usePortfolioDistribution() {
+  const { paymentBreakdown } = useAnalytics('ALL');
+  return paymentBreakdown.map((token, index) => ({
+    name: token.symbol,
+    value: token.orderCount,
+    color: ['#2CC295', '#1e8c6c', '#15614a', '#6A4C93'][index % 4],
+  }));
+}
 
-  const csvData = [
-    ['Personal Analytics Export'],
-    ['Generated:', new Date().toLocaleString()],
+export function exportAnalytics(result: UserAnalyticsResult) {
+  if (!result.metrics) return;
+
+  const rows = [
+    ['User Analytics Export'],
+    ['Generated', new Date().toLocaleString()],
     [''],
-    ['Performance Metrics'],
-    ['Total Invested', `$${metrics.totalInvested.toFixed(2)}`],
-    ['Current Value', `$${metrics.currentValue.toFixed(2)}`],
-    ['ROI', `${metrics.roi.toFixed(2)}%`],
-    ['Win Rate', `${metrics.winRate.toFixed(1)}%`],
-    ['Avg Hold Time', `${metrics.averageHoldingTime.toFixed(1)} days`],
+    ['Metric', 'Value'],
+    ['Total Orders', String(result.metrics.totalOrders)],
+    ['Active Orders', String(result.metrics.activeOrders)],
+    ['Finalized Orders', String(result.metrics.finalizedOrders)],
+    ['Disputed Orders', String(result.metrics.disputedOrders)],
+    ['Cancelled Orders', String(result.metrics.cancelledOrders)],
+    ['Buyer Orders', String(result.metrics.asBuyerCount)],
+    ['Seller Orders', String(result.metrics.asSellerCount)],
     [''],
-    ['Category Performance'],
-    ['Category', 'Invested', 'Current Value', 'Profit %'],
-    ...categories.map(cat => [
-      cat.category,
-      `$${cat.totalInvested}`,
-      `$${cat.currentValue}`,
-      `${cat.profitPercentage}%`,
+    ['Recent Events'],
+    ['Timestamp', 'Order', 'Title', 'Detail', 'Status'],
+    ...result.recentEvents.map((event) => [
+      new Date(event.timestamp).toISOString(),
+      event.orderId,
+      event.title,
+      event.detail,
+      event.status,
     ]),
     [''],
-    ['Portfolio History'],
-    ['Date', 'Value'],
-    ...portfolioHistory.map(h => [h.date, h.value.toString()]),
+    ['Upcoming Events'],
+    ['Timestamp', 'Order', 'Title', 'Detail', 'Status'],
+    ...result.upcomingEvents.map((event) => [
+      new Date(event.timestamp).toISOString(),
+      event.orderId,
+      event.title,
+      event.detail,
+      event.status,
+    ]),
+    [''],
+    ['Calendar Events'],
+    ['Timestamp', 'Order', 'Title', 'Detail', 'Status', 'Source'],
+    ...result.calendarEvents.map((event) => [
+      new Date(event.timestamp).toISOString(),
+      event.orderId,
+      event.title,
+      event.detail,
+      event.status,
+      event.source,
+    ]),
   ];
 
-  const csv = csvData.map(row => row.join(',')).join('\n');
+  const csv = rows.map((row) => row.join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `analytics-export-${Date.now()}.csv`;
-  a.click();
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `user-analytics-${Date.now()}.csv`;
+  anchor.click();
   window.URL.revokeObjectURL(url);
 }

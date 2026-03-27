@@ -5,7 +5,7 @@ export interface FavoriteAsset {
 
 export type FavoriteSortOption = 'recent' | 'name' | 'price-high' | 'price-low' | 'change';
 
-export type FavoriteFilterOption = 'all' | 'art' | 'collectibles' | 'real-estate' | 'luxury';
+export type FavoriteFilterOption = 'all' | string;
 
 export interface FavoritesStats {
   totalFavorites: number;

@@ -40,7 +40,7 @@ import { getWalletErrorMessage } from '@/utils/walletErrors';
 
 interface DisputeResolutionModalProps {
   order: OrderUiRecord;
-  currentUser: `0x${string}`;
+  currentUser?: `0x${string}`;
   userRole: 'buyer' | 'seller' | 'arbiter';
   onClose: () => void;
   onOrderUpdate: (order: OrderUiRecord) => void;
@@ -137,6 +137,10 @@ export function DisputeResolutionModal({
   const ensureWalletReady = async (actionLabel: string) => {
     setStatusMessage(null);
     setActionError(null);
+    if (!currentUser) {
+      setActionError('Connect a wallet on the protocol network to write to this dispute.');
+      return false;
+    }
     if (
       !(await requireWalletActionAsync({
         capability: 'protocol_dispute_write',
@@ -152,6 +156,10 @@ export function DisputeResolutionModal({
   const handleSendMessage = () => {
     const trimmed = newMessage.trim();
     if (!trimmed) return;
+    if (!currentUser) {
+      setActionError('Connect a wallet to post a shared dispute message.');
+      return;
+    }
     const nextOrder = appendDisputeMessage(order, userRole, currentUser, trimmed);
     pushOrderUpdate(nextOrder);
     setNewMessage('');
@@ -359,12 +367,13 @@ export function DisputeResolutionModal({
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                    placeholder="Type your message..."
+                    placeholder={currentUser ? 'Type your message...' : 'Connect wallet to post a message...'}
+                    disabled={!currentUser || isBusy}
                     className="flex-1 h-11 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-xl px-4 text-sm text-white placeholder:text-zinc-600"
                   />
                   <button
                     onClick={handleSendMessage}
-                    disabled={!newMessage.trim() || isBusy}
+                    disabled={!currentUser || !newMessage.trim() || isBusy}
                     className="w-11 h-11 rounded-full bg-[#2CC295] hover:bg-[#25a882] text-black inline-flex items-center justify-center disabled:opacity-40"
                   >
                     <Send size={16} />
@@ -372,6 +381,7 @@ export function DisputeResolutionModal({
                 </div>
                 <button
                   onClick={() => setShowProposalForm((prev) => !prev)}
+                  disabled={!currentUser}
                   className="w-full h-10 rounded-full bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-white text-xs font-bold uppercase tracking-widest"
                 >
                   {showProposalForm ? 'Close Proposal Form' : 'Open Proposal Form'}
@@ -400,7 +410,7 @@ export function DisputeResolutionModal({
                       </div>
                     ) : null}
                     <div className="text-xs text-zinc-300">{describeProposal(proposalType, sharesFor(proposalType, splitRatio).buyerShareBps, sharesFor(proposalType, splitRatio).sellerShareBps)}</div>
-                    <button onClick={() => void handleSubmitProposal()} disabled={isBusy} className="w-full h-10 rounded-full bg-amber-400 hover:bg-amber-300 text-black text-sm font-bold disabled:opacity-50">
+                    <button onClick={() => void handleSubmitProposal()} disabled={!currentUser || isBusy} className="w-full h-10 rounded-full bg-amber-400 hover:bg-amber-300 text-black text-sm font-bold disabled:opacity-50">
                       {signAgreement.isPending ? 'Open MetaMask...' : 'Submit Proposal'}
                     </button>
                   </div>
@@ -415,7 +425,7 @@ export function DisputeResolutionModal({
                   <div className="space-y-3">
                     {disputeCase.proposals.map((proposal) => {
                       const signedByViewer = Boolean(proposal.signatures[userRole]);
-                      const canSign = proposal.status === 'pending' && !signedByViewer;
+                      const canSign = Boolean(currentUser) && proposal.status === 'pending' && !signedByViewer;
                       return (
                         <div key={proposal.id} className="rounded-xl border border-[rgba(255,255,255,0.08)] bg-black/40 p-3 space-y-3">
                           <div>

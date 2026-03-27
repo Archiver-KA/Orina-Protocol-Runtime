@@ -1,4 +1,4 @@
-import { Search, Smile, Paperclip, Send, Copy, Diamond, Coins, Zap, Flag, ArrowRight, Bot, Star, Plus, AlertTriangle, X } from 'lucide-react';
+import { Search, Smile, Paperclip, Send, Copy, Diamond, Coins, Zap, Flag, ArrowRight, Bot, Star, Plus, AlertTriangle, X, ArrowUp } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { getAvatarByUserId } from '@/app/components/user-avatars';
@@ -23,6 +23,7 @@ import {
   subscribeChatConversationList,
   subscribeChatConversationThread,
 } from '@/utils/chatRealtimeAdapter';
+import { BorderlessTextarea } from '@/app/components/ai/borderless-textarea';
 
 // ✅ FIX: Local image attachment type (different from UploadedImage which requires IPFS fields)
 interface AttachedImage {
@@ -1059,10 +1060,10 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                           </div>
                         )}
                       </div>
-                      <div className="min-w-0 max-w-full overflow-hidden rounded-2xl rounded-bl-none border border-ui-border-subtle bg-ui-input p-4 backdrop-blur-lg">
+                      <div className="min-w-0 max-w-full overflow-hidden rounded-2xl rounded-bl-none bg-ui-input p-4 backdrop-blur-lg !border-0 !shadow-none ring-0">
                         {message.image && (
                           <div className="mb-2">
-                            <div className="w-[220px] sm:w-[260px] aspect-[4/3] rounded-lg overflow-hidden border border-ui-border-subtle bg-ui-input">
+                            <div className="w-[220px] sm:w-[260px] aspect-[4/3] rounded-lg overflow-hidden bg-ui-input">
                               <img src={message.image.url} alt="Attached" className="w-full h-full object-cover" />
                             </div>
                           </div>
@@ -1090,10 +1091,10 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                           return <CurrentUserAvatar className="w-full h-full" />;
                         })()}
                       </div>
-                      <div className="min-w-0 max-w-full overflow-hidden rounded-2xl rounded-br-none border border-[#2CC295]/20 bg-[#2CC295]/15 p-4 backdrop-blur-lg">
+                      <div className="min-w-0 max-w-full overflow-hidden rounded-2xl rounded-br-none bg-[#2CC295]/15 p-4 backdrop-blur-lg !border-0 !shadow-none ring-0">
                         {message.image && (
                           <div className="mb-2">
-                            <div className="w-[220px] sm:w-[260px] aspect-[4/3] rounded-lg overflow-hidden border border-[#2CC295]/20 bg-ui-input">
+                            <div className="w-[220px] sm:w-[260px] aspect-[4/3] rounded-lg overflow-hidden bg-ui-input">
                               <img src={message.image.url} alt="Attached" className="w-full h-full object-cover" />
                             </div>
                           </div>
@@ -1132,7 +1133,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                         </div>
                       )}
                     </div>
-                    <div className="bg-ui-input backdrop-blur-lg border border-ui-border-subtle p-4 rounded-2xl rounded-bl-none">
+                    <div className="bg-ui-input backdrop-blur-lg p-4 rounded-2xl rounded-bl-none !border-0 !shadow-none ring-0">
                       <div className="flex gap-1">
                         <span className="w-2 h-2 bg-ui-muted rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
                         <span className="w-2 h-2 bg-ui-muted rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
@@ -1148,36 +1149,53 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
             </div>
 
             {/* Message Input */}
-            <div className="p-6 border-t border-[var(--t-border-subtle)] bg-ui-input backdrop-blur-[6px]">
-              <div className="flex items-center gap-4 max-w-4xl mx-auto w-full">
-                <div className="flex-grow relative">
-                  <input
-                    className="w-full bg-ui-input border border-ui-border rounded-xl px-4 py-3 pr-20 text-sm text-ui-primary focus:ring-primary/35 focus:border-primary placeholder:text-ui-muted"
-                    placeholder="Type a secure message..."
-                    type="text"
+            <div className="p-6 bg-transparent">
+              <div className="flex items-end gap-2 bg-[var(--t-input-bg)] rounded-[24px] px-2 py-2 transition-colors !border-0 !shadow-none ring-0 max-w-4xl mx-auto w-full">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-7 h-7 flex items-center justify-center shrink-0 rounded-lg text-ui-muted hover:text-ui-primary transition-colors mb-[1px]"
+                  title="Attach file"
+                >
+                  <Plus size={18} />
+                </button>
+                <div className="relative flex-1 flex flex-col justify-center">
+                  <BorderlessTextarea
+                    id="message-inbox-input"
+                    rows={1}
                     value={userInput}
                     onChange={(e) => setUserInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
                     onFocus={handleTyping}
+                    onInput={(e) => {
+                      const target = e.target as HTMLTextAreaElement;
+                      target.style.height = 'auto';
+                      target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
+                    }}
+                    placeholder="Type a secure message..."
+                    className="flex-1 resize-none bg-transparent text-[14px] font-medium text-ui-primary placeholder:text-ui-muted overflow-y-auto leading-relaxed py-1.5 px-1 self-center"
+                    style={{ minHeight: '22px', maxHeight: '120px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                   />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-2">
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 flex gap-1">
                     <button
                       ref={emojiButtonRef}
-                      className={`transition-colors ${showEmojiPicker ? 'text-[#2CC295]' : 'text-ui-muted hover:text-ui-primary'}`}
+                      className={`w-7 h-7 flex items-center justify-center shrink-0 rounded-lg transition-colors ${showEmojiPicker ? 'text-[#2CC295]' : 'text-ui-muted hover:text-ui-primary'}`}
                       onClick={() => setShowEmojiPicker(prev => !prev)}
                       type="button"
                     >
                       <Smile size={18} />
-                    </button>
-                    <button className="text-ui-muted hover:text-ui-primary transition-colors" onClick={() => fileInputRef.current?.click()}>
-                      <Paperclip size={18} />
                     </button>
                   </div>
                   {/* Emoji Picker - anchored inside input wrapper to prevent overflow */}
                   {showEmojiPicker && (
                     <div
                       ref={emojiPickerRef}
-                      className="absolute bottom-full right-0 mb-2 bg-ui-dropdown border border-ui-border-subtle rounded-xl p-3 shadow-2xl shadow-black/40 backdrop-blur-[20px] z-[120]"
+                      className="absolute bottom-[calc(100%+0.5rem)] right-0 mb-2 bg-ui-dropdown border border-ui-border-subtle rounded-xl p-3 shadow-2xl shadow-black/40 backdrop-blur-[20px] z-[120]"
                     >
                       <div className="flex flex-col gap-1.5">
                         {emojiRows.map((row, rowIdx) => (
@@ -1198,12 +1216,16 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                     </div>
                   )}
                 </div>
-                <button
-                  className="w-11 h-11 bg-[#2CC295] text-black rounded-full flex items-center justify-center hover:shadow-lg hover:shadow-[#2CC295]/20 hover:scale-105 transition-all flex-shrink-0"
-                  onClick={handleSendMessage}
-                >
-                  <Send size={18} />
-                </button>
+                <div className="flex items-center gap-2 shrink-0 mb-[1px]">
+                  <button
+                    type="button"
+                    onClick={handleSendMessage}
+                    disabled={(!userInput.trim() && !attachedImage) || sendingMessage}
+                    className="w-7 h-7 flex flex-col items-center justify-center shrink-0 rounded-full bg-ui-primary hover:opacity-80 text-[var(--t-page-bg)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+                  >
+                    <ArrowUp size={15} strokeWidth={3} />
+                  </button>
+                </div>
               </div>
               <input
                 ref={fileInputRef}

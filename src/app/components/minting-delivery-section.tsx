@@ -42,6 +42,7 @@ export interface MintingDeliveryState {
 interface MintingDeliverySectionProps {
   walletAddress?: string;
   submitAttempt: number;
+  initialState?: MintingDeliveryState | null;
   onChange?: (state: MintingDeliveryState) => void;
 }
 
@@ -102,20 +103,29 @@ function validateMintOverrideDraft(
 export function MintingDeliverySection({
   walletAddress,
   submitAttempt,
+  initialState,
   onChange,
 }: MintingDeliverySectionProps) {
-  const [mode, setMode] = useState<MintDeliveryMode>('Default Address');
+  const [mode, setMode] = useState<MintDeliveryMode>(
+    initialState?.mode === 'other' ? 'Other Address' : 'Default Address'
+  );
   const [countries, setCountries] = useState<GeoCountry[]>([]);
-  const [defaultAddress, setDefaultAddress] = useState<DeliveryAddressRecord | null>(null);
-  const [otherDraft, setOtherDraft] = useState<DeliveryAddressDraft>(createMintOverrideDraft());
+  const [defaultAddress, setDefaultAddress] = useState<DeliveryAddressRecord | null>(
+    initialState?.defaultAddress ?? null
+  );
+  const [otherDraft, setOtherDraft] = useState<DeliveryAddressDraft>(
+    initialState?.otherDraft ?? createMintOverrideDraft(initialState?.defaultAddress)
+  );
   const [fieldErrors, setFieldErrors] = useState<DeliveryAddressFieldErrors>({});
   const [levelOptions, setLevelOptions] = useState<Record<number, GeoPlace[]>>({});
   const [levelLoading, setLevelLoading] = useState<Record<number, boolean>>({});
   const [levelErrors, setLevelErrors] = useState<Record<number, string>>({});
   const [countriesError, setCountriesError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [locationSnapshot, setLocationSnapshot] = useState<AssetLocationSnapshot | null>(null);
-  const hasSeededOverrideDraftRef = useRef(false);
+  const [locationSnapshot, setLocationSnapshot] = useState<AssetLocationSnapshot | null>(
+    initialState?.locationSnapshot ?? null
+  );
+  const hasSeededOverrideDraftRef = useRef(Boolean(initialState));
 
   const selectedCountry = useMemo(
     () => resolveCountryByCode(countries, otherDraft.countryCode),
@@ -170,11 +180,13 @@ export function MintingDeliverySection({
   );
 
   useEffect(() => {
-    hasSeededOverrideDraftRef.current = false;
-    setMode('Default Address');
-    setOtherDraft(createMintOverrideDraft());
+    hasSeededOverrideDraftRef.current = Boolean(initialState);
+    setMode(initialState?.mode === 'other' ? 'Other Address' : 'Default Address');
+    setDefaultAddress(initialState?.defaultAddress ?? null);
+    setOtherDraft(initialState?.otherDraft ?? createMintOverrideDraft(initialState?.defaultAddress));
+    setLocationSnapshot(initialState?.locationSnapshot ?? null);
     setFieldErrors({});
-  }, [walletAddress]);
+  }, [initialState, walletAddress]);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,14 +204,16 @@ export function MintingDeliverySection({
 
         const preferred = getPreferredDeliveryAddress(addresses);
         setCountries(nextCountries);
-        setDefaultAddress(preferred);
+        if (!initialState) {
+          setDefaultAddress(preferred);
+        }
 
         if (!hasSeededOverrideDraftRef.current) {
           setOtherDraft(createMintOverrideDraft(preferred));
           hasSeededOverrideDraftRef.current = true;
         }
 
-        if (!preferred) {
+        if (!preferred && !initialState) {
           setMode('Other Address');
         }
       } catch (error) {
@@ -218,7 +232,7 @@ export function MintingDeliverySection({
     return () => {
       cancelled = true;
     };
-  }, [walletAddress]);
+  }, [initialState, walletAddress]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

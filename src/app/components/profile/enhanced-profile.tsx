@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef, type ChangeEvent } from 'react';
+import { useState, useEffect, useMemo, useRef, type ChangeEvent } from 'react';
 import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
 import {
   Grid3x3,
   Activity as ActivityIcon,
-  Heart,
   Pencil,
   Twitter,
   MessageCircle,
@@ -24,7 +23,6 @@ import {
   X
 } from 'lucide-react';
 import { EditProfileModal } from './edit-profile-modal';
-import { toggleFavorite } from '@/utils/favoritesUtils';
 import {
   createNotification,
   loadNotificationsLocalOnly,
@@ -38,19 +36,16 @@ import {
   createDefaultProfile,
   formatUserDisplayName,
   shortenUserDisplayName,
-  loadUserActivities,
   followUser,
   unfollowUser,
   isFollowing as isFollowingUser,
   forceHydrateProfileFromSupabase
 } from '@/utils/profileUtils';
-import { loadFavoriteMarketplaceAssets } from '@/utils/favoriteMarketplaceUtils';
-import { ASSET_METADATA_CHANGED_EVENT } from '@/utils/assetMetadataSync';
 import { sendCommunityNotificationViaBridge } from '@/utils/supabaseAuthClaimBridge';
 import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
 import { getAvatarByUserId } from '@/app/components/user-avatars';
 import { SearchResultCard } from '@/app/components/search-result-card';
-import { CollectionCard } from '@/app/components/collection-card';
+import { MyAssetRwaCard } from '@/app/components/cards/my-asset-cards';
 import { CollectionEditorModal } from '@/app/components/collections/collection-editor-modal';
 import { CollectionDetailsModal } from '@/app/components/collections/collection-details-modal';
 import { CollectionsGridPanel } from '@/app/components/collections/collections-grid-panel';
@@ -59,6 +54,7 @@ import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { VerifiedUserIcon } from '@/app/components/verified-user-icon';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
+import { useUserOrders } from '@/hooks/useUserOrders';
 import {
   getWalletIdentity,
   formatETH,
@@ -72,22 +68,34 @@ import type { WalletIdentity } from '@/types/wallet-identity';
 import type {
   UserProfile,
   ProfileTab,
-  ActivityItem,
   StoryBlock,
   StorySettings,
   UserStoryDocument,
 } from '@/types/profile';
 import type { MarketplaceAsset } from '@/app/types/asset';
 import type { CollectionSummary } from '@/types/collection';
+import type { RuntimeMintedAssetRecord } from '@/utils/runtimeMintedAssets';
 import {
   COLLECTIONS_SYNC_EVENT,
   createCollection,
   loadCollectionsByOwner,
-  loadFavoriteCollectionSummaries,
   queueCollectionsBackfillForWallet,
-  toggleCollectionFavorite,
   updateCollection,
 } from '@/utils/collectionsUtils';
+import {
+  hydrateMarketplaceCatalogFromSupabase,
+  loadMarketplaceCatalogSync,
+  MARKETPLACE_CATALOG_SYNC_EVENT,
+} from '@/utils/marketplaceCatalog';
+import {
+  hydrateRuntimeMintedAssetsFromSupabase,
+  loadRuntimeMintedAssets,
+  subscribeToRuntimeMintedAssets,
+} from '@/utils/runtimeMintedAssets';
+import {
+  buildProfileMintedMarketplaceAssets,
+  buildProfileTopProducts,
+} from '@/utils/profileOverview';
 
 // Mock data for reviews fallback only
 const mockReviews = [
@@ -95,16 +103,6 @@ const mockReviews = [
   { id: '2', avatar: '', reviewer: '0x7Fc...e22', rating: 4, comment: 'Great seller, asset was exactly as described.' },
   { id: '3', avatar: '', reviewer: '0x1De...c45', rating: 5, comment: 'Highly recommended. Smooth transaction.' },
 ];
-
-// Activity type display config
-const activityTypeConfig: Record<string, { label: string; color: string }> = {
-  mint: { label: 'Minted NFT', color: 'bg-[var(--color-primary-custom)]' },
-  purchase: { label: 'Purchased', color: 'bg-blue-500' },
-  sale: { label: 'Sold', color: 'bg-yellow-500' },
-  transfer: { label: 'Transferred', color: 'bg-purple-500' },
-  list: { label: 'Listed', color: 'bg-orange-500' },
-  offer: { label: 'Offer Made', color: 'bg-pink-500' },
-};
 
 const STORY_CHARACTER_LIMIT = 5000;
 const STORY_IMAGE_LIMIT = 5;
@@ -142,15 +140,6 @@ function createStoryDocument(
   };
 }
 
-function formatActivityTime(timestamp: number): string {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 60) return 'just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 2592000) return `${Math.floor(seconds / 86400)}d ago`;
-  return `${Math.floor(seconds / 2592000)}mo ago`;
-}
-
 interface EnhancedProfileProps {
   address?: string;
   onNavigateToAsset?: (assetId: string, fromPage?: string) => void;
@@ -166,12 +155,8 @@ export function EnhancedProfile({
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [favoriteAssets, setFavoriteAssets] = useState<MarketplaceAsset[]>([]);
-  const [favoriteCollections, setFavoriteCollections] = useState<CollectionSummary[]>([]);
   const [ownedCollections, setOwnedCollections] = useState<CollectionSummary[]>([]);
-  const [favoritesViewMode, setFavoritesViewMode] = useState<'assets' | 'collections'>('assets');
   const [walletIdentity, setWalletIdentity] = useState<WalletIdentity | null>(null);
-  const [realActivities, setRealActivities] = useState<ActivityItem[]>([]);
   const [isFollowingProfile, setIsFollowingProfile] = useState(false);
   const [isCollectionEditorOpen, setIsCollectionEditorOpen] = useState(false);
   const [collectionEditorMode, setCollectionEditorMode] = useState<'create' | 'edit'>('create');
@@ -186,6 +171,8 @@ export function EnhancedProfile({
   const [savedStoryDraftSettings, setSavedStoryDraftSettings] = useState<StorySettings>(DEFAULT_STORY_SETTINGS);
   const { updateAvatar, updateBanner, updateUserData, userData } = useUser();
   const { address: connectedAddress } = useAccount();
+  const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
+  const [runtimeMintedRecords, setRuntimeMintedRecords] = useState<RuntimeMintedAssetRecord[]>([]);
 
   // ✅ SIMPLIFIED: Use connectedAddress if no address prop provided
   const profileAddress = address || connectedAddress || userData?.address;
@@ -193,6 +180,7 @@ export function EnhancedProfile({
   // ✅ AUTO-DETECT: Check if viewing own profile or someone else's
   const isOwnProfile = connectedAddress && profileAddress &&
     connectedAddress.toLowerCase() === profileAddress.toLowerCase();
+  const { orders: canonicalOrders, isLoading: isOrdersLoading } = useUserOrders(profileAddress);
 
   console.log('🔍 [EnhancedProfile] REBUILT Profile System:');
   console.log('   Connected Wallet:', connectedAddress);
@@ -238,11 +226,6 @@ export function EnhancedProfile({
     setWalletIdentity(identity);
     console.log('🆔 [WalletIdentity] Loaded for profile:', identity.address.slice(0, 10));
 
-    // ✅ Load real activities from storage
-    const activities = loadUserActivities(profileAddress);
-    setRealActivities(activities);
-    console.log('📊 [Activities] Loaded', activities.length, 'activities for', profileAddress.slice(0, 10));
-
     // ✅ CRITICAL: Only sync to UserContext if viewing OWN profile
     if (isOwnProfile && connectedAddress) {
       console.log('✅ [EnhancedProfile] Syncing to UserContext (OWN profile)');
@@ -260,43 +243,6 @@ export function EnhancedProfile({
       console.log('👁️ [EnhancedProfile] VISITOR mode - NOT syncing to UserContext');
     }
   }, [profileAddress, connectedAddress, isOwnProfile]);
-
-  // Load favorites when tab changes or component mounts
-  useEffect(() => {
-    loadFavoritesData();
-    loadFavoriteCollectionsData();
-    loadOwnedCollectionsData();
-  }, [address, activeTab, connectedAddress]);
-
-  const loadFavoritesData = () => {
-    const userAddress = profileAddress;
-    if (!userAddress) {
-      setFavoriteAssets([]);
-      return;
-    }
-
-    try {
-      setFavoriteAssets(loadFavoriteMarketplaceAssets(userAddress));
-    } catch (error) {
-      console.error('[EnhancedProfile] Failed to load favorites:', error);
-      setFavoriteAssets([]);
-    }
-  };
-
-  const loadFavoriteCollectionsData = () => {
-    const userAddress = profileAddress;
-    if (!userAddress) {
-      setFavoriteCollections([]);
-      return;
-    }
-
-    try {
-      setFavoriteCollections(loadFavoriteCollectionSummaries(userAddress));
-    } catch (error) {
-      console.error('[EnhancedProfile] Failed to load favorite collections:', error);
-      setFavoriteCollections([]);
-    }
-  };
 
   const loadOwnedCollectionsData = () => {
     const userAddress = profileAddress;
@@ -317,37 +263,60 @@ export function EnhancedProfile({
   };
 
   useEffect(() => {
+    loadOwnedCollectionsData();
+  }, [profileAddress, isOwnProfile]);
+
+  useEffect(() => {
+    const syncMarketplaceAssets = () => {
+      setMarketplaceAssets(loadMarketplaceCatalogSync());
+    };
+
+    syncMarketplaceAssets();
+    void hydrateMarketplaceCatalogFromSupabase().then(syncMarketplaceAssets);
+
+    window.addEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncMarketplaceAssets as EventListener);
+    return () => {
+      window.removeEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncMarketplaceAssets as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncRuntimeMintedRecords = () => {
+      setRuntimeMintedRecords(loadRuntimeMintedAssets(profileAddress));
+    };
+
+    syncRuntimeMintedRecords();
+    if (isOwnProfile && profileAddress) {
+      void hydrateRuntimeMintedAssetsFromSupabase(profileAddress).then(syncRuntimeMintedRecords);
+    }
+
+    const unsubscribe = subscribeToRuntimeMintedAssets(syncRuntimeMintedRecords);
+
+    return () => {
+      unsubscribe();
+    };
+  }, [isOwnProfile, profileAddress]);
+
+  useEffect(() => {
     if (!profileAddress) return;
 
     const refreshProfile = () => {
       const nextProfile = loadUserProfile(profileAddress);
       if (nextProfile) setProfile(nextProfile);
-      setRealActivities(loadUserActivities(profileAddress));
     };
     const refreshViewerProfileFromRemote = () => {
       if (!isOwnProfile) {
         void forceHydrateProfileFromSupabase(profileAddress);
       }
     };
-
-    const refreshFavorites = () => loadFavoritesData();
-    const refreshCollections = () => {
-      loadFavoriteCollectionsData();
-      loadOwnedCollectionsData();
-    };
+    const refreshCollections = () => loadOwnedCollectionsData();
 
     window.addEventListener('orina:profile-changed', refreshProfile as EventListener);
-    window.addEventListener('orina:favorites-changed', refreshFavorites as EventListener);
     window.addEventListener(COLLECTIONS_SYNC_EVENT, refreshCollections as EventListener);
-    window.addEventListener(ASSET_METADATA_CHANGED_EVENT, refreshFavorites as EventListener);
-    window.addEventListener('storage', refreshFavorites as EventListener);
     window.addEventListener('focus', refreshViewerProfileFromRemote as EventListener);
     return () => {
       window.removeEventListener('orina:profile-changed', refreshProfile as EventListener);
-      window.removeEventListener('orina:favorites-changed', refreshFavorites as EventListener);
       window.removeEventListener(COLLECTIONS_SYNC_EVENT, refreshCollections as EventListener);
-      window.removeEventListener(ASSET_METADATA_CHANGED_EVENT, refreshFavorites as EventListener);
-      window.removeEventListener('storage', refreshFavorites as EventListener);
       window.removeEventListener('focus', refreshViewerProfileFromRemote as EventListener);
     };
   }, [profileAddress, address, connectedAddress, isOwnProfile]);
@@ -355,6 +324,22 @@ export function EnhancedProfile({
   const storyHasUnsavedChanges =
     JSON.stringify(storyDraftBlocks) !== JSON.stringify(savedStoryDraftBlocks) ||
     JSON.stringify(storyDraftSettings) !== JSON.stringify(savedStoryDraftSettings);
+  const overviewMintedAssets = useMemo(
+    () =>
+      buildProfileMintedMarketplaceAssets(
+        profileAddress,
+        marketplaceAssets,
+        isOwnProfile ? runtimeMintedRecords : [],
+      ),
+    [isOwnProfile, marketplaceAssets, profileAddress, runtimeMintedRecords],
+  );
+  const topProducts = useMemo(
+    () => buildProfileTopProducts(profileAddress, canonicalOrders, marketplaceAssets),
+    [canonicalOrders, marketplaceAssets, profileAddress],
+  );
+  const mintedOverviewItems = isOwnProfile
+    ? overviewMintedAssets.ownerCards
+    : overviewMintedAssets.visitorCards;
 
   useEffect(() => {
     if (!profile) return;
@@ -377,32 +362,6 @@ export function EnhancedProfile({
       setSavedStoryDraftSettings(nextDraftSettings);
     }
   }, [profile, isOwnProfile]);
-
-  const handleToggleFavorite = (assetId: string) => {
-    // ✅ PHASE 1: Use address prop (profile being viewed) for viewing favorites
-    // But use connectedAddress for toggling (only connected user can toggle their own favorites)
-    const userAddress = connectedAddress;
-    if (!userAddress) {
-      toast.error('Please connect your wallet to manage favorites');
-      return;
-    }
-
-    toggleFavorite(userAddress, assetId);
-    loadFavoritesData();
-    toast.success('Removed from favorites');
-  };
-
-  const handleToggleFavoriteCollection = (collectionId: string) => {
-    const userAddress = connectedAddress;
-    if (!userAddress) {
-      toast.error('Please connect your wallet to manage favorite collections');
-      return;
-    }
-
-    const isFav = toggleCollectionFavorite(userAddress, collectionId);
-    loadFavoriteCollectionsData();
-    toast.success(isFav ? 'Added collection to favorites' : 'Removed collection from favorites');
-  };
 
   const handleCollectionCardClick = (collectionId: string) => {
     setSelectedCollectionId(collectionId);
@@ -723,7 +682,6 @@ export function EnhancedProfile({
     { id: 'overview' as ProfileTab, label: 'Overview', icon: Grid3x3 },
     { id: 'story' as ProfileTab, label: 'Story', icon: Gem },
     { id: 'activity' as ProfileTab, label: isOwnProfile ? 'My Collections' : 'Collections', icon: ActivityIcon },
-    { id: 'favorites' as ProfileTab, label: 'Favorites', icon: Heart },
   ];
   const publishedStoryBlocks = profile.story?.publishedBlocks || [];
   const displayedStoryBlocks = isOwnProfile ? storyDraftBlocks : publishedStoryBlocks;
@@ -1049,66 +1007,125 @@ export function EnhancedProfile({
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-8">
-              <div>
-                <h3 className="text-lg font-bold text-ui-primary mb-6">Recent Activity</h3>
-                <div className="bg-[var(--t-surface-2)] border-0 rounded-2xl overflow-hidden">
-                  {realActivities.length > 0 ? (
-                    <table className="w-full text-left">
-                      <thead className="border-b border-[var(--color-panel-border)] bg-[var(--t-surface-5)]">
-                        <tr className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">
-                          <th className="px-6 py-4">Transaction</th>
-                          <th className="px-6 py-4">Asset</th>
-                          <th className="px-6 py-4">Price</th>
-                          <th className="px-6 py-4">Date</th>
-                          <th className="px-6 py-4 text-right">Link</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--color-panel-border)]">
-                        {realActivities.slice(0, 4).map((activity) => {
-                          const config = activityTypeConfig[activity.type] || { label: activity.type, color: 'bg-zinc-500' };
-                          return (
-                            <tr key={activity.id} className="hover:bg-[var(--t-surface-hover)] transition-colors">
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  <span className={`w-2 h-2 rounded-full ${config.color}`}></span>
-                                  <span className="text-sm font-medium text-ui-primary">{config.label}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="text-sm text-ui-secondary font-mono">{activity.assetName}</span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="text-sm text-ui-primary font-bold">{activity.price ? `${activity.price} ETH` : '—'}</span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="text-xs text-ui-secondary">{formatActivityTime(activity.timestamp)}</span>
-                              </td>
-                              <td className="px-6 py-4 text-right">
-                                {activity.txHash ? (
-                                  <a href={`https://etherscan.io/tx/${activity.txHash}`} target="_blank" rel="noopener noreferrer" className="text-primary text-xs font-bold flex items-center justify-end gap-1 hover:underline">
-                                    View TX <ExternalLink size={14} />
-                                  </a>
-                                ) : (
-                                  <span className="text-xs text-ui-muted">—</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div className="py-14 px-6 text-center">
-                      <div className="w-16 h-16 rounded-2xl bg-[var(--t-surface-5)] border border-ui-border-subtle flex items-center justify-center mx-auto mb-5">
-                        <ActivityIcon size={28} className="text-ui-muted" />
-                      </div>
-                      <p className="text-2xl font-bold text-ui-primary mb-2">No activity recorded yet</p>
-                      <p className="text-sm text-ui-secondary max-w-md mx-auto">Transactions will appear here once you interact with the marketplace</p>
-                    </div>
-                  )}
+              <div className="rounded-[24px] bg-[var(--t-surface-2)] p-6">
+                <div className="mb-6 flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-ui-primary">Top Products</h3>
+                    <p className="mt-1 text-sm text-ui-secondary">
+                      Finalized marketplace purchases ranked by demand for this profile.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-ui-muted">
+                    Top 2
+                  </span>
                 </div>
+
+                {topProducts.length === 0 ? (
+                  <div className="rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-5)] px-6 py-10 text-center">
+                    <p className="text-lg font-bold text-ui-primary">
+                      {isOrdersLoading ? 'Loading product demand...' : 'No completed purchases yet'}
+                    </p>
+                    <p className="mt-2 text-sm text-ui-secondary">
+                      Completed seller-side orders will populate this ranking automatically.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {topProducts.map((product, index) => {
+                      const canNavigate = Boolean(product.assetRouteId && onNavigateToAsset);
+                      const content = (
+                        <div className="flex items-center gap-4 rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4 text-left transition-colors hover:bg-[var(--t-surface-hover)]">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-sm font-bold text-ui-primary">
+                            {index + 1}
+                          </div>
+                          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-[var(--t-surface-10)]">
+                            {product.assetImage ? (
+                              <ImageWithFallback
+                                src={product.assetImage}
+                                alt={product.assetName}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase tracking-widest text-ui-muted">
+                                No Media
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[10px] font-bold uppercase tracking-widest text-ui-muted">
+                              {product.category}
+                            </p>
+                            <p className="mt-1 truncate text-base font-bold text-ui-primary">
+                              {product.assetName}
+                            </p>
+                            <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-ui-secondary">
+                              <span>{product.finalizedOrderCount} orders</span>
+                              <span>{product.unitsSoldLabel}</span>
+                              <span>{product.grossVolumeLabel}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+
+                      return canNavigate ? (
+                        <button
+                          key={product.key}
+                          type="button"
+                          onClick={() => onNavigateToAsset?.(product.assetRouteId!, 'profile')}
+                          className="block w-full"
+                        >
+                          {content}
+                        </button>
+                      ) : (
+                        <div key={product.key}>{content}</div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
+              <div>
+                <div className="mb-6 flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-ui-primary">Minted On Marketplace</h3>
+                    <p className="mt-1 text-sm text-ui-secondary">
+                      Assets minted by this profile and currently active on the marketplace.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-ui-muted">
+                    {mintedOverviewItems.length} active
+                  </span>
+                </div>
+
+                {mintedOverviewItems.length === 0 ? (
+                  <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-6 py-12 text-center">
+                    <p className="text-xl font-bold text-ui-primary">No active minted assets</p>
+                    <p className="mt-2 text-sm text-ui-secondary">
+                      Assets will appear here once they are minted by this profile and projected into the active marketplace catalog.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                    {isOwnProfile
+                      ? (mintedOverviewItems as Array<(typeof overviewMintedAssets.ownerCards)[number]>).map((asset) => (
+                          <MyAssetRwaCard
+                            key={asset.id}
+                            asset={asset}
+                            onManage={(selectedAsset) => onNavigateToAsset?.(selectedAsset.id, 'profile')}
+                          />
+                        ))
+                      : (mintedOverviewItems as Array<(typeof overviewMintedAssets.visitorCards)[number]>).map((asset) => (
+                          <SearchResultCard
+                            key={asset.id}
+                            asset={asset}
+                            viewMode="grid"
+                            onClick={handleCardClick}
+                          />
+                        ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -1271,78 +1288,6 @@ export function EnhancedProfile({
             />
           )}
 
-          {/* Favorites Tab */}
-          {activeTab === 'favorites' && (
-            <div>
-              <div className="flex items-center justify-between gap-4 mb-6">
-                <h3 className="text-lg font-bold text-ui-primary">
-                  {favoritesViewMode === 'assets' ? 'Favorite Assets' : 'Favorite Collections'}
-                  <span className="text-ui-secondary text-sm font-normal ml-2">
-                    ({favoritesViewMode === 'assets' ? favoriteAssets.length : favoriteCollections.length} Items)
-                  </span>
-                </h3>
-                <StudioPillGroup compact>
-                  <StudioPillButton active={favoritesViewMode === 'assets'} onClick={() => setFavoritesViewMode('assets')}>
-                    Assets
-                  </StudioPillButton>
-                  <StudioPillButton active={favoritesViewMode === 'collections'} onClick={() => setFavoritesViewMode('collections')}>
-                    Collections
-                  </StudioPillButton>
-                </StudioPillGroup>
-              </div>
-              {favoritesViewMode === 'assets' ? (
-                favoriteAssets.length === 0 ? (
-                  <div className="py-20 text-center">
-                    <div className="w-20 h-20 bg-[var(--t-surface-5)] rounded-full flex items-center justify-center mx-auto mb-6 border border-ui-border-subtle">
-                      <Heart size={40} className="text-ui-muted" />
-                    </div>
-                    <h3 className="text-xl font-bold text-ui-primary mb-2">No favorites yet</h3>
-                    <p className="text-sm text-ui-secondary">Start adding assets to your favorites</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {favoriteAssets.map((asset) => {
-                      return (
-                        <div key={asset.id} className="flex justify-start">
-                          <SearchResultCard
-                            asset={asset}
-                            viewMode="grid"
-                            isLiked={true}
-                            onLike={handleToggleFavorite}
-                            onClick={handleCardClick}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                )
-              ) : favoriteCollections.length === 0 ? (
-                <div className="py-20 text-center">
-                  <div className="w-20 h-20 bg-[var(--t-surface-5)] rounded-full flex items-center justify-center mx-auto mb-6 border border-ui-border-subtle">
-                    <Heart size={40} className="text-ui-muted" />
-                  </div>
-                  <h3 className="text-xl font-bold text-ui-primary mb-2">No favorite collections yet</h3>
-                  <p className="text-sm text-ui-secondary">Start adding collections to your favorites from Marketplace or Search.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {favoriteCollections.map((collection) => {
-                    return (
-                      <div key={collection.id} className="flex justify-start">
-                        <CollectionCard
-                          collection={collection}
-                          viewMode="grid"
-                          isLiked={true}
-                          onLike={isOwnProfile ? handleToggleFavoriteCollection : undefined}
-                          onClick={handleCollectionCardClick}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
         </div>

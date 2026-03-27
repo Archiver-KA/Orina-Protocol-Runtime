@@ -1,5 +1,5 @@
-import { useReadContract, useReadContracts } from 'wagmi';
 import { useMemo } from 'react';
+import { useReadContract, useReadContracts } from 'wagmi';
 import { CONTRACTS, UNIT_IDS } from '@/config/contracts';
 import { UNIT_REGISTRY_ABI } from '@/config/abis';
 import type { Unit } from '@/types/contracts';
@@ -27,6 +27,54 @@ const UNIT_LABELS: Record<number, string> = {
   [UNIT_IDS.SET]:   'SET — set / bundle',
 };
 
+type UnitResultShape = {
+  name: string;
+  step: bigint;
+  minAmount: bigint;
+  active: boolean;
+  locked: boolean;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function normalizeUnitResult(result: unknown): UnitResultShape | null {
+  if (Array.isArray(result)) {
+    const [name, step, minAmount, active, locked] = result;
+    if (
+      typeof name === 'string' &&
+      typeof step === 'bigint' &&
+      typeof minAmount === 'bigint' &&
+      typeof active === 'boolean' &&
+      typeof locked === 'boolean'
+    ) {
+      return { name, step, minAmount, active, locked };
+    }
+    return null;
+  }
+
+  if (!isRecord(result)) return null;
+
+  const name = result.name;
+  const step = result.step;
+  const minAmount = result.minAmount;
+  const active = result.active;
+  const locked = result.locked;
+
+  if (
+    typeof name === 'string' &&
+    typeof step === 'bigint' &&
+    typeof minAmount === 'bigint' &&
+    typeof active === 'boolean' &&
+    typeof locked === 'boolean'
+  ) {
+    return { name, step, minAmount, active, locked };
+  }
+
+  return null;
+}
+
 /** Batch-fetch all 9 seeded units from UnitRegistry in one multicall. */
 export function useAllUnits() {
   const unitIds = Object.values(UNIT_IDS) as number[]; // [0..8]
@@ -47,17 +95,16 @@ export function useAllUnits() {
       .map((id, i) => {
         const result = data[i];
         if (result?.status !== 'success' || !result.result) return null;
-        const [onChainName, step, minAmount, active, locked] = result.result as [
-          string, bigint, bigint, boolean, boolean
-        ];
+        const normalized = normalizeUnitResult(result.result);
+        if (!normalized) return null;
         return {
           id,
-          name: onChainName,
-          label: UNIT_LABELS[id] ?? `Unit ${id} — ${onChainName}`,
-          step,
-          minAmount,
-          active,
-          locked,
+          name: normalized.name,
+          label: UNIT_LABELS[id] ?? `Unit ${id} — ${normalized.name}`,
+          step: normalized.step,
+          minAmount: normalized.minAmount,
+          active: normalized.active,
+          locked: normalized.locked,
         } satisfies UnitOption;
       })
       .filter((u): u is UnitOption => u !== null && u.active);
@@ -106,15 +153,14 @@ export function useUnit(unitId: number | bigint) {
   });
 
   // Transform the result into typed Unit object
-  if (result.data && Array.isArray(result.data)) {
-    const [name, step, minAmount, active, locked] = result.data;
-    
+  const normalized = normalizeUnitResult(result.data);
+  if (normalized) {
     const unit: Unit = {
-      name: name as string,
-      step: step as bigint,
-      minAmount: minAmount as bigint,
-      active: active as boolean,
-      locked: locked as boolean,
+      name: normalized.name,
+      step: normalized.step,
+      minAmount: normalized.minAmount,
+      active: normalized.active,
+      locked: normalized.locked,
     };
 
     return {

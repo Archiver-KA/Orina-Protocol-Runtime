@@ -37,10 +37,89 @@ import {
   loadMarketplaceCatalogSync,
   MARKETPLACE_CATALOG_SYNC_EVENT,
 } from '@/utils/marketplaceCatalog';
+import { PROTOCOL_NETWORK_OPTIONS } from '@/utils/protocolNetwork';
+import {
+  getCategoryDisplayLabel,
+  getCategoryOptionsFromValues,
+  getTaxonomySearchText,
+  normalizeCategoryFilterValue,
+  normalizeTaxonomySearchKey,
+} from '@/utils/taxonomy';
 
 interface MarketplaceProps {
   onNavigateToPage?: (page: string) => void;
   onNavigateToUserProfile?: (walletAddress: string) => void;
+}
+
+type MarketplaceBlockchainDropdownOption = {
+  value: string;
+  label: string;
+};
+
+const MARKETPLACE_PROTOCOL_BLOCKCHAIN_OPTIONS: MarketplaceBlockchainDropdownOption[] =
+  PROTOCOL_NETWORK_OPTIONS.map((network) => ({
+    value: network.key,
+    label: network.shortLabel,
+  }));
+
+function normalizeMarketplaceBlockchainValue(value?: string | null) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, '-');
+}
+
+function getMarketplaceAssetBlockchainValue(asset: MarketplaceAsset) {
+  const blockchain = normalizeMarketplaceBlockchainValue(asset.blockchain);
+  const network = normalizeMarketplaceBlockchainValue(asset.network);
+
+  if (blockchain === 'ethereum-mainnet') return 'ethereum';
+  if (blockchain === 'polygon-network') return 'polygon';
+  if (blockchain === 'arbitrum-one') return 'arbitrum';
+
+  if (
+    blockchain === 'bsc' ||
+    blockchain === 'bnb' ||
+    blockchain === 'bnb-chain' ||
+    blockchain === 'bnb-smart-chain' ||
+    blockchain === 'smartchain'
+  ) {
+    return network === 'testnet' ? 'bnb-testnet' : 'bsc';
+  }
+
+  return blockchain;
+}
+
+function getMarketplaceCatalogBlockchainOption(
+  blockchain: string,
+): MarketplaceBlockchainDropdownOption | null {
+  const normalized = normalizeMarketplaceBlockchainValue(blockchain);
+  if (!normalized) return null;
+
+  switch (normalized) {
+    case 'ethereum':
+    case 'ethereum-mainnet':
+      return { value: 'ethereum', label: 'Ethereum' };
+    case 'polygon':
+    case 'polygon-network':
+      return { value: 'polygon', label: 'Polygon' };
+    case 'base':
+      return { value: 'base', label: 'Base' };
+    case 'avalanche':
+      return { value: 'avalanche', label: 'Avalanche' };
+    case 'solana':
+      return { value: 'solana', label: 'Solana' };
+    case 'arbitrum':
+    case 'arbitrum-one':
+      return { value: 'arbitrum', label: 'Arbitrum' };
+    case 'bsc':
+      return { value: 'bsc', label: 'BSC' };
+    default:
+      return {
+        value: normalized,
+        label: blockchain,
+      };
+  }
 }
 
 export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: MarketplaceProps) {
@@ -64,12 +143,32 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
 
   const stats = useMemo(() => getMarketplaceCatalogStatistics(marketplaceAssets), [marketplaceAssets]);
   const categories = useMemo(() => getMarketplaceCatalogCategories(marketplaceAssets), [marketplaceAssets]);
-  const collectionCategories = useMemo(
-    () => Array.from(new Set(runtimeCollections.map((collection) => collection.category))).sort(),
+  const assetCategoryOptions = useMemo(
+    () => categories.map((category) => ({ value: category, label: getCategoryDisplayLabel(category) })),
+    [categories]
+  );
+  const collectionCategoryOptions = useMemo(
+    () => getCategoryOptionsFromValues(runtimeCollections.map((collection) => collection.category)),
     [runtimeCollections]
   );
   const blockchains = useMemo(() => getMarketplaceCatalogBlockchains(marketplaceAssets), [marketplaceAssets]);
-  const visibleCategories = contentMode === 'collections' ? collectionCategories : categories;
+  const blockchainOptions = useMemo(() => {
+    const protocolValues = new Set(MARKETPLACE_PROTOCOL_BLOCKCHAIN_OPTIONS.map((option) => option.value));
+    const mergedOptions = [...MARKETPLACE_PROTOCOL_BLOCKCHAIN_OPTIONS];
+
+    blockchains.forEach((blockchain) => {
+      const option = getMarketplaceCatalogBlockchainOption(blockchain);
+      if (!option || protocolValues.has(option.value)) return;
+      protocolValues.add(option.value);
+      mergedOptions.push(option);
+    });
+
+    return [
+      { value: 'all', label: 'All Blockchains' },
+      ...mergedOptions,
+    ];
+  }, [blockchains]);
+  const visibleCategoryOptions = contentMode === 'collections' ? collectionCategoryOptions : assetCategoryOptions;
   useEffect(() => {
     // Keep profile cards in sync with profile edits (displayName/avatar/follow counts).
     const refresh = () => setSellerProfiles(getMockSellerProfiles());
@@ -134,16 +233,20 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
 
     if (contentMode === 'collections') {
       if (selectedBlockchain !== 'all') setSelectedBlockchain('all');
-      if (selectedCategory !== 'all' && !collectionCategories.includes(selectedCategory)) {
+      if (selectedCategory !== 'all' && !collectionCategoryOptions.some((option) => option.value === selectedCategory)) {
         setSelectedCategory('all');
       }
       return;
     }
 
-    if (selectedCategory !== 'all' && !categories.includes(selectedCategory)) {
+    if (selectedBlockchain !== 'all' && !blockchainOptions.some((option) => option.value === selectedBlockchain)) {
+      setSelectedBlockchain('all');
+    }
+
+    if (selectedCategory !== 'all' && !assetCategoryOptions.some((option) => option.value === selectedCategory)) {
       setSelectedCategory('all');
     }
-  }, [categories, collectionCategories, contentMode, selectedBlockchain, selectedCategory]);
+  }, [assetCategoryOptions, blockchainOptions, collectionCategoryOptions, contentMode, selectedBlockchain, selectedCategory]);
 
   // Filter assets
   const filteredAssets = useMemo(() => {
@@ -151,22 +254,22 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
 
     // Search filter
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(asset => 
-        asset.name.toLowerCase().includes(query) ||
-        asset.description?.toLowerCase().includes(query) ||
-        asset.category.toLowerCase().includes(query)
+      const query = normalizeTaxonomySearchKey(searchQuery);
+      filtered = filtered.filter(asset =>
+        normalizeTaxonomySearchKey(asset.name).includes(query) ||
+        normalizeTaxonomySearchKey(asset.description || '').includes(query) ||
+        normalizeTaxonomySearchKey(getTaxonomySearchText(asset.category)).includes(query)
       );
     }
 
     // Category filter
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(asset => asset.category === selectedCategory);
+      filtered = filtered.filter((asset) => normalizeCategoryFilterValue(asset.category) === selectedCategory);
     }
 
     // Blockchain filter
     if (selectedBlockchain !== 'all') {
-      filtered = filtered.filter(asset => asset.blockchain === selectedBlockchain);
+      filtered = filtered.filter((asset) => getMarketplaceAssetBlockchainValue(asset) === selectedBlockchain);
     }
 
     // Verified filter
@@ -181,17 +284,19 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
     let filtered = [...runtimeCollections];
 
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+      const query = normalizeTaxonomySearchKey(searchQuery);
       filtered = filtered.filter((collection) =>
-        collection.name.toLowerCase().includes(query) ||
-        collection.description.toLowerCase().includes(query) ||
-        collection.category.toLowerCase().includes(query) ||
-        collection.tags.some((tag) => tag.toLowerCase().includes(query))
+        normalizeTaxonomySearchKey(collection.name).includes(query) ||
+        normalizeTaxonomySearchKey(collection.description).includes(query) ||
+        normalizeTaxonomySearchKey(getTaxonomySearchText(collection.category)).includes(query) ||
+        collection.tags.some((tag) => normalizeTaxonomySearchKey(tag).includes(query))
       );
     }
 
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter((collection) => collection.category === selectedCategory);
+      filtered = filtered.filter(
+        (collection) => normalizeCategoryFilterValue(collection.category) === selectedCategory
+      );
     }
 
     if (verifiedOnly) {
@@ -223,7 +328,7 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
           {
             id: parseInt(asset.id.replace(/\D/g, '')) || index,
             name: asset.name,
-            collection: asset.category,
+            collection: getCategoryDisplayLabel(asset.category),
             price: asset.price,
             usdPrice: asset.priceUSD || '$0',
             rarity: asset.verified ? 'Legendary' : 'Common',
@@ -421,7 +526,7 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
                     onChange={setSelectedCategory}
                     options={[
                       { value: 'all', label: 'All Categories' },
-                      ...visibleCategories.map(cat => ({ value: cat, label: cat }))
+                      ...visibleCategoryOptions
                     ]}
                     variant="compact"
                     className={contentMode === 'profiles' ? 'opacity-50 pointer-events-none' : ''}
@@ -433,10 +538,7 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
                   <CustomDropdown
                     defaultValue={selectedBlockchain}
                     onChange={setSelectedBlockchain}
-                    options={[
-                      { value: 'all', label: 'All Blockchains' },
-                      ...blockchains.map(chain => ({ value: chain, label: chain }))
-                    ]}
+                    options={blockchainOptions}
                     variant="compact"
                     className={contentMode !== 'assets' ? 'opacity-50 pointer-events-none' : ''}
                   />

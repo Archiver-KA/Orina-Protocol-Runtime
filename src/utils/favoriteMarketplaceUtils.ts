@@ -4,6 +4,7 @@ import { loadFavorites } from '@/utils/favoritesUtils';
 import { getMarketplaceCatalogAssetById, loadMarketplaceCatalogSync } from '@/utils/marketplaceCatalog';
 import { getRuntimeMintedAssetDetailsById } from '@/utils/runtimeMintedAssets';
 import { getDeterministicOwnedAssetDetailsById } from '@/utils/testWalletAssetFixtures';
+import { getCategoryDisplayLabel, normalizeCategoryFilterValue } from '@/utils/taxonomy';
 
 function parseMarketplacePrice(price: string): number {
   const parsed = Number.parseFloat(String(price || '').replace(/[^\d.]/g, ''));
@@ -17,7 +18,7 @@ function createFavoriteFallbackAsset(assetId: string): MarketplaceAsset {
     tokenId: assetId,
     contractAddress: '0x0000000000000000000000000000000000000000',
     name: `Asset ${String(assetId).slice(0, 8)}`,
-    category: 'Marketplace',
+    category: getCategoryDisplayLabel('physical_goods'),
     description: 'Legacy favorite item',
     image: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=800',
     seller: {
@@ -54,7 +55,7 @@ function assetDetailsToMarketplaceAsset(assetId: string): MarketplaceAsset | nul
     tokenId: String(asset.tokenId || asset.id),
     contractAddress: asset.contractAddress || '0x0000000000000000000000000000000000000000',
     name: asset.name || 'Unnamed Asset',
-    category: asset.category || 'Marketplace',
+    category: getCategoryDisplayLabel(asset.category || 'physical_goods'),
     description: asset.description || '',
     image: asset.image || 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=800',
     seller: {
@@ -89,25 +90,7 @@ export function loadFavoriteMarketplaceAssets(walletAddress: string): Marketplac
 
 export function matchesFavoriteFilter(asset: MarketplaceAsset, filterBy: FavoriteFilterOption): boolean {
   if (filterBy === 'all') return true;
-
-  const category = asset.category.toLowerCase();
-
-  switch (filterBy) {
-    case 'art':
-      return category === 'digital art' || category === 'art';
-    case 'collectibles':
-      return category === 'collectibles';
-    case 'real-estate':
-      return category === 'real estate';
-    case 'luxury':
-      return (
-        category.includes('luxury') ||
-        category === 'jewelry' ||
-        category === 'wine & spirits'
-      );
-    default:
-      return category === String(filterBy).toLowerCase();
-  }
+  return normalizeCategoryFilterValue(asset.category) === filterBy;
 }
 
 export function sortFavoriteMarketplaceAssets(
@@ -149,7 +132,8 @@ export function calculateMarketplaceFavoritesStats(assets: MarketplaceAsset[]): 
 
   const categoryBreakdown: Record<string, number> = {};
   assets.forEach((asset) => {
-    categoryBreakdown[asset.category] = (categoryBreakdown[asset.category] || 0) + 1;
+    const categoryLabel = getCategoryDisplayLabel(asset.category);
+    categoryBreakdown[categoryLabel] = (categoryBreakdown[categoryLabel] || 0) + 1;
   });
 
   return {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Key, Copy, Trash2, Eye, EyeOff, Plus, Check, Shield, Activity, TrendingUp, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { APIKey, APIKeyPermission } from '@/app/types/api-key';
 import { APIKeyManager } from '@/utils/apiKeyManager';
@@ -16,6 +16,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
   const [generatedKey, setGeneratedKey] = useState<APIKey | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
+  const [runtimeError, setRuntimeError] = useState('');
 
   useEffect(() => {
     // Load keys without initializing demo data
@@ -24,8 +25,15 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
   }, [walletAddress]);
 
   const loadKeys = () => {
-    const keys = APIKeyManager.getKeysForWallet(walletAddress);
-    setApiKeys(keys);
+    try {
+      const keys = APIKeyManager.getKeysForWallet(walletAddress);
+      setApiKeys(keys);
+      setRuntimeError('');
+    } catch (error) {
+      console.error('[APIKeysSettings] Failed to load keys:', error);
+      setApiKeys([]);
+      setRuntimeError('Unable to read saved API keys from local storage.');
+    }
   };
 
   const handleCopyKey = async (key: string, keyId: string) => {
@@ -123,6 +131,12 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
           )}
         </button>
       </div>
+
+      {runtimeError ? (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-xs text-red-200">
+          {runtimeError}
+        </div>
+      ) : null}
 
       {/* Expandable Create Form */}
       {showCreateForm && (

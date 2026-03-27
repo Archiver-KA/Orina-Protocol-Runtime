@@ -1,281 +1,129 @@
-import { Activity, ArrowLeftRight, Info, Coins } from 'lucide-react';
-import { useState } from 'react';
-import { StudioSidebarShell, StudioSidebarHeader, StudioSidebarScroll, StudioSidebarFooter } from '@/app/components/ui/studio-sidebar';
-import { CustomDropdown } from '@/app/components/custom-dropdown';
-import { preventInvalidNumberKeyDown } from '@/utils/numericInput';
+import { Activity, ArrowLeftRight, Coins, ExternalLink } from 'lucide-react';
+import { StudioSidebarFooter, StudioSidebarHeader, StudioSidebarScroll, StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
+import { ACTIVE_CHAIN_ID, CONTRACTS, EXPLORER_URLS } from '@/config/contracts';
+
+function shortenAddress(address: string) {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function openExplorer(url: string) {
+  if (typeof window === 'undefined') return;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
 
 export function RightSidebar() {
-  const [swapFrom, setSwapFrom] = useState('ETH');
-  const [swapTo, setSwapTo] = useState('ORI');
-  const [swapAmount, setSwapAmount] = useState('');
-  const [stakingAmount, setStakingAmount] = useState('');
-
-  const handleSwapDirection = () => {
-    // Swap the FROM and TO tokens
-    const tempFrom = swapFrom;
-    setSwapFrom(swapTo);
-    setSwapTo(tempFrom);
-  };
-
-  const swapFromOptions = ['ETH', 'USDT', 'USDC', 'ORI'];
-  const swapToOptions = ['ORI', 'ETH', 'USDT', 'USDC'];
+  const explorerBase = EXPLORER_URLS[ACTIVE_CHAIN_ID];
 
   return (
     <StudioSidebarShell widthClassName="w-full" className="bg-ui-page border-l-0 p-2.5">
-      <style>{`
-        .right-sidebar-swap-input,
-        .right-sidebar-amount-input {
-          background: var(--t-input-bg) !important;
-          border: 1px solid var(--t-border-medium) !important;
-          color: var(--t-text-primary) !important;
-          box-shadow: none !important;
-        }
-
-        .right-sidebar-swap-input::placeholder,
-        .right-sidebar-amount-input::placeholder {
-          color: var(--t-text-muted) !important;
-          opacity: 1 !important;
-        }
-
-        .right-sidebar-swap-input:focus {
-          background: var(--t-input-focus-bg) !important;
-          border: 1px solid #2cc295 !important;
-          box-shadow: 0 0 0 1px rgba(44, 194, 149, 0.35) !important;
-          outline: none !important;
-        }
-
-        .right-sidebar-amount-input:focus {
-          background: var(--t-input-focus-bg) !important;
-          border: 1px solid #2cc295 !important;
-          box-shadow: 0 0 0 1px rgba(44, 194, 149, 0.35) !important;
-          outline: none !important;
-        }
-
-        .right-sidebar-token-trigger {
-          background: var(--t-input-bg) !important;
-          color: var(--t-text-primary) !important;
-        }
-
-        .right-sidebar-token-trigger:hover {
-          background: var(--t-input-focus-bg) !important;
-        }
-
-        .right-sidebar-token-trigger svg {
-          width: 14px !important;
-          height: 14px !important;
-          color: var(--t-text-muted) !important;
-        }
-      `}</style>
       <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
-        {/* Header - Fixed */}
         <StudioSidebarHeader className="p-5 border-b border-[var(--t-border-subtle)]">
           <h2 className="text-ui-primary font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
             <Activity className="text-primary" size={18} />
-            Market Activity
+            Protocol Sidebar
           </h2>
-          <p className="text-xs text-ui-muted mt-1">Swap & Stake ORI Token</p>
+          <p className="text-xs text-ui-muted mt-1">Canonical chain status and user feature readiness</p>
         </StudioSidebarHeader>
 
-        {/* Scrollable Content */}
         <StudioSidebarScroll className="p-4 space-y-4">
-          {/* Swap ORI Section */}
-          <div
-            className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]"
-            style={{ backgroundColor: 'rgba(255, 255, 255, 0.02)' }}
-          >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[11px] uppercase font-bold text-ui-muted">Swap ORI</h3>
-            <ArrowLeftRight className="text-primary" size={14} />
-          </div>
-          
-          <div className="space-y-3">
-            <div>
-              <label className="text-[10px] text-ui-muted font-bold uppercase mb-2 block">From</label>
-              <div className="relative w-[248px] h-[49px]">
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
-                  step="0.0001"
-                  placeholder="0.0"
-                  value={swapAmount}
-                  onChange={(e) => setSwapAmount(e.target.value)}
-                  onKeyDown={preventInvalidNumberKeyDown}
-                  className="right-sidebar-swap-input w-full h-[49px] px-4 py-3 pr-[120px] rounded-[12px] text-[14px] leading-[18px] font-bold text-ui-primary placeholder:text-ui-muted outline-none transition-colors"
-                  style={{ boxSizing: 'border-box' }}
-                />
-                <div className="absolute left-[143px] top-[1px] w-[105px] h-[47px] z-[80]">
-                  <CustomDropdown
-                    options={swapFromOptions}
-                    defaultValue={swapFrom}
-                    onChange={setSwapFrom}
-                    variant="compact"
-                    className="w-full h-full overflow-visible"
-                    triggerClassName="right-sidebar-token-trigger !h-[47px] !rounded-[14px] !px-4 !text-[15px] !leading-[22px] !font-bold font-sans"
-                    menuClassName="mt-1 rounded-[16px] z-[9999]"
-                  />
-                </div>
-              </div>
-              <p className="text-[10px] text-ui-muted mt-1 px-1">Balance: 12.5 ETH</p>
+          <section className="p-5 bg-[rgba(255,255,255,0.02)] rounded-[24px]">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[11px] uppercase font-bold text-ui-muted">Swap ORI</h3>
+              <ArrowLeftRight className="text-primary" size={14} />
             </div>
-
-            <div className="flex justify-center">
+            <div className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 p-4 space-y-3">
+              <div>
+                <p className="text-sm font-bold text-ui-primary">Coming Soon</p>
+                <p className="text-xs text-ui-muted mt-1">
+                  Swap remains visible, but it stays disabled until a canonical on-chain swap source is integrated.
+                </p>
+              </div>
               <button
-                className="w-8 h-8 bg-ui-input border border-ui-border-subtle rounded-full flex items-center justify-center hover:bg-ui-input-focus transition-colors"
-                onClick={handleSwapDirection}
+                type="button"
+                disabled
+                className="w-full h-10 rounded-full bg-ui-pill text-ui-muted text-xs font-bold uppercase tracking-[0.12em] opacity-60 cursor-not-allowed"
               >
-                <ArrowLeftRight className="text-ui-muted" size={14} />
+                Swap Unavailable
               </button>
             </div>
+          </section>
 
-            <div>
-              <label className="text-[10px] text-ui-muted font-bold uppercase mb-2 block">To</label>
-              <div className="relative w-[248px] h-[49px]">
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.0"
-                  value={swapAmount ? (parseFloat(swapAmount) * 2450).toFixed(2) : ''}
-                  readOnly
-                  className="right-sidebar-swap-input w-full h-[49px] px-4 py-3 pr-[120px] rounded-[12px] text-[14px] leading-[18px] font-bold text-ui-primary placeholder:text-ui-muted outline-none transition-colors"
-                  style={{ boxSizing: 'border-box' }}
-                />
-                <div className="absolute left-[143px] top-[1px] w-[105px] h-[47px] z-[60]">
-                  <CustomDropdown
-                    options={swapToOptions}
-                    defaultValue={swapTo}
-                    onChange={setSwapTo}
-                    variant="compact"
-                    className="w-full h-full overflow-visible"
-                    triggerClassName="right-sidebar-token-trigger !h-[47px] !rounded-[14px] !px-4 !text-[15px] !leading-[22px] !font-bold font-sans"
-                    menuClassName="mt-1 rounded-[16px] z-[9999]"
-                  />
-                </div>
-              </div>
-              <p className="text-[10px] text-ui-muted mt-1 px-1">Balance: 30,625 ORI</p>
+          <section className="p-5 bg-[rgba(255,255,255,0.02)] rounded-[24px]">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[11px] uppercase font-bold text-ui-muted">Staking ORI</h3>
+              <Coins className="text-primary" size={14} />
             </div>
-
-            <button className="w-full bg-[#2CC295] hover:bg-[#25a67d] text-black text-xs font-bold py-2.5 rounded-full transition-colors uppercase tracking-wider">
-              Swap Now
-            </button>
-          </div>
-
-          <div className="mt-3 p-2 bg-ui-input rounded-lg border-0 flex items-start gap-2">
-            <Info className="text-ui-muted flex-shrink-0" size={12} />
-            <p className="text-[10px] text-ui-muted">
-              Rate: 1 ETH = 2,450 ORI
-            </p>
-          </div>
-          </div>
-
-          {/* Staking ORI Section */}
-          <div
-            className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]"
-            style={{ backgroundColor: 'rgba(255, 255, 255, 0.02)' }}
-          >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[11px] uppercase font-bold text-ui-muted">Staking ORI</h3>
-            <Coins className="text-primary" size={14} />
-          </div>
-          
-          <div className="space-y-3">
-            <div>
-              <label className="text-[10px] text-ui-muted font-bold uppercase mb-2 block">Amount</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.01"
-                placeholder="0.0"
-                value={stakingAmount}
-                onChange={(e) => setStakingAmount(e.target.value)}
-                onKeyDown={preventInvalidNumberKeyDown}
-                className="right-sidebar-amount-input w-full max-w-[248px] h-[49px] px-4 py-3 text-[14px] leading-[18px] font-bold text-ui-primary placeholder:text-ui-muted rounded-[12px] outline-none transition-colors"
-                style={{ boxSizing: 'border-box' }}
-              />
-              <div className="flex justify-between items-center mt-1 px-1">
-                <p className="text-[10px] text-ui-muted">Available: 30,625 ORI</p>
-                <button 
-                  onClick={() => setStakingAmount('30625')}
-                  className="text-[10px] text-primary font-bold hover:opacity-85 uppercase"
-                >
-                  MAX
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 bg-ui-input rounded-xl border-0">
-                <p className="text-[10px] text-ui-muted uppercase mb-1">APY</p>
-                <p className="text-lg font-bold text-primary">
-                  12.5<span className="text-[10px] opacity-60">%</span>
+            <div className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 p-4 space-y-3">
+              <div>
+                <p className="text-sm font-bold text-ui-primary">Coming Soon</p>
+                <p className="text-xs text-ui-muted mt-1">
+                  User staking stays hidden behind a disabled state until a canonical staking contract and reward source are deployed.
                 </p>
               </div>
-              <div className="p-3 bg-ui-input rounded-xl border-0">
-                <p className="text-[10px] text-ui-muted uppercase mb-1">Lock</p>
-                <p className="text-lg font-bold text-ui-primary">
-                  30<span className="text-[10px] text-ui-muted">D</span>
-                </p>
-              </div>
+              <button
+                type="button"
+                disabled
+                className="w-full h-10 rounded-full bg-ui-pill text-ui-muted text-xs font-bold uppercase tracking-[0.12em] opacity-60 cursor-not-allowed"
+              >
+                Staking Unavailable
+              </button>
             </div>
+          </section>
 
-            <div className="p-3 bg-ui-input rounded-xl border-0">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">
-                  Est. Rewards
-                </span>
-                <span className="text-[10px] text-primary font-bold">
-                  {stakingAmount ? ((parseFloat(stakingAmount) * 0.125 * 30) / 365).toFixed(2) : '0.00'} ORI
-                </span>
-              </div>
-            </div>
-
-            <button className="w-full bg-[#2CC295] hover:bg-[#25a67d] text-black text-xs font-bold py-2.5 rounded-full transition-colors uppercase tracking-wider">
-              Stake ORI
-            </button>
-          </div>
-          </div>
-
-          {/* Current Staking Info */}
-          <div className="space-y-4 pb-2">
+          <section className="space-y-3">
             <h3 className="text-[11px] uppercase tracking-[0.15em] font-bold text-ui-muted px-2">
-              Your Staking
+              Protocol Status
             </h3>
             <div className="space-y-2">
-              <div className="p-3 bg-ui-input rounded-xl border-0 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#2CC295]"></div>
-                  <span className="text-xs font-medium text-ui-primary">Staked</span>
+              <button
+                type="button"
+                onClick={() => openExplorer(`${explorerBase}/address/${CONTRACTS.MARKETPLACE_ATP}`)}
+                className="w-full p-3 bg-ui-input rounded-xl flex items-center justify-between gap-3 text-left hover:bg-ui-input-focus transition-colors"
+              >
+                <div>
+                  <p className="text-xs font-medium text-ui-primary">MarketplaceATP</p>
+                  <p className="text-[10px] text-ui-muted font-mono">{shortenAddress(CONTRACTS.MARKETPLACE_ATP)}</p>
                 </div>
-                <span className="text-[10px] font-mono text-ui-secondary">15,420 ORI</span>
-              </div>
-              <div className="p-3 bg-ui-input rounded-xl border-0 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#2CC295]"></div>
-                  <span className="text-xs font-medium text-ui-primary">Rewards</span>
+                <ExternalLink className="text-ui-muted" size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => openExplorer(`${explorerBase}/address/${CONTRACTS.DISPUTE_MANAGER}`)}
+                className="w-full p-3 bg-ui-input rounded-xl flex items-center justify-between gap-3 text-left hover:bg-ui-input-focus transition-colors"
+              >
+                <div>
+                  <p className="text-xs font-medium text-ui-primary">DisputeManager</p>
+                  <p className="text-[10px] text-ui-muted font-mono">{shortenAddress(CONTRACTS.DISPUTE_MANAGER)}</p>
                 </div>
-                <span className="text-[10px] font-mono text-primary">142.5 ORI</span>
-              </div>
+                <ExternalLink className="text-ui-muted" size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => openExplorer(`${explorerBase}/address/${CONTRACTS.PAYMENT_GATEWAY}`)}
+                className="w-full p-3 bg-ui-input rounded-xl flex items-center justify-between gap-3 text-left hover:bg-ui-input-focus transition-colors"
+              >
+                <div>
+                  <p className="text-xs font-medium text-ui-primary">PaymentGateway</p>
+                  <p className="text-[10px] text-ui-muted font-mono">{shortenAddress(CONTRACTS.PAYMENT_GATEWAY)}</p>
+                </div>
+                <ExternalLink className="text-ui-muted" size={14} />
+              </button>
             </div>
-          </div>
-
+          </section>
         </StudioSidebarScroll>
 
-        {/* System Status */}
-        <StudioSidebarFooter className="border-t border-[var(--t-border-subtle)] p-4 bg-transparent backdrop-blur-0 space-y-3">
+        <StudioSidebarFooter className="border-t border-[var(--t-border-subtle)] p-4 bg-transparent space-y-3">
           <div className="flex justify-between items-center">
-            <span className="text-[9px] font-bold text-ui-muted uppercase">ORI Price</span>
-            <span className="text-[9px] font-bold text-primary">$0.408</span>
+            <span className="text-[9px] font-bold text-ui-muted uppercase">Active Chain</span>
+            <span className="text-[9px] font-bold text-primary">BSC Testnet #{ACTIVE_CHAIN_ID}</span>
           </div>
-          <div className="p-2.5 bg-ui-input rounded-lg border-0">
+          <div className="p-2.5 bg-ui-input rounded-lg">
             <div className="w-2 h-2 rounded-full bg-[#2CC295] shadow-[0_0_8px_rgba(44,194,149,0.4)] mb-1.5"></div>
             <div className="flex justify-between items-center">
               <span className="text-[9px] font-bold text-ui-primary uppercase tracking-tighter">
-                Total Staked
+                Analytics Mode
               </span>
-              <span className="text-[9px] text-ui-muted font-mono">2.4M ORI</span>
+              <span className="text-[9px] text-ui-muted font-mono">Canonical / No Mock</span>
             </div>
           </div>
         </StudioSidebarFooter>

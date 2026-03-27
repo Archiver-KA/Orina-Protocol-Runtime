@@ -1,0 +1,12 @@
+<svg viewBox="120 120 160 160" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <ellipse cx="200" cy="251" rx="11" ry="22" fill="#ffffff" opacity="1" transform="rotate(22, 200, 200) rotate(-45, 200, 251)"/>
+    <ellipse cx="200" cy="251" rx="11" ry="22" fill="#ffffff" opacity="1" transform="rotate(67, 200, 200) rotate(-45, 200, 251)"/>
+    <ellipse cx="200" cy="251" rx="11" ry="22" fill="#ffffff" opacity="1" transform="rotate(112, 200, 200) rotate(-45, 200, 251)"/>
+    <ellipse cx="200" cy="251" rx="11" ry="22" fill="#ffffff" opacity="1" transform="rotate(157, 200, 200) rotate(-45, 200, 251)"/>
+    <ellipse cx="200" cy="251" rx="11" ry="22" fill="#ffffff" opacity="1" transform="rotate(202, 200, 200) rotate(-45, 200, 251)"/>
+    <ellipse cx="200" cy="251" rx="11" ry="22" fill="#ffffff" opacity="1" transform="rotate(247, 200, 200) rotate(-45, 200, 251)"/>
+    <ellipse cx="200" cy="251" rx="11" ry="22" fill="#ffffff" opacity="1" transform="rotate(292, 200, 200) rotate(-45, 200, 251)"/>
+    <ellipse cx="200" cy="251" rx="11" ry="22" fill="#ffffff" opacity="1" transform="rotate(337, 200, 200) rotate(-45, 200, 251)"/>
+  </g>
+</svg>

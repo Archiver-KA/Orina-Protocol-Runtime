@@ -76,7 +76,7 @@ const WALLET_A_FIXTURE: TestWalletMyAssetsFixture = {
       transferable: true,
     },
   ],
-  favoriteListingAssetIds: ['asset-001', 'asset-004', 'asset-013'],
+  favoriteListingAssetIds: [],
 };
 
 const WALLET_B_FIXTURE: TestWalletMyAssetsFixture = {
@@ -122,7 +122,7 @@ const WALLET_B_FIXTURE: TestWalletMyAssetsFixture = {
       transferable: true,
     },
   ],
-  favoriteListingAssetIds: ['asset-003', 'asset-009', 'asset-014'],
+  favoriteListingAssetIds: [],
 };
 
 function cloneFixture<T>(value: T): T {

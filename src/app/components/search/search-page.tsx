@@ -33,6 +33,13 @@ import {
   loadMarketplaceCatalogSync,
   MARKETPLACE_CATALOG_SYNC_EVENT,
 } from '@/utils/marketplaceCatalog';
+import {
+  getCategoryDisplayLabel,
+  getCategoryOptionsFromValues,
+  getTaxonomySearchText,
+  normalizeCategoryFilterValue,
+  normalizeTaxonomySearchKey,
+} from '@/utils/taxonomy';
 
 interface SearchPageProps {
   initialQuery?: string;
@@ -77,13 +84,17 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
   }, [initialQuery]);
 
   const marketplaceCategories = useMemo(() => getMarketplaceCatalogCategories(marketplaceAssets), [marketplaceAssets]);
-  const collectionCategories = useMemo(
-    () => Array.from(new Set(runtimeCollections.map((collection) => collection.category))).sort(),
+  const marketplaceCategoryOptions = useMemo(
+    () => marketplaceCategories.map((category) => ({ value: category, label: getCategoryDisplayLabel(category) })),
+    [marketplaceCategories]
+  );
+  const collectionCategoryOptions = useMemo(
+    () => getCategoryOptionsFromValues(runtimeCollections.map((collection) => collection.category)),
     [runtimeCollections]
   );
   const marketplaceBlockchains = useMemo(() => getMarketplaceCatalogBlockchains(marketplaceAssets), [marketplaceAssets]);
   const marketplacePriceRange = useMemo(() => getMarketplacePriceRange(marketplaceAssets), [marketplaceAssets]);
-  const visibleCategories = contentMode === 'collections' ? collectionCategories : marketplaceCategories;
+  const visibleCategoryOptions = contentMode === 'collections' ? collectionCategoryOptions : marketplaceCategoryOptions;
 
   useEffect(() => {
     const syncCatalog = () => {
@@ -107,17 +118,19 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
     let filtered = [...runtimeCollections];
 
     if (filters.query.trim()) {
-      const query = filters.query.trim().toLowerCase();
+      const query = normalizeTaxonomySearchKey(filters.query);
       filtered = filtered.filter((collection) =>
-        collection.name.toLowerCase().includes(query) ||
-        collection.description.toLowerCase().includes(query) ||
-        collection.category.toLowerCase().includes(query) ||
-        collection.tags.some((tag) => tag.toLowerCase().includes(query))
+        normalizeTaxonomySearchKey(collection.name).includes(query) ||
+        normalizeTaxonomySearchKey(collection.description).includes(query) ||
+        normalizeTaxonomySearchKey(getTaxonomySearchText(collection.category)).includes(query) ||
+        collection.tags.some((tag) => normalizeTaxonomySearchKey(tag).includes(query))
       );
     }
 
     if (filters.categories.length > 0) {
-      filtered = filtered.filter((collection) => filters.categories.includes(collection.category));
+      filtered = filtered.filter((collection) =>
+        filters.categories.includes(normalizeCategoryFilterValue(collection.category))
+      );
     }
 
     if (filters.verifiedOnly) {
@@ -194,7 +207,9 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
     }
 
     if (contentMode === 'collections') {
-      const nextCategories = filters.categories.filter((category) => collectionCategories.includes(category));
+      const nextCategories = filters.categories.filter((category) =>
+        collectionCategoryOptions.some((option) => option.value === category)
+      );
       if (
         nextCategories.length !== filters.categories.length ||
         filters.blockchains.length > 0 ||
@@ -209,7 +224,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
         }));
       }
     }
-  }, [collectionCategories, contentMode, filters.blockchains.length, filters.categories, filters.priceRange.max, filters.priceRange.min]);
+  }, [collectionCategoryOptions, contentMode, filters.blockchains.length, filters.categories, filters.priceRange.max, filters.priceRange.min]);
 
   const handleRemoveFilter = (key: string, value?: any) => {
     let newFilters = { ...filters };
@@ -306,7 +321,9 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
       setFilters((prev) => ({
         ...prev,
         categories: nextMode === 'collections'
-          ? prev.categories.filter((category) => collectionCategories.includes(category))
+          ? prev.categories.filter((category) =>
+              collectionCategoryOptions.some((option) => option.value === category)
+            )
           : [],
         blockchains: [],
         priceRange: { min: null, max: null },
@@ -613,24 +630,24 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                   Categories
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {visibleCategories.map((category) => (
+                  {visibleCategoryOptions.map((category) => (
                     <button
-                      key={category}
+                      key={category.value}
                       onClick={() => {
-                        const newCategories = filters.categories.includes(category)
-                          ? filters.categories.filter(c => c !== category)
-                          : [...filters.categories, category];
+                        const newCategories = filters.categories.includes(category.value)
+                          ? filters.categories.filter(c => c !== category.value)
+                          : [...filters.categories, category.value];
                         setFilters({ ...filters, categories: newCategories });
                       }}
                       className={`
                         px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors
-                        ${filters.categories.includes(category)
+                        ${filters.categories.includes(category.value)
                           ? 'bg-[#2CC295]/10 text-[#2CC295] border-[#2CC295]/20'
                           : 'bg-ui-input text-ui-secondary border-ui-border-subtle hover:bg-[var(--t-surface-hover)]'
                         }
                       `}
                     >
-                      {category}
+                      {category.label}
                     </button>
                   ))}
                 </div>

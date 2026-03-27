@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
 import {
@@ -25,6 +25,7 @@ import {
 } from '@/app/components/settings/delivery-address-block';
 import { RuntimeStatusPanel } from '@/app/components/settings/runtime-status-panel';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
+import { RuntimeErrorBoundary } from '@/app/components/ui/runtime-error-boundary';
 import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
 import { useTheme } from '@/app/contexts/ThemeContext';
 import type { UserAppSettings } from '@/types/user-settings';
@@ -331,7 +332,14 @@ export function Settings() {
               {/* ══════════════════════════════════════════════ */}
               <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-6">
                 {address ? (
-                  <APIKeysSettings walletAddress={address} />
+                  <RuntimeErrorBoundary
+                    title="API Keys Unavailable"
+                    description="The API key manager hit a runtime error. Retry without leaving Settings."
+                    compact
+                    resetKey={address}
+                  >
+                    <APIKeysSettings walletAddress={address} />
+                  </RuntimeErrorBoundary>
                 ) : (
                   <div className="text-center py-8">
                     <p className="text-sm text-ui-muted">Connect your wallet to manage API keys</p>
@@ -344,7 +352,14 @@ export function Settings() {
               {/* ══════════════════════════════════════════════ */}
               <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-6">
                 {address ? (
-                  <AIAgentSettings walletAddress={address} />
+                  <RuntimeErrorBoundary
+                    title="AI Agent Settings Unavailable"
+                    description="The AI configuration panel failed to load. Retry after the section resets."
+                    compact
+                    resetKey={address}
+                  >
+                    <AIAgentSettings walletAddress={address} />
+                  </RuntimeErrorBoundary>
                 ) : (
                   <div className="text-center py-8">
                     <p className="text-sm text-ui-muted">Connect your wallet to manage AI agent</p>

@@ -89,6 +89,54 @@ export interface RuntimeProbeReport {
   };
 }
 
+type RuntimeUnitResult = {
+  name: string;
+  step: bigint;
+  minAmount: bigint;
+  active: boolean;
+  locked: boolean;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function normalizeRuntimeUnitResult(result: unknown): RuntimeUnitResult | null {
+  if (Array.isArray(result)) {
+    const [name, step, minAmount, active, locked] = result;
+    if (
+      typeof name === 'string' &&
+      typeof step === 'bigint' &&
+      typeof minAmount === 'bigint' &&
+      typeof active === 'boolean' &&
+      typeof locked === 'boolean'
+    ) {
+      return { name, step, minAmount, active, locked };
+    }
+    return null;
+  }
+
+  if (!isRecord(result)) return null;
+
+  const name = result.name;
+  const step = result.step;
+  const minAmount = result.minAmount;
+  const active = result.active;
+  const locked = result.locked;
+
+  if (
+    typeof name === 'string' &&
+    typeof step === 'bigint' &&
+    typeof minAmount === 'bigint' &&
+    typeof active === 'boolean' &&
+    typeof locked === 'boolean'
+  ) {
+    return { name, step, minAmount, active, locked };
+  }
+
+  return null;
+}
+
 // ── Supabase probe (non-hook, called in effect) ────────────────
 
 export async function probeSupabaseTables(): Promise<SupabaseTableProbeResult[]> {
@@ -301,20 +349,28 @@ export function useRuntimeProbe() {
           status: 'error' as ProbeStatus,
         };
       }
-      // UnitRegistry.getUnit returns struct: (name, step, minAmount, active, locked)
-      const raw = result.result as readonly [string, bigint, bigint, boolean, boolean];
-      const [, step, minAmount, active] = raw;
+      const normalized = normalizeRuntimeUnitResult(result.result);
+      if (!normalized) {
+        return {
+          id: i,
+          name: key,
+          step: 0n,
+          minAmount: 0n,
+          active: false,
+          status: 'error' as ProbeStatus,
+        };
+      }
 
       let status: ProbeStatus = 'ok';
-      if (!active) status = 'warn';
-      if (step === 0n) status = 'error';
+      if (!normalized.active) status = 'warn';
+      if (normalized.step === 0n) status = 'error';
 
       return {
         id: i,
         name: key,
-        step,
-        minAmount,
-        active,
+        step: normalized.step,
+        minAmount: normalized.minAmount,
+        active: normalized.active,
         status,
       };
     });

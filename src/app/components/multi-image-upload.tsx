@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
 import { UploadedImage } from '@/app/components/image-upload';
 import { useIPFSUpload } from '@/hooks/useIPFSUpload';
@@ -8,19 +8,25 @@ import { StudioTransientState } from '@/app/components/ui/studio-transient-state
 
 interface MultiImageUploadProps {
   onImagesChange: (images: UploadedImage[]) => void;
+  value?: UploadedImage[];
   maxImages?: number;
   minImages?: number;
 }
 
 export function MultiImageUpload({ 
   onImagesChange, 
+  value,
   maxImages = 5, 
   minImages = 1 
 }: MultiImageUploadProps) {
-  const [images, setImages] = useState<UploadedImage[]>([]);
+  const [images, setImages] = useState<UploadedImage[]>(value || []);
   const [uploadingCount, setUploadingCount] = useState(0);
   const [brokenImages, setBrokenImages] = useState<Set<number>>(new Set());
   const { uploadMultipleFiles, isUploading, error } = useIPFSUpload();
+
+  useEffect(() => {
+    setImages(value || []);
+  }, [value]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -66,8 +72,9 @@ export function MultiImageUpload({
         const newImages: UploadedImage[] = result.files.map(file => ({
           url: file.url,
           ipfsHash: file.ipfsHash,
-          size: file.fileSize,
-          type: file.mimeType,
+          fileName: file.fileName,
+          fileSize: file.fileSize,
+          mimeType: file.mimeType,
         }));
 
         const updatedImages = [...images, ...newImages];

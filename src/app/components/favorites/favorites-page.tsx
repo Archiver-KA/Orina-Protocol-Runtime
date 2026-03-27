@@ -16,6 +16,7 @@ import {
 import { ASSET_METADATA_CHANGED_EVENT } from '@/utils/assetMetadataSync';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
+import { getCategoryOptionsFromValues } from '@/utils/taxonomy';
 
 interface FavoritesPageProps {
   currentUserId?: string;
@@ -84,13 +85,13 @@ export function FavoritesPage({
     { value: 'change', label: 'Price Change' },
   ];
 
-  const filterOptions: { value: FavoriteFilterOption; label: string }[] = [
-    { value: 'all', label: 'All Categories' },
-    { value: 'art', label: 'Art' },
-    { value: 'collectibles', label: 'Collectibles' },
-    { value: 'real-estate', label: 'Real Estate' },
-    { value: 'luxury', label: 'Luxury' },
-  ];
+  const filterOptions = useMemo<{ value: FavoriteFilterOption; label: string }[]>(
+    () => [
+      { value: 'all', label: 'All Categories' },
+      ...getCategoryOptionsFromValues(favoriteAssets.map((asset) => asset.category)),
+    ],
+    [favoriteAssets]
+  );
 
   return (
     <div className="space-y-6">
@@ -227,7 +228,7 @@ export function FavoritesPage({
           <p className="text-sm text-zinc-500 mb-6">
             {filterBy === 'all'
               ? 'Start adding assets to your favorites by clicking the heart icon'
-              : `You don't have any ${filterBy} assets favorited`}
+              : `You don't have any ${filterOptions.find((option) => option.value === filterBy)?.label || filterBy} assets favorited`}
           </p>
           {filterBy !== 'all' && (
             <button

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Upload, X, CheckCircle, AlertCircle, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
@@ -45,6 +45,10 @@ export function ImageUpload({
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [previewUrl, setPreviewUrl] = useState<string>(currentImageUrl || '');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setPreviewUrl(currentImageUrl || '');
+  }, [currentImageUrl]);
 
   const handleFileSelect = useCallback(async (file: File) => {
     // Validate file size

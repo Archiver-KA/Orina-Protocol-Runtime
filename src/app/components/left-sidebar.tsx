@@ -6,12 +6,14 @@ import {
   Package,
   Users,
   MessageSquare,
+  Settings,
   ChevronsLeft,
   ChevronsRight,
   LayoutDashboard,
 } from 'lucide-react';
 import { OrinaMark } from '@/app/components/brand/OrinaMark';
 import { OrinaWordmark } from '@/app/components/brand/OrinaWordmark';
+import { NetworkSwitcher } from '@/app/components/network-switcher';
 
 interface LeftSidebarProps {
   activePage: string;
@@ -39,6 +41,7 @@ export function LeftSidebar({
     { id: 'assets', icon: Package, label: 'Assets' },
     { id: 'messages', icon: MessageSquare, label: 'Messages' },
     { id: 'community', icon: Users, label: 'Community' },
+    { id: 'settings', icon: Settings, label: 'Settings' },
   ];
 
   return (
@@ -113,7 +116,9 @@ export function LeftSidebar({
             </nav>
           </div>
 
-          <div className={`${collapsed ? 'mt-2' : 'mt-4 pt-3'}`}>
+          <div className={`${collapsed ? 'mt-2 space-y-2' : 'mt-4 space-y-3 pt-3'}`}>
+            <NetworkSwitcher sidebarCollapsed={collapsed} />
+
             <button
               onClick={onToggle}
               className={`sidebar-btn flex items-center rounded-[12px] transition-all text-ui-secondary hover:bg-[var(--t-surface-10)] hover:text-ui-primary group relative focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35 ${

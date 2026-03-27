@@ -4,6 +4,7 @@ import { logger } from "npm:hono/logger";
 import * as kv from "./kv_store.tsx";
 import apiEndpoints from "./api-endpoints.tsx";
 import aiChat from "./ai-chat.tsx";
+import aiAssist from "./ai-assist.ts";
 import ipfsRouter from "./ipfs-upload.tsx";
 import walletAuthClaimBridge from "./wallet-auth-claim-bridge.tsx";
 import { storeAPIKey, getAllKeysForWallet } from "./api-auth.tsx";
@@ -19,7 +20,18 @@ app.use('*', logger(console.log));
 app.use(
   "/*",
   cors({
-    origin: "*",
+    origin: (origin) => {
+      // Allow Supabase preview, localhost dev, and production app domains
+      if (!origin) return '*'; // server-to-server / curl
+      const allowed = [
+        /https:\/\/.*\.supabase\.co$/,
+        /https:\/\/.*\.vercel\.app$/,
+        /https:\/\/.*\.netlify\.app$/,
+        /^http:\/\/localhost(:\d+)?$/,
+        /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+      ];
+      return allowed.some((r) => r.test(origin)) ? origin : '';
+    },
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
@@ -116,7 +128,8 @@ app.post("/make-server-b0d68fc8/keys/:keyId/revoke", async (c) => {
 // Mount API endpoints (prefixed with /make-server-b0d68fc8/api/v1)
 app.route("/make-server-b0d68fc8/api/v1", apiEndpoints);
 
-// Mount AI chat endpoints (prefixed with /make-server-b0d68fc8/ai)
+// Mount AI endpoints — V2 first (assist, search, conversations), then legacy (chat, config)
+app.route("/make-server-b0d68fc8/ai", aiAssist);
 app.route("/make-server-b0d68fc8/ai", aiChat);
 
 // Mount IPFS upload endpoints (prefixed with /make-server-b0d68fc8/ipfs)

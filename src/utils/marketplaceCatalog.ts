@@ -2,14 +2,17 @@ import type { MarketplaceAsset } from '@/app/types/asset';
 import { ASSET_METADATA_CHANGED_EVENT } from '@/utils/assetMetadataSync';
 import { dispatchSyncEvent, isSupabaseRestEnabled, restSelect, toQuery } from '@/utils/supabaseRest';
 import {
-  MOCK_MARKETPLACE_ASSETS,
-  getAllBlockchains as getMockMarketplaceBlockchains,
-  getAllCategories as getMockMarketplaceCategories,
-  getMarketplaceStatistics as getMockMarketplaceStatistics,
-} from '@/utils/mockMarketplaceData';
+  getCategoryDisplayLabel,
+  getCategoryOptionsFromValues,
+  getSubcategoryDisplayLabel,
+  normalizeCategoryFilterValue,
+} from '@/utils/taxonomy';
 
 export const MARKETPLACE_CATALOG_SYNC_EVENT = 'orina:marketplace-catalog-changed';
-const MARKETPLACE_CATALOG_CACHE_KEY = 'orina_marketplace_catalog_cache_v1';
+const MARKETPLACE_CATALOG_CACHE_KEY = 'orina_marketplace_catalog_cache_v2';
+const LEGACY_MARKETPLACE_CATALOG_CACHE_KEYS = [
+  'orina_marketplace_catalog_cache_v1',
+];
 
 type AssetCatalogRemoteRow = {
   id: string;
@@ -39,10 +42,29 @@ type MarketplaceCatalogStats = {
 function loadCatalogCacheFromStorage(): MarketplaceAsset[] {
   if (typeof window === 'undefined') return [];
   try {
+    for (const legacyKey of LEGACY_MARKETPLACE_CATALOG_CACHE_KEYS) {
+      try {
+        window.localStorage.removeItem(legacyKey);
+      } catch {
+        // best-effort legacy cleanup only
+      }
+    }
     const raw = window.localStorage.getItem(MARKETPLACE_CATALOG_CACHE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as MarketplaceAsset[]) : [];
+    if (!Array.isArray(parsed)) return [];
+    return (parsed as MarketplaceAsset[])
+      .filter((asset) => {
+        const id = normalizeAssetUid(asset?.id);
+        // Hard-drop old public mock catalog IDs from browser cache.
+        if (/^asset-\d{3}$/i.test(id)) return false;
+        return Boolean(id && asset?.image);
+      })
+      .map((asset) => ({
+        ...asset,
+        category: getCategoryDisplayLabel(asset?.category),
+        tags: Array.from(new Set([...(asset?.tags || []), getCategoryDisplayLabel(asset?.category)])),
+      }));
   } catch {
     return [];
   }
@@ -57,14 +79,10 @@ function saveCatalogCacheToStorage(assets: MarketplaceAsset[]): void {
   }
 }
 
-function getMockFallbackCatalog(): MarketplaceAsset[] {
-  return [...MOCK_MARKETPLACE_ASSETS];
-}
-
 let cachedAssets: MarketplaceAsset[] = (() => {
   const stored = loadCatalogCacheFromStorage();
   if (stored.length > 0) return stored;
-  return isSupabaseRestEnabled() ? [] : getMockFallbackCatalog();
+  return [];
 })();
 let hydratePromise: Promise<MarketplaceAsset[]> | null = null;
 
@@ -120,6 +138,11 @@ function mapRemoteRowToMarketplaceAsset(
 
   if (!image) return fallback || null;
 
+  const resolvedCategory = coalesceString(row.category, metadata.category, fallback?.category) || 'Uncategorized';
+  const resolvedSubcategory = coalesceString(metadata.subcategory);
+  const categoryLabel = getCategoryDisplayLabel(resolvedCategory, resolvedSubcategory);
+  const subcategoryLabel = getSubcategoryDisplayLabel(resolvedCategory, resolvedSubcategory);
+
   return {
     ...(fallback || {}),
     id: assetUid || fallback?.id || row.id,
@@ -127,7 +150,7 @@ function mapRemoteRowToMarketplaceAsset(
     contractAddress:
       coalesceString(row.contract_address, metadata.contractAddress, fallback?.contractAddress) || '',
     name: coalesceString(row.title, metadata.name, fallback?.name) || assetUid || 'Untitled Asset',
-    category: coalesceString(row.category, metadata.category, fallback?.category) || 'Uncategorized',
+    category: categoryLabel,
     description: coalesceString(row.description, metadata.description, fallback?.description),
     image,
     images: Array.from(
@@ -166,7 +189,15 @@ function mapRemoteRowToMarketplaceAsset(
     featured: asBoolean(metadata.featured, fallback?.featured ?? false),
     blockchain: coalesceString(metadata.blockchain, fallback?.blockchain) || 'Ethereum',
     network: coalesceString(metadata.network, metadata.listing_network, fallback?.network) || 'Mainnet',
-    tags: Array.from(new Set([...(fallback?.tags || []), ...asStringArray(metadata.tags)])),
+    tags: Array.from(
+      new Set([
+        ...(fallback?.tags || []),
+        ...asStringArray(metadata.tags),
+        categoryLabel,
+        normalizeCategoryFilterValue(resolvedCategory, resolvedSubcategory),
+        subcategoryLabel || '',
+      ].filter(Boolean))
+    ),
     createdAt: coalesceString(metadata.createdAt, row.created_at, fallback?.createdAt),
     updatedAt: coalesceString(metadata.updatedAt, row.updated_at, fallback?.updatedAt),
     assetLocationSnapshot:
@@ -199,12 +230,12 @@ function updateCache(nextAssets: MarketplaceAsset[]): MarketplaceAsset[] {
 
 export function loadMarketplaceCatalogSync(): MarketplaceAsset[] {
   if (cachedAssets.length > 0) return cachedAssets;
-  return isSupabaseRestEnabled() ? [] : getMockFallbackCatalog();
+  return [];
 }
 
 export async function hydrateMarketplaceCatalogFromSupabase(): Promise<MarketplaceAsset[]> {
   if (!isSupabaseRestEnabled()) {
-    return updateCache(getMockFallbackCatalog());
+    return cachedAssets;
   }
 
   if (hydratePromise) return hydratePromise;
@@ -220,21 +251,10 @@ export async function hydrateMarketplaceCatalogFromSupabase(): Promise<Marketpla
         })
       );
       const remoteCatalog = buildCatalogFromRemoteRows(rows);
-      if (remoteCatalog.length > 0) {
-        return updateCache(remoteCatalog);
-      }
-
-      // Transitional fallback only: when remote catalog is empty/unavailable, keep the UI operable
-      // with cached or bundled data until the authoritative projection is populated.
-      if (cachedAssets.length > 0) {
-        return cachedAssets;
-      }
-
-      return updateCache(getMockFallbackCatalog());
+      return updateCache(remoteCatalog);
     } catch (error) {
       console.debug('[MarketplaceCatalog] Remote hydrate skipped:', error);
-      if (cachedAssets.length > 0) return cachedAssets;
-      return updateCache(getMockFallbackCatalog());
+      return cachedAssets;
     } finally {
       hydratePromise = null;
     }
@@ -255,7 +275,12 @@ export function getMarketplaceCatalogStatistics(
   assets: MarketplaceAsset[] = cachedAssets
 ): MarketplaceCatalogStats {
   if (!assets.length) {
-    return getMockMarketplaceStatistics();
+    return {
+      totalAssets: 0,
+      totalVolume: '0.00 ETH',
+      floorPrice: '0.00 ETH',
+      averagePrice: '0.00 ETH',
+    };
   }
 
   const totalAssets = assets.length;
@@ -277,14 +302,14 @@ export function getMarketplaceCatalogStatistics(
 export function getMarketplaceCatalogCategories(
   assets: MarketplaceAsset[] = cachedAssets
 ): string[] {
-  if (!assets.length) return getMockMarketplaceCategories();
-  return Array.from(new Set(assets.map((asset) => asset.category).filter(Boolean))).sort();
+  if (!assets.length) return [];
+  return getCategoryOptionsFromValues(assets.map((asset) => asset.category)).map((option) => option.value);
 }
 
 export function getMarketplaceCatalogBlockchains(
   assets: MarketplaceAsset[] = cachedAssets
 ): string[] {
-  if (!assets.length) return getMockMarketplaceBlockchains();
+  if (!assets.length) return [];
   return Array.from(new Set(assets.map((asset) => asset.blockchain).filter(Boolean))).sort();
 }
 

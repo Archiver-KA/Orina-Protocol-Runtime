@@ -7,11 +7,11 @@ import type {
   CollectionMembership,
   CollectionSummary,
 } from '@/types/collection';
-import { MOCK_COLLECTIONS } from '@/utils/mockCollectionsData';
 import {
   getMarketplaceCatalogAssetById,
   loadMarketplaceCatalogSync,
 } from '@/utils/marketplaceCatalog';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 import {
   encodeEq,
   isSupabaseRestEnabled,
@@ -192,7 +192,7 @@ function buildMarketplaceCollectionAsset(assetId: string): CollectionAssetItem |
   return {
     id: asset.id,
     name: asset.name,
-    category: asset.category,
+    category: getCategoryDisplayLabel(asset.category),
     image: asset.image,
     price: asset.price,
     ownerWallet: asset.seller.address,
@@ -211,7 +211,7 @@ function buildOwnedCollectionAsset(assetId: string): CollectionAssetItem | null 
   return {
     id: asset.id,
     name: asset.name,
-    category: asset.category,
+    category: getCategoryDisplayLabel(asset.category),
     image: asset.image,
     price: asset.currentPrice,
     ownerWallet: asset.currentOwner,
@@ -251,6 +251,7 @@ function normalizeCollectionSummary(collection: CollectionSummary): CollectionSu
   return {
     ...collection,
     slug: slugify(collection.slug || collection.name),
+    category: getCategoryDisplayLabel(collection.category),
     description,
     bio,
     tags: uniqueStrings(collection.tags),
@@ -389,7 +390,7 @@ function mapDbCollectionToSummary(
     id: row.id,
     slug: row.slug,
     name: row.name,
-    category: row.category,
+    category: getCategoryDisplayLabel(row.category),
     description: row.description,
     coverImage: row.cover_image,
     ownerWallet: walletKey(row.owner_wallet_snapshot),
@@ -818,13 +819,6 @@ export function loadRuntimeCollections(): CollectionSummary[] {
   const followCounts = getCollectionFollowCounts();
   const deletedIds = new Set(readDeletedCollectionIds());
 
-  if (!isSupabaseRestEnabled()) {
-    MOCK_COLLECTIONS.forEach((collection) => {
-      if (deletedIds.has(collection.id)) return;
-      collectionMap.set(collection.id, normalizeCollectionSummary(collection));
-    });
-  }
-
   readStoredRuntimeCollections().forEach((collection) => {
     if (deletedIds.has(collection.id)) return;
     collectionMap.set(collection.id, normalizeCollectionSummary(collection));
@@ -864,7 +858,7 @@ export function loadCollectionAssetOptions(walletAddress?: string | null): Colle
         ...fixture.rwaAssets.map((asset) => ({
           id: asset.id,
           name: asset.name,
-          category: asset.category,
+          category: getCategoryDisplayLabel(asset.category),
           image: asset.image,
           price: asset.minPrice,
           ownerWallet: normalizedWallet,
@@ -875,7 +869,7 @@ export function loadCollectionAssetOptions(walletAddress?: string | null): Colle
         ...fixture.receiptAssets.map((asset) => ({
           id: asset.id,
           name: asset.name,
-          category: asset.category,
+          category: getCategoryDisplayLabel(asset.category),
           image: asset.image,
           price: asset.purchaseValue,
           ownerWallet: normalizedWallet,
@@ -886,7 +880,7 @@ export function loadCollectionAssetOptions(walletAddress?: string | null): Colle
         ...fixture.nftAssets.map((asset) => ({
           id: asset.id,
           name: asset.name,
-          category: asset.category,
+          category: getCategoryDisplayLabel(asset.category),
           image: asset.image,
           price: asset.currentPrice,
           ownerWallet: normalizedWallet,
@@ -900,7 +894,7 @@ export function loadCollectionAssetOptions(walletAddress?: string | null): Colle
     ...runtimeAssets.rwaAssets.map((asset) => ({
       id: asset.id,
       name: asset.name,
-      category: asset.category,
+      category: getCategoryDisplayLabel(asset.category),
       image: asset.image,
       price: asset.minPrice,
       ownerWallet: normalizedWallet,
@@ -911,7 +905,7 @@ export function loadCollectionAssetOptions(walletAddress?: string | null): Colle
     ...runtimeAssets.nftAssets.map((asset) => ({
       id: asset.id,
       name: asset.name,
-      category: asset.category,
+      category: getCategoryDisplayLabel(asset.category),
       image: asset.image,
       price: asset.currentPrice,
       ownerWallet: normalizedWallet,
@@ -926,7 +920,7 @@ export function loadCollectionAssetOptions(walletAddress?: string | null): Colle
     .map((asset) => ({
       id: asset.id,
       name: asset.name,
-      category: asset.category,
+      category: getCategoryDisplayLabel(asset.category),
       image: asset.image,
       price: asset.price,
       ownerWallet: normalizedWallet,
@@ -952,7 +946,7 @@ export function createCollection(walletAddress: string, draft: CollectionDraft):
     id: `collection-${slugify(normalizedName)}-${now.toString(36)}`,
     slug: slugify(normalizedName),
     name: normalizedName,
-    category: draft.category.trim() || 'Curated',
+    category: getCategoryDisplayLabel(draft.category.trim() || 'physical_goods'),
     description: (draft.bio || `Curated collection by ${shortWallet(walletAddress)}`).trim(),
     coverImage: draft.coverImage.trim(),
     ownerWallet: normalizedWallet,
@@ -985,7 +979,7 @@ export function updateCollection(
     ...existing,
     name: updates.name?.trim() || existing.name,
     slug: slugify(updates.name?.trim() || existing.slug || existing.name),
-    category: updates.category?.trim() || existing.category,
+    category: getCategoryDisplayLabel(updates.category?.trim() || existing.category),
     description: (updates.bio ?? existing.bio ?? existing.description).trim() || existing.description,
     bio: (updates.bio ?? existing.bio).trim(),
     tags: updates.tags ? uniqueStrings(updates.tags) : existing.tags,

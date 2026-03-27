@@ -33,10 +33,11 @@ export function useCommandPalette(
       'nav-favorites': 'favorites',
       'nav-messages': 'messages',
       'nav-history': 'history',
+      'nav-settings': 'settings',
       'action-create-order': 'orders',
       'action-mint-asset': 'minting',
-      'settings-profile': 'profile',
-      'settings-notifications': 'profile',
+      'settings-profile': 'settings',
+      'settings-notifications': 'settings',
     };
     const page = pageMap[commandId];
     return page ? canAccessPage(page) : true;
@@ -177,6 +178,18 @@ export function useCommandPalette(
         saveRecentCommand('nav-history', 'History');
       },
     },
+    {
+      id: 'nav-settings',
+      label: 'Settings',
+      description: 'Open workspace and account settings',
+      category: 'navigation',
+      keywords: ['settings', 'preferences', 'security', 'account'],
+      icon: '⚙️',
+      action: () => {
+        setActivePage('settings');
+        saveRecentCommand('nav-settings', 'Settings');
+      },
+    },
     // Actions
     {
       id: 'action-create-order',
@@ -239,7 +252,7 @@ export function useCommandPalette(
       keywords: ['account', 'preferences', 'edit'],
       icon: '⚙️',
       action: () => {
-        setActivePage('profile');
+        setActivePage('settings');
         saveRecentCommand('settings-profile', 'Profile Settings');
       },
     },
@@ -251,7 +264,7 @@ export function useCommandPalette(
       keywords: ['alerts', 'preferences'],
       icon: '🔔',
       action: () => {
-        setActivePage('profile');
+        setActivePage('settings');
         saveRecentCommand('settings-notifications', 'Notification Settings');
       },
     },

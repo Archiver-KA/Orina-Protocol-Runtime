@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { SearchFilters } from '@/types/search';
 import { motion, AnimatePresence } from 'motion/react';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
 interface FilterTagsProps {
   filters: SearchFilters;
@@ -25,7 +26,7 @@ export function FilterTags({ filters, onRemoveFilter, onClearAll }: FilterTagsPr
     tags.push({
       key: 'category',
       value: category,
-      label: category.charAt(0).toUpperCase() + category.slice(1),
+      label: getCategoryDisplayLabel(category),
     });
   });
 

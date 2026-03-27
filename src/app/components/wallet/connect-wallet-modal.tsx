@@ -1,6 +1,5 @@
 import { useConnect, useAccount } from 'wagmi';
-import { WalletProvider, MOCK_REVIEWS } from '@/types/wallet';
-import { useState } from 'react';
+import { WalletProvider } from '@/types/wallet';
 import { toast } from 'sonner';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 import { getWalletErrorMessage, isWalletRequestPendingError, isWalletRequestRejectedError } from '@/utils/walletErrors';
@@ -13,7 +12,6 @@ interface ConnectWalletModalProps {
 export function ConnectWalletModal({ onClose, onConnect }: ConnectWalletModalProps) {
   const { connectors, connectAsync, isPending } = useConnect();
   const { address, isConnected } = useAccount();
-  const [showReviews, setShowReviews] = useState(false);
 
   const resolveConnector = (providerId: string) => {
     if (providerId === 'injected') {
@@ -35,17 +33,17 @@ export function ConnectWalletModal({ onClose, onConnect }: ConnectWalletModalPro
       name: 'MetaMask',
       description: 'Ethereum & Layer 2',
       iconType: 'image',
-      iconValue: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBDA93YNdsx4Esqr-ggKTV0jKV5adDv4_pZmKqbV2TE6_twLY48qg9EtCleZfT8Cn26FnJinWRRhwrMXcDw4bLGRniK6W2p_wO-MSXpelKvfTHqVncL9BbzX7R7sFVh_rxJUNFixr6LnmpC5Ve1SWl34-TD8fZknuqRN6CGfNQSY-316ac8yCYg9ZmFiZsIRwhTtI8-7jBSLFwuucxGCQZJb8vJgLjmJFHzrAGR8O5wn1kYOIbmBkOeL_rcKM0Zqr1AlaAEh7D9g8T-',
-      iconBgColor: 'bg-orange-500/10',
+      iconValue: '/wallet-logos/metamask.svg',
+      iconBgColor: 'bg-[#17191f]',
       installed: hasConnector('injected'),
     },
     {
       id: 'coinbase',
       name: 'Coinbase Wallet',
       description: 'Popular Choice',
-      iconType: 'icon',
-      iconValue: 'coinbase',
-      iconBgColor: 'bg-blue-500/10',
+      iconType: 'image',
+      iconValue: '/wallet-logos/Coinbase Wallet Logos/Icon/coinbase_wallet_appicon.png',
+      iconBgColor: 'bg-[#17191f]',
       recommended: true,
       installed: hasConnector('coinbaseWalletSDK'),
     },
@@ -53,18 +51,18 @@ export function ConnectWalletModal({ onClose, onConnect }: ConnectWalletModalPro
       id: 'walletConnect',
       name: 'WalletConnect',
       description: 'Any wallet & mobile',
-      iconType: 'icon',
-      iconValue: 'sync_alt',
-      iconBgColor: 'bg-blue-400/10',
+      iconType: 'image',
+      iconValue: '/wallet-logos/walletconnect.png',
+      iconBgColor: 'bg-[#17191f]',
       installed: hasConnector('walletConnect'),
     },
     {
       id: 'phantom',
       name: 'Phantom',
       description: 'Solana & Multi-chain',
-      iconType: 'icon',
-      iconValue: 'mist',
-      iconBgColor: 'bg-purple-500/10',
+      iconType: 'image',
+      iconValue: '/wallet-logos/phantom.png',
+      iconBgColor: 'bg-[#17191f]',
       installed: hasConnector('phantom'),
     },
   ];
@@ -109,9 +107,6 @@ export function ConnectWalletModal({ onClose, onConnect }: ConnectWalletModalPro
     }
   };
 
-  const averageRating = 4.9;
-  const totalReviews = 150;
-
   return (
     <div 
       className="fixed inset-0 z-[100] flex items-center justify-center p-6" 
@@ -138,69 +133,6 @@ export function ConnectWalletModal({ onClose, onConnect }: ConnectWalletModalPro
           </p>
         </div>
 
-        {/* Rating Section - Compact */}
-        <div className="px-6 py-3 border-y border-[#27272a]/50 bg-zinc-900/20">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-yellow-500 text-sm" style={{ fontVariationSettings: '"FILL" 1' }}>star</span>
-              <span className="text-white font-bold text-xs">Rating: {averageRating}</span>
-              <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-wider">• Trusted</span>
-            </div>
-            
-            {/* Compact Reviews Toggle */}
-            <button
-              onClick={() => setShowReviews(!showReviews)}
-              className="cursor-pointer group/label flex items-center gap-1"
-            >
-              <span className="text-[10px] text-[#2CC295] font-bold uppercase tracking-tight transition-colors group-hover/label:text-[#2CC295]/80">
-                {showReviews ? 'Hide' : `${totalReviews}`} reviews
-              </span>
-              <span 
-                className="material-symbols-outlined text-[12px] text-[#2CC295] transition-transform duration-300"
-                style={{ transform: showReviews ? 'rotate(180deg)' : 'rotate(0deg)' }}
-              >
-                expand_more
-              </span>
-            </button>
-          </div>
-
-          {/* Compact Reviews Container */}
-          <div 
-            className="overflow-hidden transition-all duration-300 ease-in-out"
-            style={{
-              maxHeight: showReviews ? '180px' : '0',
-              marginTop: showReviews ? '0.75rem' : '0',
-              opacity: showReviews ? 1 : 0,
-            }}
-          >
-            <div className="bg-black/40 border border-white/5 rounded-xl p-3 overflow-y-auto max-h-[160px] custom-scrollbar">
-              <div className="space-y-2.5">
-                {MOCK_REVIEWS.slice(0, 3).map((review, index) => (
-                  <div key={index} className="pb-2 border-b border-white/5 last:border-0 last:pb-0">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-[10px] font-bold text-white">{review.username}</span>
-                      <div className="flex gap-0.5">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <span
-                            key={i}
-                            className={`material-symbols-outlined text-[9px] ${
-                              i < review.rating ? 'text-yellow-500' : 'text-zinc-600'
-                            }`}
-                            style={{ fontVariationSettings: '"FILL" 1' }}
-                          >
-                            star
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-zinc-400 leading-snug">{review.comment}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Wallet Options - Scrollable */}
         <div className="p-6 pt-4 space-y-2 overflow-y-auto flex-1 custom-scrollbar">
           {walletProviders.map((wallet) => (
@@ -215,20 +147,12 @@ export function ConnectWalletModal({ onClose, onConnect }: ConnectWalletModalPro
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 flex items-center justify-center ${wallet.iconBgColor} rounded-lg`}>
-                  {wallet.iconType === 'image' ? (
-                    <img alt={wallet.name} className="w-5 h-5 object-contain" src={wallet.iconValue} />
-                  ) : wallet.iconValue === 'coinbase' ? (
-                    <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
-                      <div className="w-2.5 h-2.5 bg-white rounded-sm"></div>
-                    </div>
-                  ) : (
-                    <span className={`material-symbols-outlined text-lg ${
-                      wallet.iconValue === 'sync_alt' ? 'text-blue-400' : 'text-purple-500'
-                    }`}>
-                      {wallet.iconValue}
-                    </span>
-                  )}
+                <div className={`w-10 h-10 flex items-center justify-center ${wallet.iconBgColor} rounded-xl border border-white/5 shrink-0`}>
+                  <img
+                    alt={wallet.name}
+                    className="w-6 h-6 object-contain"
+                    src={wallet.iconValue}
+                  />
                 </div>
                 <div className="text-left">
                   <span className="text-xs font-bold text-white block">{wallet.name}</span>
