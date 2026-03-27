@@ -8,6 +8,7 @@ dist/
 
 # Supabase local temp/cache
 supabase/.temp/
+supabase/supabase/.temp/
 
 # Supabase audit local secrets / probe outputs
 supabase/audit/key.md
@@ -19,6 +20,8 @@ Thumbs.db
 .vscode/
 .idea/
 *.log
+public/wallet-logos/__MACOSX/
+public/wallet-logos/*.zip
 
 # Accidental local file
 .env)
