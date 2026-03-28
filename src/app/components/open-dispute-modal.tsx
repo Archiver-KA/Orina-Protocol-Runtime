@@ -1,5 +1,6 @@
 import { AlertTriangle, Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useAccount } from 'wagmi';
 import { motion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { MultiImageUpload } from '@/app/components/multi-image-upload';
@@ -46,6 +47,7 @@ const DISPUTE_REASONS = [
 ];
 
 export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModalProps) {
+  const { address } = useAccount();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
   const [comment, setComment] = useState('');
@@ -259,17 +261,11 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
                     <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
                       <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Evidence (Photos)</h4>
                       <MultiImageUpload
-                        maxFiles={5}
-                        onUploadSuccess={(images) => {
-                          setUploadedEvidence(images);
-                          console.log('Dispute evidence uploaded to IPFS:', images);
-                        }}
-                        onUploadError={(error) => {
-                          console.error('Dispute evidence upload error:', error);
-                        }}
-                        currentImages={uploadedEvidence.map((img) => img.url)}
-                        label=""
-                        description="PNG, JPG up to 100MB (max 5 images)"
+                        walletAddress={address}
+                        value={uploadedEvidence}
+                        onImagesChange={setUploadedEvidence}
+                        maxImages={5}
+                        minImages={0}
                       />
                     </div>
 

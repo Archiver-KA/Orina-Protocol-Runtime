@@ -1,31 +1,24 @@
 /**
  * Messages Client - Frontend API for Supabase Backend Messaging
- * Enables real-time bidirectional messaging between wallets
+ * Requires H1 wallet-auth bridge JWT (same as other protected Edge routes).
  */
 
 import { projectId, publicAnonKey, supabaseUrl } from '/utils/supabase/info';
+import {
+  exchangeWalletAuthForSupabaseClaimSession,
+  getSupabaseBridgeAccessToken,
+  isSupabaseAuthClaimBridgeEnabled,
+} from '@/utils/supabaseAuthClaimBridge';
 
-// NOTE: The deployed edge function historically mounted routes under:
-//   /functions/v1/<fnName>/<fnName>/messages/*
-// while newer code should use:
-//   /functions/v1/<fnName>/messages/*
-// To avoid hard failures during migrations, we try the canonical path first
-// and fall back to the legacy duplicated-prefix path on 404.
-// Prefer the clean chat function (does not share routes with the legacy "make-server" function).
-// This avoids route collisions and makes deployment safer.
 const FN_NAME = 'orina-chat-v1';
 const SUPABASE_BASE = supabaseUrl.replace(/\/+$/, '');
 const FN_BASE = `${SUPABASE_BASE}/functions/v1/${FN_NAME}`;
 const MESSAGES_BASE = `${FN_BASE}/messages`;
-// Optional fallback to the old function path if needed for rollback/debug.
 const LEGACY_FN_NAME = 'make-server-b0d68fc8';
 const LEGACY_FN_BASE = `${SUPABASE_BASE}/functions/v1/${LEGACY_FN_NAME}`;
-// Different deployments have historically used different mount patterns.
-// We try both legacy forms before failing.
-const MESSAGES_BASE_LEGACY = `${LEGACY_FN_BASE}/messages`; // most common
-const MESSAGES_BASE_LEGACY_DUP = `${LEGACY_FN_BASE}/${LEGACY_FN_NAME}/messages`; // older duplicate-prefix
+const MESSAGES_BASE_LEGACY = `${LEGACY_FN_BASE}/messages`;
+const MESSAGES_BASE_LEGACY_DUP = `${LEGACY_FN_BASE}/${LEGACY_FN_NAME}/messages`;
 
-// C6.3.1 chat invalidation events (no-payload event bus; listeners self-refresh)
 export const CHAT_CONVERSATIONS_CHANGED_EVENT = 'orina:chat-conversations-changed';
 export const CHAT_MESSAGES_CHANGED_EVENT = 'orina:chat-messages-changed';
 export const CHAT_READ_STATE_CHANGED_EVENT = 'orina:chat-read-state-changed';
@@ -35,27 +28,53 @@ function dispatchChatEvent(name: string): void {
   window.dispatchEvent(new Event(name));
 }
 
-function buildHeaders(extra?: Record<string, string>) {
-  // Keep headers as "simple" as possible to reduce CORS preflight failures.
-  // Some Supabase setups accept Authorization alone for Edge Functions calls.
-  // If your deployment requires `apikey`, add it back once CORS allow-headers
-  // is confirmed to include it on OPTIONS preflight responses.
-  return {
-    'Authorization': `Bearer ${publicAnonKey}`,
-    ...extra,
+async function buildWalletAuthHeaders(walletAddress: string, jsonBody: boolean): Promise<Record<string, string>> {
+  const w = String(walletAddress || '').trim();
+  if (!w) {
+    throw new Error('Wallet address is required for messaging.');
+  }
+
+  if (isSupabaseAuthClaimBridgeEnabled()) {
+    await exchangeWalletAuthForSupabaseClaimSession(w);
+  }
+
+  const token = getSupabaseBridgeAccessToken();
+  if (!token) {
+    throw new Error('Wallet session required. Sign the Orina wallet auth message, then retry.');
+  }
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    apikey: publicAnonKey,
   };
+  if (jsonBody) {
+    headers['Content-Type'] = 'application/json';
+  }
+  return headers;
 }
 
 async function fetchJsonWithFallback<T>(
   path: string,
+  walletAddress: string,
   init?: RequestInit
 ): Promise<T> {
+  const jsonBody = Boolean(
+    init?.body && typeof init.body === 'string' && init.method && init.method !== 'GET'
+  );
+  const authHeaders = await buildWalletAuthHeaders(walletAddress, jsonBody);
+
   const urlPrimary = `${MESSAGES_BASE}${path}`;
   const urlLegacy = `${MESSAGES_BASE_LEGACY}${path}`;
   const urlLegacyDup = `${MESSAGES_BASE_LEGACY_DUP}${path}`;
 
   const doFetch = async (url: string) => {
-    const res = await fetch(url, init);
+    const res = await fetch(url, {
+      ...init,
+      headers: {
+        ...authHeaders,
+        ...(init?.headers || {}),
+      },
+    });
     const text = await res.text();
 
     let json: any = null;
@@ -105,7 +124,6 @@ async function fetchJsonWithFallback<T>(
   return primary.json as T;
 }
 
-// Types
 export interface Message {
   id: string;
   conversationId: string;
@@ -136,9 +154,6 @@ export interface ConversationWithMetadata extends Conversation {
   online?: boolean;
 }
 
-/**
- * Send a message to another user
- */
 export async function sendMessage(
   sender: string,
   receiver: string,
@@ -146,9 +161,8 @@ export async function sendMessage(
   image?: { url: string; ipfsHash?: string }
 ): Promise<{ message: Message; conversation: Conversation }> {
   try {
-    const data = await fetchJsonWithFallback<any>('/send', {
+    const data = await fetchJsonWithFallback<any>('/send', sender, {
       method: 'POST',
-      headers: buildHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ sender, receiver, text, image }),
     });
     dispatchChatEvent(CHAT_MESSAGES_CHANGED_EVENT);
@@ -160,25 +174,21 @@ export async function sendMessage(
   }
 }
 
-/**
- * Get all conversations for a user
- */
 export async function getConversations(
   address: string
 ): Promise<ConversationWithMetadata[]> {
   try {
-    const data = await fetchJsonWithFallback<any>(`/conversations/${address}`, {
-      headers: buildHeaders(),
+    const data = await fetchJsonWithFallback<any>(`/conversations/${address}`, address, {
+      method: 'GET',
     });
-    
-    // Merge conversations with metadata
+
     const conversations: ConversationWithMetadata[] = data.conversations.map((conv: Conversation) => {
       const metadata = data.metadata[conv.id] || {};
       return {
         ...conv,
         displayName: metadata.displayName,
         avatar: metadata.avatar,
-        online: false, // Can be extended with real online status
+        online: false,
       };
     });
 
@@ -189,9 +199,6 @@ export async function getConversations(
   }
 }
 
-/**
- * Get messages for a specific conversation
- */
 export async function getMessages(
   conversationId: string,
   userAddress: string
@@ -199,7 +206,8 @@ export async function getMessages(
   try {
     const data = await fetchJsonWithFallback<any>(
       `/${conversationId}?userAddress=${encodeURIComponent(userAddress)}`,
-      { headers: buildHeaders() }
+      userAddress,
+      { method: 'GET' }
     );
     return { messages: data.messages, conversation: data.conversation };
   } catch (error) {
@@ -208,17 +216,13 @@ export async function getMessages(
   }
 }
 
-/**
- * Mark a conversation as read
- */
 export async function markAsRead(
   conversationId: string,
   userAddress: string
 ): Promise<void> {
   try {
-    await fetchJsonWithFallback<any>('/read', {
+    await fetchJsonWithFallback<any>('/read', userAddress, {
       method: 'POST',
-      headers: buildHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ conversationId, userAddress }),
     });
     dispatchChatEvent(CHAT_READ_STATE_CHANGED_EVENT);
@@ -229,9 +233,6 @@ export async function markAsRead(
   }
 }
 
-/**
- * Delete a conversation (only removes from user's list)
- */
 export async function deleteConversation(
   conversationId: string,
   userAddress: string
@@ -239,7 +240,8 @@ export async function deleteConversation(
   try {
     await fetchJsonWithFallback<any>(
       `/${conversationId}?userAddress=${encodeURIComponent(userAddress)}`,
-      { method: 'DELETE', headers: buildHeaders() }
+      userAddress,
+      { method: 'DELETE' }
     );
     dispatchChatEvent(CHAT_MESSAGES_CHANGED_EVENT);
     dispatchChatEvent(CHAT_CONVERSATIONS_CHANGED_EVENT);
@@ -249,31 +251,21 @@ export async function deleteConversation(
   }
 }
 
-/**
- * Create a new conversation (convenience wrapper)
- */
 export async function createConversation(
   sender: string,
   receiver: string,
   displayName?: string
 ): Promise<Conversation> {
   try {
-    const data = await fetchJsonWithFallback<any>('/conversation', {
+    const data = await fetchJsonWithFallback<any>('/conversation', sender, {
       method: 'POST',
-      headers: buildHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ sender, receiver, displayName }),
     });
     dispatchChatEvent(CHAT_CONVERSATIONS_CHANGED_EVENT);
     return data.conversation as Conversation;
   } catch (error) {
-    // Backward compatibility for deployments that do not yet expose /conversation.
     console.debug('[MessagesClient] createConversation fallback -> sendMessage:', error);
-    const result = await sendMessage(
-      sender,
-      receiver,
-      'Conversation started',
-      undefined
-    );
+    const result = await sendMessage(sender, receiver, 'Conversation started', undefined);
     return result.conversation;
   }
 }

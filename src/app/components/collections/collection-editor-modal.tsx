@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useAccount } from 'wagmi';
 import { Upload } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { createPortal } from 'react-dom';
@@ -145,6 +146,7 @@ export function CollectionEditorModal({
               >
                 <div className="studio-form-surface rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4 backdrop-blur-[8px]">
                   <ImageUpload
+                    walletAddress={address}
                     variant="banner"
                     currentImageUrl={uploadedCover?.url || existingCoverImage}
                     onUploadSuccess={setUploadedCover}

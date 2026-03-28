@@ -188,8 +188,9 @@ function buildAggregate(vuln, m2mScan) {
       summary: 'Chat REST trusts addresses from body/query; harden with JWT + membership when required.',
     },
     ipfsPinata: {
-      status: 'risk',
-      summary: 'Upload with anon bearer may allow abuse of Pinata quota — add auth or quotas.',
+      status: 'review',
+      summary:
+        'Upload routes require H1 bridge JWT + per-wallet rate limit (ipfs-upload.tsx); monitor Pinata quota.',
     },
     cors: {
       status: 'review',

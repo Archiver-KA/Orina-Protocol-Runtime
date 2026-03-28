@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Upload, X, CheckCircle, AlertCircle, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { projectId } from '/utils/supabase/info';
+import { getIpfsUploadAuthHeaders } from '@/utils/ipfsUploadAuth';
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { StudioLoadingOverlay } from '@/app/components/ui/studio-loading-overlay';
 import { StudioTransientState } from '@/app/components/ui/studio-transient-state';
@@ -25,6 +26,8 @@ interface ImageUploadProps {
   label?: string;
   description?: string;
   showPreview?: boolean;
+  /** Required for authenticated IPFS upload (H1 bridge). */
+  walletAddress?: string | null;
 }
 
 export function ImageUpload({
@@ -38,6 +41,7 @@ export function ImageUpload({
   label,
   description,
   showPreview = true,
+  walletAddress,
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -81,8 +85,18 @@ export function ImageUpload({
     setUploadProgress(0);
 
     try {
+      if (!walletAddress?.trim()) {
+        const err = 'Connect your wallet and complete wallet sign-in to upload.';
+        setErrorMessage(err);
+        setUploadStatus('error');
+        onUploadError?.(err);
+        return;
+      }
+
       const formData = new FormData();
       formData.append('file', file);
+
+      const authHeaders = await getIpfsUploadAuthHeaders(walletAddress);
 
       // Simulate progress (since we don't have real progress tracking)
       const progressInterval = setInterval(() => {
@@ -93,9 +107,7 @@ export function ImageUpload({
         `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ipfs/upload`,
         {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-          },
+          headers: authHeaders,
           body: formData,
         }
       );
@@ -158,7 +170,7 @@ export function ImageUpload({
     } finally {
       setIsUploading(false);
     }
-  }, [accept, maxSizeMB, currentImageUrl, onUploadSuccess, onUploadError, projectId, publicAnonKey]);
+  }, [accept, maxSizeMB, currentImageUrl, onUploadSuccess, onUploadError, projectId, walletAddress]);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

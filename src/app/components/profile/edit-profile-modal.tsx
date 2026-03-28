@@ -97,6 +97,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                 {/* Banner Upload */}
                 <div className="studio-form-surface p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-[20px] backdrop-blur-[8px]">
                   <ImageUpload
+                    walletAddress={profile.address}
                     variant="banner"
                     onUploadSuccess={(image) => {
                       setBannerImage(image);
@@ -115,6 +116,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                 {/* Avatar Upload */}
                 <div className="studio-form-surface p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-[20px] backdrop-blur-[8px]">
                   <ImageUpload
+                    walletAddress={profile.address}
                     variant="avatar"
                     onUploadSuccess={(image) => {
                       setAvatarImage(image);

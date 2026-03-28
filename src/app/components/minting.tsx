@@ -1029,6 +1029,7 @@ export function Minting() {
                 </div>
                 {assetType === 'RWA' ? (
                   <MultiImageUpload
+                    walletAddress={address}
                     value={uploadedImages}
                     onImagesChange={(images) => {
                       setUploadedImages(images);
@@ -1040,6 +1041,7 @@ export function Minting() {
                   />
                 ) : (
                   <ImageUpload
+                    walletAddress={address}
                     variant="asset"
                     onUploadSuccess={(image) => {
                       setUploadedMedia(image);

@@ -10,6 +10,12 @@
 
 import { Context } from 'npm:hono';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import type { AuthenticatedWalletIdentity } from './request-auth.ts';
+import {
+  assertAuthenticatedWalletMatch,
+  normalizeWalletAddress,
+  requireAuthenticatedWallet,
+} from './request-auth.ts';
 
 // Types (compatible with existing frontend MessagesClient)
 export interface Message {
@@ -501,13 +507,31 @@ async function getUserConversationsImpl(address: string): Promise<{
   return { conversations: outConversations, metadata };
 }
 
+function assertCallerIsPartyToDirectChat(
+  c: Context,
+  identity: AuthenticatedWalletIdentity,
+  sender: string,
+  receiver: string,
+): Response | null {
+  const w = identity.walletAddress;
+  const s = normalizeWalletAddress(sender);
+  const r = normalizeWalletAddress(receiver);
+  if (w !== s && w !== r) {
+    return c.json({ error: 'Authenticated wallet must match sender or receiver' }, 403);
+  }
+  return null;
+}
+
 async function getConversationMessagesImpl(
   conversationId: string,
   userAddress: string
 ): Promise<{ messages: Message[]; conversation: Conversation | null }> {
   const supabase = getServiceSupabaseClient();
   const wallet = normalizeAddress(userAddress);
-  const userProfile = wallet ? await resolveOrCreateProfile(supabase, wallet) : null;
+  if (!wallet) {
+    throw new Error('userAddress is required');
+  }
+  const userProfile = await resolveOrCreateProfile(supabase, wallet);
 
   const { data: convRows, error: convError } = await supabase
     .from('conversations')
@@ -526,7 +550,7 @@ async function getConversationMessagesImpl(
   const participantRows = (participantRowsRaw || []) as DbParticipantRow[];
 
   // Access check by membership (server-side guard even though service role is used)
-  if (userProfile && !participantRows.some((p) => p.user_id === userProfile.id)) {
+  if (!participantRows.some((p) => p.user_id === userProfile.id)) {
     throw new Error('User is not a participant of this conversation');
   }
 
@@ -604,6 +628,15 @@ async function markConversationAsReadImpl(
 ): Promise<void> {
   const supabase = getServiceSupabaseClient();
   const profile = await resolveOrCreateProfile(supabase, normalizeAddress(userAddress));
+  const { data: membership, error: memErr } = await supabase
+    .from('conversation_participants')
+    .select('user_id')
+    .eq('conversation_id', conversationId)
+    .eq('user_id', profile.id)
+    .limit(1);
+  if (memErr) throw new Error(`mark read membership check failed: ${memErr.message}`);
+  if (!membership?.length) throw new Error('User is not a participant of this conversation');
+
   const { error } = await supabase
     .from('conversation_participants')
     .update({ last_read_at: new Date().toISOString() })
@@ -618,6 +651,15 @@ async function deleteConversationImpl(
 ): Promise<void> {
   const supabase = getServiceSupabaseClient();
   const profile = await resolveOrCreateProfile(supabase, normalizeAddress(userAddress));
+
+  const { data: membership, error: memErr } = await supabase
+    .from('conversation_participants')
+    .select('user_id')
+    .eq('conversation_id', conversationId)
+    .eq('user_id', profile.id)
+    .limit(1);
+  if (memErr) throw new Error(`delete membership check failed: ${memErr.message}`);
+  if (!membership?.length) throw new Error('User is not a participant of this conversation');
 
   const { error } = await supabase
     .from('conversation_participants')
@@ -650,6 +692,9 @@ export async function handleCreateConversation(c: Context) {
 
 export async function handleSendMessage(c: Context) {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
     const body = await c.req.json();
     const { sender, receiver, text, image } = body;
 
@@ -659,6 +704,9 @@ export async function handleSendMessage(c: Context) {
     if (!text && !image) {
       return c.json({ error: 'Message must contain text or image' }, 400);
     }
+
+    const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, sender, 'sender');
+    if (mismatch) return mismatch;
 
     const result = await sendMessageImpl(sender, receiver, text || '', image);
     return c.json({ success: true, message: result.message, conversation: result.conversation });
@@ -670,10 +718,17 @@ export async function handleSendMessage(c: Context) {
 
 export async function handleGetConversations(c: Context) {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
     const address = c.req.param('address');
     if (!address) {
       return c.json({ error: 'Missing address' }, 400);
     }
+
+    const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, address, 'address');
+    if (mismatch) return mismatch;
+
     const result = await getUserConversationsImpl(address);
     return c.json({ success: true, conversations: result.conversations, metadata: result.metadata });
   } catch (error) {
@@ -684,12 +739,22 @@ export async function handleGetConversations(c: Context) {
 
 export async function handleGetMessages(c: Context) {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
     const conversationId = c.req.param('conversationId');
     const userAddress = c.req.query('userAddress');
     if (!conversationId) {
       return c.json({ error: 'Missing conversationId' }, 400);
     }
-    const result = await getConversationMessagesImpl(conversationId, userAddress || '');
+    if (!userAddress?.trim()) {
+      return c.json({ error: 'Missing userAddress' }, 400);
+    }
+
+    const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, userAddress, 'userAddress');
+    if (mismatch) return mismatch;
+
+    const result = await getConversationMessagesImpl(conversationId, userAddress);
     return c.json({ success: true, messages: result.messages, conversation: result.conversation });
   } catch (error) {
     console.error('[Messages C5] Get messages error:', error);
@@ -699,11 +764,18 @@ export async function handleGetMessages(c: Context) {
 
 export async function handleMarkAsRead(c: Context) {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
     const body = await c.req.json();
     const { conversationId, userAddress } = body;
     if (!conversationId || !userAddress) {
       return c.json({ error: 'Missing conversationId or userAddress' }, 400);
     }
+
+    const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, userAddress, 'userAddress');
+    if (mismatch) return mismatch;
+
     await markConversationAsReadImpl(conversationId, userAddress);
     return c.json({ success: true });
   } catch (error) {
@@ -714,11 +786,18 @@ export async function handleMarkAsRead(c: Context) {
 
 export async function handleDeleteConversation(c: Context) {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
     const conversationId = c.req.param('conversationId');
     const userAddress = c.req.query('userAddress');
     if (!conversationId || !userAddress) {
       return c.json({ error: 'Missing conversationId or userAddress' }, 400);
     }
+
+    const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, userAddress, 'userAddress');
+    if (mismatch) return mismatch;
+
     await deleteConversationImpl(conversationId, userAddress);
     return c.json({ success: true });
   } catch (error) {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAccount } from 'wagmi';
 import { X, Image as ImageIcon, BarChart3, Type, MessageSquare, Megaphone, Trophy, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
@@ -228,17 +229,11 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                       <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Images (Optional)</h3>
                     </div>
                     <MultiImageUpload
-                      maxFiles={4}
-                      onUploadSuccess={(images) => {
-                        setUploadedImages(images);
-                        console.log('Community post images uploaded to IPFS:', images);
-                      }}
-                      onUploadError={(error) => {
-                        console.error('Community post image upload error:', error);
-                      }}
-                      currentImages={uploadedImages.map((img) => img.url)}
-                      label=""
-                      description={`Maximum 4 images • ${4 - uploadedImages.length} remaining`}
+                      walletAddress={address}
+                      value={uploadedImages}
+                      onImagesChange={setUploadedImages}
+                      maxImages={4}
+                      minImages={0}
                     />
                   </div>
 

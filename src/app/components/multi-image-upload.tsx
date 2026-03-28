@@ -11,13 +11,16 @@ interface MultiImageUploadProps {
   value?: UploadedImage[];
   maxImages?: number;
   minImages?: number;
+  /** Required for authenticated IPFS upload */
+  walletAddress?: string | null;
 }
 
 export function MultiImageUpload({ 
   onImagesChange, 
   value,
   maxImages = 5, 
-  minImages = 1 
+  minImages = 1,
+  walletAddress,
 }: MultiImageUploadProps) {
   const [images, setImages] = useState<UploadedImage[]>(value || []);
   const [uploadingCount, setUploadingCount] = useState(0);
@@ -62,11 +65,17 @@ export function MultiImageUpload({
       return;
     }
 
+    if (!walletAddress?.trim()) {
+      alert('Connect your wallet and sign in to upload images.');
+      e.target.value = '';
+      return;
+    }
+
     try {
       setUploadingCount(validFiles.length);
       console.log(`[Multi-Upload] Uploading ${validFiles.length} files...`);
       
-      const result = await uploadMultipleFiles(validFiles);
+      const result = await uploadMultipleFiles(validFiles, walletAddress);
       
       if (result.success && result.files.length > 0) {
         const newImages: UploadedImage[] = result.files.map(file => ({

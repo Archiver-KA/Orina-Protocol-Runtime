@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { getIpfsUploadAuthHeaders } from '@/utils/ipfsUploadAuth';
 
 export interface UploadedFile {
   ipfsHash: string;
@@ -29,7 +30,7 @@ export function useIPFSUpload() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const uploadFile = useCallback(async (file: File): Promise<UploadResult> => {
+  const uploadFile = useCallback(async (file: File, walletAddress: string): Promise<UploadResult> => {
     setIsUploading(true);
     setProgress(0);
     setError(null);
@@ -115,7 +116,7 @@ export function useIPFSUpload() {
     }
   }, []);
 
-  const uploadMultipleFiles = useCallback(async (files: File[]): Promise<MultiUploadResult> => {
+  const uploadMultipleFiles = useCallback(async (files: File[], walletAddress: string): Promise<MultiUploadResult> => {
     setIsUploading(true);
     setProgress(0);
     setError(null);
@@ -131,6 +132,8 @@ export function useIPFSUpload() {
         formData.append('files', file);
       });
 
+      const authHeaders = await getIpfsUploadAuthHeaders(walletAddress);
+
       // Simulate progress
       const progressInterval = setInterval(() => {
         setProgress(prev => Math.min(prev + 10, 90));
@@ -140,9 +143,7 @@ export function useIPFSUpload() {
         `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ipfs/upload-multiple`,
         {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-          },
+          headers: authHeaders,
           body: formData,
         }
       );
