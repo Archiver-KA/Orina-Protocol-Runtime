@@ -726,7 +726,7 @@ export function EnhancedProfile({
           {isOwnProfile && (
             <button
               onClick={() => setIsEditModalOpen(true)}
-              className="absolute top-4 right-4 p-2 bg-black/60 hover:bg-black/80 backdrop-blur-sm border border-white/10 rounded-lg text-white transition-colors"
+              className="absolute top-4 right-4 flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/10 bg-[rgba(255,255,255,0.02)] text-[#F1F5F9] backdrop-blur-md transition-colors hover:bg-[rgba(255,255,255,0.06)] shadow-lg"
               title="Edit Profile"
             >
               <Pencil size={16} />
@@ -748,7 +748,7 @@ export function EnhancedProfile({
                       href={`https://twitter.com/${profile.socialLinks.twitter.replace('@', '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 bg-black/60 border border-[var(--color-panel-border)] rounded-lg text-white hover:bg-zinc-800 hover:text-primary transition-colors backdrop-blur-md shadow-lg"
+                      className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/10 bg-[rgba(255,255,255,0.02)] text-[#F1F5F9] backdrop-blur-md transition-colors hover:bg-[rgba(255,255,255,0.06)] shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
                       title="Twitter"
                     >
                       <Twitter size={18} />
@@ -759,7 +759,7 @@ export function EnhancedProfile({
                       href={profile.socialLinks.discord}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 bg-black/60 border border-[var(--color-panel-border)] rounded-lg text-white hover:bg-zinc-800 hover:text-primary transition-colors backdrop-blur-md shadow-lg"
+                      className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/10 bg-[rgba(255,255,255,0.02)] text-[#F1F5F9] backdrop-blur-md transition-colors hover:bg-[rgba(255,255,255,0.06)] shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
                       title="Discord"
                     >
                       <MessageCircle size={18} />
@@ -770,7 +770,7 @@ export function EnhancedProfile({
                       href={profile.socialLinks.telegram}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 bg-black/60 border border-[var(--color-panel-border)] rounded-lg text-white hover:bg-zinc-800 hover:text-primary transition-colors backdrop-blur-md shadow-lg"
+                      className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/10 bg-[rgba(255,255,255,0.02)] text-[#F1F5F9] backdrop-blur-md transition-colors hover:bg-[rgba(255,255,255,0.06)] shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
                       title="Telegram"
                     >
                       <Send size={18} />
@@ -781,7 +781,7 @@ export function EnhancedProfile({
                       href={profile.socialLinks.website}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 bg-black/60 border border-[var(--color-panel-border)] rounded-lg text-white hover:bg-zinc-800 hover:text-primary transition-colors backdrop-blur-md shadow-lg"
+                      className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/10 bg-[rgba(255,255,255,0.02)] text-[#F1F5F9] backdrop-blur-md transition-colors hover:bg-[rgba(255,255,255,0.06)] shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
                       title="Website"
                     >
                       <Globe size={18} />
@@ -799,7 +799,7 @@ export function EnhancedProfile({
             {isOwnProfile ? (
               <>
                 <button
-                  className="p-2 bg-black/60 border border-[var(--color-panel-border)] rounded-lg text-white hover:bg-zinc-800 transition-colors backdrop-blur-md shadow-lg"
+                  className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/10 bg-[rgba(255,255,255,0.02)] text-[#F1F5F9] backdrop-blur-md transition-colors hover:bg-[rgba(255,255,255,0.06)] shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
                   title="Share Profile"
                 >
                   <Share2 size={18} />
@@ -816,7 +816,7 @@ export function EnhancedProfile({
                 </ProfileFollowButton>
                 <button
                   onClick={handleOpenMessage}
-                  className="p-2 bg-black/60 border border-[var(--color-panel-border)] rounded-lg text-white hover:bg-zinc-800 transition-colors backdrop-blur-md shadow-lg"
+                  className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/10 bg-[rgba(255,255,255,0.02)] text-[#F1F5F9] backdrop-blur-md transition-colors hover:bg-[rgba(255,255,255,0.06)] shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
                   title="Send Message"
                 >
                   <Mail size={18} />
@@ -1007,7 +1007,7 @@ export function EnhancedProfile({
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-8">
-              <div className="rounded-[24px] bg-[var(--t-surface-2)] p-6">
+              <div>
                 <div className="mb-6 flex items-center justify-between gap-4">
                   <div>
                     <h3 className="text-lg font-bold text-ui-primary">Top Products</h3>
@@ -1021,7 +1021,7 @@ export function EnhancedProfile({
                 </div>
 
                 {topProducts.length === 0 ? (
-                  <div className="rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-5)] px-6 py-10 text-center">
+                  <div className="rounded-2xl bg-[var(--t-surface-5)] px-6 py-10 text-center">
                     <p className="text-lg font-bold text-ui-primary">
                       {isOrdersLoading ? 'Loading product demand...' : 'No completed purchases yet'}
                     </p>
@@ -1034,7 +1034,7 @@ export function EnhancedProfile({
                     {topProducts.map((product, index) => {
                       const canNavigate = Boolean(product.assetRouteId && onNavigateToAsset);
                       const content = (
-                        <div className="flex items-center gap-4 rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4 text-left transition-colors hover:bg-[var(--t-surface-hover)]">
+                        <div className="flex items-center gap-4 rounded-2xl bg-[var(--t-surface-5)] px-4 py-4 text-left transition-colors hover:bg-[var(--t-surface-hover)]">
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-sm font-bold text-ui-primary">
                             {index + 1}
                           </div>
@@ -1400,7 +1400,7 @@ export function EnhancedProfile({
         {/* Header */}
         <div className="p-6 border-b border-[var(--color-panel-border)] bg-gradient-to-b from-white/[0.02] to-transparent">
           <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
-            <Shield size={18} className="text-ui-muted" />
+            <Shield size={18} className="text-primary" />
             User Performance
           </h2>
           <p className="text-xs text-ui-secondary mt-1">Trust and reputation analysis</p>
@@ -1448,7 +1448,7 @@ export function EnhancedProfile({
                   { label: 'Receipts', value: walletIdentity.assets.receiptNFTs, color: 'bg-purple-500' },
                   { label: 'Transferred', value: walletIdentity.assets.transferred, color: 'bg-yellow-500' },
                 ].map((item) => (
-                  <div key={item.label} className="p-3 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg">
+                  <div key={item.label} className="p-3 bg-[var(--t-surface-5)] rounded-lg">
                     <div className="flex items-center gap-2 mb-1">
                       <div className={`w-1.5 h-1.5 rounded-full ${item.color}`}></div>
                       <span className="text-[10px] font-bold text-ui-muted uppercase">{item.label}</span>
@@ -1473,7 +1473,7 @@ export function EnhancedProfile({
                 walletIdentity.reputation.recentRatings.slice(0, 3).map((rating, idx) => (
                   <div
                     key={rating.id || `rating-${idx}`}
-                    className="p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-xl space-y-3"
+                    className="p-4 bg-[var(--t-surface-5)] rounded-xl space-y-3"
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2">
@@ -1503,7 +1503,7 @@ export function EnhancedProfile({
                 mockReviews.map((review) => (
                   <div
                     key={review.id}
-                    className="p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-xl space-y-3"
+                    className="p-4 bg-[var(--t-surface-5)] rounded-xl space-y-3"
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2">

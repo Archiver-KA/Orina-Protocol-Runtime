@@ -382,7 +382,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
     if (!savedConvId) return; // no previous session
 
     // Silently try to reload the last conversation
-    AIAgentClient.getConversationMessages(savedConvId).then(messages => {
+    AIAgentClient.getConversationMessages(address, savedConvId).then(messages => {
       if (messages.length === 0) return; // empty or expired
       const rebuilt: AIChatEntry[] = messages.map(m => ({
         id: m.id,
@@ -516,7 +516,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
   // ── Load a past conversation ────────────────────────────────────────────────
   const loadConversation = useCallback(async (convId: string) => {
     if (!address) return;
-    const messages = await AIAgentClient.getConversationMessages(convId);
+    const messages = await AIAgentClient.getConversationMessages(address, convId);
     const rebuilt: AIChatEntry[] = messages.map(m => ({
       id: m.id,
       role: m.senderType === 'ai_agent' ? 'ai' : 'user',

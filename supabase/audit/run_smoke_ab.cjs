@@ -4,11 +4,12 @@ const path = require('path');
 
 const ROOT = process.cwd();
 const FOUNDRY_DIR = path.join(ROOT, 'foundry');
+const GENERATED_BACKFILL_SQL = path.join(ROOT, 'supabase', 'audit', 'generated_protocol_projection_backfill.sql');
 const RPC_URL = 'https://data-seed-prebsc-1-s1.bnbchain.org:8545/';
-const MARKETPLACE = '0x6154d16f4f52c1a4157928f136a53ac3b83b510b';
-const ORINA_RWA = '0xa0c34b5a941420626146bc61e15893bc1f86bf39';
-const PAYMENT_GATEWAY = '0x318cb728d91a2abd1854f31ba1d32687763b9335';
-const DISPUTE_MANAGER = '0x33dceb1e8aec7fe69d8a1390de0cc0e879035949';
+const MARKETPLACE = '0x026c9e9a5d007ed46df3de900f53c0786ec650c8';
+const ORINA_RWA = '0x5fc61747b359e089e3ced00494f9e71de836b666';
+const PAYMENT_GATEWAY = '0xce3a439e2aaa9fe86a71c661d8652b1bcb080836';
+const DISPUTE_MANAGER = '0xa31b543254c138178506244f20c0f7630b6709d5';
 
 function parseEnvFile(filePath) {
   const map = {};
@@ -136,7 +137,13 @@ function main() {
 
   run(
     'node',
-    ['supabase/audit/import_protocol_runtime_smoke_records.cjs'],
+    ['supabase/audit/backfill_protocol_projection.cjs'],
+    { cwd: ROOT, env: sharedEnv },
+  );
+
+  run(
+    process.platform === 'win32' ? 'npx.cmd' : 'npx',
+    ['supabase', 'db', 'query', '--linked', '--file', GENERATED_BACKFILL_SQL],
     { cwd: ROOT, env: sharedEnv },
   );
 

@@ -5,9 +5,115 @@
  * All write functions include proper tx tracking.
  */
 
+import { useMemo } from 'react';
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { ACTIVE_CHAIN_ID, CONTRACTS } from '@/config/contracts';
+import { ACTIVE_CHAIN_ID, CONTRACTS, OrderStatus } from '@/config/contracts';
 import { MARKETPLACE_ABI } from '@/config/abis';
+import { getBuyerDisputeDeadline, getSellerConfirmDeadline } from '@/utils/orderLifecycle';
+import type { OrderStatusResult } from '@/types/contracts';
+
+type MarketplaceOrderRead = {
+  proposedAt: bigint;
+  payDeadline: bigint;
+  autoReleaseAt: bigint;
+  state: number;
+  finalized: boolean;
+  sellerConfirmed: boolean;
+};
+
+function deriveOrderStatusResult(order?: MarketplaceOrderRead): OrderStatusResult | undefined {
+  if (!order) return undefined;
+
+  const nowSec = BigInt(Math.floor(Date.now() / 1000));
+
+  if (order.finalized) {
+    return {
+      status: OrderStatus.FINALIZED,
+      remainingTime: 0n,
+      statusText: 'Finalized',
+    };
+  }
+
+  if (order.state === 4) {
+    return {
+      status: OrderStatus.CANCELLED,
+      remainingTime: 0n,
+      statusText: 'Cancelled',
+    };
+  }
+
+  if (order.state === 0) {
+    if (order.sellerConfirmed) {
+      if (order.payDeadline !== 0n && nowSec < order.payDeadline) {
+        return {
+          status: OrderStatus.PENDING_BUYER_PAY,
+          remainingTime: order.payDeadline - nowSec,
+          statusText: 'Waiting for buyer to accept seller time',
+        };
+      }
+
+      return {
+        status: OrderStatus.PENDING_BUYER_PAY,
+        remainingTime: 0n,
+        statusText: 'Buyer acceptance expired - auto cancel pending',
+      };
+    }
+
+    const sellerDeadline = getSellerConfirmDeadline({ proposedAt: order.proposedAt });
+    if (nowSec < sellerDeadline) {
+      return {
+        status: OrderStatus.PENDING_SELLER_CONFIRM,
+        remainingTime: sellerDeadline - nowSec,
+        statusText: 'Waiting for seller to confirm or cancel',
+      };
+    }
+
+    return {
+      status: OrderStatus.PENDING_SELLER_CONFIRM,
+      remainingTime: 0n,
+      statusText: 'Seller confirm expired - auto cancel pending',
+    };
+  }
+
+  if (order.state === 1) {
+    if (nowSec < order.autoReleaseAt) {
+      return {
+        status: OrderStatus.PAID,
+        remainingTime: order.autoReleaseAt - nowSec,
+        statusText: 'In agreed delivery window',
+      };
+    }
+
+    const disputeDeadline = getBuyerDisputeDeadline({ autoReleaseAt: order.autoReleaseAt });
+    if (disputeDeadline > 0n && nowSec < disputeDeadline) {
+      return {
+        status: OrderStatus.DISPUTABLE,
+        remainingTime: disputeDeadline - nowSec,
+        statusText: 'Awaiting auto finalize - buyer may confirm delivery or open dispute',
+      };
+    }
+
+    return {
+      status: OrderStatus.PAID,
+      remainingTime: 0n,
+      statusText: 'Auto-finalize possible',
+    };
+  }
+
+  if (order.state === 2) {
+    return {
+      status: OrderStatus.DISPUTED,
+      remainingTime: 0n,
+      statusText: 'In dispute',
+    };
+  }
+
+  return {
+    status: OrderStatus.CANCELLED,
+    remainingTime: 0n,
+    statusText: 'Unknown state',
+  };
+}
 
 // ── Read Hooks ────────────────────────────────────────────────
 
@@ -35,14 +141,16 @@ export function useOrder(orderId: bigint | undefined) {
 
 /** Get enriched order status with remaining time and text */
 export function useOrderStatus(orderId: bigint | undefined) {
-  return useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.MARKETPLACE_ATP,
-    abi: MARKETPLACE_ABI,
-    functionName: 'getOrderStatus',
-    args: orderId !== undefined ? [orderId] : undefined,
-    query: { enabled: orderId !== undefined },
-  });
+  const orderQuery = useOrder(orderId);
+  const data = useMemo(
+    () => deriveOrderStatusResult(orderQuery.data as MarketplaceOrderRead | undefined),
+    [orderQuery.data],
+  );
+
+  return {
+    ...orderQuery,
+    data,
+  };
 }
 
 /** Check individual order state flags */

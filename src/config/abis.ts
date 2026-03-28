@@ -1,5 +1,5 @@
 /**
- * Orina ATP Protocol v3.3-final - Complete Contract ABIs
+ * Orina ATP Protocol v3.4-m2m - Complete Contract ABIs
  * ======================================================
  * Generated from Solidity source code.
  * All core contracts: MarketplaceATP, OrinaRWA, RWAReceiptNFT,
@@ -18,6 +18,8 @@ export const MARKETPLACE_ABI = [
     outputs: [
       { name: 'buyer', type: 'address' },
       { name: 'seller', type: 'address' },
+      { name: 'payer', type: 'address' },
+      { name: 'refundRecipient', type: 'address' },
       { name: 'paymentToken', type: 'address' },
       { name: 'assetId', type: 'uint256' },
       { name: 'amount', type: 'uint256' },
@@ -1380,6 +1382,8 @@ export const PAYMENT_GATEWAY_ABI = [
     outputs: [
       { name: 'token', type: 'address' },
       { name: 'buyer', type: 'address' },
+      { name: 'payer', type: 'address' },
+      { name: 'refundRecipient', type: 'address' },
       { name: 'amount', type: 'uint256' },
     ],
     stateMutability: 'view',
@@ -1718,6 +1722,409 @@ export const ERC20_ABI = [
     name: 'name',
     outputs: [{ name: '', type: 'string' }],
     stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+// ============================================================
+// 11. M2M / Delegated Session ABI Fragments
+// ============================================================
+
+export const MARKETPLACE_M2M_ABI = [
+  {
+    inputs: [{ name: 'orderId', type: 'uint256' }],
+    name: 'orderFunding',
+    outputs: [
+      { name: 'buyer', type: 'address' },
+      { name: 'payer', type: 'address' },
+      { name: 'refundRecipient', type: 'address' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'orderId', type: 'uint256' }],
+    name: 'orderParties',
+    outputs: [
+      { name: 'buyer', type: 'address' },
+      { name: 'seller', type: 'address' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'delegationManager',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: '_delegationManager', type: 'address' }],
+    name: 'setDelegationManager',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'rootBuyer', type: 'address' },
+      { name: 'seller', type: 'address' },
+      { name: 'payerVault', type: 'address' },
+      { name: 'paymentToken', type: 'address' },
+      { name: 'assetId', type: 'uint256' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'grossPriceProposed', type: 'uint256' },
+      { name: 'proposedEstDeliverySeconds', type: 'uint256' },
+      { name: 'sessionNonce', type: 'uint256' },
+    ],
+    name: 'createOrderFor',
+    outputs: [{ name: 'orderId', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'orderId', type: 'uint256' },
+      { name: 'rootBuyer', type: 'address' },
+      { name: 'payerVault', type: 'address' },
+      { name: 'sessionNonce', type: 'uint256' },
+    ],
+    name: 'payOrderFor',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'rootSeller', type: 'address' },
+      { name: 'unitId', type: 'uint256' },
+      { name: 'totalAmount', type: 'uint256' },
+      { name: 'expiryAt', type: 'uint256' },
+      { name: 'assetType', type: 'uint8' },
+      { name: 'sessionNonce', type: 'uint256' },
+    ],
+    name: 'mintAssetFor',
+    outputs: [{ name: 'assetId', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'orderId', type: 'uint256' },
+      { name: 'rootSeller', type: 'address' },
+      { name: 'estDeliverySeconds', type: 'uint256' },
+      { name: 'sessionNonce', type: 'uint256' },
+    ],
+    name: 'sellerConfirmFor',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+] as const;
+
+export const PAYMENT_GATEWAY_M2M_ABI = [
+  {
+    inputs: [{ name: 'orderId', type: 'uint256' }],
+    name: 'escrowRouting',
+    outputs: [
+      { name: 'buyer', type: 'address' },
+      { name: 'payer', type: 'address' },
+      { name: 'refundRecipient', type: 'address' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'orderId', type: 'uint256' }],
+    name: 'escrowAmount',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+export const DELEGATION_MANAGER_ABI = [
+  {
+    inputs: [{ name: 'root', type: 'address' }],
+    name: 'rootEpoch',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'root', type: 'address' }],
+    name: 'nextSessionNonce',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'root', type: 'address' },
+    ],
+    name: 'hasActiveCycle',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'root', type: 'address' },
+    ],
+    name: 'activeSessionNonce',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'root', type: 'address' },
+      { name: 'sessionNonce', type: 'uint256' },
+    ],
+    name: 'computeSessionId',
+    outputs: [{ name: '', type: 'bytes32' }],
+    stateMutability: 'pure',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'root', type: 'address' },
+      { name: 'sessionNonce', type: 'uint256' },
+    ],
+    name: 'sessionStatus',
+    outputs: [{ name: '', type: 'uint8' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'root', type: 'address' },
+      { name: 'sessionNonce', type: 'uint256' },
+    ],
+    name: 'getSession',
+    outputs: [
+      {
+        name: '',
+        type: 'tuple',
+        components: [
+          { name: 'root', type: 'address' },
+          { name: 'delegate', type: 'address' },
+          { name: 'payerVault', type: 'address' },
+          { name: 'paymentToken', type: 'address' },
+          { name: 'maxPerOrder', type: 'uint256' },
+          { name: 'maxTotal', type: 'uint256' },
+          { name: 'spentTotal', type: 'uint256' },
+          { name: 'validFrom', type: 'uint64' },
+          { name: 'validUntil', type: 'uint64' },
+          { name: 'actionMask', type: 'uint256' },
+          { name: 'sessionEpoch', type: 'uint256' },
+          { name: 'counterpartyAllowlistHash', type: 'bytes32' },
+          { name: 'status', type: 'uint8' },
+          { name: 'exists', type: 'bool' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+export const AI_WALLET_FACTORY_V2_ABI = [
+  {
+    inputs: [],
+    name: 'implementation',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'root', type: 'address' },
+      { name: 'sessionNonce', type: 'uint256' },
+    ],
+    name: 'walletOfSession',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'root', type: 'address' },
+      { name: 'sessionNonce', type: 'uint256' },
+    ],
+    name: 'computeSalt',
+    outputs: [{ name: '', type: 'bytes32' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'root', type: 'address' },
+      { name: 'sessionNonce', type: 'uint256' },
+    ],
+    name: 'predictWallet',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'root', type: 'address' },
+    ],
+    name: 'predictNextWallet',
+    outputs: [
+      { name: 'wallet', type: 'address' },
+      { name: 'sessionNonce', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      {
+        name: 'config',
+        type: 'tuple',
+        components: [
+          { name: 'root', type: 'address' },
+          { name: 'delegate', type: 'address' },
+          { name: 'allowedTarget', type: 'address' },
+          { name: 'allowedSpender', type: 'address' },
+          { name: 'allowedToken', type: 'address' },
+          { name: 'expiry', type: 'uint64' },
+          { name: 'actionMask', type: 'uint256' },
+          { name: 'maxPerOrder', type: 'uint256' },
+          { name: 'maxTotal', type: 'uint256' },
+          { name: 'counterpartyAllowlistHash', type: 'bytes32' },
+        ],
+      },
+    ],
+    name: 'deployWallet',
+    outputs: [
+      { name: 'wallet', type: 'address' },
+      { name: 'sessionNonce', type: 'uint256' },
+      { name: 'sessionId', type: 'bytes32' },
+    ],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'delegationManager',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+export const AI_WALLET_V2_ABI = [
+  {
+    inputs: [],
+    name: 'parent',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'delegate',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'delegationManager',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'allowedTarget',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'allowedSpender',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'allowedToken',
+    outputs: [{ name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'expiry',
+    outputs: [{ name: '', type: 'uint64' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'sessionNonce',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'initialized',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'actionMask',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'closed',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'isActive',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'revokeAndSweep',
+    outputs: [{ name: 'amount', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'closeExpiredAndSweep',
+    outputs: [{ name: 'amount', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { name: 'target', type: 'address' },
+      { name: 'data', type: 'bytes' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    name: 'callWithExactApproval',
+    outputs: [{ name: 'result', type: 'bytes' }],
+    stateMutability: 'nonpayable',
     type: 'function',
   },
 ] as const;

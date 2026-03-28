@@ -1,6 +1,7 @@
 import { Hono } from 'npm:hono';
 import { ORINAEngine } from './orina-ai-engine-v2.tsx';
 import { callNvidiaNIMVision, parseJSONFromLLM } from './nvidia-nim-client.ts';
+import { assertAuthenticatedWalletMatch, requireAuthenticatedWallet } from './request-auth.ts';
 import type { AIAssistContext, AIAssistRequest, AIDisputeContext } from './types.ts';
 import * as kv from './kv_store.tsx';
 
@@ -39,6 +40,10 @@ function validateImageUrls(imageUrls: string[]): { valid: boolean; error?: strin
   return { valid: true };
 }
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 const aiAssist = new Hono();
 
 /**
@@ -48,14 +53,20 @@ const aiAssist = new Hono();
  */
 aiAssist.post('/assist', async (c) => {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
     const body = await c.req.json();
     const {
       walletAddress, message, conversationId, agentContext,
       imageUrls, disputeContext, activePage, clarificationSelections, originalMessage,
     } = body;
 
+    const walletMismatch = assertAuthenticatedWalletMatch(c, auth.identity, walletAddress, 'walletAddress');
+    if (walletMismatch) return walletMismatch;
+
     // ── Validation ───────────────────────────────────────────────────────────
-    if (!walletAddress || !message || !conversationId || !agentContext) {
+    if (!message || !conversationId || !agentContext) {
       return c.json({ error: 'Missing required fields: walletAddress, message, conversationId, agentContext' }, 400);
     }
 
@@ -65,7 +76,8 @@ aiAssist.post('/assist', async (c) => {
     }
 
     // ── Rate limit ───────────────────────────────────────────────────────────
-    const rateCheck = checkRateLimit(String(walletAddress));
+    const resolvedWalletAddress = auth.identity.walletAddress;
+    const rateCheck = checkRateLimit(resolvedWalletAddress);
     if (!rateCheck.allowed) {
       const retryAfterSec = Math.ceil(rateCheck.retryAfterMs / 1000);
       return c.json(
@@ -84,7 +96,7 @@ aiAssist.post('/assist', async (c) => {
     }
 
     const request: AIAssistRequest = {
-      walletAddress,
+      walletAddress: resolvedWalletAddress,
       message,
       conversationId,
       agentContext,
@@ -113,10 +125,9 @@ aiAssist.post('/assist', async (c) => {
     return c.json({ success: true, response });
   } catch (error) {
     console.error('AI Assist error:', error);
-    const isVietnamese = false; // Can't detect lang from failed request
     return c.json({
       success: false,
-      error: error.message || 'Internal server error',
+      error: getErrorMessage(error) || 'Internal server error',
       response: {
         text: 'The AI service encountered an error. Please try again in a moment.',
         action: 'error_fallback',
@@ -131,8 +142,14 @@ aiAssist.post('/assist', async (c) => {
  */
 aiAssist.get('/conversations/:walletAddress', async (c) => {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
     const walletAddress = c.req.param('walletAddress');
-    const conversations = await ORINAEngine.getConversationList(walletAddress);
+    const walletMismatch = assertAuthenticatedWalletMatch(c, auth.identity, walletAddress, 'walletAddress');
+    if (walletMismatch) return walletMismatch;
+
+    const conversations = await ORINAEngine.getConversationList(auth.identity.walletAddress);
     return c.json({ success: true, conversations });
   } catch (error) {
     console.error('Get conversations error:', error);
@@ -146,8 +163,16 @@ aiAssist.get('/conversations/:walletAddress', async (c) => {
  */
 aiAssist.get('/conversation/:conversationId', async (c) => {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
     const conversationId = c.req.param('conversationId');
-    const messages = await ORINAEngine.getConversationHistory(conversationId);
+    const canAccess = await ORINAEngine.hasConversationAccess(auth.identity.walletAddress, conversationId);
+    if (!canAccess) {
+      return c.json({ error: 'Conversation not found or access denied' }, 403);
+    }
+
+    const messages = await ORINAEngine.getConversationHistory(auth.identity.walletAddress, conversationId);
     return c.json({ success: true, messages });
   } catch (error) {
     console.error('Get conversation messages error:', error);
@@ -157,27 +182,30 @@ aiAssist.get('/conversation/:conversationId', async (c) => {
 
 /**
  * DELETE /ai/conversation/:conversationId
- * Deletes a conversation. Requires walletAddress query param.
- * Ownership is verified: only the wallet that created the conversation can delete it.
+ * Deletes a conversation for the authenticated wallet only.
  */
 aiAssist.delete('/conversation/:conversationId', async (c) => {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
     const conversationId = c.req.param('conversationId');
     const walletAddress = c.req.query('walletAddress');
 
-    if (!walletAddress) {
-      return c.json({ error: 'Missing walletAddress query parameter' }, 400);
+    if (walletAddress) {
+      const walletMismatch = assertAuthenticatedWalletMatch(c, auth.identity, walletAddress, 'walletAddress');
+      if (walletMismatch) return walletMismatch;
     }
 
     // ── Ownership check ──────────────────────────────────────────────────────
-    const metaKey = `conversation:${walletAddress}:${conversationId}`;
+    const metaKey = `conversation:${auth.identity.walletAddress}:${conversationId}`;
     const meta = await kv.get(metaKey);
     if (!meta) {
       // Meta doesn't exist under this wallet → not the owner (or already deleted)
       return c.json({ error: 'Conversation not found or access denied' }, 403);
     }
 
-    await ORINAEngine.deleteConversation(walletAddress, conversationId);
+    await ORINAEngine.deleteConversation(auth.identity.walletAddress, conversationId);
     return c.json({ success: true });
   } catch (error) {
     console.error('Delete conversation error:', error);

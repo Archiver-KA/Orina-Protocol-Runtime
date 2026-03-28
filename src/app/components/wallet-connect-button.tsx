@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
-import { Wallet, Copy, LogOut, CheckCircle, User, Heart, Settings } from 'lucide-react';
+import { Wallet, Copy, LogOut, CheckCircle, User, Heart, Settings, Bot } from 'lucide-react';
 import { formatAddress } from '@/utils/format';
 import { useWalletModalContext } from '@/contexts/WalletModalContext';
 import { useUser } from '@/contexts/UserContext';
@@ -128,6 +128,14 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
       >
         <Heart size={18} className="text-[rgba(148,163,184,0.9)]" />
         <span className="text-xs font-semibold">Favorites</span>
+      </button>
+
+      <button
+        onClick={() => handleNavigation('agent-settings')}
+        className={dropdownItemClass}
+      >
+        <Bot size={18} className="text-[rgba(148,163,184,0.9)]" />
+        <span className="text-xs font-semibold">Agent Setting</span>
       </button>
 
       <button

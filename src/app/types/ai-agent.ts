@@ -111,6 +111,44 @@ export interface MarketAnalysis {
   recommendations: string[];
 }
 
+export interface AssetDraft {
+  name: string;
+  description: string;
+  category: string;
+  subcategory?: string;
+  attributes: Record<string, string>;
+  imageUrls: string[];
+  estimatedPrice: {
+    min: number;
+    suggested: number;
+    max: number;
+    currency: string;
+  };
+  aiGenerated: boolean;
+  confidence: number;
+}
+
+export interface SellerMintingRequest {
+  sellerId: string;
+  imageUrls: string[];
+  category: string;
+  subcategory?: string;
+  overrideName?: string;
+  overrideDescription?: string;
+}
+
+export interface SellerMintingConfig {
+  id: string;
+  sellerId: string;
+  enabled: boolean;
+  autoAnalyzeEnabled: boolean;
+  minPriceUsd?: number | null;
+  maxPriceUsd?: number | null;
+  category?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface AIStructuredResponse {
   text: string;
   action?: 'show_products' | 'show_orders' | 'mint_draft_ready' | 'market_analysis' | 'clarification' | 'general' | 'error_fallback';

@@ -1,5 +1,7 @@
 import { Hono } from 'npm:hono';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { verifyMessage } from 'npm:viem';
+import { assertAuthenticatedWalletMatch, requireAuthenticatedWallet } from './request-auth.ts';
 
 const router = new Hono();
 
@@ -86,9 +88,13 @@ type DbAssetTagRow = {
   tag: string;
 };
 
-type VerificationMode =
-  | 'dev_trust_client_session'
-  | 'wallet_session_row';
+type VerificationMode = 'wallet_session_row';
+
+type VerificationFailure = {
+  ok: false;
+  status: 400 | 401;
+  error: string;
+};
 
 function normalizeAddress(address: string): string {
   return address.toLowerCase();
@@ -125,11 +131,11 @@ function isEnabled(name: string): boolean {
 }
 
 function getVerificationMode(): VerificationMode {
-  const raw = (Deno.env.get('ATP2_SUPABASE_AUTH_BRIDGE_VERIFY_MODE') || 'dev_trust_client_session')
+  const raw = (Deno.env.get('ATP2_SUPABASE_AUTH_BRIDGE_VERIFY_MODE') || '')
     .toLowerCase()
     .trim();
   if (raw === 'wallet_session_row') return 'wallet_session_row';
-  return 'dev_trust_client_session';
+  throw new Error('ATP2_SUPABASE_AUTH_BRIDGE_VERIFY_MODE must be wallet_session_row');
 }
 
 function getTtlSeconds(): number {
@@ -140,6 +146,16 @@ function getTtlSeconds(): number {
 
 function getClientSessionMaxAgeMs(): number {
   const raw = Number(Deno.env.get('ATP2_SUPABASE_AUTH_BRIDGE_CLIENT_SESSION_MAX_AGE_MS') || 7 * 24 * 60 * 60 * 1000);
+  if (!Number.isFinite(raw) || raw <= 0) return 7 * 24 * 60 * 60 * 1000;
+  return Math.floor(raw);
+}
+
+function getWalletSessionTtlMs(): number {
+  const raw = Number(
+    Deno.env.get('ATP2_WALLET_SESSION_TTL_MS') ||
+    Deno.env.get('ATP2_SUPABASE_AUTH_BRIDGE_CLIENT_SESSION_MAX_AGE_MS') ||
+    7 * 24 * 60 * 60 * 1000,
+  );
   if (!Number.isFinite(raw) || raw <= 0) return 7 * 24 * 60 * 60 * 1000;
   return Math.floor(raw);
 }
@@ -179,6 +195,40 @@ function shortDisplayName(walletAddress: string): string {
   return `${walletAddress.slice(0, 5)}...${walletAddress.slice(-3)}`;
 }
 
+function extractWalletAuthMessageTimestamp(message: string): number | null {
+  const match = message.match(/^Time:\s+(.+)$/m);
+  if (!match?.[1]) return null;
+  const parsed = Date.parse(match[1].trim());
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function assertWalletAuthSessionMessage(message: string | undefined, walletAddress: string): string | null {
+  if (typeof message !== 'string' || !message.trim()) {
+    return 'Missing walletAuthSession.message';
+  }
+
+  const normalized = message.replace(/\r\n/g, '\n');
+  if (!normalized.startsWith('Orina Wallet Session Authentication\n')) {
+    return 'Unexpected walletAuthSession.message prefix';
+  }
+  if (!normalized.includes(`Address: ${walletAddress}`)) {
+    return 'walletAuthSession.message address mismatch';
+  }
+
+  const signedMessageAt = extractWalletAuthMessageTimestamp(normalized);
+  if (!signedMessageAt) {
+    return 'walletAuthSession.message is missing a valid Time field';
+  }
+  if (signedMessageAt > Date.now() + 60_000) {
+    return 'walletAuthSession.message Time is in the future';
+  }
+  if (Date.now() - signedMessageAt > getClientSessionMaxAgeMs()) {
+    return 'walletAuthSession.message is too old';
+  }
+
+  return null;
+}
+
 function assertClientWalletSessionPayload(body: ExchangeRequest, walletAddress: string): string | null {
   const session = body.walletAuthSession;
   if (!session?.signature) return 'Missing walletAuthSession.signature';
@@ -198,6 +248,14 @@ function assertClientWalletSessionPayload(body: ExchangeRequest, walletAddress: 
   if (Date.now() - signedAt > getClientSessionMaxAgeMs()) {
     return 'walletAuthSession is too old';
   }
+  const messageError = assertWalletAuthSessionMessage(session.message, walletAddress);
+  if (messageError) {
+    return messageError;
+  }
+  const signedMessageAt = extractWalletAuthMessageTimestamp(String(session.message || ''));
+  if (signedMessageAt && Math.abs(signedMessageAt - signedAt) > 5 * 60 * 1000) {
+    return 'walletAuthSession.signedAt does not align with signed message time';
+  }
   return null;
 }
 
@@ -210,8 +268,10 @@ function getServiceSupabaseClient() {
   return createClient(url, serviceRoleKey);
 }
 
+type ServiceSupabaseClient = ReturnType<typeof getServiceSupabaseClient>;
+
 async function findActiveWalletSession(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceSupabaseClient,
   walletAddress: string
 ): Promise<DbWalletSessionRow | null> {
   const nowIso = new Date().toISOString();
@@ -228,8 +288,72 @@ async function findActiveWalletSession(
   return (data?.[0] as DbWalletSessionRow | undefined) || null;
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function createWalletSession(
+  supabase: ServiceSupabaseClient,
+  walletAddress: string,
+  opts?: { signedAt?: number; clientApp?: string | null; signature?: string | null }
+): Promise<DbWalletSessionRow> {
+  const now = Date.now();
+  const signedAt = Number(opts?.signedAt || now);
+  const createdAt = Math.min(now, Math.max(0, signedAt));
+  const expiresAt = new Date(createdAt + getWalletSessionTtlMs()).toISOString();
+  const sessionEntropy = [
+    walletAddress,
+    opts?.signature || '',
+    String(signedAt),
+    crypto.randomUUID(),
+  ].join(':');
+  const sessionTokenHash = await sha256Hex(sessionEntropy);
+
+  const { data, error } = await supabase
+    .from('wallet_sessions')
+    .insert({
+      wallet_address: walletAddress,
+      session_token_hash: sessionTokenHash,
+      expires_at: expiresAt,
+      last_seen_at: new Date(now).toISOString(),
+      device_label: opts?.clientApp ? `claim_bridge:${String(opts.clientApp).slice(0, 120)}` : 'claim_bridge',
+    })
+    .select('id,wallet_address,expires_at,revoked_at')
+    .limit(1);
+
+  if (error) {
+    throw new Error(`wallet_sessions insert failed: ${error.message}`);
+  }
+
+  const inserted = (data?.[0] as DbWalletSessionRow | undefined) || null;
+  if (!inserted) {
+    throw new Error('wallet_sessions insert failed: empty insert result');
+  }
+
+  return inserted;
+}
+
+async function ensureActiveWalletSession(
+  supabase: ServiceSupabaseClient,
+  walletAddress: string,
+  body: ExchangeRequest,
+): Promise<DbWalletSessionRow> {
+  const existing = await findActiveWalletSession(supabase, walletAddress);
+  if (existing) {
+    void touchWalletSessionLastSeen(supabase, existing.id);
+    return existing;
+  }
+
+  return createWalletSession(supabase, walletAddress, {
+    signedAt: body.walletAuthSession?.signedAt,
+    clientApp: body.client?.app || null,
+    signature: body.walletAuthSession?.signature || null,
+  });
+}
+
 async function touchWalletSessionLastSeen(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceSupabaseClient,
   sessionId: string
 ): Promise<void> {
   const { error } = await supabase
@@ -242,7 +366,7 @@ async function touchWalletSessionLastSeen(
 }
 
 async function resolveOrCreateProfile(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceSupabaseClient,
   walletAddress: string
 ): Promise<DbProfileRow> {
   const { data: existingRows, error: selectError } = await supabase
@@ -366,10 +490,45 @@ async function issueSupabaseClaimToken(params: {
   };
 }
 
-async function verifyRequestAndResolveIdentity(body: ExchangeRequest, walletAddress: string) {
+async function assertWalletAuthSignature(body: ExchangeRequest, walletAddress: string): Promise<string | null> {
+  const session = body.walletAuthSession;
+  if (!session?.signature || !session.message) {
+    return 'Missing walletAuthSession proof payload';
+  }
+
+  try {
+    const valid = await verifyMessage({
+      address: walletAddress as `0x${string}`,
+      message: session.message,
+      signature: session.signature as `0x${string}`,
+    });
+    return valid ? null : 'walletAuthSession signature verification failed';
+  } catch {
+    return 'walletAuthSession signature verification failed';
+  }
+}
+
+async function verifyRequestAndResolveIdentity(
+  body: ExchangeRequest,
+  walletAddress: string
+): Promise<
+  | VerificationFailure
+  | {
+      ok: true;
+      supabase: ServiceSupabaseClient;
+      mode: VerificationMode;
+      profile: DbProfileRow;
+      walletSessionRow: DbWalletSessionRow | null;
+    }
+> {
   const payloadError = assertClientWalletSessionPayload(body, walletAddress);
   if (payloadError) {
     return { ok: false as const, status: 400, error: payloadError };
+  }
+
+  const signatureError = await assertWalletAuthSignature(body, walletAddress);
+  if (signatureError) {
+    return { ok: false as const, status: 401, error: signatureError };
   }
 
   const supabase = getServiceSupabaseClient();
@@ -377,10 +536,7 @@ async function verifyRequestAndResolveIdentity(body: ExchangeRequest, walletAddr
 
   let walletSessionRow: DbWalletSessionRow | null = null;
   if (mode === 'wallet_session_row') {
-    walletSessionRow = await findActiveWalletSession(supabase, walletAddress);
-    if (!walletSessionRow) {
-      return { ok: false as const, status: 401, error: 'No active wallet session found for wallet_address' };
-    }
+    walletSessionRow = await ensureActiveWalletSession(supabase, walletAddress, body);
   }
 
   const profile = await resolveOrCreateProfile(supabase, walletAddress);
@@ -427,7 +583,7 @@ router.post('/exchange', async (c) => {
   try {
     const verified = await verifyRequestAndResolveIdentity(body, walletAddress);
     if (!verified.ok) {
-      return c.json({ error: verified.error }, verified.status);
+      return c.json({ error: verified.error }, { status: verified.status });
     }
 
     const token = await issueSupabaseClaimToken({
@@ -474,6 +630,11 @@ router.post('/logout', async (c) => {
 });
 
 router.post('/community-notify', async (c) => {
+  const auth = await requireAuthenticatedWallet(c);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   let body: CommunityNotifyRequest;
   try {
     body = await c.req.json();
@@ -502,6 +663,16 @@ router.post('/community-notify', async (c) => {
     return c.json({ error: 'Bridge is disabled' }, 501);
   }
 
+  if (body.actorWalletAddress) {
+    const walletMismatch = assertAuthenticatedWalletMatch(
+      c,
+      auth.identity,
+      body.actorWalletAddress,
+      'actorWalletAddress'
+    );
+    if (walletMismatch) return walletMismatch;
+  }
+
   try {
     const supabase = getServiceSupabaseClient();
     const targetProfile = await resolveOrCreateProfile(supabase, targetWalletAddress);
@@ -525,7 +696,9 @@ router.post('/community-notify', async (c) => {
       event_code: normalizedEventCode,
       sourceId,
       source_id: sourceId,
-      actorWalletAddress: body.actorWalletAddress ? normalizeAddress(String(body.actorWalletAddress)) : null,
+      actorWalletAddress: body.actorWalletAddress
+        ? normalizeAddress(String(body.actorWalletAddress))
+        : auth.identity.walletAddress,
       actorName: body.actorName || null,
       delivered_by: 'h1_bridge_service_role',
     };
@@ -609,6 +782,11 @@ router.post('/community-notify', async (c) => {
 });
 
 router.post('/asset-metadata-seed', async (c) => {
+  const auth = await requireAuthenticatedWallet(c);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   let body: AssetMetadataSeedRequest;
   try {
     body = await c.req.json();
@@ -709,6 +887,7 @@ router.post('/asset-metadata-seed', async (c) => {
             ...(item.metadata || {}),
             seeded_by: 'h1_bridge_asset_metadata_seed',
             seeded_at: new Date().toISOString(),
+            seeded_by_wallet: auth.identity.walletAddress,
           },
           contract_address: item.contract_address,
           token_id: item.token_id,

@@ -763,9 +763,9 @@ export function Minting() {
   const statusMessage = getStatusMessage();
   const studioCardClass = 'bg-ui-card rounded-[24px] p-6 backdrop-blur-[10px]';
   const mintingInputToneClass = 'text-ui-secondary';
-  const studioInputClass = `w-full border border-ui-border-subtle bg-ui-input rounded-lg px-4 py-3 text-[14px] leading-[18px] font-bold ${mintingInputToneClass} focus:bg-ui-input-focus focus:outline-none focus:ring-2 focus:ring-[#2CC295]/20 shadow-none`;
-  const mintingSelectTriggerClass = `minting-neutral-select-trigger !h-[49px] !rounded-lg !border !border-ui-border-subtle !shadow-none !px-4 !text-[14px] !leading-[18px] !font-bold !text-ui-secondary hover:!bg-ui-input-focus`;
-  const mintingNeutralTriggerStyle = theme === 'light' ? { background: '#ECEFF2' } : undefined;
+  const studioInputClass = `w-full bg-[var(--t-surface-5)] rounded-lg px-4 py-3 text-[14px] leading-[18px] font-bold ${mintingInputToneClass} focus:bg-[var(--t-surface-10)] focus:outline-none focus:ring-2 focus:ring-[#2CC295]/20 shadow-none`;
+  const mintingSelectTriggerClass = `minting-neutral-select-trigger !h-[49px] !rounded-lg !border-0 !shadow-none !px-4 !text-[14px] !leading-[18px] !font-bold !text-ui-secondary hover:!bg-[var(--t-surface-10)]`;
+  const mintingNeutralTriggerStyle = theme === 'light' ? { background: 'var(--t-surface-5)' } : undefined;
   const previewConfigurableAttributes = configurableAttributes
     .map((group) => ({
       ...group,
@@ -847,22 +847,22 @@ export function Minting() {
         }
         .minting-form-stack .minting-neutral-select-trigger,
         .minting-form-stack .minting-price-token-trigger {
-          background: var(--t-input-bg) !important;
-          border: 1px solid var(--t-border-subtle) !important;
+          background: var(--t-surface-5) !important;
+          border: 0 !important;
           box-shadow: none !important;
         }
         .minting-form-stack .minting-neutral-select-trigger:hover,
         .minting-form-stack .minting-neutral-select-trigger:focus-visible,
         .minting-form-stack .minting-price-token-trigger:hover,
         .minting-form-stack .minting-price-token-trigger:focus-visible {
-          background: var(--t-input-focus-bg) !important;
+          background: var(--t-surface-10) !important;
         }
         [data-theme="light"] .minting-form-stack .minting-neutral-select-trigger {
-          background: #eceff2 !important;
+          background: var(--t-surface-5) !important;
         }
         [data-theme="light"] .minting-form-stack .minting-neutral-select-trigger:hover,
         [data-theme="light"] .minting-form-stack .minting-neutral-select-trigger:focus-visible {
-          background: #e8edf1 !important;
+          background: var(--t-surface-10) !important;
         }
         .minting-price-token-trigger svg {
           width: 14px !important;
@@ -870,8 +870,8 @@ export function Minting() {
           color: var(--t-text-muted) !important;
         }
         .minting-price-group {
-          background: var(--t-input-bg);
-          border: 1px solid var(--t-border-subtle);
+          background: var(--t-surface-5);
+          border: 0;
           border-radius: 0.5rem;
         }
         .minting-form-stack input[type="text"],
@@ -929,12 +929,14 @@ export function Minting() {
                   className="w-full"
                 />
                 {workspaceMode === 'Create' && (
-                  <PillSegmentedToggle
-                    options={['RWA', 'NFT']}
-                    value={assetType}
-                    onChange={(value) => handleAssetTypeChange(value as 'RWA' | 'NFT')}
-                    className="w-full"
-                  />
+                  <div className="flex w-full justify-end">
+                    <PillSegmentedToggle
+                      options={['RWA', 'NFT']}
+                      value={assetType}
+                      onChange={(value) => handleAssetTypeChange(value as 'RWA' | 'NFT')}
+                      className="w-1/2"
+                    />
+                  </div>
                 )}
               </div>
             </div>
@@ -1057,7 +1059,7 @@ export function Minting() {
               {/* Step 2: Metadata Input */}
               <div className={studioCardClass}>
                 <div className="flex items-center gap-3 mb-6">
-                  <span className="w-7 h-7 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">2</span>
+                  <span className="w-7 h-7 shrink-0 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">2</span>
                   <h2 className="text-lg font-bold text-ui-primary">Metadata Input</h2>
                 </div>
                 <div className="space-y-4">
@@ -1087,7 +1089,7 @@ export function Minting() {
                 <div className={studioCardClass}>
                   <div className="flex items-start justify-between gap-4 mb-6">
                     <div className="flex items-center gap-3">
-                      <span className="w-7 h-7 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">3</span>
+                      <span className="w-7 h-7 shrink-0 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">3</span>
                       <div>
                         <h2 className="text-lg font-bold text-ui-primary">Attributes</h2>
                         <p className="text-xs text-ui-muted mt-1">
@@ -1128,7 +1130,7 @@ export function Minting() {
                             <button
                               type="button"
                               onClick={() => removeConfigurableAttributeGroup(group.id)}
-                              className="w-9 h-9 rounded-full bg-ui-card text-ui-muted hover:text-red-400 transition-colors inline-flex items-center justify-center"
+                              className="shrink-0 w-9 h-9 rounded-full bg-ui-card text-ui-muted hover:text-red-400 transition-colors inline-flex items-center justify-center"
                               aria-label="Remove attribute group"
                             >
                               <Trash2 size={14} />
@@ -1227,7 +1229,7 @@ export function Minting() {
                                     type="button"
                                     onClick={() => removeConfigurableAttributeOption(group.id, option.id)}
                                     disabled={group.options.length <= 1}
-                                    className="w-10 h-10 rounded-full bg-ui-card text-ui-muted hover:text-red-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center"
+                                    className="shrink-0 w-10 h-10 rounded-full bg-ui-card text-ui-muted hover:text-red-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center"
                                     aria-label="Remove attribute option"
                                   >
                                     <Trash2 size={13} />
@@ -1247,7 +1249,7 @@ export function Minting() {
               <div className={`${studioCardClass} relative z-[60]`}>
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div className="flex items-center gap-3">
-                    <span className="w-7 h-7 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">
+                    <span className="w-7 h-7 shrink-0 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">
                       {assetType === 'RWA' ? '4' : '3'}
                     </span>
                     <h2 className="text-lg font-bold text-ui-primary">Collection Settings</h2>
@@ -1414,7 +1416,7 @@ export function Minting() {
               {/* Step 4: Mint Button */}
               <div className={`${studioCardClass} relative z-[10]`}>
                 <div className="flex items-center gap-3 mb-6">
-                  <span className="w-7 h-7 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">
+                  <span className="w-7 h-7 shrink-0 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">
                     {assetType === 'RWA' ? '5' : '4'}
                   </span>
                   <h2 className="text-lg font-bold text-ui-primary">Mint Asset</h2>

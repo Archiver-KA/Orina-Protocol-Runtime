@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useEffect, useState } from 'react';
 import { Zap, Upload, TrendingUp, Check } from 'lucide-react';
 import { cn } from '@/app/components/ui/utils';
@@ -10,7 +9,8 @@ import { StudioStatsCard } from '@/app/components/ui/studio-stats-card';
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { Checkbox } from '@/app/components/ui/checkbox';
 import type { SellerMintingConfig } from '@/app/types/ai-agent';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { projectId } from '/utils/supabase/info';
+import { getSellerAIHeaders } from '@/utils/seller-ai-minting-utils';
 
 interface SellerAIMintingSettingsProps {
   walletAddress: string;
@@ -42,7 +42,7 @@ export function SellerAIMintingSettings({
       setError('');
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ai/seller/config/${walletAddress}`,
-        { headers: { Authorization: `Bearer ${publicAnonKey}` } },
+        { headers: await getSellerAIHeaders(walletAddress) },
       );
 
       if (response.ok) {
@@ -85,10 +85,7 @@ export function SellerAIMintingSettings({
         `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ai/seller/config`,
         {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json',
-          },
+          headers: await getSellerAIHeaders(walletAddress, true),
           body: JSON.stringify({
             sellerId: walletAddress,
             enabled,

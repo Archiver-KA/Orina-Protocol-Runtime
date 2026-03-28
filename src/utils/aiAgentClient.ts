@@ -9,11 +9,44 @@ import {
   AIStructuredResponse,
 } from '@/app/types/ai-agent';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
+import {
+  exchangeWalletAuthForSupabaseClaimSession,
+  getSupabaseBridgeAccessToken,
+  isSupabaseAuthClaimBridgeEnabled,
+} from '@/utils/supabaseAuthClaimBridge';
 
 const BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8`;
 
-const authHeader = { 'Authorization': `Bearer ${publicAnonKey}` };
-const jsonHeaders = { ...authHeader, 'Content-Type': 'application/json' };
+const publicHeaders = {
+  Authorization: `Bearer ${publicAnonKey}`,
+};
+const publicJsonHeaders = { ...publicHeaders, 'Content-Type': 'application/json' };
+
+async function getProtectedHeaders(walletAddress: string): Promise<Record<string, string>> {
+  if (!walletAddress) {
+    throw new Error('Wallet address is required');
+  }
+
+  if (isSupabaseAuthClaimBridgeEnabled()) {
+    await exchangeWalletAuthForSupabaseClaimSession(walletAddress);
+  }
+
+  const accessToken = getSupabaseBridgeAccessToken();
+  if (!accessToken) {
+    throw new Error('Wallet session authentication required');
+  }
+
+  return {
+    Authorization: `Bearer ${accessToken}`,
+  };
+}
+
+async function getProtectedJsonHeaders(walletAddress: string): Promise<Record<string, string>> {
+  return {
+    ...(await getProtectedHeaders(walletAddress)),
+    'Content-Type': 'application/json',
+  };
+}
 
 export class AIAgentClient {
   // ─── V2 — ORINA AI Assist ───────────────────────────────────────────────────
@@ -36,10 +69,10 @@ export class AIAgentClient {
     const timeout = setTimeout(() => controller.abort(), 55000); // 55s timeout
 
     /** Inner fetch with HTTP status validation */
-    const attempt = async (): Promise<AIStructuredResponse | null> => {
+    const attempt = async (headers: Record<string, string>): Promise<AIStructuredResponse | null> => {
       const response = await fetch(`${BASE_URL}/ai/assist`, {
         method: 'POST',
-        headers: jsonHeaders,
+        headers,
         body: JSON.stringify(params),
         signal: controller.signal,
       });
@@ -61,8 +94,10 @@ export class AIAgentClient {
     };
 
     try {
+      const headers = await getProtectedJsonHeaders(params.walletAddress);
+
       // First attempt
-      const result = await attempt();
+      const result = await attempt(headers);
       if (result) return result;
 
       // Retry once after 2s delay on transient failure (null result = HTTP error or success:false)
@@ -72,12 +107,18 @@ export class AIAgentClient {
         return { action: 'error_fallback', text: 'Connection timed out. The server is taking too long to respond. Please try again.' };
       }
 
-      const retryResult = await attempt();
+      const retryResult = await attempt(headers);
       if (retryResult) return retryResult;
 
       // Both attempts failed — return descriptive error instead of null
       return { action: 'error_fallback', text: 'The AI service is temporarily unavailable. Please try again in a moment.' };
     } catch (err: any) {
+      if (err.message === 'Wallet session authentication required') {
+        return {
+          action: 'error_fallback',
+          text: 'Your wallet session is not authenticated. Please sign in with your wallet and try again.',
+        };
+      }
       if (err.name === 'AbortError') {
         return { action: 'error_fallback', text: 'Connection timed out. The server is taking too long to respond. Please try again.' };
       }
@@ -93,8 +134,9 @@ export class AIAgentClient {
    */
   static async getConversations(walletAddress: string): Promise<AIConversationMeta[]> {
     try {
+      const headers = await getProtectedHeaders(walletAddress);
       const response = await fetch(`${BASE_URL}/ai/conversations/${walletAddress}`, {
-        headers: authHeader,
+        headers,
       });
       const data = await response.json();
       return data.success ? (data.conversations as AIConversationMeta[]) : [];
@@ -106,10 +148,11 @@ export class AIAgentClient {
   /**
    * Get all messages for a specific conversation thread.
    */
-  static async getConversationMessages(conversationId: string): Promise<AIConversationMessage[]> {
+  static async getConversationMessages(walletAddress: string, conversationId: string): Promise<AIConversationMessage[]> {
     try {
+      const headers = await getProtectedHeaders(walletAddress);
       const response = await fetch(`${BASE_URL}/ai/conversation/${conversationId}`, {
-        headers: authHeader,
+        headers,
       });
       const data = await response.json();
       return data.success ? (data.messages as AIConversationMessage[]) : [];
@@ -123,9 +166,10 @@ export class AIAgentClient {
    */
   static async deleteConversation(walletAddress: string, conversationId: string): Promise<boolean> {
     try {
+      const headers = await getProtectedHeaders(walletAddress);
       const response = await fetch(
         `${BASE_URL}/ai/conversation/${conversationId}?walletAddress=${walletAddress}`,
-        { method: 'DELETE', headers: authHeader },
+        { method: 'DELETE', headers },
       );
       const data = await response.json();
       return data.success === true;
@@ -145,7 +189,7 @@ export class AIAgentClient {
     try {
       const response = await fetch(`${BASE_URL}/ai/search`, {
         method: 'POST',
-        headers: jsonHeaders,
+        headers: publicJsonHeaders,
         body: JSON.stringify({ query, ...options }),
       });
       const data = await response.json();
@@ -168,11 +212,12 @@ export class AIAgentClient {
     sellerAddress: string,
     message: string,
     conversationId: string,
-  ): Promise<AIConversationMessage | null> {
+    ): Promise<AIConversationMessage | null> {
     try {
+      const headers = await getProtectedJsonHeaders(sellerAddress);
       const response = await fetch(`${BASE_URL}/ai/chat`, {
         method: 'POST',
-        headers: jsonHeaders,
+        headers,
         body: JSON.stringify({ sellerAddress, message, conversationId }),
       });
       const data = await response.json();
@@ -184,7 +229,8 @@ export class AIAgentClient {
 
   static async getConfig(walletAddress: string): Promise<AIAgentConfig | null> {
     try {
-      const response = await fetch(`${BASE_URL}/ai/config/${walletAddress}`, { headers: authHeader });
+      const headers = await getProtectedHeaders(walletAddress);
+      const response = await fetch(`${BASE_URL}/ai/config/${walletAddress}`, { headers });
       const data = await response.json();
       return data.success ? data.config : null;
     } catch {
@@ -194,9 +240,10 @@ export class AIAgentClient {
 
   static async saveConfig(config: Partial<AIAgentConfig> & { walletAddress: string }): Promise<boolean> {
     try {
+      const headers = await getProtectedJsonHeaders(config.walletAddress);
       const response = await fetch(`${BASE_URL}/ai/config`, {
         method: 'POST',
-        headers: jsonHeaders,
+        headers,
         body: JSON.stringify(config),
       });
       const data = await response.json();
@@ -206,8 +253,8 @@ export class AIAgentClient {
     }
   }
 
-  static async getConversationHistory(conversationId: string): Promise<AIConversationMessage[]> {
-    return this.getConversationMessages(conversationId);
+  static async getConversationHistory(walletAddress: string, conversationId: string): Promise<AIConversationMessage[]> {
+    return this.getConversationMessages(walletAddress, conversationId);
   }
 
   static async isAIAgentEnabled(walletAddress: string): Promise<boolean> {

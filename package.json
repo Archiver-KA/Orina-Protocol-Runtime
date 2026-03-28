@@ -9,7 +9,9 @@
     "geo:download:geonames": "node scripts/geo/download-geonames.mjs",
     "geo:build": "node scripts/geo/build-geo-import.mjs",
     "geo:build:strict": "node scripts/geo/build-geo-import.mjs --strict",
-    "geo:export:migrations": "node scripts/geo/export-supabase-geo-migrations.mjs"
+    "geo:export:migrations": "node scripts/geo/export-supabase-geo-migrations.mjs",
+    "security:check-client-secrets": "node scripts/check-client-no-privileged-supabase-secrets.mjs",
+    "security:scan": "node scripts/security-scan-system.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
@@ -81,7 +83,7 @@
     "@tailwindcss/vite": "4.1.12",
     "@vitejs/plugin-react": "4.7.0",
     "tailwindcss": "4.1.12",
-    "vite": "6.3.5"
+    "vite": "^6.4.1"
   },
   "peerDependencies": {
     "react": "18.3.1",
@@ -97,7 +99,7 @@
   },
   "pnpm": {
     "overrides": {
-      "vite": "6.3.5"
+      "vite": "6.4.1"
     }
   }
 }

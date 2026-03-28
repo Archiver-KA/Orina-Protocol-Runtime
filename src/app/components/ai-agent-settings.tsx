@@ -3,6 +3,7 @@ import { Bot, MessageSquare, Zap, Settings, Check, AlertCircle } from 'lucide-re
 import { AIAgentConfig, AIAgentBehavior } from '@/app/types/ai-agent';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { Checkbox } from '@/app/components/ui/checkbox';
+import { AIAgentClient } from '@/utils/aiAgentClient';
 
 interface AIAgentSettingsProps {
   walletAddress: string;
@@ -47,31 +48,16 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
     try {
       setLoading(true);
       setRuntimeError('');
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ai/config/${walletAddress}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`
-          }
-        }
-      );
+      const remoteConfig = await AIAgentClient.getConfig(walletAddress);
+      if (cancelled) return;
 
-      if (response.ok) {
-        const data = await response.json().catch(() => null);
-        if (cancelled || !data) return;
-        if (data.success && data.config) {
-          setConfig(data.config);
-          setEnabled(data.config.enabled);
-          setAgentName(data.config.name);
-          setBehavior(data.config.behavior);
-          setAutoReply(data.config.autoReplyEnabled);
-          setGreetingMessage(data.config.greetingMessage || '');
-        }
-      } else if (response.status === 404) {
-        // Config doesn't exist yet - this is normal for first-time users
-        console.log('AI Agent config not found - will create on first save');
-      } else if (!cancelled) {
-        setRuntimeError('Unable to load AI agent configuration right now.');
+      if (remoteConfig) {
+        setConfig(remoteConfig);
+        setEnabled(remoteConfig.enabled);
+        setAgentName(remoteConfig.name);
+        setBehavior(remoteConfig.behavior);
+        setAutoReply(remoteConfig.autoReplyEnabled);
+        setGreetingMessage(remoteConfig.greetingMessage || '');
       }
     } catch (error) {
       if (cancelled) return;
@@ -95,32 +81,22 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
       setSaveSuccess(false);
       setRuntimeError('');
 
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ai/config`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            walletAddress,
-            name: agentName,
-            behavior,
-            enabled,
-            autoReplyEnabled: autoReply,
-            greetingMessage: greetingMessage || undefined
-          })
-        }
-      );
+      const didSave = await AIAgentClient.saveConfig({
+        walletAddress,
+        name: agentName,
+        behavior,
+        enabled,
+        autoReplyEnabled: autoReply,
+        greetingMessage: greetingMessage || undefined,
+      });
 
-      if (response.ok) {
-        const data = await response.json().catch(() => null);
-        if (data.success) {
-          setConfig(data.config);
-          setSaveSuccess(true);
-          setTimeout(() => setSaveSuccess(false), 3000);
+      if (didSave) {
+        const latestConfig = await AIAgentClient.getConfig(walletAddress);
+        if (latestConfig) {
+          setConfig(latestConfig);
         }
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
       } else {
         setRuntimeError('Unable to save AI agent configuration right now.');
       }
@@ -162,7 +138,7 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
       ) : null}
 
       {/* Enable Toggle */}
-      <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-5">
+      <div className="bg-[var(--t-surface-2)] rounded-xl p-5">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2">
@@ -205,7 +181,7 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
               value={agentName}
               onChange={(e) => setAgentName(e.target.value)}
               placeholder="e.g., Tesla Sales Assistant, Property Bot"
-              className="w-full bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg px-4 py-2.5 text-ui-primary text-sm placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295]/50"
+              className="w-full bg-[var(--t-surface-5)] rounded-lg px-4 py-2.5 text-ui-primary text-sm placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295]/50"
             />
             <p className="text-xs text-ui-muted mt-1">
               This name will be shown to customers in Messages
@@ -221,10 +197,10 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
               {(['conservative', 'moderate', 'aggressive'] as AIAgentBehavior[]).map((mode) => (
                 <label
                   key={mode}
-                  className={`flex items-start gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${
+                  className={`flex items-start gap-3 p-4 rounded-lg cursor-pointer transition-colors ${
                     behavior === mode
-                      ? 'bg-[#2CC295]/10 border-[#2CC295]/30'
-                      : 'bg-[var(--t-surface-5)] border-ui-border-subtle hover:border-[#2CC295]/20'
+                      ? 'bg-[#2CC295]/10'
+                      : 'bg-[var(--t-surface-5)] hover:bg-[var(--t-surface-10)]'
                   }`}
                 >
                   <input
@@ -248,7 +224,7 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
           </div>
 
           {/* Auto Reply */}
-          <div className="bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg p-4">
+          <div className="bg-[var(--t-surface-5)] rounded-lg p-4">
             <label className="flex items-center gap-3 cursor-pointer">
               <Checkbox
                 checked={autoReply}
@@ -274,7 +250,7 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
               onChange={(e) => setGreetingMessage(e.target.value)}
               placeholder="Leave empty to use default greeting..."
               rows={3}
-              className="w-full bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg px-4 py-2.5 text-ui-primary text-sm placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295]/50 resize-none"
+              className="w-full bg-[var(--t-surface-5)] rounded-lg px-4 py-2.5 text-ui-primary text-sm placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295]/50 resize-none"
             />
             <p className="text-xs text-ui-muted mt-1">
               Custom message when AI first greets customers
@@ -321,17 +297,17 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
       {enabled && (
         <>
           <div className="grid grid-cols-3 gap-4 pt-4">
-            <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-4">
+            <div className="bg-[var(--t-surface-2)] rounded-xl p-4">
               <MessageSquare className="text-[#2CC295] mb-2" size={16} />
               <div className="text-xs text-ui-secondary uppercase font-bold">Response Time</div>
               <div className="text-lg font-bold text-ui-primary mt-1">Instant</div>
             </div>
-            <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-4">
+            <div className="bg-[var(--t-surface-2)] rounded-xl p-4">
               <Zap className="text-[#2CC295] mb-2" size={16} />
               <div className="text-xs text-ui-secondary uppercase font-bold">Availability</div>
               <div className="text-lg font-bold text-ui-primary mt-1">24/7</div>
             </div>
-            <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-4">
+            <div className="bg-[var(--t-surface-2)] rounded-xl p-4">
               <Settings className="text-[#2CC295] mb-2" size={16} />
               <div className="text-xs text-ui-secondary uppercase font-bold">Mode</div>
               <div className="text-lg font-bold text-ui-primary mt-1 capitalize">{behavior}</div>

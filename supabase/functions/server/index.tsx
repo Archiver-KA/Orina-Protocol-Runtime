@@ -5,11 +5,14 @@ import * as kv from "./kv_store.tsx";
 import apiEndpoints from "./api-endpoints.tsx";
 import aiChat from "./ai-chat.tsx";
 import aiAssist from "./ai-assist.ts";
+import aiM2MWallet from "./ai-m2m-wallet.ts";
 import ipfsRouter from "./ipfs-upload.tsx";
+import sellerMintingRouter from "./seller-ai-minting-handler.ts";
 import walletAuthClaimBridge from "./wallet-auth-claim-bridge.tsx";
 import { storeAPIKey, getAllKeysForWallet } from "./api-auth.tsx";
 import { APIKey } from "./types.ts";
 import * as messagesHandler from "./messages-handler.ts";
+import { assertAuthenticatedWalletMatch, requireAuthenticatedWallet } from "./request-auth.ts";
 
 export const app = new Hono();
 
@@ -32,7 +35,7 @@ app.use(
       ];
       return allowed.some((r) => r.test(origin)) ? origin : '';
     },
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "apikey"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
@@ -44,15 +47,21 @@ app.get("/make-server-b0d68fc8/health", (c) => {
   return c.json({ status: "ok" });
 });
 
-// API Key management endpoints
+// API Key management endpoints (require H1 bridge JWT; wallet must match body/param)
 app.post("/make-server-b0d68fc8/keys/generate", async (c) => {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
     const body = await c.req.json();
     const { walletAddress, name, permissions, expiresInDays } = body;
 
     if (!walletAddress || !name || !permissions) {
       return c.json({ error: "Missing required fields" }, 400);
     }
+
+    const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, walletAddress, "walletAddress");
+    if (mismatch) return mismatch;
 
     // Generate API key
     const keyId = `key_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -91,7 +100,13 @@ app.post("/make-server-b0d68fc8/keys/generate", async (c) => {
 
 app.get("/make-server-b0d68fc8/keys/:walletAddress", async (c) => {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
     const walletAddress = c.req.param("walletAddress");
+    const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, walletAddress, "walletAddress");
+    if (mismatch) return mismatch;
+
     const keys = await getAllKeysForWallet(walletAddress);
     
     return c.json({ success: true, keys });
@@ -103,8 +118,18 @@ app.get("/make-server-b0d68fc8/keys/:walletAddress", async (c) => {
 
 app.post("/make-server-b0d68fc8/keys/:keyId/revoke", async (c) => {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
     const keyId = c.req.param("keyId");
     const { walletAddress } = await c.req.json();
+
+    if (!walletAddress) {
+      return c.json({ error: "Missing walletAddress" }, 400);
+    }
+
+    const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, walletAddress, "walletAddress");
+    if (mismatch) return mismatch;
 
     // Get all keys for wallet
     const keys = await getAllKeysForWallet(walletAddress);
@@ -131,6 +156,8 @@ app.route("/make-server-b0d68fc8/api/v1", apiEndpoints);
 // Mount AI endpoints — V2 first (assist, search, conversations), then legacy (chat, config)
 app.route("/make-server-b0d68fc8/ai", aiAssist);
 app.route("/make-server-b0d68fc8/ai", aiChat);
+app.route("/make-server-b0d68fc8/ai/m2m", aiM2MWallet);
+app.route("/make-server-b0d68fc8/ai/seller", sellerMintingRouter);
 
 // Mount IPFS upload endpoints (prefixed with /make-server-b0d68fc8/ipfs)
 app.route("/make-server-b0d68fc8/ipfs", ipfsRouter);

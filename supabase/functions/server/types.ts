@@ -45,7 +45,111 @@ export interface AIConversationMessage {
     confidence?: number;
     apiCallMade?: boolean;
     assetIds?: string[];
+    version?: string;
+    [key: string]: unknown;
   };
+}
+
+export type AIAssistContext = 'buyer' | 'seller' | 'arbiter' | 'guest';
+
+export interface AIDisputeContext {
+  buyerReasons?: string[];
+  evidenceUrls?: string[];
+  buyerComment?: string;
+  sellerResponse?: string;
+  grossPriceFormatted?: string;
+  openedAt?: string;
+  deadline?: string;
+  [key: string]: unknown;
+}
+
+export interface AIAssistRequest {
+  walletAddress: string;
+  message: string;
+  conversationId: string;
+  agentContext: AIAssistContext;
+  imageUrls?: string[];
+  disputeContext?: AIDisputeContext;
+  activePage?: string;
+  clarificationSelections?: string[];
+  originalMessage?: string;
+}
+
+export interface AIConversationMeta {
+  conversationId: string;
+  title: string;
+  lastMessage: string;
+  lastAt: string;
+  agentContext: AIAssistContext;
+}
+
+export interface AIDisputeSuggestion {
+  verdict: 'buyer_win' | 'seller_win' | 'split';
+  buyerSharePercent?: number;
+  confidence: number;
+  reasoning: string;
+  buyerScore: number;
+  sellerScore: number;
+  reasoningFactors: string[];
+}
+
+export interface AIOrderSummary {
+  orderId: string;
+  status: string;
+  assetName: string;
+  totalValue: string;
+  currencySymbol?: string;
+  createdAt: string;
+  role: 'buyer' | 'seller';
+}
+
+export interface AIProductResult {
+  id: string;
+  title: string;
+  category: string;
+  price?: string;
+  imageUrl?: string;
+  similarity?: number;
+}
+
+export interface MarketAnalysis {
+  category: string;
+  priceAverage: number;
+  priceRange: {
+    min: number;
+    max: number;
+  };
+  demandScore: number;
+  competitiveSellers: number;
+  sellThroughRate: number;
+  listingVelocity: number;
+  recommendations: string[];
+}
+
+export interface AIUserSnapshot {
+  walletAddress: string;
+  agentContext: AIAssistContext;
+  orderCount: number;
+  recentOrderStatuses: string[];
+  assetCount: number;
+  topCategories: string[];
+  totalSalesVolume: number;
+  activePage?: string;
+}
+
+export interface AIStructuredResponse {
+  text: string;
+  action?: string;
+  products?: AIProductResult[];
+  orders?: AIOrderSummary[];
+  marketAnalysis?: MarketAnalysis;
+  disputeSuggestion?: AIDisputeSuggestion;
+  clarificationQuestion?: string | null;
+  clarificationOptions?: string[];
+  preview?: string;
+  hasMore?: boolean;
+  totalLength?: number;
+  [key: string]: unknown;
 }
 
 export interface AIAgentRule {

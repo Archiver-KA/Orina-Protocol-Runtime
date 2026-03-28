@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAccount } from 'wagmi';
-import { OrderState } from '@/config/contracts';
+import { ACTIVE_CHAIN_ID, CONTRACTS, OrderState } from '@/config/contracts';
 import { getOrderLifecycleLabel, getOrderLifecyclePhase } from '@/utils/orderLifecycle';
 import { formatOrderGrossPrice } from '@/utils/orderDisplay';
 import { encodeIn, isSupabaseRestEnabled, restSelect } from '@/utils/supabaseRest';
@@ -477,7 +477,7 @@ export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult 
         const normalized = address.toLowerCase();
         const orderRows = await restSelect<ProtocolOrderProjectionRow>(
           'protocol_orders',
-          `?select=id,order_uid,buyer_address,seller_address&or=(buyer_address.eq.${normalized},seller_address.eq.${normalized})`,
+          `?select=id,order_uid,buyer_address,seller_address&chain_id=eq.${ACTIVE_CHAIN_ID}&marketplace_contract=eq.${CONTRACTS.MARKETPLACE_ATP.toLowerCase()}&or=(buyer_address.eq.${normalized},seller_address.eq.${normalized})`,
         );
         const orderIds = orderRows
           .map((row) => row.id)

@@ -12,6 +12,11 @@ import type { AssetDetails, MyAssetNft, MyAssetRwa } from "@/types/asset";
 const CURRENT_ASSET_CONTRACT = CONTRACTS.ORINA_RWA.toLowerCase();
 const RUNTIME_MINTED_ASSETS_STORAGE_KEY = `orina_runtime_minted_assets_v2:${ACTIVE_CHAIN_ID}:${CURRENT_ASSET_CONTRACT}`;
 export const RUNTIME_MINTED_ASSETS_CHANGED_EVENT = "orina:runtime-minted-assets-changed";
+const DEFAULT_ASSET_IMAGE =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" rx="24" fill="#18181b"/><path d="M36 104l24-28 18 22 20-26 26 32H36z" fill="#2CC295" opacity="0.85"/><circle cx="60" cy="56" r="12" fill="#3f3f46"/></svg>',
+  );
 
 export interface RuntimeMintedAssetRecord {
   id: string;
@@ -36,7 +41,110 @@ interface ProtocolAssetRow {
   status?: string | null;
   available_amount?: string | number | null;
   total_amount?: string | number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   metadata?: Record<string, unknown> | null;
+}
+
+function parseNumberLike(value: unknown, fallback = 0) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+function parseTimestampMs(value?: string | number | null, fallback = 0) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsedDate = Date.parse(value);
+    if (Number.isFinite(parsedDate)) return parsedDate;
+    const parsedNumber = Number(value);
+    if (Number.isFinite(parsedNumber)) return parsedNumber;
+  }
+  return fallback;
+}
+
+function coalesceString(...values: Array<unknown>) {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return undefined;
+}
+
+function normalizeAssetStatusLabel(status?: string | null) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (!normalized) return "Active";
+  if (normalized === "sold_out") return "Sold Out";
+  return normalized
+    .split("_")
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+function buildGenericDetails(
+  row: ProtocolAssetRow,
+  metadata: Record<string, unknown>,
+  chainSnapshot: Record<string, unknown>,
+  tokenId: string,
+  ownerAddress: string,
+  createdAt: number,
+): AssetDetails {
+  const name =
+    coalesceString(
+      metadata.assetName,
+      metadata.name,
+      typeof chainSnapshot.assetName === "string" ? chainSnapshot.assetName : undefined,
+    ) ?? `Asset #${tokenId}`;
+  const unitName =
+    coalesceString(
+      metadata.unitName,
+      typeof chainSnapshot.unitName === "string" ? chainSnapshot.unitName : undefined,
+    ) ?? "RWA";
+  const totalAmount = parseNumberLike(chainSnapshot.totalAmount ?? row.total_amount, 1);
+  const availableAmount = parseNumberLike(chainSnapshot.availableAmount ?? row.available_amount, totalAmount);
+  return {
+    id: tokenId,
+    tokenId,
+    name,
+    description: `On-chain ${unitName} asset #${tokenId}`,
+    category: unitName,
+    blockchain: "BSC",
+    currentPrice: "0",
+    currentPriceUsd: "0",
+    image: DEFAULT_ASSET_IMAGE,
+    images: [DEFAULT_ASSET_IMAGE],
+    properties: [
+      { trait_type: "Asset ID", value: tokenId },
+      { trait_type: "Unit ID", value: String(chainSnapshot.unitId ?? "0") },
+      { trait_type: "Unit Name", value: unitName },
+      { trait_type: "Status", value: normalizeAssetStatusLabel(row.status) },
+    ],
+    views: 0,
+    favorites: 0,
+    totalVolume: "0",
+    totalSales: Math.max(0, totalAmount - availableAmount),
+    currentOwner: ownerAddress,
+    creator: ownerAddress,
+    ownerHistory: [
+      {
+        address: ownerAddress,
+        timestamp: createdAt,
+      },
+    ],
+    priceHistory: [],
+    contractAddress: String(row.asset_contract || CONTRACTS.ORINA_RWA),
+    tokenStandard: Number(chainSnapshot.assetType) === 1 ? "ERC-721-like" : "RWA",
+    mintDate: createdAt,
+    verified: true,
+    seller: {
+      name: "On-chain Seller",
+      address: ownerAddress,
+    },
+  };
 }
 
 function isRuntimeMintedAssetRecord(value: unknown): value is RuntimeMintedAssetRecord {
@@ -166,7 +274,81 @@ function fromProtocolAssetRow(row: ProtocolAssetRow): RuntimeMintedAssetRecord |
   const runtimeRecord = (metadata as { runtimeRecord?: PersistedRuntimeMintedAssetRecord }).runtimeRecord;
   if (!runtimeRecord) return null;
   const record = fromPersistedRecord(runtimeRecord);
-  return isRuntimeMintedAssetRecord(record) ? record : null;
+  if (isRuntimeMintedAssetRecord(record)) return record;
+
+  const chainSnapshot =
+    typeof (metadata as { chainSnapshot?: unknown }).chainSnapshot === "object"
+      ? ((metadata as { chainSnapshot?: Record<string, unknown> }).chainSnapshot ?? {})
+      : {};
+  if (!row.token_id || !row.owner_address) return null;
+
+  const tokenId = String(row.token_id);
+  const ownerAddress = String(row.owner_address).toLowerCase();
+  const createdAt = parseTimestampMs(
+    coalesceString(
+      typeof chainSnapshot.mintedBlockTime === "string" ? chainSnapshot.mintedBlockTime : undefined,
+      row.created_at,
+    ),
+    Date.now(),
+  );
+  const details = buildGenericDetails(row, metadata, chainSnapshot, tokenId, ownerAddress, createdAt);
+  const totalAmount = parseNumberLike(chainSnapshot.totalAmount ?? row.total_amount, 1);
+  const availableAmount = parseNumberLike(chainSnapshot.availableAmount ?? row.available_amount, totalAmount);
+  const assetType = Number(chainSnapshot.assetType) === 1 ? "NFT" : "RWA";
+
+  if (assetType === "NFT") {
+    const nftRecord: RuntimeMintedAssetRecord = {
+      id: tokenId,
+      walletAddress: ownerAddress,
+      assetType: "NFT",
+      createdAt,
+      txHash:
+        typeof chainSnapshot.mintedTxHash === "string" && chainSnapshot.mintedTxHash.startsWith("0x")
+          ? chainSnapshot.mintedTxHash
+          : undefined,
+      myAsset: {
+        id: tokenId,
+        name: details.name,
+        type: "NFT",
+        category: details.category,
+        image: details.image,
+        currentPrice: "0",
+        floorPrice: "0",
+        collection: "On-chain",
+        transferable: true,
+      },
+      details,
+    };
+    return nftRecord;
+  }
+
+  const rwaRecord: RuntimeMintedAssetRecord = {
+    id: tokenId,
+    walletAddress: ownerAddress,
+    assetType: "RWA",
+    createdAt,
+    txHash:
+      typeof chainSnapshot.mintedTxHash === "string" && chainSnapshot.mintedTxHash.startsWith("0x")
+        ? chainSnapshot.mintedTxHash
+        : undefined,
+    myAsset: {
+      id: tokenId,
+      name: details.name,
+      type: "RWA",
+      category: details.category,
+      image: details.image,
+      status: normalizeAssetStatusLabel(row.status),
+      availableAmount,
+      totalAmount,
+      minPrice: "0",
+      mintedDate: new Date(createdAt).toISOString().slice(0, 10),
+    },
+    details: {
+      ...details,
+      totalVolume: String(Math.max(0, totalAmount - availableAmount)),
+    },
+  };
+  return rwaRecord;
 }
 
 async function syncRuntimeMintedAssetToSupabase(record: RuntimeMintedAssetRecord) {
@@ -195,7 +377,6 @@ export async function hydrateRuntimeMintedAssetsFromSupabase(walletAddress?: str
         chain_id: encodeEq(ACTIVE_CHAIN_ID),
         asset_contract: encodeEq(CURRENT_ASSET_CONTRACT),
         owner_address: encodeEq(normalized),
-        status: encodeEq('pending_indexing'),
       }),
     );
     const remoteRecords = remoteRows

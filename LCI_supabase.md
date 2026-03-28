@@ -1,5 +1,4 @@
 # Asset Flow Audit — ATP2
-
 ## Scope
 Tài liệu này chốt luồng `Asset` thống nhất giữa:
 - on-chain

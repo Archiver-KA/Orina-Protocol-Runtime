@@ -1,29 +1,31 @@
 /**
- * Orina ATP Protocol v3.4 - Contract Configuration
+ * Orina ATP Protocol v3.4-m2m - Contract Configuration
  * ======================================================
- * BSC Testnet deployment — 2026-03-20
- * Namespace: orina-atp-v3.4-rwa-split-unit-fix-bsc-testnet-20260320
+ * BSC Testnet core redeploy — 2026-03-27
+ * DisputeManager patch + rewire — 2026-03-27
+ * AutoTimeManager patch + rewire — 2026-03-28
+ * Namespace: orina-atp-v3.4-m2m-bsc-testnet-20260327-r5
  */
 
-// ── Contract Addresses (v3.4 RWA split-unit branch — BSC Testnet) ─
+// ── Contract Addresses (v3.4-m2m direct core deploy — BSC Testnet) ─
 export const CONTRACTS = {
   // Core
-  MARKETPLACE_ATP: '0x6154d16f4f52c1a4157928f136a53ac3b83b510b' as `0x${string}`,
-  ORINA_RWA:       '0xa0c34b5a941420626146bc61e15893bc1f86bf39' as `0x${string}`,
-  RECEIPT_NFT:     '0x63db5c2e0935314b3b4f924c38771cf034cc6a2f' as `0x${string}`,
-  PAYMENT_GATEWAY: '0x318cb728d91a2abd1854f31ba1d32687763b9335' as `0x${string}`,
+  MARKETPLACE_ATP: '0x026c9e9a5d007ed46df3de900f53c0786ec650c8' as `0x${string}`,
+  ORINA_RWA:       '0x5fc61747b359e089e3ced00494f9e71de836b666' as `0x${string}`,
+  RECEIPT_NFT:     '0xc237a01a9b854f2b73e666c43073adbdf427b097' as `0x${string}`,
+  PAYMENT_GATEWAY: '0xce3a439e2aaa9fe86a71c661d8652b1bcb080836' as `0x${string}`,
 
   // Management
-  FEE_MANAGER:       '0x768f5d3eb747d029cd4cbd15ff70688394c9141d' as `0x${string}`,
-  AUTOTIME_MANAGER:  '0xb0986ad420b5d7babd2a7b797b3cb47a76780050' as `0x${string}`,
-  DISPUTE_MANAGER:   '0x33dceb1e8aec7fe69d8a1390de0cc0e879035949' as `0x${string}`,
+  FEE_MANAGER:       '0x5f9350d95c320304ee7d98d27403090bb2a317dd' as `0x${string}`,
+  AUTOTIME_MANAGER:  '0x6fbf8fee296a541853d022fbe157c38aee52a039' as `0x${string}`,
+  DISPUTE_MANAGER:   '0xa31b543254c138178506244f20c0f7630b6709d5' as `0x${string}`,
 
   // Registries
-  UNIT_REGISTRY:     '0xcf55ba3f1ade6e2ea84fb92ac11e473c55535a3e' as `0x${string}`,
-  SHIPPING_REGISTRY: '0xc648fb2152e6c4d60fcc65ede51f9061ea157ae4' as `0x${string}`,
+  UNIT_REGISTRY:     '0xc891c20aacd55cb3cfb14a7a8b6b9742dd55d942' as `0x${string}`,
+  SHIPPING_REGISTRY: '0x7fc6842dee1b75b92f2ae928ae14d218661f820b' as `0x${string}`,
 
   // Governance
-  TIMELOCK:    '0x4f2209c00ef899eb2eebda1a2160869d254710a1' as `0x${string}`,
+  TIMELOCK:    '0xf2117bbbb828c73e2f882b5498e99cb4cd1a4f3a' as `0x${string}`,
   GNOSIS_SAFE: '0x554c4F489846e293bA251fb8B863FE1241306138' as `0x${string}`,
 
   // Fee vaults (v3.4: dao vault riêng)

@@ -16,15 +16,15 @@ export interface UnitOption {
 
 // Human-readable labels for seeded unit IDs — English first
 const UNIT_LABELS: Record<number, string> = {
-  [UNIT_IDS.PIECE]: 'PIECE — each / unit',
-  [UNIT_IDS.KG]:    'KG — kilogram',
-  [UNIT_IDS.TON]:   'TON — metric ton',
-  [UNIT_IDS.LIT]:   'LIT — liter',
-  [UNIT_IDS.M]:     'M — meter',
-  [UNIT_IDS.M2]:    'M2 — square meter',
-  [UNIT_IDS.M3]:    'M3 — cubic meter',
-  [UNIT_IDS.HOUR]:  'HOUR — service hour',
-  [UNIT_IDS.SET]:   'SET — set / bundle',
+  [UNIT_IDS.PIECE]: 'PIECE',
+  [UNIT_IDS.KG]:    'KG',
+  [UNIT_IDS.TON]:   'TON',
+  [UNIT_IDS.LIT]:   'LIT',
+  [UNIT_IDS.M]:     'M',
+  [UNIT_IDS.M2]:    'M2',
+  [UNIT_IDS.M3]:    'M3',
+  [UNIT_IDS.HOUR]:  'HOUR',
+  [UNIT_IDS.SET]:   'SET',
 };
 
 type UnitResultShape = {

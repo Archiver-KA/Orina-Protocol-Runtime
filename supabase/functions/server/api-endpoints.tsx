@@ -1,8 +1,15 @@
 import { Hono } from 'npm:hono';
 import { authenticateAPIKey, hasPermission, logAPIUsage } from './api-auth.tsx';
 import * as kv from './kv_store.tsx';
+import type { APIKey } from './types.ts';
 
-const api = new Hono();
+type ApiEnv = {
+  Variables: {
+    apiKey: APIKey;
+  };
+};
+
+const api = new Hono<ApiEnv>();
 
 // Authentication middleware
 api.use('/*', async (c, next) => {
@@ -17,9 +24,9 @@ api.use('/*', async (c, next) => {
   
   const authResult = await authenticateAPIKey(apiKey);
   
-  if (!authResult.valid) {
+  if (!authResult.valid || !authResult.key) {
     await logAPIUsage('unknown', c.req.path, false, Date.now() - startTime);
-    return c.json({ error: authResult.error }, 401);
+    return c.json({ error: authResult.error || 'Authentication failed' }, 401);
   }
 
   // Store key in context for later use

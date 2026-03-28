@@ -1,9 +1,27 @@
-import { Hono } from "npm:hono";
+import { Context, Hono } from "npm:hono";
 import { createClient } from "npm:@supabase/supabase-js";
 import { callNvidiaNIM, parseJSONFromLLM, callNvidiaNIMEmbedding, callNvidiaNIMVision } from "./nvidia-nim-client.ts";
 import { normalizeListingTaxonomy } from "./taxonomy-normalizer.ts";
+import { assertAuthenticatedWalletMatch, requireAuthenticatedWallet } from "./request-auth.ts";
 
 const sellerMintingRouter = new Hono();
+
+interface GeneratedDraft {
+  name: string;
+  description: string;
+  category: string;
+  subcategory?: string;
+  attributes: Record<string, string>;
+  imageUrls: string[];
+  estimatedPrice: {
+    min: number;
+    suggested: number;
+    max: number;
+    currency: string;
+  };
+  aiGenerated: boolean;
+  confidence: number;
+}
 
 // Get Supabase client from environment
 function getSupabaseClient() {
@@ -15,16 +33,35 @@ function getSupabaseClient() {
   return createClient(url, serviceKey);
 }
 
+type SellerAuthResult =
+  | { ok: true; sellerId: string }
+  | { ok: false; response: Response };
+
+async function requireAuthenticatedSeller(
+  c: Context,
+  candidateSellerId: string | null | undefined,
+  fieldName = "sellerId",
+): Promise<SellerAuthResult> {
+  const auth = await requireAuthenticatedWallet(c);
+  if (!auth.ok) return auth;
+
+  const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, candidateSellerId, fieldName);
+  if (mismatch) {
+    return { ok: false, response: mismatch };
+  }
+
+  return { ok: true, sellerId: auth.identity.walletAddress };
+}
+
 // ============================================================================
 // Seller Minting Configuration
 // ============================================================================
 
 sellerMintingRouter.get("/config/:sellerId", async (c) => {
   try {
-    const sellerId = c.req.param("sellerId");
-    if (!sellerId) {
-      return c.json({ error: "sellerId required" }, 400);
-    }
+    const sellerAuth = await requireAuthenticatedSeller(c, c.req.param("sellerId"));
+    if (!sellerAuth.ok) return sellerAuth.response;
+    const sellerId = sellerAuth.sellerId;
 
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
@@ -59,9 +96,9 @@ sellerMintingRouter.post("/config", async (c) => {
       category,
     } = body;
 
-    if (!sellerId) {
-      return c.json({ error: "sellerId required" }, 400);
-    }
+    const sellerAuth = await requireAuthenticatedSeller(c, sellerId);
+    if (!sellerAuth.ok) return sellerAuth.response;
+    const resolvedSellerId = sellerAuth.sellerId;
 
     const supabase = getSupabaseClient();
 
@@ -69,7 +106,7 @@ sellerMintingRouter.post("/config", async (c) => {
     const { data: existing } = await supabase
       .from("seller_minting_config")
       .select("id")
-      .eq("seller_id", sellerId)
+      .eq("seller_id", resolvedSellerId)
       .single();
 
     let result;
@@ -85,7 +122,7 @@ sellerMintingRouter.post("/config", async (c) => {
           category,
           updated_at: new Date().toISOString(),
         })
-        .eq("seller_id", sellerId)
+        .eq("seller_id", resolvedSellerId)
         .select()
         .single();
     } else {
@@ -93,7 +130,7 @@ sellerMintingRouter.post("/config", async (c) => {
       result = await supabase
         .from("seller_minting_config")
         .insert({
-          seller_id: sellerId,
+          seller_id: resolvedSellerId,
           enabled,
           auto_analyze_enabled: autoAnalyzeEnabled,
           min_price_usd: minPriceUsd,
@@ -119,10 +156,9 @@ sellerMintingRouter.post("/config", async (c) => {
 
 sellerMintingRouter.get("/advisor/:sellerId", async (c) => {
   try {
-    const sellerId = c.req.param("sellerId");
-    if (!sellerId) {
-      return c.json({ error: "sellerId required" }, 400);
-    }
+    const sellerAuth = await requireAuthenticatedSeller(c, c.req.param("sellerId"));
+    if (!sellerAuth.ok) return sellerAuth.response;
+    const sellerId = sellerAuth.sellerId;
 
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
@@ -157,9 +193,9 @@ sellerMintingRouter.post("/advisor", async (c) => {
       preferredLang,
     } = body;
 
-    if (!sellerId) {
-      return c.json({ error: "sellerId required" }, 400);
-    }
+    const sellerAuth = await requireAuthenticatedSeller(c, sellerId);
+    if (!sellerAuth.ok) return sellerAuth.response;
+    const resolvedSellerId = sellerAuth.sellerId;
 
     const validBehaviors = ["conservative", "moderate", "proactive"];
     if (behavior && !validBehaviors.includes(behavior)) {
@@ -171,7 +207,7 @@ sellerMintingRouter.post("/advisor", async (c) => {
     const { data: existing } = await supabase
       .from("store_advisor_config")
       .select("id")
-      .eq("seller_id", sellerId)
+      .eq("seller_id", resolvedSellerId)
       .single();
 
     const payload = {
@@ -189,13 +225,13 @@ sellerMintingRouter.post("/advisor", async (c) => {
       result = await supabase
         .from("store_advisor_config")
         .update(payload)
-        .eq("seller_id", sellerId)
+        .eq("seller_id", resolvedSellerId)
         .select()
         .single();
     } else {
       result = await supabase
         .from("store_advisor_config")
-        .insert({ seller_id: sellerId, ...payload })
+        .insert({ seller_id: resolvedSellerId, ...payload })
         .select()
         .single();
     }
@@ -217,18 +253,22 @@ sellerMintingRouter.post("/upload-image", async (c) => {
   try {
     const formData = await c.req.formData();
     const file = formData.get("file");
-    const sellerId = formData.get("sellerId");
+    const sellerId = String(formData.get("sellerId") || "");
 
-    if (!file || !sellerId) {
+    if (!(file instanceof File) || !sellerId) {
       return c.json(
         { error: "file and sellerId required" },
         400
       );
     }
 
+    const sellerAuth = await requireAuthenticatedSeller(c, sellerId);
+    if (!sellerAuth.ok) return sellerAuth.response;
+    const resolvedSellerId = sellerAuth.sellerId;
+
     const supabase = getSupabaseClient();
     const fileName =
-      `${sellerId}/${Date.now()}_${file.name}`;
+      `${resolvedSellerId}/${Date.now()}_${file.name}`;
 
     // Upload to Supabase Storage
     const { error: uploadError, data } = await supabase.storage
@@ -275,6 +315,9 @@ sellerMintingRouter.post("/generate-draft", async (c) => {
       );
     }
 
+    const sellerAuth = await requireAuthenticatedSeller(c, sellerId);
+    if (!sellerAuth.ok) return sellerAuth.response;
+
     const taxonomy = normalizeListingTaxonomy(category, subcategory);
     const canonicalCategory = taxonomy.categorySlug;
     const canonicalSubcategory = taxonomy.subcategorySlug;
@@ -283,7 +326,7 @@ sellerMintingRouter.post("/generate-draft", async (c) => {
       : taxonomy.categoryLabel;
 
     // Try LLM-powered draft generation, fallback to template
-    let draft = buildFallbackDraft(
+    let draft: GeneratedDraft = buildFallbackDraft(
       canonicalCategory,
       canonicalSubcategory,
       imageUrls,
@@ -429,7 +472,14 @@ sellerMintingRouter.get("/market-analysis", async (c) => {
     const category = c.req.query("category");
     const subcategory = c.req.query("subcategory");
     const price = c.req.query("price");
-    const sellerId = c.req.query("sellerId");
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+    const requestedSellerId = c.req.query("sellerId");
+    if (requestedSellerId) {
+      const walletMismatch = assertAuthenticatedWalletMatch(c, auth.identity, requestedSellerId, "sellerId");
+      if (walletMismatch) return walletMismatch;
+    }
+    const sellerId = auth.identity.walletAddress;
 
     if (!category) {
       return c.json({ error: "category required" }, 400);
@@ -530,6 +580,10 @@ sellerMintingRouter.post("/mint-asset", async (c) => {
       );
     }
 
+    const sellerAuth = await requireAuthenticatedSeller(c, sellerId);
+    if (!sellerAuth.ok) return sellerAuth.response;
+    const resolvedSellerId = sellerAuth.sellerId;
+
     const supabase = getSupabaseClient();
     const taxonomy = normalizeListingTaxonomy(draft.category, draft.subcategory);
 
@@ -537,7 +591,7 @@ sellerMintingRouter.post("/mint-asset", async (c) => {
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("id")
-      .eq("wallet_address", sellerId)
+      .eq("wallet_address", resolvedSellerId)
       .single();
 
     if (profileError || !profile) {
@@ -614,7 +668,7 @@ function buildFallbackDraft(
   overrideDescription?: string,
   categoryLabel?: string,
   subcategoryLabel?: string,
-) {
+): GeneratedDraft {
   const displayLabel = subcategoryLabel || categoryLabel || subcategory || category;
 
   return {

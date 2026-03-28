@@ -1,3 +1,7 @@
+/**
+ * Bridge tokens and metadata are stored in localStorage (see STORAGE_KEY). Treat as sensitive to
+ * same-origin XSS like the wallet session; do not add VITE_* or client-side secrets for signing JWTs.
+ */
 import { supabaseUrl, publicAnonKey } from '/utils/supabase/info';
 import { getWalletAuthSession } from '@/utils/walletAuthSession';
 import { normalizeAddress } from '@/utils/storageScope';
@@ -87,11 +91,13 @@ function bridgeHeaders(extra?: Record<string, string>): Record<string, string> {
 }
 
 function bridgeAuthHeaders(extra?: Record<string, string>): Record<string, string> {
-  const bearer = getSupabaseBridgeAccessToken() || publicAnonKey;
+  const bearer = getSupabaseBridgeAccessToken();
+  if (!bearer) {
+    throw new Error('Missing Supabase bridge access token');
+  }
   return {
     Authorization: `Bearer ${bearer}`,
     'Content-Type': 'application/json',
-    apikey: publicAnonKey,
     ...extra,
   };
 }
@@ -142,22 +148,8 @@ function isExpired(session: SupabaseAuthClaimBridgeSession, skewMs = 15_000): bo
 
 function isWalletSessionAligned(session: SupabaseAuthClaimBridgeSession): boolean {
   const walletSession = getWalletAuthSession();
-  // H1/H3 dev-trust mode may exchange using an address-only fallback session.
-  // In that case there may be no persisted walletAuthSession to compare against.
-  if (!walletSession) return true;
+  if (!walletSession) return false;
   return normalizeAddress(walletSession.address) === normalizeAddress(session.walletAddress);
-}
-
-function buildDevTrustFallbackSession(walletAddress: string): BridgeWalletAuthLikeSession {
-  const normalized = normalizeAddress(walletAddress);
-  const now = Date.now();
-  return {
-    address: normalized,
-    signedAt: now,
-    // H1 dev_trust_client_session mode validates shape/age/address, not cryptographic recovery.
-    signature: `0x${'00'.repeat(65)}`,
-    message: `ATP2 H1 dev-trust fallback\nAddress: ${normalized}\nTime: ${new Date(now).toISOString()}`,
-  };
 }
 
 export function isSupabaseAuthClaimBridgeEnabled(): boolean {
@@ -188,15 +180,13 @@ export async function exchangeWalletAuthForSupabaseClaimSession(
   if (!isSupabaseAuthClaimBridgeEnabled()) return null;
 
   const requestedWallet = walletAddress ? normalizeAddress(walletAddress) : '';
-  const rawWalletSession = getWalletAuthSession();
-  const walletSession: BridgeWalletAuthLikeSession | null =
-    rawWalletSession ||
-    (requestedWallet ? buildDevTrustFallbackSession(requestedWallet) : null);
-
+  const walletSession: BridgeWalletAuthLikeSession | null = getWalletAuthSession();
   if (!walletSession) return null;
+  if (!walletSession.message) return null;
 
   const normalizedWallet = normalizeAddress(walletAddress || walletSession.address);
   if (!normalizedWallet || normalizedWallet !== normalizeAddress(walletSession.address)) {
+    clearSupabaseBridgeSession();
     return null;
   }
 
@@ -290,6 +280,10 @@ export async function sendCommunityNotificationViaBridge(params: {
     console.debug('[H1 Bridge] Community notify token exchange skipped:', error);
   }
 
+  if (isSupabaseAuthClaimBridgeEnabled() && !getSupabaseBridgeAccessToken()) {
+    return false;
+  }
+
   try {
     const res = await fetch(`${getBridgeBaseUrl()}/community-notify`, {
       method: 'POST',
@@ -318,10 +312,25 @@ export async function sendCommunityNotificationViaBridge(params: {
 }
 
 export async function sendAssetMetadataSeedViaBridge(
-  assetItems: AssetMetadataSeedBridgeItem[]
+  assetItems: AssetMetadataSeedBridgeItem[],
+  walletAddress?: string | null
 ): Promise<AssetMetadataSeedBridgeResponse | null> {
   if (!isBrowser() || !supabaseUrl || !publicAnonKey) return null;
   if (!assetItems?.length) return { ok: true, rows: [] };
+
+  try {
+    if (isSupabaseAuthClaimBridgeEnabled() && !getSupabaseBridgeAccessToken()) {
+      if (!walletAddress) return null;
+      await exchangeWalletAuthForSupabaseClaimSession(walletAddress);
+    }
+  } catch (error) {
+    console.debug('[H1 Bridge] asset-metadata-seed token exchange skipped:', error);
+    return null;
+  }
+
+  if (isSupabaseAuthClaimBridgeEnabled() && !getSupabaseBridgeAccessToken()) {
+    return null;
+  }
 
   try {
     const res = await fetch(`${getBridgeBaseUrl()}/asset-metadata-seed`, {

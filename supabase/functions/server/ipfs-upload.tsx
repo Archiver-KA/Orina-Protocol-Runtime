@@ -100,10 +100,13 @@ ipfsRouter.post("/upload", async (c) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Pinata API error: ${response.status} - ${errorText}`);
-      return c.json({ 
+      return new Response(JSON.stringify({
         error: `Failed to upload to IPFS: ${response.status}`,
-        details: errorText 
-      }, response.status);
+        details: errorText
+      }), {
+        status: response.status,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     const result = await response.json();

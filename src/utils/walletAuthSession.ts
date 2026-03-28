@@ -1,3 +1,8 @@
+/**
+ * Wallet auth session (EIP-191) is stored in localStorage. Same-origin XSS can read it and replay
+ * within the signed message TTL. Mitigate with strict CSP, dependency review, and avoiding
+ * unsanitized HTML injection; prefer httpOnly cookies only if you move auth off pure SPA storage.
+ */
 import { normalizeAddress } from '@/utils/storageScope';
 
 const WALLET_AUTH_SESSION_KEY = 'orina_wallet_auth_session';

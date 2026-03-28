@@ -25,10 +25,10 @@ export function ProtocolChainBanner({
   if (!showWhenMatched && isConnected && isOnProtocolChain) return null;
 
   const toneClass = !isConnected
-    ? 'border-red-400/20 bg-red-400/10'
+    ? 'bg-red-400/10'
     : isOnProtocolChain
-      ? 'border-[#2CC295]/20 bg-[#2CC295]/10'
-      : 'border-amber-400/20 bg-amber-400/10';
+      ? 'bg-[#2CC295]/10'
+      : 'bg-amber-400/10';
 
   const title = !isConnected
     ? 'Wallet not connected'
@@ -43,7 +43,7 @@ export function ProtocolChainBanner({
       : 'text-amber-300';
 
   return (
-    <div className={`rounded-xl border p-3 ${toneClass} ${className}`.trim()}>
+    <div className={`rounded-xl p-3 ${toneClass} ${className}`.trim()}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">

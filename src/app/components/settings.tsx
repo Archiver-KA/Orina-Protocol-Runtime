@@ -17,15 +17,12 @@ import {
   LogOut,
 } from 'lucide-react';
 import { CustomDropdown } from './custom-dropdown';
-import { APIKeysSettings } from './api-keys-settings';
-import { AIAgentSettings } from './ai-agent-settings';
 import {
   DeliveryAddressBlock,
   type DeliveryAddressBlockHandle,
 } from '@/app/components/settings/delivery-address-block';
 import { RuntimeStatusPanel } from '@/app/components/settings/runtime-status-panel';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
-import { RuntimeErrorBoundary } from '@/app/components/ui/runtime-error-boundary';
 import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
 import { useTheme } from '@/app/contexts/ThemeContext';
 import type { UserAppSettings } from '@/types/user-settings';
@@ -226,7 +223,7 @@ export function Settings() {
             {/* Header */}
             <header className="mb-10">
               <h1 className="text-2xl font-bold text-ui-strong">Settings</h1>
-              <p className="text-sm text-ui-muted mt-1">Configure your advanced workspace and security preferences</p>
+              <p className="text-sm text-ui-muted mt-1">Configure account, privacy, notification, and runtime preferences</p>
             </header>
 
             <div className="space-y-8">
@@ -328,47 +325,7 @@ export function Settings() {
               </div>
 
               {/* ══════════════════════════════════════════════ */}
-              {/* SECTION 4: API Keys (self-managed)             */}
-              {/* ══════════════════════════════════════════════ */}
-              <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-6">
-                {address ? (
-                  <RuntimeErrorBoundary
-                    title="API Keys Unavailable"
-                    description="The API key manager hit a runtime error. Retry without leaving Settings."
-                    compact
-                    resetKey={address}
-                  >
-                    <APIKeysSettings walletAddress={address} />
-                  </RuntimeErrorBoundary>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-sm text-ui-muted">Connect your wallet to manage API keys</p>
-                  </div>
-                )}
-              </div>
-
-              {/* ══════════════════════════════════════════════ */}
-              {/* SECTION 5: AI Agent (self-managed)             */}
-              {/* ══════════════════════════════════════════════ */}
-              <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-6">
-                {address ? (
-                  <RuntimeErrorBoundary
-                    title="AI Agent Settings Unavailable"
-                    description="The AI configuration panel failed to load. Retry after the section resets."
-                    compact
-                    resetKey={address}
-                  >
-                    <AIAgentSettings walletAddress={address} />
-                  </RuntimeErrorBoundary>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-sm text-ui-muted">Connect your wallet to manage AI agent</p>
-                  </div>
-                )}
-              </div>
-
-              {/* ══════════════════════════════════════════════ */}
-              {/* SECTION 6: Language & Region                   */}
+              {/* SECTION 7: Language & Region                   */}
               {/* ══════════════════════════════════════════════ */}
               <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-6">
                 <div className="flex items-center gap-3 mb-6">
@@ -422,7 +379,7 @@ export function Settings() {
               </div>
 
               {/* ══════════════════════════════════════════════ */}
-              {/* SECTION 7: Display Preferences                 */}
+              {/* SECTION 8: Display Preferences                 */}
               {/* ══════════════════════════════════════════════ */}
               <div className={settingsPanelClass}>
                 <div className="flex items-center gap-3 mb-6">
@@ -446,7 +403,7 @@ export function Settings() {
               </div>
 
               {/* ══════════════════════════════════════════════ */}
-              {/* SECTION 8: Protocol Runtime Status            */}
+              {/* SECTION 9: Protocol Runtime Status            */}
               {/* ══════════════════════════════════════════════ */}
               <div className={settingsPanelClass}>
                 <RuntimeStatusPanel />

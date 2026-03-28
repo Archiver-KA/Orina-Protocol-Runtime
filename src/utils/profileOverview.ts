@@ -121,6 +121,11 @@ function toOwnerMintedCard(
   };
 }
 
+function toOwnerMintedCardFromRuntime(record: RuntimeMintedAssetRecord): MyAssetRwa | null {
+  if (record.assetType !== 'RWA') return null;
+  return record.myAsset as MyAssetRwa;
+}
+
 export function buildProfileTopProducts(
   profileAddress: string | undefined,
   orders: OrderUiRecord[],
@@ -245,6 +250,10 @@ export function buildProfileMintedMarketplaceAssets(
   const ownerCards = visitorCards.map((asset) =>
     toOwnerMintedCard(asset, findRuntimeRecordForMarketplaceAsset(asset, runtimeRecords))
   );
+  const runtimeOnlyOwnerCards = runtimeRecords
+    .map(toOwnerMintedCardFromRuntime)
+    .filter((value): value is MyAssetRwa => Boolean(value))
+    .filter((runtimeCard) => !ownerCards.some((card) => card.id === runtimeCard.id));
 
-  return { ownerCards, visitorCards };
+  return { ownerCards: [...runtimeOnlyOwnerCards, ...ownerCards], visitorCards };
 }

@@ -6,8 +6,8 @@ const path = require('path');
 const ROOT_DIR = path.resolve(__dirname, '..', '..');
 const DEFAULTS = {
   chainId: 97,
-  marketplaceContract: '0x6154d16f4f52c1a4157928f136a53ac3b83b510b',
-  assetContract: '0xa0c34b5a941420626146bc61e15893bc1f86bf39',
+  marketplaceContract: '0x026c9e9a5d007ed46df3de900f53c0786ec650c8',
+  assetContract: '0x5fc61747b359e089e3ced00494f9e71de836b666',
   paymentToken: '0xae13d989dac2f0debff460ac112a837c89baa7cd',
   orderId: '0',
   assetId: '0',

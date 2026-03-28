@@ -211,6 +211,17 @@ function detectLanguage(text: string): string {
   return "en";
 }
 
+function getLocalizedText(messages: Record<string, string>, lang: string): string {
+  return messages[lang] || messages.en || Object.values(messages)[0] || '';
+}
+
+function getErrorDetails(error: unknown): { message: string; stack?: string } {
+  if (error instanceof Error) {
+    return { message: error.message, stack: error.stack };
+  }
+  return { message: String(error) };
+}
+
 // ─── INTENT CLASSIFIER ──────────────────────────────────────────────────────
 type ORINAIntent = 'SEARCH' | 'LISTING' | 'MARKET' | 'SUPPORT' | 'SOURCING' | 'GENERAL';
 
@@ -338,7 +349,7 @@ function mapDisputeContextToCaseFile(ctx: AIDisputeContext): ArbitrationCaseFile
   const firstReason = (ctx.buyerReasons || [])[0] || 'other';
   const disputeType = DISPUTE_REASON_TO_TYPE[firstReason] || 'other';
 
-  const buyerEvidence = (ctx.evidenceUrls || []).map(url => ({ type: 'image', url }));
+  const buyerEvidence = (ctx.evidenceUrls || []).map((url: string) => ({ type: 'image', url }));
   const messages: { sender: string; content: string }[] = [];
   if (ctx.buyerComment) messages.push({ sender: 'buyer', content: ctx.buyerComment });
   if (ctx.sellerResponse) messages.push({ sender: 'seller', content: ctx.sellerResponse });
@@ -1096,7 +1107,7 @@ export class ORINAEngine {
     const { walletAddress, conversationId, agentContext, imageUrls, disputeContext } = request;
     let { message } = request;
     const { activePage, clarificationSelections, originalMessage } = request;
-    console.log('🚀 ORINA v2 processAssist:', { walletAddress, message, agentContext, hasImages: imageUrls?.length > 0, hasDispute: !!disputeContext, activePage, hasClarification: !!clarificationSelections });
+    console.log('🚀 ORINA v2 processAssist:', { walletAddress, message, agentContext, hasImages: (imageUrls?.length ?? 0) > 0, hasDispute: !!disputeContext, activePage, hasClarification: !!clarificationSelections });
 
     // ── TOP-LEVEL SAFETY — never let unhandled exceptions crash the Edge Fn ──
     try {
@@ -1241,6 +1252,21 @@ export class ORINAEngine {
     }
   }
 
+  private static async handleSearch(message: string): Promise<AIStructuredResponse> {
+    const langCode = detectLangCode(message);
+    try {
+      const { results, chatResponse } = await this.searchQuery(message, undefined, 12, langCode);
+      return {
+        text: chatResponse || getSearchResponseTemplate(langCode, results.length),
+        action: 'search_results',
+        products: results,
+      };
+    } catch (error) {
+      console.error('❌ Search handler failed:', error);
+      return this.getErrorResponse(langCode, 'search');
+    }
+  }
+
 
   // â”€â”€ CORE HANDLERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -1283,12 +1309,12 @@ Return ONLY valid JSON matching this exact schema:
         const visionPrompt = `Create a listing draft for: "${message || 'product in image'}". Return ONLY valid JSON.`;
 
         const visionResult = await callNvidiaNIMVision(
-          imageUrls,
+          visionSystem,
           visionPrompt,
+          imageUrls,
           {
             maxTokens: 1000,
             temperature: 0.4,
-            systemPrompt: visionSystem
           }
         );
 
@@ -1623,8 +1649,11 @@ IMPORTANT: Reply in ${langHint}. Output ONLY valid JSON:
         enableDenoising: true,
       });
 
-      if (!nimResult.success || !nimResult.content) {
-        throw new Error(nimResult.error || 'Empty NIM response');
+      if (!nimResult.success) {
+        throw new Error(nimResult.error || 'NIM request failed');
+      }
+      if (!nimResult.content) {
+        throw new Error('Empty NIM response');
       }
 
       // Strip think tags if present
@@ -2049,25 +2078,35 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
 
     try {
       const supabase = getSupabaseClient();
+      const orderRole: 'buyer' | 'seller' = agentContext === 'seller' ? 'seller' : 'buyer';
+      const orderAddressColumn = orderRole === 'seller' ? 'seller_address' : 'buyer_address';
       const { data: orders, error } = await supabase
         .from('orders')
         .select('id, status, asset_name, gross_price_formatted, created_at')
-        .eq('buyer_address', walletAddress)
+        .eq(orderAddressColumn, walletAddress)
         .order('created_at', { ascending: false })
         .limit(5);
 
       if (error) throw error;
 
-      const responses = {
-        vi: orders?.length > 0 ? 'Đây là các đơn hàng gần đây của bạn:' : 'Bạn chưa có đơn hàng nào.',
-        en: orders?.length > 0 ? 'Here are your recent orders:' : 'You don\'t have any orders yet.',
-        zh: orders?.length > 0 ? '这是您最近的订单：' : '您还没有任何订单。',
-        ja: orders?.length > 0 ? 'こちらが最近のご注文です：' : 'まだ注文はありません。',
-        ko: orders?.length > 0 ? '최근 주문 내역입니다：' : '아직 주문이 없습니다。'
-      };
+      const responses: Record<string, string> = orderRole === 'seller'
+        ? {
+            vi: orders?.length > 0 ? 'Đây là các đơn bán gần đây của bạn:' : 'Bạn chưa có đơn bán nào.',
+            en: orders?.length > 0 ? 'Here are your recent sales:' : 'You do not have any sales yet.',
+            zh: orders?.length > 0 ? '这是您最近的销售订单：' : '您还没有任何销售订单。',
+            ja: orders?.length > 0 ? 'こちらが最近の販売注文です：' : 'まだ販売注文はありません。',
+            ko: orders?.length > 0 ? '최근 판매 주문 내역입니다：' : '아직 판매 주문이 없습니다。'
+          }
+        : {
+            vi: orders?.length > 0 ? 'Đây là các đơn hàng gần đây của bạn:' : 'Bạn chưa có đơn hàng nào.',
+            en: orders?.length > 0 ? 'Here are your recent orders:' : 'You don\'t have any orders yet.',
+            zh: orders?.length > 0 ? '这是您最近的订单：' : '您还没有任何订单。',
+            ja: orders?.length > 0 ? 'こちらが最近のご注文です：' : 'まだ注文はありません。',
+            ko: orders?.length > 0 ? '최근 주문 내역입니다：' : '아직 주문이 없습니다。'
+          };
 
       return {
-        text: responses[lang] || responses.en,
+        text: getLocalizedText(responses, lang),
         action: 'show_orders',
         orders: orders?.map(o => ({
           orderId: o.id,
@@ -2076,7 +2115,7 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
           totalValue: o.gross_price_formatted || 'N/A',
           currencySymbol: 'USD',
           createdAt: o.created_at || 'Unknown',
-          role: 'buyer' as const
+          role: orderRole
         })) || []
       };
     } catch (error) {
@@ -2459,11 +2498,66 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
   }
 
   // Conversation history methods
-  static async getConversationHistory(conversationId: string): Promise<AIConversationMessage[]> {
+  private static conversationMessagesKey(walletAddress: string, conversationId: string): string {
+    return `conversation:${walletAddress}:${conversationId}:messages`;
+  }
+
+  private static legacyConversationMessagesKey(conversationId: string): string {
+    return `conversation:${conversationId}:messages`;
+  }
+
+  private static conversationMetaKey(walletAddress: string, conversationId: string): string {
+    return `conversation:${walletAddress}:${conversationId}`;
+  }
+
+  private static conversationListKey(walletAddress: string): string {
+    return `conversations:${walletAddress}:list`;
+  }
+
+  static async hasConversationAccess(walletAddress: string, conversationId: string): Promise<boolean> {
     try {
-      const key = `conversation:${conversationId}:messages`;
-      const messages = await kv.get(key) || [];
-      return Array.isArray(messages) ? messages : [];
+      if (!walletAddress || !conversationId) return false;
+      const meta = await kv.get(this.conversationMetaKey(walletAddress, conversationId));
+      return !!meta;
+    } catch (error) {
+      console.error('❌ Failed to verify conversation ownership:', error);
+      return false;
+    }
+  }
+
+  private static async readConversationMessages(
+    walletAddress: string,
+    conversationId: string,
+    options?: { allowLegacyFallback?: boolean },
+  ): Promise<AIConversationMessage[]> {
+    const scopedMessages = await kv.get(this.conversationMessagesKey(walletAddress, conversationId));
+    if (Array.isArray(scopedMessages)) {
+      return scopedMessages as AIConversationMessage[];
+    }
+
+    if (options?.allowLegacyFallback) {
+      const legacyMessages = await kv.get(this.legacyConversationMessagesKey(conversationId));
+      if (Array.isArray(legacyMessages)) {
+        return legacyMessages as AIConversationMessage[];
+      }
+    }
+
+    return [];
+  }
+
+  private static async writeConversationMessages(
+    walletAddress: string,
+    conversationId: string,
+    messages: AIConversationMessage[],
+  ): Promise<void> {
+    await kv.set(this.conversationMessagesKey(walletAddress, conversationId), messages);
+  }
+
+  static async getConversationHistory(walletAddress: string, conversationId: string): Promise<AIConversationMessage[]> {
+    try {
+      const hasAccess = await this.hasConversationAccess(walletAddress, conversationId);
+      if (!hasAccess) return [];
+      return await this.readConversationMessages(walletAddress, conversationId, { allowLegacyFallback: true });
     } catch (error) {
       console.error('❌ Failed to get conversation history:', error);
       return [];
@@ -2473,13 +2567,8 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
   static async getConversationList(walletAddress: string): Promise<AIConversationMeta[]> {
     try {
       console.log('📋 Getting conversation list for:', walletAddress);
-
-      // Use KV store pattern to get all conversations for this wallet
-      // Look for keys matching pattern: conversation:wallet:*
       const conversations: AIConversationMeta[] = [];
-
-      // Since KV doesn't support pattern matching, we'll try to get from a dedicated list
-      const listKey = `conversations:${walletAddress}:list`;
+      const listKey = this.conversationListKey(walletAddress);
       const conversationIds = await kv.get(listKey) || [];
 
       if (!Array.isArray(conversationIds) || conversationIds.length === 0) {
@@ -2489,12 +2578,9 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
 
       console.log('📋 Found conversation IDs:', conversationIds);
 
-      // Get metadata for each conversation
       for (const conversationId of conversationIds) {
         try {
-          const metaKey = `conversation:${walletAddress}:${conversationId}`;
-          const meta = await kv.get(metaKey);
-
+          const meta = await kv.get(this.conversationMetaKey(walletAddress, conversationId));
           if (meta && typeof meta === 'object') {
             conversations.push(meta as AIConversationMeta);
           }
@@ -2503,12 +2589,10 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
         }
       }
 
-      // Sort by lastAt timestamp (most recent first)
       conversations.sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime());
 
       console.log('📋 Successfully loaded', conversations.length, 'conversations');
       return conversations;
-
     } catch (error) {
       console.error('❌ Failed to get conversation list:', error);
       return [];
@@ -2517,15 +2601,13 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
 
   static async deleteConversation(walletAddress: string, conversationId: string): Promise<void> {
     try {
-      const messagesKey = `conversation:${conversationId}:messages`;
-      const metaKey = `conversation:${walletAddress}:${conversationId}`;
-      const listKey = `conversations:${walletAddress}:list`;
+      const messagesKey = this.conversationMessagesKey(walletAddress, conversationId);
+      const metaKey = this.conversationMetaKey(walletAddress, conversationId);
+      const listKey = this.conversationListKey(walletAddress);
 
-      // Delete messages + metadata
       await kv.del(messagesKey);
       await kv.del(metaKey);
 
-      // Remove from wallet's conversation index so it doesn't reappear on reload
       const existingList = (await kv.get(listKey) || []) as string[];
       const updatedList = existingList.filter((id: string) => id !== conversationId);
       await kv.set(listKey, updatedList);
@@ -2538,7 +2620,7 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
   }
 
   private static getErrorResponse(lang: string, context: string): AIStructuredResponse {
-    const errorMessages = {
+    const errorMessages: Record<string, string> = {
       vi: 'Xin lỗi, tôi gặp sự cố kỹ thuật. Vui lòng thử lại sau.',
       en: 'Sorry, I encountered a technical issue. Please try again shortly.',
       zh: '抱歉，遇到技术问题。请稍后重试。',
@@ -2547,7 +2629,7 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
     };
 
     return {
-      text: errorMessages[lang] || errorMessages.en
+      text: getLocalizedText(errorMessages, lang)
     };
   }
 
@@ -2564,17 +2646,23 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
     };
 
     try {
-      const key = `conversation:${request.conversationId}:messages`;
+      const allowLegacyFallback = await this.hasConversationAccess(request.walletAddress, request.conversationId);
+      const key = this.conversationMessagesKey(request.walletAddress, request.conversationId);
       console.log('💾 Getting existing messages for key:', key);
-      const existing = await kv.get(key) || [];
+      const existing = await this.readConversationMessages(
+        request.walletAddress,
+        request.conversationId,
+        { allowLegacyFallback },
+      );
       console.log('💾 Existing messages count:', Array.isArray(existing) ? existing.length : 0);
 
       console.log('💾 Saving user message with ID:', userMsg.id);
-      await kv.set(key, [...existing, userMsg]);
+      await this.writeConversationMessages(request.walletAddress, request.conversationId, [...existing, userMsg]);
       console.log('✅ User message saved successfully');
     } catch (error) {
+      const details = getErrorDetails(error);
       console.error('❌ Failed to save user message:', error);
-      console.error('❌ Error details:', error.message, error.stack);
+      console.error('❌ Error details:', details.message, details.stack);
       // Continue execution even if saving fails
     }
   }
@@ -2597,13 +2685,12 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
     };
 
     try {
-      // Save AI message to conversation
-      const key = `conversation:${request.conversationId}:messages`;
+      const key = this.conversationMessagesKey(request.walletAddress, request.conversationId);
       console.log('💾 Getting existing messages for AI response, key:', key);
-      const existing = await kv.get(key) || [];
+      const existing = await this.readConversationMessages(request.walletAddress, request.conversationId);
       console.log('💾 Existing messages count before AI save:', Array.isArray(existing) ? existing.length : 0);
 
-      await kv.set(key, [...existing, aiMsg]);
+      await this.writeConversationMessages(request.walletAddress, request.conversationId, [...existing, aiMsg]);
       console.log('✅ AI message saved successfully');
 
       // Update conversation metadata
@@ -2616,34 +2703,30 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
         agentContext: request.agentContext,
       };
 
-      const metaKey = `conversation:${request.walletAddress}:${request.conversationId}`;
+      const metaKey = this.conversationMetaKey(request.walletAddress, request.conversationId);
       console.log('💾 Saving conversation metadata with key:', metaKey);
       await kv.set(metaKey, meta);
       console.log('✅ Conversation metadata saved');
 
       // Maintain conversation list for this wallet
       console.log('💾 Updating conversation list...');
-      const listKey = `conversations:${request.walletAddress}:list`;
+      const listKey = this.conversationListKey(request.walletAddress);
       console.log('💾 List key:', listKey);
       const existingList = (await kv.get(listKey) || []) as string[];
       console.log('💾 Existing conversation list:', existingList);
 
-      // Add conversation ID to list if not already present
-      if (!existingList.includes(request.conversationId)) {
-        const updatedList = [request.conversationId, ...existingList]; // Most recent first
-        const finalList = updatedList.slice(0, 50); // Keep only last 50 conversations
-        console.log('💾 Updating list with new conversation:', finalList);
-        await kv.set(listKey, finalList);
-        console.log('✅ Added conversation to list:', request.conversationId);
-      } else {
-        console.log('💾 Conversation already exists in list, skipping update');
-      }
+      const dedupedList = [request.conversationId, ...existingList.filter((id: string) => id !== request.conversationId)];
+      const finalList = dedupedList.slice(0, 50);
+      console.log('💾 Updating conversation list:', finalList);
+      await kv.set(listKey, finalList);
+      console.log('✅ Updated conversation list for:', request.conversationId);
 
       console.log('✅ All conversation saving completed successfully');
 
     } catch (error) {
+      const details = getErrorDetails(error);
       console.error('❌ Failed to save AI response:', error);
-      console.error('❌ Error details:', error.message, error.stack);
+      console.error('❌ Error details:', details.message, details.stack);
       // Continue execution even if saving fails - don't crash the AI response
     }
   }

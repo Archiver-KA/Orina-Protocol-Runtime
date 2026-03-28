@@ -1,7 +1,7 @@
 /**
- * Orina ATP Protocol v3.3-final - TypeScript Types
- * =================================================
- * Matching all Solidity structs and enums for type-safe frontend.
+ * Orina ATP Protocol v3.4-m2m - TypeScript Types
+ * ==============================================
+ * Matching current Solidity structs and enums for type-safe frontend.
  */
 
 import {
@@ -33,6 +33,8 @@ export interface SplitSettlement {
 export interface Order {
   buyer: `0x${string}`;
   seller: `0x${string}`;
+  payer: `0x${string}`;
+  refundRecipient: `0x${string}`;
   paymentToken: `0x${string}`;
   assetId: bigint;
   amount: bigint;
@@ -48,6 +50,7 @@ export interface Order {
   platformFeeBpsSnapshot: bigint;
   daoFeeBpsSnapshot: bigint;
   burnFeeBpsSnapshot: bigint;
+  referralFeeBpsSnapshot: bigint;
   finalized: boolean;
   sellerConfirmed: boolean;
   buyerSig1: `0x${string}`;
@@ -55,7 +58,7 @@ export interface Order {
   buyerSig2: `0x${string}`;
 }
 
-/** Return type of getOrderStatus() */
+/** Client-derived order status view used by frontend hooks */
 export interface OrderStatusResult {
   status: OrderStatus;
   remainingTime: bigint;
@@ -107,7 +110,32 @@ export interface Dispute {
 export interface Escrow {
   token: `0x${string}`;
   buyer: `0x${string}`;
+  payer: `0x${string}`;
+  refundRecipient: `0x${string}`;
   amount: bigint;
+}
+
+export interface OrderFunding {
+  buyer: `0x${string}`;
+  payer: `0x${string}`;
+  refundRecipient: `0x${string}`;
+}
+
+export interface DelegationSession {
+  root: `0x${string}`;
+  delegate: `0x${string}`;
+  payerVault: `0x${string}`;
+  paymentToken: `0x${string}`;
+  maxPerOrder: bigint;
+  maxTotal: bigint;
+  spentTotal: bigint;
+  validFrom: bigint;
+  validUntil: bigint;
+  actionMask: bigint;
+  sessionEpoch: bigint;
+  counterpartyAllowlistHash: `0x${string}`;
+  status: bigint;
+  exists: boolean;
 }
 
 // ── UnitRegistry ──────────────────────────────────────────────

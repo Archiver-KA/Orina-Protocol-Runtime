@@ -7,6 +7,7 @@ import {
   Users,
   MessageSquare,
   Settings,
+  Bot,
   ChevronsLeft,
   ChevronsRight,
   LayoutDashboard,
@@ -41,6 +42,7 @@ export function LeftSidebar({
     { id: 'assets', icon: Package, label: 'Assets' },
     { id: 'messages', icon: MessageSquare, label: 'Messages' },
     { id: 'community', icon: Users, label: 'Community' },
+    { id: 'agent-settings', icon: Bot, label: 'Agent Setting' },
     { id: 'settings', icon: Settings, label: 'Settings' },
   ];
 

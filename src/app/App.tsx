@@ -18,6 +18,7 @@ import { History } from '@/app/components/history';
 import { HistoryRightSidebar } from '@/app/components/history-right-sidebar';
 import { EnhancedProfile } from '@/app/components/profile/enhanced-profile'; // ✅ Unified profile for both owner & visitor modes
 import { Settings } from '@/app/components/settings';
+import { AgentSettings } from '@/app/components/agent-settings';
 import { CanonicalAssetDetailsRoute } from '@/app/components/asset-details/canonical-asset-details-route';
 import { SearchPage } from '@/app/components/search/search-page';
 import { FavoritesFollowingPage } from '@/app/components/favorites/favorites-following-page';
@@ -254,7 +255,7 @@ function AppContent({
             className={isGuest ? 'flex-1 overflow-hidden bg-ui-page text-ui-secondary' : 'flex-1 overflow-hidden bg-ui-page text-ui-secondary'}
             style={!isGuest ? {
               display: 'grid',
-              gridTemplateColumns: (['marketplace', 'market-insights', 'messages', 'profile', 'settings', 'asset-details', 'favorites', 'search'].includes(activePage))
+              gridTemplateColumns: (['marketplace', 'market-insights', 'messages', 'profile', 'settings', 'agent-settings', 'asset-details', 'favorites', 'search'].includes(activePage))
                 ? '1fr'
                 : '1fr 344px',
             } : undefined}
@@ -304,6 +305,15 @@ function AppContent({
                 resetKey={activePage}
               >
                 <Settings />
+              </RuntimeErrorBoundary>
+            )}
+            {activePage === 'agent-settings' && (
+              <RuntimeErrorBoundary
+                title="Agent Setting Page Failed to Load"
+                description="The agent automation workspace hit a runtime error. Retry after the page resets."
+                resetKey={activePage}
+              >
+                <AgentSettings />
               </RuntimeErrorBoundary>
             )}
             {activePage === 'asset-details' && (
@@ -494,7 +504,7 @@ export default function App() {
     const sidebarWidth = sidebarCollapsed ? '88px' : '248px';
 
     // Pages without right sidebar (search has its own right sidebar built-in)
-    if (activePage === 'marketplace' || activePage === 'market-insights' || activePage === 'messages' || activePage === 'profile' || activePage === 'settings' || activePage === 'asset-details' || activePage === 'favorites' || activePage === 'search') {
+    if (activePage === 'marketplace' || activePage === 'market-insights' || activePage === 'messages' || activePage === 'profile' || activePage === 'settings' || activePage === 'agent-settings' || activePage === 'asset-details' || activePage === 'favorites' || activePage === 'search') {
       return `grid-cols-[${sidebarWidth}_1fr]`;
     }
 

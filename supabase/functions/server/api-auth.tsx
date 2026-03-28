@@ -1,11 +1,5 @@
-import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { APIKey, APIKeyPermission } from './types.ts';
 import * as kv from './kv_store.tsx';
-
-const supabase = createClient(
-  Deno.env.get('SUPABASE_URL') ?? '',
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-);
 
 // Authentication middleware
 export async function authenticateAPIKey(apiKey: string): Promise<{ valid: boolean; key?: APIKey; error?: string }> {

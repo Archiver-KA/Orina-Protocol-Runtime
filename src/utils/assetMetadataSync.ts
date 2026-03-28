@@ -237,7 +237,7 @@ export async function ensureAssetMetadataSeedForIds(assetIds: string[]): Promise
       .filter(Boolean) as AssetMetadataSeedItem[];
     if (!seedItems.length) return;
 
-    const result = await sendAssetMetadataSeedViaBridge(seedItems);
+    const result = await sendAssetMetadataSeedViaBridge(seedItems, walletAddress);
     if (!result?.ok) return;
 
     let updatedRows = 0;

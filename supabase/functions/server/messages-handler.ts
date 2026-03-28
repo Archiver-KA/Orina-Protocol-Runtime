@@ -31,6 +31,10 @@ export interface Conversation {
   unreadCount: { [address: string]: number };
 }
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /**
  * Generate a consistent conversation ID from two addresses
  * Always sorts addresses to ensure same ID regardless of who initiates
@@ -187,7 +191,7 @@ export async function getUserConversations(address: string): Promise<{
       
       // Try to get metadata for the other participant
       const otherAddress = conv.participants.find(
-        p => p.toLowerCase() !== address.toLowerCase()
+        (p: string) => p.toLowerCase() !== address.toLowerCase()
       );
       if (otherAddress) {
         // You can extend this to fetch actual user profiles later
@@ -250,7 +254,7 @@ export async function deleteConversation(
 ): Promise<void> {
   const listKey = getUserConversationsKey(userAddress);
   const userConvs = (await kv.get<string[]>(listKey)) || [];
-  const filtered = userConvs.filter(id => id !== conversationId);
+  const filtered = userConvs.filter((id: string) => id !== conversationId);
   await kv.set(listKey, filtered);
 
   console.log(`[Messages] Deleted conversation ${conversationId} for ${userAddress}`);
@@ -281,7 +285,7 @@ export async function handleCreateConversation(c: Context) {
     });
   } catch (error) {
     console.error('[Messages] Create conversation error:', error);
-    return c.json({ error: 'Failed to create conversation', details: error.message }, 500);
+    return c.json({ error: 'Failed to create conversation', details: getErrorMessage(error) }, 500);
   }
 }
 
@@ -311,7 +315,7 @@ export async function handleSendMessage(c: Context) {
     });
   } catch (error) {
     console.error('[Messages] Send error:', error);
-    return c.json({ error: 'Failed to send message', details: error.message }, 500);
+    return c.json({ error: 'Failed to send message', details: getErrorMessage(error) }, 500);
   }
 }
 
@@ -335,7 +339,7 @@ export async function handleGetConversations(c: Context) {
     });
   } catch (error) {
     console.error('[Messages] Get conversations error:', error);
-    return c.json({ error: 'Failed to get conversations', details: error.message }, 500);
+    return c.json({ error: 'Failed to get conversations', details: getErrorMessage(error) }, 500);
   }
 }
 
@@ -360,7 +364,7 @@ export async function handleGetMessages(c: Context) {
     });
   } catch (error) {
     console.error('[Messages] Get messages error:', error);
-    return c.json({ error: 'Failed to get messages', details: error.message }, 500);
+    return c.json({ error: 'Failed to get messages', details: getErrorMessage(error) }, 500);
   }
 }
 
@@ -382,7 +386,7 @@ export async function handleMarkAsRead(c: Context) {
     return c.json({ success: true });
   } catch (error) {
     console.error('[Messages] Mark as read error:', error);
-    return c.json({ error: 'Failed to mark as read', details: error.message }, 500);
+    return c.json({ error: 'Failed to mark as read', details: getErrorMessage(error) }, 500);
   }
 }
 
@@ -403,6 +407,6 @@ export async function handleDeleteConversation(c: Context) {
     return c.json({ success: true });
   } catch (error) {
     console.error('[Messages] Delete conversation error:', error);
-    return c.json({ error: 'Failed to delete conversation', details: error.message }, 500);
+    return c.json({ error: 'Failed to delete conversation', details: getErrorMessage(error) }, 500);
   }
 }

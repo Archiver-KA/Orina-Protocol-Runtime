@@ -159,7 +159,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
       {/* Stats Overview */}
       {apiKeys.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-4">
+          <div className="bg-[var(--t-surface-2)] rounded-xl p-4">
             <div className="flex items-center gap-2 text-ui-secondary text-xs font-bold uppercase mb-2">
               <Activity size={12} />
               Total Requests
@@ -168,7 +168,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
             <div className="text-[10px] text-ui-muted mt-1">Last 30 days</div>
           </div>
 
-          <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-4">
+          <div className="bg-[var(--t-surface-2)] rounded-xl p-4">
             <div className="flex items-center gap-2 text-ui-secondary text-xs font-bold uppercase mb-2">
               <TrendingUp size={12} />
               Success Rate
@@ -177,7 +177,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
             <div className="text-[10px] text-ui-muted mt-1">Average across all keys</div>
           </div>
 
-          <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-4">
+          <div className="bg-[var(--t-surface-2)] rounded-xl p-4">
             <div className="flex items-center gap-2 text-ui-secondary text-xs font-bold uppercase mb-2">
               <Shield size={12} />
               Active Keys

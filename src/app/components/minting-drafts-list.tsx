@@ -46,7 +46,7 @@ export function MintingDraftsList({
           key={draft.id}
           type="button"
           onClick={() => onEdit(draft.id)}
-          className="group flex w-full items-center gap-4 rounded-[24px] border border-ui-border-subtle bg-ui-card p-4 text-left transition-all hover:-translate-y-0.5 hover:border-[#2CC295]/30 hover:bg-[var(--t-surface-5)]"
+          className="group flex w-full items-center gap-4 rounded-[24px] bg-[var(--t-surface-5)] p-4 text-left transition-all hover:-translate-y-0.5 hover:bg-[var(--t-surface-10)]"
         >
           <div className="h-24 w-24 shrink-0 overflow-hidden rounded-[18px] bg-ui-input">
             {draft.previewImage ? (
@@ -68,10 +68,10 @@ export function MintingDraftsList({
               <span className="rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
                 {draft.assetType}
               </span>
-              <span className="rounded-full border border-ui-border-subtle bg-ui-input px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-ui-secondary">
+              <span className="rounded-full bg-ui-input px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-ui-secondary">
                 {draft.category || 'uncategorized'}
               </span>
-              <span className="rounded-full border border-ui-border-subtle bg-ui-input px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-ui-secondary">
+              <span className="rounded-full bg-ui-input px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-ui-secondary">
                 {draft.completeness}% complete
               </span>
             </div>
@@ -102,7 +102,7 @@ export function MintingDraftsList({
                 event.stopPropagation();
                 onEdit(draft.id);
               }}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-ui-border-subtle bg-ui-input text-ui-secondary transition-colors hover:bg-ui-input-focus hover:text-ui-primary"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--t-surface-5)] text-ui-secondary transition-colors hover:bg-[var(--t-surface-10)] hover:text-ui-primary"
               aria-label={`Edit ${draft.name || 'draft'}`}
             >
               <Pencil size={15} />
@@ -113,7 +113,7 @@ export function MintingDraftsList({
                 event.stopPropagation();
                 onDelete(draft.id);
               }}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-ui-border-subtle bg-ui-input text-ui-secondary transition-colors hover:bg-red-500/10 hover:text-red-400"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--t-surface-5)] text-ui-secondary transition-colors hover:bg-[rgba(239,68,68,0.1)] hover:text-red-400"
               aria-label={`Delete ${draft.name || 'draft'}`}
             >
               <Trash2 size={15} />

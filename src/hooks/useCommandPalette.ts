@@ -34,6 +34,7 @@ export function useCommandPalette(
       'nav-messages': 'messages',
       'nav-history': 'history',
       'nav-settings': 'settings',
+      'nav-agent-settings': 'agent-settings',
       'action-create-order': 'orders',
       'action-mint-asset': 'minting',
       'settings-profile': 'settings',
@@ -176,6 +177,18 @@ export function useCommandPalette(
       action: () => {
         setActivePage('history');
         saveRecentCommand('nav-history', 'History');
+      },
+    },
+    {
+      id: 'nav-agent-settings',
+      label: 'Agent Setting',
+      description: 'Manage AI agents, keys, and delegated wallet flows',
+      category: 'navigation',
+      keywords: ['agent', 'ai', 'delegate', 'm2m', 'wallet'],
+      icon: '🤖',
+      action: () => {
+        setActivePage('agent-settings');
+        saveRecentCommand('nav-agent-settings', 'Agent Setting');
       },
     },
     {

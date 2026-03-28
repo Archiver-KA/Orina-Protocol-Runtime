@@ -56,6 +56,11 @@ interface SearchOptions {
   timeoutMs?: number;
 }
 
+interface CJTokenCache {
+  token: string;
+  expiresAt: number;
+}
+
 // ─── RapidAPI Shared Config ─────────────────────────────────────────────────
 
 function getRapidAPIKey(): string {
@@ -233,7 +238,13 @@ export async function searchAmazon(
 
 // ─── 3. CJ Dropshipping Search ─────────────────────────────────────────────
 
-let cachedCJToken: { token: string; expiresAt: number } | null = null;
+let cachedCJToken: CJTokenCache | null = null;
+
+function isCJTokenCache(value: unknown): value is CJTokenCache {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.token === "string" && typeof candidate.expiresAt === "number";
+}
 
 async function getCJAccessToken(): Promise<string | null> {
   // 1. Return in-memory cache if valid
@@ -243,8 +254,8 @@ async function getCJAccessToken(): Promise<string | null> {
 
   // 2. Check KV store (persists across cold starts)
   try {
-    const stored = await kvGet("cj_access_token");
-    if (stored?.token && stored?.expiresAt && Date.now() < stored.expiresAt) {
+    const stored = await kvGet<CJTokenCache>("cj_access_token");
+    if (isCJTokenCache(stored) && Date.now() < stored.expiresAt) {
       cachedCJToken = stored;
       console.log("✅ CJ token restored from KV store");
       return stored.token;
@@ -277,7 +288,7 @@ async function getCJAccessToken(): Promise<string | null> {
     }
 
     const token = data.data.accessToken;
-    const tokenData = {
+    const tokenData: CJTokenCache = {
       token,
       expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000, // 14 days
     };

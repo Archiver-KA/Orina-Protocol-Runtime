@@ -1,4 +1,5 @@
 import { ACTIVE_CHAIN_ID, CONTRACTS, PAYMENT_TOKENS, PROTOCOL } from "@/config/contracts";
+import { deriveOrderProgress } from "@/utils/orderLifecycle";
 import type { OrderShippingAddressSnapshot, OrderUiRecord } from "@/types/order";
 import {
   dispatchSyncEvent,
@@ -13,6 +14,11 @@ const RUNTIME_ORDERS_STORAGE_KEY = `orina_runtime_orders_v2:${ACTIVE_CHAIN_ID}:$
 export const RUNTIME_ORDERS_CHANGED_EVENT = "orina:orders-changed";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as `0x${string}`;
 const DEFAULT_TOKEN_DECIMALS = 18;
+const DEFAULT_ASSET_IMAGE =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" rx="24" fill="#18181b"/><path d="M36 104l24-28 18 22 20-26 26 32H36z" fill="#2CC295" opacity="0.85"/><circle cx="60" cy="56" r="12" fill="#3f3f46"/></svg>',
+  );
 const PAYMENT_TOKEN_DECIMALS_BY_SYMBOL: Record<string, number> = {
   USDT: 6,
   USDC: 6,
@@ -82,6 +88,8 @@ export interface ProtocolOrderRow {
   price_per_unit?: string | number | null;
   total_value?: string | number | null;
   currency_symbol?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -179,6 +187,39 @@ function parseBigIntLike(value?: string | number | null, fallback = 0n) {
   return fallback;
 }
 
+function parseNumberLike(value: unknown, fallback = 0): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+function parseTimestampMs(value?: string | number | null, fallback = 0) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsedDate = Date.parse(value);
+    if (Number.isFinite(parsedDate)) return parsedDate;
+    const parsedNumber = Number(value);
+    if (Number.isFinite(parsedNumber)) return parsedNumber;
+  }
+  return fallback;
+}
+
+function looksLikeAddress(value?: string | null) {
+  return typeof value === "string" && /^0x[a-fA-F0-9]{40}$/.test(value.trim());
+}
+
+function coalesceString(...values: Array<unknown>) {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return undefined;
+}
+
 function parseAddressLike(value?: string | null) {
   if (value && value.startsWith("0x") && value.length === 42) {
     return value as `0x${string}`;
@@ -231,6 +272,11 @@ function extractRuntimeOrderMetadata(row: ProtocolOrderRow) {
     unitName?: string;
     shippingAddressSnapshot?: OrderShippingAddressSnapshot | null;
     shippingMethodLabel?: string;
+    paymentToken?: string;
+    assetName?: string;
+    assetImage?: string;
+    selectedAttributes?: OrderUiRecord["selectedAttributes"];
+    chainSnapshot?: Record<string, unknown>;
   };
 
   return metadata;
@@ -294,60 +340,182 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow): OrderUiRecord | nul
   const assetId = parseBigIntLike(row.asset_token_id);
   const grossPrice = parseBigIntLike(row.total_value);
   const amount = parseBigIntLike(row.amount, 1n);
-  const paymentToken = parseAddressLike(row.currency_symbol);
+  const chainSnapshot =
+    metadata.chainSnapshot && typeof metadata.chainSnapshot === "object"
+      ? (metadata.chainSnapshot as Record<string, unknown>)
+      : null;
+  const paymentToken = parseAddressLike(
+    coalesceString(
+      typeof chainSnapshot?.paymentToken === "string" ? chainSnapshot.paymentToken : undefined,
+      metadata.paymentToken,
+      looksLikeAddress(row.currency_symbol) ? row.currency_symbol : undefined,
+    ),
+  );
   const paymentTokenSnapshot = resolvePaymentTokenSnapshot(
     paymentToken,
-    metadata.paymentTokenSymbol,
-    metadata.paymentTokenDecimals,
+    coalesceString(
+      typeof chainSnapshot?.paymentTokenSymbol === "string" ? chainSnapshot.paymentTokenSymbol : undefined,
+      metadata.paymentTokenSymbol,
+      looksLikeAddress(row.currency_symbol) ? undefined : row.currency_symbol ?? undefined,
+    ),
+    parseNumberLike(
+      chainSnapshot?.paymentTokenDecimals ?? metadata.paymentTokenDecimals ?? null,
+      DEFAULT_TOKEN_DECIMALS,
+    ),
   );
   const selectedAttributes = metadata.selectedAttributes ?? [];
-  const nowMs = Date.now();
+  const proposedAt = parseBigIntLike(
+    typeof chainSnapshot?.proposedAt === "string" || typeof chainSnapshot?.proposedAt === "number"
+      ? (chainSnapshot.proposedAt as string | number)
+      : null,
+  );
+  const paidAt = parseBigIntLike(
+    typeof chainSnapshot?.paidAt === "string" || typeof chainSnapshot?.paidAt === "number"
+      ? (chainSnapshot.paidAt as string | number)
+      : null,
+  );
+  const autoReleaseAt = parseBigIntLike(
+    typeof chainSnapshot?.autoReleaseAt === "string" || typeof chainSnapshot?.autoReleaseAt === "number"
+      ? (chainSnapshot.autoReleaseAt as string | number)
+      : null,
+  );
+  const payDeadline = parseBigIntLike(
+    typeof chainSnapshot?.payDeadline === "string" || typeof chainSnapshot?.payDeadline === "number"
+      ? (chainSnapshot.payDeadline as string | number)
+      : null,
+  );
+  const disputeDeadline = parseBigIntLike(
+    typeof chainSnapshot?.disputeDeadline === "string" || typeof chainSnapshot?.disputeDeadline === "number"
+      ? (chainSnapshot.disputeDeadline as string | number)
+      : null,
+  );
+  const disputeOpenedAt = parseBigIntLike(
+    typeof chainSnapshot?.disputeOpenedAt === "string" || typeof chainSnapshot?.disputeOpenedAt === "number"
+      ? (chainSnapshot.disputeOpenedAt as string | number)
+      : null,
+  );
+  const sellerConfirmed = Boolean(chainSnapshot?.sellerConfirmed);
+  const finalized = Boolean(chainSnapshot?.finalized);
+  const disputed =
+    Boolean(chainSnapshot?.disputedActive) || String(row.status || "").trim().toLowerCase() === "disputed";
+  const state = (() => {
+    if (typeof chainSnapshot?.state === "number" && Number.isFinite(chainSnapshot.state)) {
+      return chainSnapshot.state;
+    }
+    const normalized = String(row.status || "").trim().toLowerCase();
+    if (normalized === "finalized") return 3;
+    if (normalized === "cancelled") return 4;
+    if (normalized === "disputed") return 2;
+    if (normalized === "paid" || normalized === "pending_delivery") return 1;
+    return 0;
+  })();
+  const sellerConfirmedAt = parseBigIntLike(
+    typeof chainSnapshot?.sellerConfirmedAt === "string" || typeof chainSnapshot?.sellerConfirmedAt === "number"
+      ? (chainSnapshot.sellerConfirmedAt as string | number)
+      : sellerConfirmed
+        ? proposedAt
+        : null,
+  );
+  const estDeliverySeconds = parseBigIntLike(
+    typeof chainSnapshot?.estDeliverySeconds === "string" || typeof chainSnapshot?.estDeliverySeconds === "number"
+      ? (chainSnapshot.estDeliverySeconds as string | number)
+      : null,
+  );
+  const platformFeeBpsSnapshot = parseBigIntLike(
+    typeof chainSnapshot?.platformFeeBpsSnapshot === "string" || typeof chainSnapshot?.platformFeeBpsSnapshot === "number"
+      ? (chainSnapshot.platformFeeBpsSnapshot as string | number)
+      : null,
+  );
+  const daoFeeBpsSnapshot = parseBigIntLike(
+    typeof chainSnapshot?.daoFeeBpsSnapshot === "string" || typeof chainSnapshot?.daoFeeBpsSnapshot === "number"
+      ? (chainSnapshot.daoFeeBpsSnapshot as string | number)
+      : null,
+  );
+  const burnFeeBpsSnapshot = parseBigIntLike(
+    typeof chainSnapshot?.burnFeeBpsSnapshot === "string" || typeof chainSnapshot?.burnFeeBpsSnapshot === "number"
+      ? (chainSnapshot.burnFeeBpsSnapshot as string | number)
+      : null,
+  );
+  const createdAt = parseTimestampMs(row.created_at, proposedAt > 0n ? Number(proposedAt) * 1000 : Date.now());
+  const updatedAt = parseTimestampMs(row.updated_at, createdAt);
+  const assetName =
+    coalesceString(
+      typeof chainSnapshot?.assetName === "string" ? chainSnapshot.assetName : undefined,
+      metadata.assetName,
+    ) ?? `Asset #${assetId.toString()}`;
+  const unitIdSource =
+    chainSnapshot?.unitId !== undefined
+      ? (chainSnapshot.unitId as string | number)
+      : metadata.unitId;
+  const unitName =
+    coalesceString(
+      typeof chainSnapshot?.unitName === "string" ? chainSnapshot.unitName : undefined,
+      metadata.unitName,
+    );
+  const buyerSig1Present =
+    chainSnapshot?.buyerSig1Present === undefined ? true : Boolean(chainSnapshot.buyerSig1Present);
+  const sellerSigPresent =
+    chainSnapshot?.sellerSigPresent === undefined ? sellerConfirmed : Boolean(chainSnapshot.sellerSigPresent);
+  const buyerSig2Present =
+    chainSnapshot?.buyerSig2Present === undefined
+      ? Boolean(finalized || state >= 1 || paidAt > 0n)
+      : Boolean(chainSnapshot.buyerSig2Present);
 
   return {
     orderId: parseBigIntLike(row.order_uid),
     buyer: parseAddressLike(row.buyer_address),
     seller: parseAddressLike(row.seller_address),
     assetId,
-    assetName: `Asset #${assetId.toString()}`,
-    unitId: metadata.unitId !== undefined ? parseBigIntLike(metadata.unitId) : undefined,
-    unitName: metadata.unitName,
+    assetName,
+    unitId: unitIdSource !== undefined ? parseBigIntLike(unitIdSource) : undefined,
+    unitName,
     network: "bnb",
-    assetImage: "",
+    assetImage: metadata.assetImage || DEFAULT_ASSET_IMAGE,
     amount: amount > 0n ? amount : 1n,
     grossPrice,
-    payDeadline: 0n,
-    autoReleaseAt: 0n,
-    state: 0,
-    finalized: false,
-    disputed: false,
-    disputeExtended: false,
-    sellerConfirmed: false,
-    paymentSent: false,
-    deliveryConfirmed: false,
-    createdAt: nowMs,
-    updatedAt: nowMs,
-    proposedAt: 0n,
-    paidAt: 0n,
-    depositedAt: 0n,
-    sellerConfirmedAt: 0n,
-    estDeliverySeconds: 0n,
+    payDeadline,
+    autoReleaseAt,
+    disputeDeadline: disputeDeadline > 0n ? disputeDeadline : undefined,
+    disputeOpenedAt: disputeOpenedAt > 0n ? disputeOpenedAt : undefined,
+    state,
+    finalized,
+    disputed,
+    disputeExtended: Boolean(chainSnapshot?.disputeExtended),
+    sellerConfirmed,
+    paymentSent: paidAt > 0n || state >= 1,
+    deliveryConfirmed: finalized || state === 3,
+    createdAt,
+    updatedAt,
+    proposedAt,
+    paidAt,
+    depositedAt: paidAt > 0n ? paidAt : proposedAt,
+    sellerConfirmedAt,
+    estDeliverySeconds,
     paymentToken,
     paymentTokenSymbol: paymentTokenSnapshot.symbol,
     paymentTokenDecimals: paymentTokenSnapshot.decimals,
-    platformFeeBpsSnapshot: 0n,
-    daoFeeBpsSnapshot: 0n,
-    burnFeeBpsSnapshot: 0n,
+    platformFeeBpsSnapshot,
+    daoFeeBpsSnapshot,
+    burnFeeBpsSnapshot,
     shippingAddressSnapshot: metadata.shippingAddressSnapshot ?? null,
     shippingMethodLabel: metadata.shippingMethodLabel,
-    disputeBuyerShareBps: undefined,
-    disputeSellerShareBps: undefined,
+    disputeBuyerShareBps: parseBigIntLike(
+      typeof chainSnapshot?.disputeBuyerShareBps === "string" || typeof chainSnapshot?.disputeBuyerShareBps === "number"
+        ? (chainSnapshot.disputeBuyerShareBps as string | number)
+        : null,
+    ) || undefined,
+    disputeSellerShareBps: parseBigIntLike(
+      typeof chainSnapshot?.disputeSellerShareBps === "string" || typeof chainSnapshot?.disputeSellerShareBps === "number"
+        ? (chainSnapshot.disputeSellerShareBps as string | number)
+        : null,
+    ) || undefined,
     selectedAttributes,
-    settlementType: 0,
-    progress: 15,
+    settlementType: parseNumberLike(chainSnapshot?.settlementType, 0),
+    progress: deriveOrderProgress(state, finalized, sellerConfirmed, payDeadline, autoReleaseAt, proposedAt),
     signatures: {
-      buyer1: true,
-      seller: false,
-      buyer2: false,
+      buyer1: buyerSig1Present,
+      seller: sellerSigPresent,
+      buyer2: buyerSig2Present,
     },
   };
 }
@@ -383,7 +551,11 @@ export async function hydrateRuntimeOrdersFromSupabase(walletAddress?: string | 
 
   try {
     const remoteOrders = await readProjectedOrdersForWallet(walletAddress);
-    const merged = mergeOrderRecords(readLocalRuntimeOrders(), remoteOrders);
+    const remoteOrderIds = new Set(remoteOrders.map((order) => order.orderId.toString()));
+    const localOnlyOrders = readLocalRuntimeOrders().filter(
+      (order) => !remoteOrderIds.has(order.orderId.toString()),
+    );
+    const merged = mergeOrderRecords(remoteOrders, localOnlyOrders);
     writeLocalRuntimeOrders(merged);
     return loadRuntimeOrders(walletAddress);
   } catch (error) {

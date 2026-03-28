@@ -7,7 +7,7 @@ interface PillSegmentedToggleProps {
 
 export function PillSegmentedToggle({ options, value, onChange, className = '' }: PillSegmentedToggleProps) {
   return (
-    <div className={`inline-flex w-full p-1 bg-ui-pill backdrop-blur-md rounded-full gap-1 border border-ui-border-subtle ${className}`}>
+    <div className={`inline-flex p-1 bg-ui-pill backdrop-blur-md rounded-full gap-1 border border-ui-border-subtle ${className}`}>
       {options.map((option) => {
         const isActive = value === option;
         return (
