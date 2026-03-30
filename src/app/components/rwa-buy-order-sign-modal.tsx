@@ -22,6 +22,7 @@ import { CONTRACTS, PAYMENT_TOKENS, type PaymentTokenSymbol } from '@/config/con
 import { createRuntimeOrderFromRwaIntent } from '@/utils/runtimeOrders';
 import { StudioTxStatePanel } from '@/app/components/ui/studio-tx-state-panel';
 import { getWalletErrorMessage } from '@/utils/walletErrors';
+import { parseOnchainBigIntLike } from '@/utils/onchainNormalization';
 import type { DeliveryAddressRecord } from '@/types/address';
 import type { OrderShippingAddressSnapshot } from '@/types/order';
 import {
@@ -140,7 +141,7 @@ export function RwaBuyOrderSignModal({
   asset,
   quantity,
   selectedAttributes = [],
-  unitLabel = 'slot',
+  unitLabel = 'unit',
   transparentBackdrop = false,
   onClose,
 }: RwaBuyOrderSignModalProps) {
@@ -197,12 +198,17 @@ export function RwaBuyOrderSignModal({
     const raw = Number.parseFloat(asset.price.replace(/[^\d.]/g, ''));
     return Number.isFinite(raw) ? raw : 0;
   }, [asset.price]);
+  const canonicalAssetId = useMemo(
+    () => parseOnchainBigIntLike(asset.onchainAssetId ?? asset.tokenId),
+    [asset.onchainAssetId, asset.tokenId],
+  );
   const sellerAddress = isValidEvmAddress(asset.seller.address) ? asset.seller.address : null;
   const previewOrderId = useMemo(() => BigInt(Date.now()), []);
   const predictedOrderId = buyerSig1.predictedOrderId;
   const canUsePredictedSignature =
     CONTRACTS.MARKETPLACE_ATP !== ZERO_ADDRESS &&
     predictedOrderId !== undefined &&
+    canonicalAssetId !== null &&
     sellerAddress !== null &&
     totalPriceBase !== null &&
     address &&
@@ -211,6 +217,7 @@ export function RwaBuyOrderSignModal({
   const canSignPreview =
     address &&
     isValidEvmAddress(address) &&
+    canonicalAssetId !== null &&
     sellerAddress !== null &&
     totalPriceBase !== null;
 
@@ -244,7 +251,14 @@ export function RwaBuyOrderSignModal({
   };
 
   const handleSignBuyerIntent = async () => {
-    if (!canSignPreview || !address || !isValidEvmAddress(address) || !sellerAddress || totalPriceBase === null) {
+    if (
+      !canSignPreview ||
+      !address ||
+      !isValidEvmAddress(address) ||
+      !sellerAddress ||
+      canonicalAssetId === null ||
+      totalPriceBase === null
+    ) {
       toast.error('Missing wallet or valid order data for signing');
       return;
     }
@@ -262,6 +276,8 @@ export function RwaBuyOrderSignModal({
       if (canUsePredictedSignature && predictedOrderId !== undefined) {
         signature = await buyerSig1.sign({
           seller: sellerAddress,
+          paymentToken: paymentToken.address,
+          assetId: canonicalAssetId,
           grossPrice: totalPriceBase,
           amount,
           estDeliverySeconds,
@@ -273,6 +289,8 @@ export function RwaBuyOrderSignModal({
           orderId: previewOrderId,
           buyer: address,
           seller: sellerAddress,
+          paymentToken: paymentToken.address,
+          assetId: canonicalAssetId,
           grossPrice: totalPriceBase,
           amount,
           estDeliverySeconds,
@@ -288,7 +306,12 @@ export function RwaBuyOrderSignModal({
       createRuntimeOrderFromRwaIntent({
         orderId: mode === 'predicted-live' && predictedOrderId !== undefined ? predictedOrderId : previewOrderId,
         buyer: address,
-        asset,
+        asset: {
+          ...asset,
+          assetUid: asset.assetUid ?? asset.id,
+          onchainAssetId: canonicalAssetId,
+          unitLabel: asset.unitLabel ?? asset.unitName ?? unitLabel,
+        },
         quantity,
         grossPrice: totalPriceBase,
         estDeliverySeconds,
@@ -308,7 +331,7 @@ export function RwaBuyOrderSignModal({
 
   // ── Step 2: Submit signed order on-chain ──────────────────────
   const handleSubmitOrder = async () => {
-    if (!signedPayload || !address || !sellerAddress || totalPriceBase === null) {
+    if (!signedPayload || !address || !sellerAddress || canonicalAssetId === null || totalPriceBase === null) {
       toast.error('Signature missing — please sign first');
       return;
     }
@@ -321,7 +344,7 @@ export function RwaBuyOrderSignModal({
       await createOrder(
         sellerAddress as `0x${string}`,
         paymentToken.address,
-        asset.id as unknown as bigint,
+        canonicalAssetId,
         BigInt(quantity),
         totalPriceBase,
         estDeliverySeconds,

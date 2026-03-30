@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { formatAddress } from '@/utils/format';
 import { MARKETPLACE_ABI } from '@/config/abis';
-import { ACTIVE_CHAIN_ID, CONTRACTS, EXPLORER_URLS, PAYMENT_TOKENS } from '@/config/contracts';
+import { EXPLORER_URLS, PAYMENT_TOKENS } from '@/config/contracts';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { DurationPicker } from '@/app/components/duration-picker';
 import { ConfirmDeliveryModal } from '@/app/components/confirm-delivery-modal';
@@ -22,6 +22,7 @@ import { StudioProgressBar } from '@/app/components/ui/studio-progress-bar';
 import { StudioTimelineItem } from '@/app/components/ui/studio-list-parts';
 import { ProtocolChainBanner } from '@/app/components/ui/protocol-chain-banner';
 import type { OrderUiRecord } from '@/types/order';
+import type { OrderNavigationRequest } from '@/types/orderNavigation';
 import { useUserOrders } from '@/hooks/useUserOrders';
 import {
   useSellerConfirm,
@@ -64,6 +65,7 @@ import {
 } from '@/utils/orderLifecycle';
 import { useAccessGuard } from '@/hooks/useAccessGuard';
 import { useProtocolChain } from '@/hooks/useProtocolChain';
+import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
 import {
   getWalletErrorMessage,
   isWalletChainMismatchError,
@@ -71,10 +73,6 @@ import {
 } from '@/utils/walletErrors';
 
 const TEAL = '#2CC295';
-const ACTIVE_EXPLORER_URL = EXPLORER_URLS[ACTIVE_CHAIN_ID] ?? 'https://testnet.bscscan.com';
-const ACTIVE_EXPLORER_LABEL =
-  ACTIVE_CHAIN_ID === 56 || ACTIVE_CHAIN_ID === 97 ? 'View on BscScan' : 'View on Explorer';
-
 function NetworkIconEth() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -239,14 +237,20 @@ function OrderActionNoticeModal({
 
 interface OrdersProps {
   onNavigateToPage?: (page: string) => void;
+  navigationRequest?: OrderNavigationRequest | null;
+  onConsumeNavigationRequest?: (requestKey: string) => void;
 }
 
-export function Orders({ onNavigateToPage }: OrdersProps) {
+export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigationRequest }: OrdersProps) {
   const { address, isConnected } = useAccount();
-  const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN_ID });
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
+  const publicClient = usePublicClient({ chainId: chainId ?? undefined });
   const accessGuard = useAccessGuard(onNavigateToPage);
   const protocolChain = useProtocolChain();
-  const { orders: canonicalOrders, refresh: refreshOrders } = useUserOrders(address);
+  const activeExplorerUrl = EXPLORER_URLS[chainId ?? 97] ?? 'https://testnet.bscscan.com';
+  const activeExplorerLabel =
+    chainId === 56 || chainId === 97 ? 'View on BscScan' : 'View on Explorer';
+  const { orders: canonicalOrders, isLoading: ordersLoading, refresh: refreshOrders } = useUserOrders(address);
   const sellerConfirmTx = useSellerConfirm();
   const payOrderTx = usePayOrder();
   const confirmDeliveryTx = useConfirmDelivery();
@@ -273,7 +277,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   const formatOrderValueLabel = (order: OrderUiRecord) =>
     formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
   const formatOrderQuantityLabel = (order: OrderUiRecord) =>
-    formatOrderQuantity(order.amount, order.unitName);
+    formatOrderQuantity(order.amount, order.unitLabel, order.unitName);
   const selectedOrderShipping = getOrderShippingDetails(
     selectedOrder?.shippingAddressSnapshot,
     selectedOrder?.shippingMethodLabel,
@@ -333,6 +337,33 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
     setSelectedOrder(allOrders[0]);
   }, [allOrders, selectedOrder]);
 
+  useEffect(() => {
+    if (!navigationRequest?.orderId) return;
+
+    const requestedOrderId = navigationRequest.orderId.trim();
+    if (!requestedOrderId) {
+      onConsumeNavigationRequest?.(navigationRequest.requestKey);
+      return;
+    }
+
+    setSelectedNetwork('all');
+    setSelectedFilter('all');
+    setSearchQuery(requestedOrderId);
+
+    const matchedOrder = allOrders.find((order) => order.orderId.toString() === requestedOrderId);
+    if (matchedOrder) {
+      setSelectedOrder(matchedOrder);
+      onConsumeNavigationRequest?.(navigationRequest.requestKey);
+      return;
+    }
+
+    if (ordersLoading) {
+      return;
+    }
+
+    onConsumeNavigationRequest?.(navigationRequest.requestKey);
+  }, [allOrders, navigationRequest, onConsumeNavigationRequest, ordersLoading]);
+
   const resolveOrderById = (orderId: bigint | null) => {
     if (orderId === null) return undefined;
     return allOrders.find((order) => order.orderId === orderId);
@@ -341,7 +372,7 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
   const getActionKey = (action: string, orderId: bigint) => `${action}:${orderId.toString()}`;
 
   const waitForMarketplaceReceipt = async (hash: `0x${string}`) => {
-    if (!publicClient) {
+    if (!publicClient || !chainId || !marketplaceAddress) {
       throw new Error('Public client unavailable');
     }
     return publicClient.waitForTransactionReceipt({ hash });
@@ -353,8 +384,8 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
     }
 
     const chainOrder = await publicClient.readContract({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.MARKETPLACE_ATP,
+      chainId: chainId ?? undefined,
+      address: marketplaceAddress,
       abi: MARKETPLACE_ABI,
       functionName: 'orders',
       args: [order.orderId],
@@ -687,13 +718,13 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
               <StudioActionButton
                 onClick={() => {
                   if (typeof window !== 'undefined') {
-                    window.open(`${ACTIVE_EXPLORER_URL}/address/${CONTRACTS.MARKETPLACE_ATP}`, '_blank', 'noopener,noreferrer');
+                    window.open(`${activeExplorerUrl}/address/${marketplaceAddress}`, '_blank', 'noopener,noreferrer');
                   }
                 }}
                 className="w-full py-2.5 rounded-xl text-[11px] uppercase tracking-wider"
                 leftIcon={<ExternalLink size={14} />}
               >
-                {ACTIVE_EXPLORER_LABEL}
+                {activeExplorerLabel}
               </StudioActionButton>
             </StudioSidebarFooter>
           </div>
@@ -810,6 +841,8 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
       const sellerSig = await sellerSign2.sign({
         orderId: currentOrder.orderId,
         buyer: currentOrder.buyer,
+        paymentToken: currentOrder.paymentToken,
+        assetId: currentOrder.assetId,
         grossPrice: currentOrder.grossPrice,
         amount: currentOrder.amount,
         estDeliverySeconds,
@@ -1082,6 +1115,8 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
       const buyerSig2 = await buyerSign3.sign({
         orderId: currentOrder.orderId,
         seller: currentOrder.seller,
+        paymentToken: currentOrder.paymentToken,
+        assetId: currentOrder.assetId,
         grossPrice: currentOrder.grossPrice,
         amount: currentOrder.amount,
         estDeliverySeconds: currentOrder.estDeliverySeconds,
@@ -1857,13 +1892,13 @@ export function Orders({ onNavigateToPage }: OrdersProps) {
             <StudioActionButton
               onClick={() => {
                 if (typeof window !== 'undefined') {
-                  window.open(`${ACTIVE_EXPLORER_URL}/address/${CONTRACTS.MARKETPLACE_ATP}`, '_blank', 'noopener,noreferrer');
+                  window.open(`${activeExplorerUrl}/address/${marketplaceAddress}`, '_blank', 'noopener,noreferrer');
                 }
               }}
               className="w-full py-2.5 rounded-xl text-[11px] uppercase tracking-wider"
               leftIcon={<ExternalLink size={14} />}
             >
-              {ACTIVE_EXPLORER_LABEL}
+              {activeExplorerLabel}
             </StudioActionButton>
           </StudioSidebarFooter>
         </div>

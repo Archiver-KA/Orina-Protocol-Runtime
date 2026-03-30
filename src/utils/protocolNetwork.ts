@@ -1,4 +1,4 @@
-import { ACTIVE_CHAIN_ID } from '@/config/contracts';
+import { ACTIVE_CHAIN_ID, CONTRACTS, EXPLORER_URLS, RPC_URLS } from '@/config/contracts';
 
 const CHAIN_LABELS: Record<number, string> = {
   1: 'Ethereum Mainnet',
@@ -20,6 +20,10 @@ export interface ProtocolNetworkOption {
   shortLabel: string;
   icon: ProtocolNetworkIcon;
   status: ProtocolNetworkStatus;
+  contracts?: typeof CONTRACTS | null;
+  rpcUrl?: string | null;
+  explorerUrl?: string | null;
+  aliases?: string[];
 }
 
 export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
@@ -30,6 +34,10 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     shortLabel: 'BNB Testnet',
     icon: 'bnb',
     status: 'live',
+    contracts: CONTRACTS,
+    rpcUrl: RPC_URLS[97],
+    explorerUrl: EXPLORER_URLS[97],
+    aliases: ['bsc testnet', 'bnb testnet', 'mainnet-v3'],
   },
   {
     chainId: 43114,
@@ -38,6 +46,10 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     shortLabel: 'Avalanche',
     icon: 'avalanche',
     status: 'coming',
+    contracts: null,
+    rpcUrl: RPC_URLS[43114] ?? null,
+    explorerUrl: EXPLORER_URLS[43114] ?? null,
+    aliases: ['avalanche c-chain'],
   },
   {
     chainId: 8453,
@@ -46,6 +58,9 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     shortLabel: 'Base',
     icon: 'base',
     status: 'coming',
+    contracts: null,
+    rpcUrl: RPC_URLS[8453] ?? null,
+    explorerUrl: EXPLORER_URLS[8453] ?? null,
   },
   {
     chainId: 137,
@@ -54,6 +69,10 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     shortLabel: 'Polygon',
     icon: 'polygon',
     status: 'coming',
+    contracts: null,
+    rpcUrl: RPC_URLS[137] ?? null,
+    explorerUrl: EXPLORER_URLS[137] ?? null,
+    aliases: ['polygon network'],
   },
   {
     chainId: null,
@@ -62,19 +81,35 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     shortLabel: 'Solana',
     icon: 'solana',
     status: 'coming',
+    contracts: null,
+    rpcUrl: null,
+    explorerUrl: null,
   },
   {
     chainId: 1,
     key: 'ethereum',
-    label: 'Ethereum',
+    label: 'Ethereum Mainnet',
     shortLabel: 'Ethereum',
     icon: 'ethereum',
     status: 'coming',
+    contracts: null,
+    rpcUrl: RPC_URLS[1] ?? null,
+    explorerUrl: EXPLORER_URLS[1] ?? null,
+    aliases: ['ethereum', 'eth', 'ethereum mainnet'],
   },
 ];
 
 export const LIVE_PROTOCOL_NETWORK =
   PROTOCOL_NETWORK_OPTIONS.find((network) => network.status === 'live') ?? PROTOCOL_NETWORK_OPTIONS[0];
+
+export const PROTOCOL_NETWORK_STORAGE_KEY = 'orina:protocol-network-key';
+
+function normalizeNetworkValue(value?: string | number | null) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, '-');
+}
 
 export function getChainLabel(chainId?: number | null) {
   if (!chainId || chainId <= 0) return 'Unknown Network';
@@ -89,6 +124,24 @@ export function formatChainLabel(chainId?: number | null) {
 export function getProtocolNetworkOption(chainId?: number | null) {
   if (!chainId || chainId <= 0) return undefined;
   return PROTOCOL_NETWORK_OPTIONS.find((network) => network.chainId === chainId);
+}
+
+export function getProtocolNetworkOptionByKey(key?: string | null) {
+  const normalizedKey = normalizeNetworkValue(key);
+  if (!normalizedKey) return undefined;
+  return PROTOCOL_NETWORK_OPTIONS.find((network) => normalizeNetworkValue(network.key) === normalizedKey);
+}
+
+export function findProtocolNetworkOptionByValue(value?: string | number | null) {
+  const normalized = normalizeNetworkValue(value);
+  if (!normalized) return undefined;
+
+  return PROTOCOL_NETWORK_OPTIONS.find((network) => {
+    if (normalizeNetworkValue(network.key) === normalized) return true;
+    if (normalizeNetworkValue(network.label) === normalized) return true;
+    if (normalizeNetworkValue(network.shortLabel) === normalized) return true;
+    return Boolean(network.aliases?.some((alias) => normalizeNetworkValue(alias) === normalized));
+  });
 }
 
 export function getProtocolNetworkLabel(chainId?: number | null) {
@@ -110,6 +163,15 @@ export function resolveProtocolNetwork(chainId?: number | null): ProtocolNetwork
 
 export function isProtocolNetworkLive(chainId?: number | null) {
   return getProtocolNetworkOption(chainId)?.status === 'live';
+}
+
+export function isProtocolNetworkWriteEnabled(chainId?: number | null) {
+  const network = getProtocolNetworkOption(chainId);
+  return Boolean(network && network.status === 'live' && network.contracts);
+}
+
+export function getProtocolContracts(chainId?: number | null) {
+  return getProtocolNetworkOption(chainId)?.contracts ?? null;
 }
 
 export const PROTOCOL_CHAIN_LABEL = formatChainLabel(ACTIVE_CHAIN_ID);

@@ -13,8 +13,8 @@
  */
 
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { ACTIVE_CHAIN_ID, CONTRACTS } from '@/config/contracts';
 import { MARKETPLACE_ABI } from '@/config/abis';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 // ── Re-export new hooks for use in existing components ────────
 
@@ -41,13 +41,21 @@ export {
  * Kept for backward compatibility with confirm-release-modal.tsx
  */
 export function useConfirmRelease() {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const { data: hash, writeContractAsync, isPending, error } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const confirmRelease = async (orderId: bigint) => {
+    if (!chainId || !marketplaceAddress) {
+      throw new Error('Protocol network is not enabled for release confirmation');
+    }
+
     return writeContractAsync({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.MARKETPLACE_ATP,
+      chainId,
+      address: marketplaceAddress,
       abi: MARKETPLACE_ABI,
       functionName: 'confirmDelivery', // Updated: was 'confirmRelease', now 'confirmDelivery' in v3.3
       args: [orderId],
@@ -62,13 +70,21 @@ export function useConfirmRelease() {
  * cancelOrder in v3.3 is AUTOTIME_ROLE only. Use cancelByBuyer for buyer cancellation.
  */
 export function useCancelOrder() {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const { data: hash, writeContractAsync, isPending, error } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const cancelOrder = async (orderId: bigint) => {
+    if (!chainId || !marketplaceAddress) {
+      throw new Error('Protocol network is not enabled for order cancellation');
+    }
+
     return writeContractAsync({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.MARKETPLACE_ATP,
+      chainId,
+      address: marketplaceAddress,
       abi: MARKETPLACE_ABI,
       functionName: 'cancelByBuyer', // Updated: cancelOrder is now AUTOTIME-only
       args: [orderId],

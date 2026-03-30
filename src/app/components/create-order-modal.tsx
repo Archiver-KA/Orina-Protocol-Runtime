@@ -28,10 +28,14 @@ interface CreateOrderModalProps {
   onClose: () => void;
   asset: {
     id: bigint;
+    assetUid?: string;
+    tokenId?: string;
+    assetContract?: `0x${string}`;
     name?: string;
     seller: `0x${string}`;
     unitId: bigint;
     unitName?: string;
+    unitLabel?: string;
     availableAmount: bigint;
     pricePerUnit?: bigint;    // optional hint from listing
     imageUrl?: string;
@@ -136,19 +140,29 @@ export function CreateOrderModal({ isOpen, onClose, asset }: CreateOrderModalPro
       setStep('done');
       // Persist a local projection so the Orders screen reflects the chain flow immediately.
       try {
+        const predictedOrderId = buyerSig1.predictedOrderId;
+        if (!predictedOrderId || predictedOrderId <= 0n) {
+          console.warn('[CreateOrderModal] Skipping runtime order sync because predicted orderId is unavailable');
+          return;
+        }
         const amountBig = BigInt(amount);
         const totalPrice = parseUnits(pricePerUnit, getTokenDecimals(paymentSymbol)) * amountBig;
         const estDeliverySeconds = BigInt(Number(deliveryDays) * 24 * 60 * 60);
         if (address) {
           createRuntimeOrderFromRwaIntent({
-            orderId: buyerSig1.predictedOrderId ?? 0n,
+            orderId: predictedOrderId,
             buyer: address,
             asset: {
               id: asset.id,
+              assetUid: asset.assetUid,
+              tokenId: asset.tokenId,
+              onchainAssetId: asset.id,
+              assetContract: asset.assetContract,
               name: asset.name,
               imageUrl: asset.imageUrl,
               unitId: asset.unitId,
               unitName: asset.unitName,
+              unitLabel: asset.unitLabel,
               seller: asset.seller,
             },
             quantity: Number(amountBig),
@@ -219,6 +233,8 @@ export function CreateOrderModal({ isOpen, onClose, asset }: CreateOrderModalPro
       setStep('signing');
       const sig = await buyerSig1.sign({
         seller: asset.seller,
+        paymentToken,
+        assetId: asset.id,
         grossPrice: totalPrice,
         amount: amountBig,
         estDeliverySeconds,

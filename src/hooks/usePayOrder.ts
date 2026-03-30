@@ -10,9 +10,10 @@
 
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { MARKETPLACE_ABI } from '@/config/abis';
-import { ACTIVE_CHAIN_ID, CONTRACTS } from '@/config/contracts';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 export function usePayOrder() {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const {
     data: hash,
     isPending,
@@ -24,7 +25,7 @@ export function usePayOrder() {
     isLoading: isConfirming,
     isSuccess: isConfirmed,
     error: confirmError,
-  } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  } = useWaitForTransactionReceipt({ hash, chainId: chainId ?? undefined });
 
   /**
    * Pay order with Buyer Sig #3.
@@ -41,10 +42,13 @@ export function usePayOrder() {
       if (!buyerSig2) {
         throw new Error('Buyer Sig #3 is required when seller revises the delivery time');
       }
+      if (!chainId || !marketplaceAddress) {
+        throw new Error('Protocol network is not enabled for order payment');
+      }
 
       await writeContract({
-        chainId: ACTIVE_CHAIN_ID,
-        address: CONTRACTS.MARKETPLACE_ATP,
+        chainId,
+        address: marketplaceAddress,
         abi: MARKETPLACE_ABI,
         functionName: 'payOrder',
         args: [orderId, buyerSig2],

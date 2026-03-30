@@ -5,42 +5,47 @@
  */
 
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { ACTIVE_CHAIN_ID, CONTRACTS } from '@/config/contracts';
 import { DISPUTE_MANAGER_ABI } from '@/config/abis';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 // ── Read Hooks ────────────────────────────────────────────────
 
 /** Get dispute details for an order */
 export function useDispute(orderId: bigint | undefined) {
+  const { chainId, disputeManagerAddress } = useProtocolDataNetwork();
   return useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.DISPUTE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: disputeManagerAddress,
     abi: DISPUTE_MANAGER_ABI,
     functionName: 'disputes',
     args: orderId !== undefined ? [orderId] : undefined,
-    query: { enabled: orderId !== undefined },
+    query: { enabled: Boolean(chainId && disputeManagerAddress && orderId !== undefined) },
   });
 }
 
 /** Read protocol constants */
 export function useDisputeConstants() {
+  const { chainId, disputeManagerAddress } = useProtocolDataNetwork();
   const period = useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.DISPUTE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: disputeManagerAddress,
     abi: DISPUTE_MANAGER_ABI,
     functionName: 'DISPUTE_PERIOD',
+    query: { enabled: Boolean(chainId && disputeManagerAddress) },
   });
   const feeBps = useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.DISPUTE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: disputeManagerAddress,
     abi: DISPUTE_MANAGER_ABI,
     functionName: 'DISPUTE_FEE_BPS',
+    query: { enabled: Boolean(chainId && disputeManagerAddress) },
   });
   const version = useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.DISPUTE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: disputeManagerAddress,
     abi: DISPUTE_MANAGER_ABI,
     functionName: 'VERSION',
+    query: { enabled: Boolean(chainId && disputeManagerAddress) },
   });
 
   return {
@@ -51,13 +56,14 @@ export function useDisputeConstants() {
 }
 
 export function useDisputePhase1Deadline(orderId: bigint | undefined) {
+  const { chainId, disputeManagerAddress } = useProtocolDataNetwork();
   return useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.DISPUTE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: disputeManagerAddress,
     abi: DISPUTE_MANAGER_ABI,
     functionName: 'phase1Deadline',
     args: orderId !== undefined ? [orderId] : undefined,
-    query: { enabled: orderId !== undefined },
+    query: { enabled: Boolean(chainId && disputeManagerAddress && orderId !== undefined) },
   });
 }
 
@@ -67,15 +73,17 @@ export function useDisputeAgreementDigest(
   buyerShareBps: bigint | undefined,
   sellerShareBps: bigint | undefined,
 ) {
+  const { chainId, disputeManagerAddress } = useProtocolDataNetwork();
   const enabled =
+    Boolean(chainId && disputeManagerAddress) &&
     orderId !== undefined
     && verdict !== undefined
     && buyerShareBps !== undefined
     && sellerShareBps !== undefined;
 
   return useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.DISPUTE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: disputeManagerAddress,
     abi: DISPUTE_MANAGER_ABI,
     functionName: 'agreementDigest',
     args: enabled ? [orderId!, verdict!, buyerShareBps!, sellerShareBps!] : undefined,
@@ -87,13 +95,21 @@ export function useDisputeAgreementDigest(
 
 /** Arbiter extends dispute deadline by 14 days (once) */
 export function useExtendDispute() {
+  const { chainId, disputeManagerAddress } = useProtocolDataNetwork();
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const extendDispute = async (orderId: bigint) => {
+    if (!chainId || !disputeManagerAddress) {
+      throw new Error('Protocol network is not enabled for dispute actions');
+    }
+
     return writeContractAsync({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.DISPUTE_MANAGER,
+      chainId,
+      address: disputeManagerAddress,
       abi: DISPUTE_MANAGER_ABI,
       functionName: 'extendDispute',
       args: [orderId],
@@ -105,8 +121,12 @@ export function useExtendDispute() {
 
 /** Mutual resolution - both parties agree to 50/50 split */
 export function useResolveMutualSplit() {
+  const { chainId, disputeManagerAddress } = useProtocolDataNetwork();
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const resolveMutualSplit = async (
     orderId: bigint,
@@ -115,9 +135,13 @@ export function useResolveMutualSplit() {
     buyerSig: `0x${string}`,
     sellerSig: `0x${string}`,
   ) => {
+    if (!chainId || !disputeManagerAddress) {
+      throw new Error('Protocol network is not enabled for dispute actions');
+    }
+
     return writeContractAsync({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.DISPUTE_MANAGER,
+      chainId,
+      address: disputeManagerAddress,
       abi: DISPUTE_MANAGER_ABI,
       functionName: 'resolveMutualSplit',
       args: [orderId, buyer, seller, buyerSig, sellerSig],
@@ -129,8 +153,12 @@ export function useResolveMutualSplit() {
 
 /** 2/3 agreement resolution - buyer/seller/arbiter any 2 valid signatures */
 export function useResolveByAgreement() {
+  const { chainId, disputeManagerAddress } = useProtocolDataNetwork();
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const resolveByAgreement = async (
     orderId: bigint,
@@ -141,9 +169,13 @@ export function useResolveByAgreement() {
     sellerSig: `0x${string}`,
     arbiterSig: `0x${string}`,
   ) => {
+    if (!chainId || !disputeManagerAddress) {
+      throw new Error('Protocol network is not enabled for dispute actions');
+    }
+
     return writeContractAsync({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.DISPUTE_MANAGER,
+      chainId,
+      address: disputeManagerAddress,
       abi: DISPUTE_MANAGER_ABI,
       functionName: 'resolveByAgreement',
       args: [orderId, verdict, buyerShareBps, sellerShareBps, buyerSig, sellerSig, arbiterSig],
@@ -155,8 +187,12 @@ export function useResolveByAgreement() {
 
 /** Arbiter resolves dispute with verdict */
 export function useResolveDispute() {
+  const { chainId, disputeManagerAddress } = useProtocolDataNetwork();
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const resolveDispute = async (
     orderId: bigint,
@@ -164,9 +200,13 @@ export function useResolveDispute() {
     buyerShareBps: bigint,  // Only for SPLIT
     sellerShareBps: bigint, // Only for SPLIT
   ) => {
+    if (!chainId || !disputeManagerAddress) {
+      throw new Error('Protocol network is not enabled for dispute actions');
+    }
+
     return writeContractAsync({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.DISPUTE_MANAGER,
+      chainId,
+      address: disputeManagerAddress,
       abi: DISPUTE_MANAGER_ABI,
       functionName: 'resolveDispute',
       args: [orderId, verdict, buyerShareBps, sellerShareBps],
@@ -178,13 +218,21 @@ export function useResolveDispute() {
 
 /** Resolve stale dispute (after deadline passes) - permissionless-like */
 export function useResolveStaleDispute() {
+  const { chainId, disputeManagerAddress } = useProtocolDataNetwork();
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const resolveStaleDispute = async (orderId: bigint) => {
+    if (!chainId || !disputeManagerAddress) {
+      throw new Error('Protocol network is not enabled for dispute actions');
+    }
+
     return writeContractAsync({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.DISPUTE_MANAGER,
+      chainId,
+      address: disputeManagerAddress,
       abi: DISPUTE_MANAGER_ABI,
       functionName: 'resolveStaleDispute',
       args: [orderId],

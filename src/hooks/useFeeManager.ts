@@ -5,56 +5,73 @@
  */
 
 import { useReadContract } from 'wagmi';
-import { CONTRACTS } from '@/config/contracts';
 import { FEE_MANAGER_ABI } from '@/config/abis';
 import { useMemo } from 'react';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 // ── Read Current Fee Rates ────────────────────────────────────
 
 export function useFeeRates(paymentToken?: `0x${string}`) {
+  const { chainId, feeManagerAddress } = useProtocolDataNetwork();
   const useTokenPreset = !!paymentToken;
 
   const platform = useReadContract({
-    address: CONTRACTS.FEE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: feeManagerAddress,
     abi: FEE_MANAGER_ABI,
     functionName: useTokenPreset ? 'getPlatformFeeBpsForToken' : 'platformFeeBps',
     args: paymentToken ? [paymentToken] : undefined,
+    query: { enabled: Boolean(chainId && feeManagerAddress) },
   });
   const dao = useReadContract({
-    address: CONTRACTS.FEE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: feeManagerAddress,
     abi: FEE_MANAGER_ABI,
     functionName: 'daoFeeBps',
+    query: { enabled: Boolean(chainId && feeManagerAddress) },
   });
   const burn = useReadContract({
-    address: CONTRACTS.FEE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: feeManagerAddress,
     abi: FEE_MANAGER_ABI,
     functionName: 'burnFeeBps',
+    query: { enabled: Boolean(chainId && feeManagerAddress) },
   });
   const referral = useReadContract({
-    address: CONTRACTS.FEE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: feeManagerAddress,
     abi: FEE_MANAGER_ABI,
     functionName: 'referralFeeBps',
+    query: { enabled: Boolean(chainId && feeManagerAddress) },
   });
   const total = useReadContract({
-    address: CONTRACTS.FEE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: feeManagerAddress,
     abi: FEE_MANAGER_ABI,
     functionName: useTokenPreset ? 'getTotalFeeBpsForToken' : 'getTotalFeeBps',
     args: paymentToken ? [paymentToken] : undefined,
+    query: { enabled: Boolean(chainId && feeManagerAddress) },
   });
   const maxTotal = useReadContract({
-    address: CONTRACTS.FEE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: feeManagerAddress,
     abi: FEE_MANAGER_ABI,
     functionName: 'MAX_TOTAL_BPS',
+    query: { enabled: Boolean(chainId && feeManagerAddress) },
   });
   const stablePreset = useReadContract({
-    address: CONTRACTS.FEE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: feeManagerAddress,
     abi: FEE_MANAGER_ABI,
     functionName: 'STABLECOIN_PLATFORM_FEE_BPS',
+    query: { enabled: Boolean(chainId && feeManagerAddress) },
   });
   const oriPreset = useReadContract({
-    address: CONTRACTS.FEE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: feeManagerAddress,
     abi: FEE_MANAGER_ABI,
     functionName: 'ORI_PLATFORM_FEE_BPS',
+    query: { enabled: Boolean(chainId && feeManagerAddress) },
   });
 
   const isLoading = platform.isLoading || dao.isLoading || burn.isLoading || referral.isLoading;
@@ -81,13 +98,15 @@ export function useFeeRates(paymentToken?: `0x${string}`) {
 // ── Calculate Fees for an Amount ──────────────────────────────
 
 export function useCalculateFees(amount: bigint | undefined, paymentToken?: `0x${string}`) {
+  const { chainId, feeManagerAddress } = useProtocolDataNetwork();
   const useTokenPreset = !!paymentToken;
   return useReadContract({
-    address: CONTRACTS.FEE_MANAGER,
+    chainId: chainId ?? undefined,
+    address: feeManagerAddress,
     abi: FEE_MANAGER_ABI,
     functionName: useTokenPreset ? 'calculateFeesForToken' : 'calculateFees',
     args: amount !== undefined ? (paymentToken ? [paymentToken, amount] : [amount]) : undefined,
-    query: { enabled: amount !== undefined && amount > 0n },
+    query: { enabled: Boolean(chainId && feeManagerAddress && amount !== undefined && amount > 0n) },
   });
 }
 

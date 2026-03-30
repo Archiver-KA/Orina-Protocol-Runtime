@@ -41,7 +41,7 @@ export function PayOrderModal({ isOpen, onClose, order, onSuccess }: PayOrderMod
   const { requireWalletActionAsync } = useRequireWalletAction();
   const [txStatus, setTxStatus] = useState<'idle' | 'preparing' | 'pending' | 'confirming' | 'success' | 'error'>('idle');
   const paymentValueLabel = formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
-  const quantityLabel = formatOrderQuantity(order.amount, order.unitName);
+  const quantityLabel = formatOrderQuantity(order.amount, order.unitLabel, order.unitName);
   const explorerBaseUrl = EXPLORER_URLS[ACTIVE_CHAIN_ID] ?? EXPLORER_URLS[97];
 
   // Reset status when modal opens
@@ -95,6 +95,8 @@ export function PayOrderModal({ isOpen, onClose, order, onSuccess }: PayOrderMod
       const buyerSig3 = await buyerSign3.sign({
         orderId: order.orderId,
         seller: order.seller,
+        paymentToken: order.paymentToken,
+        assetId: order.assetId,
         grossPrice: order.grossPrice,
         amount: order.amount,
         estDeliverySeconds: order.estDeliverySeconds,

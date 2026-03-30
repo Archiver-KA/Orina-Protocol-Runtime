@@ -17,6 +17,8 @@ export type MarketplaceOrderSnapshot = readonly [
   `0x${string}`,
   `0x${string}`,
   `0x${string}`,
+  `0x${string}`,
+  `0x${string}`,
   bigint,
   bigint,
   bigint,
@@ -150,6 +152,8 @@ export function reconcileOrderFromChain(
   const [
     buyer,
     seller,
+    _payer,
+    _refundRecipient,
     paymentToken,
     assetId,
     amount,

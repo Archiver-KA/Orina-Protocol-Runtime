@@ -1,17 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePublicClient } from 'wagmi';
-import { DISPUTE_MANAGER_ABI, MARKETPLACE_ABI } from '@/config/abis';
-import { ACTIVE_CHAIN_ID, CONTRACTS, OrderState } from '@/config/contracts';
+import { DISPUTE_MANAGER_ABI, MARKETPLACE_ABI, ORINA_RWA_ABI, UNIT_REGISTRY_ABI } from '@/config/abis';
+import { OrderState } from '@/config/contracts';
 import type { OrderUiRecord } from '@/types/order';
 import {
   ProtocolOrderRow,
   loadRuntimeOrders,
   mergeOrderRecords,
   readProjectedOrdersForWallet,
+  type RuntimeOrderScope,
   subscribeToRuntimeOrders,
 } from '@/utils/runtimeOrders';
 import { reconcileOrderFromChain, type MarketplaceOrderSnapshot } from '@/utils/orderLifecycle';
 import { encodeIn, isSupabaseRestEnabled, restSelect } from '@/utils/supabaseRest';
+import {
+  getUnitDisplayLabel,
+  normalizeAssetResult,
+  normalizeUnitResult,
+} from '@/utils/onchainNormalization';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 type DisputeSnapshot = readonly [boolean, number, bigint, bigint, boolean, bigint, bigint];
 interface ProtocolOrderEventRow {
@@ -32,14 +39,18 @@ type OrderPublicClient = NonNullable<ReturnType<typeof usePublicClient>>;
 async function readCanonicalOrdersFromChain(
   publicClient: OrderPublicClient,
   baseOrders: OrderUiRecord[],
+  scope: RuntimeOrderScope,
 ) {
   if (baseOrders.length === 0) return [] as OrderUiRecord[];
+  if (!scope.chainId || !scope.marketplaceContract || !scope.disputeManagerAddress) {
+    return baseOrders;
+  }
 
   const results = await publicClient.multicall({
     allowFailure: true,
     contracts: baseOrders.map((order) => ({
-      address: CONTRACTS.MARKETPLACE_ATP,
-      chainId: ACTIVE_CHAIN_ID,
+      address: scope.marketplaceContract as `0x${string}`,
+      chainId: scope.chainId,
       abi: MARKETPLACE_ABI,
       functionName: 'orders',
       args: [order.orderId] as const,
@@ -49,8 +60,8 @@ async function readCanonicalOrdersFromChain(
   const disputeResults = await publicClient.multicall({
     allowFailure: true,
     contracts: baseOrders.map((order) => ({
-      address: CONTRACTS.DISPUTE_MANAGER,
-      chainId: ACTIVE_CHAIN_ID,
+      address: scope.disputeManagerAddress as `0x${string}`,
+      chainId: scope.chainId,
       abi: DISPUTE_MANAGER_ABI,
       functionName: 'disputes',
       args: [order.orderId] as const,
@@ -89,15 +100,125 @@ async function readCanonicalOrdersFromChain(
   });
 }
 
+async function enrichOrdersWithOnchainMetadata(
+  publicClient: OrderPublicClient,
+  baseOrders: OrderUiRecord[],
+  scope: RuntimeOrderScope,
+) {
+  if (baseOrders.length === 0) return [] as OrderUiRecord[];
+  if (!scope.chainId || !scope.assetContract || !scope.unitRegistryAddress) {
+    return baseOrders;
+  }
+
+  const uniqueAssetIds = Array.from(
+    new Set(
+      baseOrders
+        .map((order) => order.assetId)
+        .filter((assetId) => assetId > 0n)
+        .map((assetId) => assetId.toString()),
+    ),
+  ).map((value) => BigInt(value));
+
+  if (uniqueAssetIds.length === 0) {
+    return baseOrders;
+  }
+
+  const assetResults = await publicClient.multicall({
+    allowFailure: true,
+    contracts: uniqueAssetIds.map((assetId) => ({
+      address: scope.assetContract as `0x${string}`,
+      chainId: scope.chainId,
+      abi: ORINA_RWA_ABI,
+      functionName: 'getAsset',
+      args: [assetId] as const,
+    })),
+  });
+
+  const assetById = new Map<string, ReturnType<typeof normalizeAssetResult>>();
+  const uniqueUnitIds: bigint[] = [];
+  const unitIdSet = new Set<string>();
+
+  assetResults.forEach((result, index) => {
+    if (result.status !== 'success') return;
+    const normalized = normalizeAssetResult(result.result);
+    if (!normalized) return;
+
+    const assetId = uniqueAssetIds[index];
+    assetById.set(assetId.toString(), normalized);
+
+    const unitKey = normalized.unitId.toString();
+    if (!unitIdSet.has(unitKey)) {
+      unitIdSet.add(unitKey);
+      uniqueUnitIds.push(normalized.unitId);
+    }
+  });
+
+  const unitById = new Map<string, { name: string; label: string }>();
+  if (uniqueUnitIds.length > 0) {
+    const unitResults = await publicClient.multicall({
+      allowFailure: true,
+      contracts: uniqueUnitIds.map((unitId) => ({
+        address: scope.unitRegistryAddress as `0x${string}`,
+        chainId: scope.chainId,
+        abi: UNIT_REGISTRY_ABI,
+        functionName: 'getUnit',
+        args: [unitId] as const,
+      })),
+    });
+
+    unitResults.forEach((result, index) => {
+      if (result.status !== 'success') return;
+      const normalized = normalizeUnitResult(result.result);
+      if (!normalized) return;
+
+      const unitId = uniqueUnitIds[index];
+      unitById.set(unitId.toString(), {
+        name: normalized.name,
+        label: getUnitDisplayLabel(unitId, normalized.name),
+      });
+    });
+  }
+
+  return baseOrders.map((order) => {
+    const assetSnapshot = assetById.get(order.assetId.toString());
+    const resolvedUnitId = assetSnapshot?.unitId ?? order.unitId;
+    const unitSnapshot =
+      resolvedUnitId !== undefined ? unitById.get(resolvedUnitId.toString()) : undefined;
+
+    return {
+      ...order,
+      tokenId: order.tokenId ?? order.assetId.toString(),
+      assetContract: order.assetContract ?? (scope.assetContract as `0x${string}`),
+      unitId: resolvedUnitId,
+      unitName: unitSnapshot?.name ?? order.unitName,
+      unitLabel: unitSnapshot?.label ?? order.unitLabel ?? order.unitName,
+    };
+  });
+}
+
 /**
  * Hook to fetch canonical orders for a specific user.
  * Source priority: projection rows + local optimistic rows, then canonical chain overlay.
  */
 export function useUserOrders(userAddress?: string) {
-  const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN_ID });
+  const {
+    assetAddress,
+    chainId,
+    disputeManagerAddress,
+    marketplaceAddress,
+    unitRegistryAddress,
+  } = useProtocolDataNetwork();
+  const publicClient = usePublicClient({ chainId: chainId ?? undefined });
   const [orders, setOrders] = useState<OrderUiRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const scope = useMemo(() => ({
+    chainId,
+    marketplaceContract: marketplaceAddress,
+    assetContract: assetAddress,
+    disputeManagerAddress,
+    unitRegistryAddress,
+  }), [assetAddress, chainId, disputeManagerAddress, marketplaceAddress, unitRegistryAddress]);
 
   const refresh = async () => {
     setRefreshNonce((value) => value + 1);
@@ -117,24 +238,27 @@ export function useUserOrders(userAddress?: string) {
 
       try {
         const [projectedOrders, runtimeOrders] = await Promise.all([
-          readProjectedOrdersForWallet(userAddress),
-          Promise.resolve(loadRuntimeOrders(userAddress)),
+          readProjectedOrdersForWallet(userAddress, scope),
+          Promise.resolve(loadRuntimeOrders(userAddress, scope)),
         ]);
 
         const mergedBase = mergeOrderRecords(runtimeOrders, projectedOrders);
         const canonicalOrders = publicClient
-          ? await readCanonicalOrdersFromChain(publicClient, mergedBase)
+          ? await readCanonicalOrdersFromChain(publicClient, mergedBase, scope)
           : mergedBase;
+        const resolvedOrders = publicClient
+          ? await enrichOrdersWithOnchainMetadata(publicClient, canonicalOrders, scope)
+          : canonicalOrders;
 
         if (cancelled) return;
 
         setOrders(
-          [...canonicalOrders].sort((left, right) => Number(right.proposedAt - left.proposedAt)),
+          [...resolvedOrders].sort((left, right) => Number(right.proposedAt - left.proposedAt)),
         );
       } catch (error) {
         console.warn('[useUserOrders] Failed to load canonical orders', error);
         if (!cancelled) {
-          setOrders(loadRuntimeOrders(userAddress));
+          setOrders(loadRuntimeOrders(userAddress, scope));
         }
       } finally {
         if (!cancelled) {
@@ -148,7 +272,7 @@ export function useUserOrders(userAddress?: string) {
     return () => {
       cancelled = true;
     };
-  }, [userAddress, publicClient, refreshNonce]);
+  }, [publicClient, refreshNonce, scope, userAddress]);
 
   useEffect(() => {
     if (!userAddress) return () => {};
@@ -218,7 +342,7 @@ export function useOrderEvents(userAddress?: string, fromBlock?: bigint) {
     let cancelled = false;
 
     const loadEvents = async () => {
-      if (!userAddress || !isSupabaseRestEnabled()) {
+      if (!userAddress || !isSupabaseRestEnabled() || !scope.chainId || !scope.marketplaceContract) {
         setEvents([]);
         setIsLoading(false);
         return;
@@ -229,7 +353,7 @@ export function useOrderEvents(userAddress?: string, fromBlock?: bigint) {
         const normalized = userAddress.toLowerCase();
         const orderRows = await restSelect<ProtocolOrderRow>(
           'protocol_orders',
-          `?select=id,order_uid,buyer_address,seller_address&chain_id=eq.${ACTIVE_CHAIN_ID}&marketplace_contract=eq.${CONTRACTS.MARKETPLACE_ATP.toLowerCase()}&or=(buyer_address.eq.${normalized},seller_address.eq.${normalized})`,
+          `?select=id,order_uid,buyer_address,seller_address&chain_id=eq.${scope.chainId}&marketplace_contract=eq.${String(scope.marketplaceContract || '').toLowerCase()}&or=(buyer_address.eq.${normalized},seller_address.eq.${normalized})`,
         );
         const orderIds = orderRows
           .map((row) => row.id)
@@ -273,7 +397,7 @@ export function useOrderEvents(userAddress?: string, fromBlock?: bigint) {
       cancelled = true;
       window.clearInterval(poller);
     };
-  }, [userAddress, fromBlock]);
+  }, [fromBlock, scope.chainId, scope.marketplaceContract, userAddress]);
 
   return { events, isLoading };
 }

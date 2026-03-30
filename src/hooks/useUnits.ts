@@ -1,8 +1,10 @@
 import { useMemo } from 'react';
 import { useReadContract, useReadContracts } from 'wagmi';
-import { CONTRACTS, UNIT_IDS } from '@/config/contracts';
+import { UNIT_IDS } from '@/config/contracts';
 import { UNIT_REGISTRY_ABI } from '@/config/abis';
 import type { Unit } from '@/types/contracts';
+import { getUnitDisplayLabel, normalizeUnitResult } from '@/utils/onchainNormalization';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 export interface UnitOption {
   id: number;
@@ -14,79 +16,22 @@ export interface UnitOption {
   locked: boolean;
 }
 
-// Human-readable labels for seeded unit IDs — English first
-const UNIT_LABELS: Record<number, string> = {
-  [UNIT_IDS.PIECE]: 'PIECE',
-  [UNIT_IDS.KG]:    'KG',
-  [UNIT_IDS.TON]:   'TON',
-  [UNIT_IDS.LIT]:   'LIT',
-  [UNIT_IDS.M]:     'M',
-  [UNIT_IDS.M2]:    'M2',
-  [UNIT_IDS.M3]:    'M3',
-  [UNIT_IDS.HOUR]:  'HOUR',
-  [UNIT_IDS.SET]:   'SET',
-};
-
-type UnitResultShape = {
-  name: string;
-  step: bigint;
-  minAmount: bigint;
-  active: boolean;
-  locked: boolean;
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object';
-}
-
-function normalizeUnitResult(result: unknown): UnitResultShape | null {
-  if (Array.isArray(result)) {
-    const [name, step, minAmount, active, locked] = result;
-    if (
-      typeof name === 'string' &&
-      typeof step === 'bigint' &&
-      typeof minAmount === 'bigint' &&
-      typeof active === 'boolean' &&
-      typeof locked === 'boolean'
-    ) {
-      return { name, step, minAmount, active, locked };
-    }
-    return null;
-  }
-
-  if (!isRecord(result)) return null;
-
-  const name = result.name;
-  const step = result.step;
-  const minAmount = result.minAmount;
-  const active = result.active;
-  const locked = result.locked;
-
-  if (
-    typeof name === 'string' &&
-    typeof step === 'bigint' &&
-    typeof minAmount === 'bigint' &&
-    typeof active === 'boolean' &&
-    typeof locked === 'boolean'
-  ) {
-    return { name, step, minAmount, active, locked };
-  }
-
-  return null;
-}
-
 /** Batch-fetch all 9 seeded units from UnitRegistry in one multicall. */
 export function useAllUnits() {
+  const { chainId, unitRegistryAddress } = useProtocolDataNetwork();
   const unitIds = Object.values(UNIT_IDS) as number[]; // [0..8]
 
   const { data, isLoading, isError } = useReadContracts({
-    contracts: unitIds.map((id) => ({
-      address: CONTRACTS.UNIT_REGISTRY,
-      abi: UNIT_REGISTRY_ABI,
-      functionName: 'getUnit',
-      args: [BigInt(id)],
-    })),
-    query: { staleTime: 60_000 },
+    contracts: unitRegistryAddress
+      ? unitIds.map((id) => ({
+          chainId: chainId ?? undefined,
+          address: unitRegistryAddress,
+          abi: UNIT_REGISTRY_ABI,
+          functionName: 'getUnit',
+          args: [BigInt(id)],
+        }))
+      : [],
+    query: { enabled: Boolean(chainId && unitRegistryAddress), staleTime: 60_000 },
   });
 
   const units = useMemo<UnitOption[]>(() => {
@@ -100,7 +45,7 @@ export function useAllUnits() {
         return {
           id,
           name: normalized.name,
-          label: UNIT_LABELS[id] ?? `Unit ${id} — ${normalized.name}`,
+          label: getUnitDisplayLabel(id, normalized.name),
           step: normalized.step,
           minAmount: normalized.minAmount,
           active: normalized.active,
@@ -116,7 +61,7 @@ export function useAllUnits() {
       unitIds.map((id) => ({
         id,
         name: Object.keys(UNIT_IDS)[id] ?? `Unit${id}`,
-        label: UNIT_LABELS[id] ?? `Unit ${id}`,
+        label: getUnitDisplayLabel(id, Object.keys(UNIT_IDS)[id] ?? `Unit${id}`),
         step: 1n,
         minAmount: 1n,
         active: true,
@@ -136,20 +81,26 @@ export function useAllUnits() {
 
 // Hook to get total number of units
 export function useNextUnitId() {
+  const { chainId, unitRegistryAddress } = useProtocolDataNetwork();
   return useReadContract({
-    address: CONTRACTS.UNIT_REGISTRY,
+    chainId: chainId ?? undefined,
+    address: unitRegistryAddress,
     abi: UNIT_REGISTRY_ABI,
     functionName: 'nextUnitId',
+    query: { enabled: Boolean(chainId && unitRegistryAddress) },
   });
 }
 
 // Hook to get a single unit by ID
 export function useUnit(unitId: number | bigint) {
+  const { chainId, unitRegistryAddress } = useProtocolDataNetwork();
   const result = useReadContract({
-    address: CONTRACTS.UNIT_REGISTRY,
+    chainId: chainId ?? undefined,
+    address: unitRegistryAddress,
     abi: UNIT_REGISTRY_ABI,
     functionName: 'getUnit',
     args: [BigInt(unitId)],
+    query: { enabled: Boolean(chainId && unitRegistryAddress) },
   });
 
   // Transform the result into typed Unit object

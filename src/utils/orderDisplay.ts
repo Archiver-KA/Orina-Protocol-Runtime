@@ -25,8 +25,26 @@ export function getOrderGrossPriceNumber(grossPrice: bigint, paymentTokenDecimal
   return Number(formatUnits(grossPrice, getOrderPaymentDecimals(paymentTokenDecimals)));
 }
 
-export function formatOrderQuantity(amount: bigint, unitName?: string | null) {
-  const normalizedUnit = unitName?.trim();
+export function getOrderUnitLabel(unitLabel?: string | null, unitName?: string | null) {
+  const normalizedUnitLabel = unitLabel?.trim();
+  if (normalizedUnitLabel && normalizedUnitLabel.length > 0) {
+    return normalizedUnitLabel;
+  }
+
+  const normalizedUnitName = unitName?.trim();
+  if (normalizedUnitName && normalizedUnitName.length > 0) {
+    return normalizedUnitName;
+  }
+
+  return null;
+}
+
+export function formatOrderQuantity(
+  amount: bigint,
+  unitLabel?: string | null,
+  unitName?: string | null,
+) {
+  const normalizedUnit = getOrderUnitLabel(unitLabel, unitName);
   if (normalizedUnit && normalizedUnit.length > 0) {
     return `${amount.toString()} ${normalizedUnit}`;
   }

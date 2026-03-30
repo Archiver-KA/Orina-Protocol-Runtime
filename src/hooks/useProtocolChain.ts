@@ -1,25 +1,35 @@
 import { useCallback } from 'react';
 import { toast } from 'sonner';
-import { useAccount, useSwitchChain } from 'wagmi';
-import { ACTIVE_CHAIN_ID } from '@/config/contracts';
-import { formatChainLabel, PROTOCOL_CHAIN_LABEL } from '@/utils/protocolNetwork';
+import { formatChainLabel } from '@/utils/protocolNetwork';
+import { useProtocolNetworkRouter } from '@/contexts/ProtocolNetworkContext';
 import { getWalletErrorMessage } from '@/utils/walletErrors';
 
 export function useProtocolChain() {
-  const { chainId, isConnected } = useAccount();
-  const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
+  const {
+    selectedNetwork,
+    selectedChainId,
+    walletChainId,
+    status,
+    isConnected,
+    isOnSelectedNetwork,
+    isSwitching,
+    selectNetwork,
+  } = useProtocolNetworkRouter();
 
-  const currentChainId = isConnected ? chainId : undefined;
-  const currentChainLabel = isConnected
-    ? formatChainLabel(currentChainId)
-    : 'Wallet not connected';
-  const targetChainId = ACTIVE_CHAIN_ID;
-  const targetChainLabel = PROTOCOL_CHAIN_LABEL;
-  const isOnProtocolChain = currentChainId === targetChainId;
+  const currentChainId = isConnected ? (walletChainId ?? undefined) : undefined;
+  const currentChainLabel = isConnected ? formatChainLabel(currentChainId) : 'Wallet not connected';
+  const targetChainId = selectedChainId ?? undefined;
+  const targetChainLabel = selectedNetwork.label;
+  const isOnProtocolChain = isOnSelectedNetwork;
 
   const ensureProtocolChainAsync = useCallback(async (actionLabel: string) => {
     if (!isConnected) {
       toast.error(`Connect your wallet to ${actionLabel}.`);
+      return false;
+    }
+
+    if (!selectedNetwork.chainId || selectedNetwork.status !== 'live' || !selectedNetwork.contracts) {
+      toast.error(`${selectedNetwork.label} is not enabled for protocol actions yet.`);
       return false;
     }
 
@@ -28,7 +38,10 @@ export function useProtocolChain() {
     }
 
     try {
-      await switchChainAsync({ chainId: targetChainId });
+      const switched = await selectNetwork(selectedNetwork.key);
+      if (!switched) {
+        return false;
+      }
       toast.success(`Wallet switched to ${targetChainLabel}. Click again to ${actionLabel}.`);
       return false;
     } catch (error) {
@@ -40,7 +53,15 @@ export function useProtocolChain() {
       );
       return false;
     }
-  }, [currentChainId, currentChainLabel, isConnected, switchChainAsync, targetChainId, targetChainLabel]);
+  }, [
+    currentChainId,
+    currentChainLabel,
+    isConnected,
+    selectedNetwork,
+    selectNetwork,
+    targetChainId,
+    targetChainLabel,
+  ]);
 
   return {
     isConnected,
@@ -50,6 +71,8 @@ export function useProtocolChain() {
     targetChainLabel,
     isOnProtocolChain,
     isSwitching,
+    status,
+    selectedNetwork,
     ensureProtocolChainAsync,
   };
 }

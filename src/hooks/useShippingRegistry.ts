@@ -5,31 +5,36 @@
  */
 
 import { useReadContract } from 'wagmi';
-import { CONTRACTS } from '@/config/contracts';
 import { SHIPPING_REGISTRY_ABI } from '@/config/abis';
 import { useState, useEffect } from 'react';
 import type { ShippingOption } from '@/types/contracts';
 import { ShippingType } from '@/config/contracts';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 // ── Read Hooks ────────────────────────────────────────────────
 
 /** Get total number of shipping options */
 export function useNextOptionId() {
+  const { chainId, shippingRegistryAddress } = useProtocolDataNetwork();
   return useReadContract({
-    address: CONTRACTS.SHIPPING_REGISTRY,
+    chainId: chainId ?? undefined,
+    address: shippingRegistryAddress,
     abi: SHIPPING_REGISTRY_ABI,
     functionName: 'nextOptionId',
+    query: { enabled: Boolean(chainId && shippingRegistryAddress) },
   });
 }
 
 /** Get a specific shipping option by ID */
 export function useShippingOption(optionId: bigint | undefined) {
+  const { chainId, shippingRegistryAddress } = useProtocolDataNetwork();
   return useReadContract({
-    address: CONTRACTS.SHIPPING_REGISTRY,
+    chainId: chainId ?? undefined,
+    address: shippingRegistryAddress,
     abi: SHIPPING_REGISTRY_ABI,
     functionName: 'getOption',
     args: optionId !== undefined ? [optionId] : undefined,
-    query: { enabled: optionId !== undefined },
+    query: { enabled: Boolean(chainId && shippingRegistryAddress && optionId !== undefined) },
   });
 }
 

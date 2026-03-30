@@ -69,9 +69,13 @@ export interface OrderUiRecord {
   buyer: `0x${string}`;
   seller: `0x${string}`;
   assetId: bigint;
+  assetUid?: string;
+  tokenId?: string;
+  assetContract?: `0x${string}`;
   assetName: string;
   unitId?: bigint;
   unitName?: string;
+  unitLabel?: string;
   network: string;
   assetImage: string;
   amount: bigint;

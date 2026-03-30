@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePublicClient } from 'wagmi';
 import { DISPUTE_MANAGER_ABI, MARKETPLACE_ABI } from '@/config/abis';
-import { ACTIVE_CHAIN_ID, CONTRACTS, OrderState } from '@/config/contracts';
+import { OrderState } from '@/config/contracts';
 import type { OrderUiRecord } from '@/types/order';
 import { getOrderLifecycleLabel, getOrderLifecyclePhase, reconcileOrderFromChain, type MarketplaceOrderSnapshot } from '@/utils/orderLifecycle';
-import { fromProtocolOrderRow, type ProtocolOrderRow } from '@/utils/runtimeOrders';
+import { fromProtocolOrderRow, type ProtocolOrderRow, type RuntimeOrderScope } from '@/utils/runtimeOrders';
 import { isSupabaseRestEnabled, restSelect } from '@/utils/supabaseRest';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 type ProtocolTimeRange = '24H' | '7D' | '30D';
 type OrderPublicClient = NonNullable<ReturnType<typeof usePublicClient>>;
@@ -58,6 +59,7 @@ export interface ProtocolAnalyticsSnapshot {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const PROTOCOL_ANALYTICS_CACHE = new Map<string, OrderUiRecord[]>();
 
 function bigintToNumber(value?: bigint) {
   if (typeof value !== 'bigint') return 0;
@@ -76,6 +78,14 @@ function normalizeMsToDayStart(timestamp: number) {
   return date.getTime();
 }
 
+function buildProtocolAnalyticsCacheKey(scope: RuntimeOrderScope) {
+  return [
+    scope.chainId ?? 'na',
+    scope.marketplaceContract?.toLowerCase() ?? 'na',
+    scope.disputeManagerAddress?.toLowerCase() ?? 'na',
+  ].join(':');
+}
+
 function formatDayLabel(timestamp: number, range: ProtocolTimeRange) {
   return new Date(timestamp).toLocaleDateString('en-US', {
     month: 'short',
@@ -87,14 +97,18 @@ function formatDayLabel(timestamp: number, range: ProtocolTimeRange) {
 async function readCanonicalOrdersFromChain(
   publicClient: OrderPublicClient,
   baseOrders: OrderUiRecord[],
+  scope: RuntimeOrderScope,
 ) {
   if (baseOrders.length === 0) return [] as OrderUiRecord[];
+  if (!scope.chainId || !scope.marketplaceContract || !scope.disputeManagerAddress) {
+    return baseOrders;
+  }
 
   const orderResults = await publicClient.multicall({
     allowFailure: true,
     contracts: baseOrders.map((order) => ({
-      address: CONTRACTS.MARKETPLACE_ATP,
-      chainId: ACTIVE_CHAIN_ID,
+      address: scope.marketplaceContract as `0x${string}`,
+      chainId: scope.chainId,
       abi: MARKETPLACE_ABI,
       functionName: 'orders',
       args: [order.orderId] as const,
@@ -104,8 +118,8 @@ async function readCanonicalOrdersFromChain(
   const disputeResults = await publicClient.multicall({
     allowFailure: true,
     contracts: baseOrders.map((order) => ({
-      address: CONTRACTS.DISPUTE_MANAGER,
-      chainId: ACTIVE_CHAIN_ID,
+      address: scope.disputeManagerAddress as `0x${string}`,
+      chainId: scope.chainId,
       abi: DISPUTE_MANAGER_ABI,
       functionName: 'disputes',
       args: [order.orderId] as const,
@@ -332,7 +346,11 @@ function buildChartPoints(orders: OrderUiRecord[], range: ProtocolTimeRange): Pr
   return points;
 }
 
-function buildProtocolSnapshot(orders: OrderUiRecord[], range: ProtocolTimeRange): ProtocolAnalyticsSnapshot {
+function buildProtocolSnapshot(
+  orders: OrderUiRecord[],
+  range: ProtocolTimeRange,
+  networkLabel: string,
+): ProtocolAnalyticsSnapshot {
   const activeEscrows = orders.filter((order) => (
     order.state === OrderState.PENDING_CONFIRM
     || order.state === OrderState.PAID
@@ -349,7 +367,7 @@ function buildProtocolSnapshot(orders: OrderUiRecord[], range: ProtocolTimeRange
     {
       label: 'Total Orders',
       value: orders.length,
-      helper: 'Canonical protocol orders on BSC Testnet',
+      helper: `Canonical protocol orders on ${networkLabel}`,
     },
     {
       label: 'Active Escrows',
@@ -430,41 +448,58 @@ function buildProtocolSnapshot(orders: OrderUiRecord[], range: ProtocolTimeRange
 }
 
 export function useProtocolAnalytics(range: ProtocolTimeRange = '7D'): ProtocolAnalyticsSnapshot {
-  const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN_ID });
+  const { chainId, disputeManagerAddress, marketplaceAddress, networkLabel } = useProtocolDataNetwork();
+  const publicClient = usePublicClient({ chainId: chainId ?? undefined });
   const [orders, setOrders] = useState<OrderUiRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const scope = useMemo(() => ({
+    chainId,
+    marketplaceContract: marketplaceAddress,
+    disputeManagerAddress,
+  }), [chainId, disputeManagerAddress, marketplaceAddress]);
+  const scopeCacheKey = useMemo(() => buildProtocolAnalyticsCacheKey(scope), [scope]);
 
   useEffect(() => {
     let cancelled = false;
+    const cachedOrders = PROTOCOL_ANALYTICS_CACHE.get(scopeCacheKey);
+
+    if (cachedOrders) {
+      setOrders(cachedOrders);
+      setIsLoading(false);
+    }
 
     const loadOrders = async () => {
-      if (!isSupabaseRestEnabled()) {
+      if (!isSupabaseRestEnabled() || !scope.chainId || !scope.marketplaceContract) {
         setOrders([]);
         setIsLoading(false);
         return;
       }
 
-      setIsLoading(true);
+      if (!cachedOrders) {
+        setIsLoading(true);
+      }
       try {
         const rows = await restSelect<ProtocolOrderRow>(
           'protocol_orders',
-          `?chain_id=eq.${ACTIVE_CHAIN_ID}&marketplace_contract=eq.${CONTRACTS.MARKETPLACE_ATP.toLowerCase()}`,
+          `?chain_id=eq.${scope.chainId}&marketplace_contract=eq.${scope.marketplaceContract.toLowerCase()}`,
         );
         const projectedOrders = rows
-          .map(fromProtocolOrderRow)
+          .map((row) => fromProtocolOrderRow(row, scope))
           .filter((value): value is OrderUiRecord => Boolean(value));
         const canonicalOrders = publicClient
-          ? await readCanonicalOrdersFromChain(publicClient, projectedOrders)
+          ? await readCanonicalOrdersFromChain(publicClient, projectedOrders, scope)
           : projectedOrders;
+        const sortedOrders = canonicalOrders.sort(
+          (left, right) => Number((right.proposedAt || 0n) - (left.proposedAt || 0n)),
+        );
 
         if (!cancelled) {
-          setOrders(
-            canonicalOrders.sort((left, right) => Number((right.proposedAt || 0n) - (left.proposedAt || 0n))),
-          );
+          PROTOCOL_ANALYTICS_CACHE.set(scopeCacheKey, sortedOrders);
+          setOrders(sortedOrders);
         }
       } catch (error) {
         console.warn('[useProtocolAnalytics] Failed to load protocol analytics', error);
-        if (!cancelled) {
+        if (!cancelled && !cachedOrders) {
           setOrders([]);
         }
       } finally {
@@ -475,17 +510,16 @@ export function useProtocolAnalytics(range: ProtocolTimeRange = '7D'): ProtocolA
     };
 
     void loadOrders();
-    const poller = window.setInterval(() => {
-      void loadOrders();
-    }, 15000);
 
     return () => {
       cancelled = true;
-      window.clearInterval(poller);
     };
-  }, [publicClient]);
+  }, [publicClient, scope, scopeCacheKey]);
 
-  const snapshot = useMemo(() => buildProtocolSnapshot(orders, range), [orders, range]);
+  const snapshot = useMemo(
+    () => buildProtocolSnapshot(orders, range, networkLabel),
+    [networkLabel, orders, range],
+  );
   return {
     ...snapshot,
     isLoading,

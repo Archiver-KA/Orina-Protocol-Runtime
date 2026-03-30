@@ -7,10 +7,11 @@
 
 import { useMemo } from 'react';
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { ACTIVE_CHAIN_ID, CONTRACTS, OrderStatus } from '@/config/contracts';
+import { OrderStatus } from '@/config/contracts';
 import { MARKETPLACE_ABI } from '@/config/abis';
 import { getBuyerDisputeDeadline, getSellerConfirmDeadline } from '@/utils/orderLifecycle';
 import type { OrderStatusResult } from '@/types/contracts';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 type MarketplaceOrderRead = {
   proposedAt: bigint;
@@ -119,23 +120,26 @@ function deriveOrderStatusResult(order?: MarketplaceOrderRead): OrderStatusResul
 
 /** Get total number of orders */
 export function useNextOrderId() {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   return useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.MARKETPLACE_ATP,
+    chainId: chainId ?? undefined,
+    address: marketplaceAddress,
     abi: MARKETPLACE_ABI,
     functionName: 'nextOrderId',
+    query: { enabled: Boolean(chainId && marketplaceAddress) },
   });
 }
 
 /** Get order data by ID (public mapping auto-getter) */
 export function useOrder(orderId: bigint | undefined) {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   return useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.MARKETPLACE_ATP,
+    chainId: chainId ?? undefined,
+    address: marketplaceAddress,
     abi: MARKETPLACE_ABI,
     functionName: 'orders',
     args: orderId !== undefined ? [orderId] : undefined,
-    query: { enabled: orderId !== undefined },
+    query: { enabled: Boolean(chainId && marketplaceAddress && orderId !== undefined) },
   });
 }
 
@@ -155,79 +159,88 @@ export function useOrderStatus(orderId: bigint | undefined) {
 
 /** Check individual order state flags */
 export function useIsPendingConfirm(orderId: bigint | undefined) {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   return useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.MARKETPLACE_ATP,
+    chainId: chainId ?? undefined,
+    address: marketplaceAddress,
     abi: MARKETPLACE_ABI,
     functionName: 'isPendingConfirm',
     args: orderId !== undefined ? [orderId] : undefined,
-    query: { enabled: orderId !== undefined },
+    query: { enabled: Boolean(chainId && marketplaceAddress && orderId !== undefined) },
   });
 }
 
 export function useIsPaid(orderId: bigint | undefined) {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   return useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.MARKETPLACE_ATP,
+    chainId: chainId ?? undefined,
+    address: marketplaceAddress,
     abi: MARKETPLACE_ABI,
     functionName: 'isPaid',
     args: orderId !== undefined ? [orderId] : undefined,
-    query: { enabled: orderId !== undefined },
+    query: { enabled: Boolean(chainId && marketplaceAddress && orderId !== undefined) },
   });
 }
 
 export function useIsOrderDisputed(orderId: bigint | undefined) {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   return useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.MARKETPLACE_ATP,
+    chainId: chainId ?? undefined,
+    address: marketplaceAddress,
     abi: MARKETPLACE_ABI,
     functionName: 'isOrderDisputed',
     args: orderId !== undefined ? [orderId] : undefined,
-    query: { enabled: orderId !== undefined },
+    query: { enabled: Boolean(chainId && marketplaceAddress && orderId !== undefined) },
   });
 }
 
 export function useIsFinalized(orderId: bigint | undefined) {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   return useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.MARKETPLACE_ATP,
+    chainId: chainId ?? undefined,
+    address: marketplaceAddress,
     abi: MARKETPLACE_ABI,
     functionName: 'isFinalized',
     args: orderId !== undefined ? [orderId] : undefined,
-    query: { enabled: orderId !== undefined },
+    query: { enabled: Boolean(chainId && marketplaceAddress && orderId !== undefined) },
   });
 }
 
 export function useIsSellerConfirmed(orderId: bigint | undefined) {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   return useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.MARKETPLACE_ATP,
+    chainId: chainId ?? undefined,
+    address: marketplaceAddress,
     abi: MARKETPLACE_ABI,
     functionName: 'isSellerConfirmed',
     args: orderId !== undefined ? [orderId] : undefined,
-    query: { enabled: orderId !== undefined },
+    query: { enabled: Boolean(chainId && marketplaceAddress && orderId !== undefined) },
   });
 }
 
 /** Read protocol constants */
 export function useProtocolConstants() {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const sellerWindow = useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.MARKETPLACE_ATP,
+    chainId: chainId ?? undefined,
+    address: marketplaceAddress,
     abi: MARKETPLACE_ABI,
     functionName: 'SELLER_CONFIRM_WINDOW',
+    query: { enabled: Boolean(chainId && marketplaceAddress) },
   });
   const payTimeout = useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.MARKETPLACE_ATP,
+    chainId: chainId ?? undefined,
+    address: marketplaceAddress,
     abi: MARKETPLACE_ABI,
     functionName: 'PAY_TIMEOUT',
+    query: { enabled: Boolean(chainId && marketplaceAddress) },
   });
   const buyerWindow = useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.MARKETPLACE_ATP,
+    chainId: chainId ?? undefined,
+    address: marketplaceAddress,
     abi: MARKETPLACE_ABI,
     functionName: 'BUYER_ACTION_WINDOW',
+    query: { enabled: Boolean(chainId && marketplaceAddress) },
   });
 
   return {
@@ -241,8 +254,12 @@ export function useProtocolConstants() {
 
 /** Buyer creates order (Sig 1) */
 export function useCreateOrder() {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const createOrder = async (
     seller: `0x${string}`,
@@ -253,9 +270,13 @@ export function useCreateOrder() {
     proposedEstDeliverySeconds: bigint,
     buyerSig1: `0x${string}`,
   ) => {
+    if (!chainId || !marketplaceAddress) {
+      throw new Error('Protocol network is not enabled for order creation');
+    }
+
     return writeContractAsync({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.MARKETPLACE_ATP,
+      chainId,
+      address: marketplaceAddress,
       abi: MARKETPLACE_ABI,
       functionName: 'createOrder',
       args: [seller, paymentToken, assetId, amount, grossPriceProposed, proposedEstDeliverySeconds, buyerSig1],
@@ -267,17 +288,25 @@ export function useCreateOrder() {
 
 /** Seller confirms with delivery time (Sig 2) */
 export function useSellerConfirm() {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const sellerConfirm = async (
     orderId: bigint,
     estDeliverySeconds: bigint,
     sellerSig: `0x${string}`,
   ) => {
+    if (!chainId || !marketplaceAddress) {
+      throw new Error('Protocol network is not enabled for seller confirmation');
+    }
+
     return writeContractAsync({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.MARKETPLACE_ATP,
+      chainId,
+      address: marketplaceAddress,
       abi: MARKETPLACE_ABI,
       functionName: 'sellerConfirm',
       args: [orderId, estDeliverySeconds, sellerSig],
@@ -289,13 +318,21 @@ export function useSellerConfirm() {
 
 /** Buyer pays order (Sig 3 - accepts seller's delivery time) */
 export function usePayOrder() {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const payOrder = async (orderId: bigint, buyerSig2: `0x${string}`) => {
+    if (!chainId || !marketplaceAddress) {
+      throw new Error('Protocol network is not enabled for payment');
+    }
+
     return writeContractAsync({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.MARKETPLACE_ATP,
+      chainId,
+      address: marketplaceAddress,
       abi: MARKETPLACE_ABI,
       functionName: 'payOrder',
       args: [orderId, buyerSig2],
@@ -307,13 +344,21 @@ export function usePayOrder() {
 
 /** Buyer confirms delivery → finalize with FULL_RELEASE */
 export function useConfirmDelivery() {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const confirmDelivery = async (orderId: bigint) => {
+    if (!chainId || !marketplaceAddress) {
+      throw new Error('Protocol network is not enabled for delivery confirmation');
+    }
+
     return writeContractAsync({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.MARKETPLACE_ATP,
+      chainId,
+      address: marketplaceAddress,
       abi: MARKETPLACE_ABI,
       functionName: 'confirmDelivery',
       args: [orderId],
@@ -325,13 +370,21 @@ export function useConfirmDelivery() {
 
 /** Seller voluntary cancel during the initial 24h seller window */
 export function useCancelBySeller() {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const cancelBySeller = async (orderId: bigint) => {
+    if (!chainId || !marketplaceAddress) {
+      throw new Error('Protocol network is not enabled for seller cancellation');
+    }
+
     return writeContractAsync({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.MARKETPLACE_ATP,
+      chainId,
+      address: marketplaceAddress,
       abi: MARKETPLACE_ABI,
       functionName: 'cancelBySeller',
       args: [orderId],
@@ -343,13 +396,21 @@ export function useCancelBySeller() {
 
 /** Buyer voluntary cancel during the buyer re-sign window */
 export function useCancelByBuyer() {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const cancelByBuyer = async (orderId: bigint) => {
+    if (!chainId || !marketplaceAddress) {
+      throw new Error('Protocol network is not enabled for buyer cancellation');
+    }
+
     return writeContractAsync({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.MARKETPLACE_ATP,
+      chainId,
+      address: marketplaceAddress,
       abi: MARKETPLACE_ABI,
       functionName: 'cancelByBuyer',
       args: [orderId],
@@ -361,13 +422,21 @@ export function useCancelByBuyer() {
 
 /** Open dispute (buyer only, within the 3-day window after agreed delivery ends) */
 export function useOpenDispute() {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId: ACTIVE_CHAIN_ID });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const openDispute = async (orderId: bigint) => {
+    if (!chainId || !marketplaceAddress) {
+      throw new Error('Protocol network is not enabled for disputes');
+    }
+
     return writeContractAsync({
-      chainId: ACTIVE_CHAIN_ID,
-      address: CONTRACTS.MARKETPLACE_ATP,
+      chainId,
+      address: marketplaceAddress,
       abi: MARKETPLACE_ABI,
       functionName: 'openDispute',
       args: [orderId],

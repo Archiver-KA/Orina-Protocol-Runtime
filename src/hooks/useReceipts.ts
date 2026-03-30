@@ -7,8 +7,9 @@
  */
 
 import { useReadContract } from 'wagmi';
-import { CONTRACTS, AssetType } from '@/config/contracts';
+import { AssetType } from '@/config/contracts';
 import { RECEIPT_NFT_ABI } from '@/config/abis';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 /**
  * Receipt NFT structure returned from smart contract
@@ -25,12 +26,14 @@ export interface Receipt {
  * Get NFT Receipt balance for an address
  */
 export function useReceiptBalance(address?: `0x${string}`) {
+  const { chainId, receiptNftAddress } = useProtocolDataNetwork();
   return useReadContract({
-    address: CONTRACTS.RECEIPT_NFT,
+    chainId: chainId ?? undefined,
+    address: receiptNftAddress,
     abi: RECEIPT_NFT_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
-    query: { enabled: !!address },
+    query: { enabled: Boolean(chainId && receiptNftAddress && address) },
   });
 }
 
@@ -39,13 +42,16 @@ export function useReceiptBalance(address?: `0x${string}`) {
  * Returns: { orderId, assetId, amount, assetType }
  */
 export function useReceipt(tokenId: bigint | number) {
+  const { chainId, receiptNftAddress } = useProtocolDataNetwork();
   const tokenIdBigInt = typeof tokenId === 'number' ? BigInt(tokenId) : tokenId;
 
   const result = useReadContract({
-    address: CONTRACTS.RECEIPT_NFT,
+    chainId: chainId ?? undefined,
+    address: receiptNftAddress,
     abi: RECEIPT_NFT_ABI,
     functionName: 'receipts',
     args: [tokenIdBigInt],
+    query: { enabled: Boolean(chainId && receiptNftAddress) },
   });
 
   // Parse into typed Receipt
@@ -67,13 +73,16 @@ export function useReceipt(tokenId: bigint | number) {
  * Get token URI for a receipt NFT
  */
 export function useReceiptTokenURI(tokenId: bigint | number) {
+  const { chainId, receiptNftAddress } = useProtocolDataNetwork();
   const tokenIdBigInt = typeof tokenId === 'number' ? BigInt(tokenId) : tokenId;
 
   return useReadContract({
-    address: CONTRACTS.RECEIPT_NFT,
+    chainId: chainId ?? undefined,
+    address: receiptNftAddress,
     abi: RECEIPT_NFT_ABI,
     functionName: 'tokenURI',
     args: [tokenIdBigInt],
+    query: { enabled: Boolean(chainId && receiptNftAddress) },
   });
 }
 
@@ -81,13 +90,16 @@ export function useReceiptTokenURI(tokenId: bigint | number) {
  * Get owner of a receipt NFT token
  */
 export function useReceiptOwner(tokenId: bigint | number) {
+  const { chainId, receiptNftAddress } = useProtocolDataNetwork();
   const tokenIdBigInt = typeof tokenId === 'number' ? BigInt(tokenId) : tokenId;
 
   return useReadContract({
-    address: CONTRACTS.RECEIPT_NFT,
+    chainId: chainId ?? undefined,
+    address: receiptNftAddress,
     abi: RECEIPT_NFT_ABI,
     functionName: 'ownerOf',
     args: [tokenIdBigInt],
+    query: { enabled: Boolean(chainId && receiptNftAddress) },
   });
 }
 

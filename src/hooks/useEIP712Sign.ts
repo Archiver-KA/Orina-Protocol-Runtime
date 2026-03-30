@@ -9,7 +9,7 @@
  *   Sig 3 (Buyer): Sign again only if seller revised delivery time → pass to payOrder()
  *
  * All 3 signatures sign the same ORDER_TYPEHASH structure:
- *   Order(orderId, buyer, seller, grossPrice, amount, estDeliverySeconds)
+ *   Order(orderId, buyer, seller, paymentToken, assetId, grossPrice, amount, estDeliverySeconds)
  *
  * createOrder() verifies Buyer Sig #1 on the initial digest.
  * sellerConfirm() verifies Seller Sig #2 on the seller-selected digest.
@@ -20,14 +20,14 @@ import { useSignTypedData, useAccount, useReadContract } from 'wagmi';
 import { useState, useCallback } from 'react';
 import {
   buildDisputeAgreementTypedData,
-  EIP712_DOMAIN,
+  getOrderEip712Domain,
   ORDER_TYPES,
   type DisputeAgreementSignMessage,
   type OrderSignMessage,
 } from '@/config/eip712';
-import { ACTIVE_CHAIN_ID, CONTRACTS } from '@/config/contracts';
 import { MARKETPLACE_ABI } from '@/config/abis';
 import { getWalletErrorMessage } from '@/utils/walletErrors';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -41,6 +41,7 @@ export interface SignResult {
 
 export function useSignOrder() {
   const { signTypedDataAsync } = useSignTypedData();
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [signature, setSignature] = useState<`0x${string}` | null>(null);
@@ -51,12 +52,17 @@ export function useSignOrder() {
     setSignature(null);
 
     try {
+      if (!chainId || !marketplaceAddress) {
+        throw new Error('Protocol network is not enabled for order signing');
+      }
+
+      const domain = getOrderEip712Domain(chainId, marketplaceAddress);
       const sig = await signTypedDataAsync({
         domain: {
-          name: EIP712_DOMAIN.name,
-          version: EIP712_DOMAIN.version,
-          chainId: BigInt(EIP712_DOMAIN.chainId),
-          verifyingContract: EIP712_DOMAIN.verifyingContract,
+          name: domain.name,
+          version: domain.version,
+          chainId: BigInt(domain.chainId),
+          verifyingContract: domain.verifyingContract,
         },
         types: ORDER_TYPES,
         primaryType: 'Order',
@@ -64,6 +70,8 @@ export function useSignOrder() {
           orderId: message.orderId,
           buyer: message.buyer,
           seller: message.seller,
+          paymentToken: message.paymentToken,
+          assetId: message.assetId,
           grossPrice: message.grossPrice,
           amount: message.amount,
           estDeliverySeconds: message.estDeliverySeconds,
@@ -79,7 +87,7 @@ export function useSignOrder() {
     } finally {
       setIsPending(false);
     }
-  }, [signTypedDataAsync]);
+  }, [chainId, marketplaceAddress, signTypedDataAsync]);
 
   return {
     signOrder,
@@ -97,18 +105,22 @@ export function useSignOrder() {
 
 export function useBuyerSign1() {
   const { address } = useAccount();
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const { signOrder, signature, isPending, error, reset } = useSignOrder();
 
   // Get nextOrderId to predict the orderId for signing
   const { data: nextOrderId } = useReadContract({
-    chainId: ACTIVE_CHAIN_ID,
-    address: CONTRACTS.MARKETPLACE_ATP,
+    chainId: chainId ?? undefined,
+    address: marketplaceAddress,
     abi: MARKETPLACE_ABI,
     functionName: 'nextOrderId',
+    query: { enabled: Boolean(chainId && marketplaceAddress) },
   });
 
   const sign = useCallback(async (params: {
     seller: `0x${string}`;
+    paymentToken: `0x${string}`;
+    assetId: bigint;
     grossPrice: bigint;
     amount: bigint;
     estDeliverySeconds: bigint;
@@ -120,6 +132,8 @@ export function useBuyerSign1() {
       orderId: nextOrderId as bigint,
       buyer: address,
       seller: params.seller,
+      paymentToken: params.paymentToken,
+      assetId: params.assetId,
       grossPrice: params.grossPrice,
       amount: params.amount,
       estDeliverySeconds: params.estDeliverySeconds,
@@ -145,6 +159,8 @@ export function useSellerSign2() {
   const sign = useCallback(async (params: {
     orderId: bigint;
     buyer: `0x${string}`;
+    paymentToken: `0x${string}`;
+    assetId: bigint;
     grossPrice: bigint;
     amount: bigint;
     estDeliverySeconds: bigint;  // Seller sets this
@@ -155,6 +171,8 @@ export function useSellerSign2() {
       orderId: params.orderId,
       buyer: params.buyer,
       seller: address,
+      paymentToken: params.paymentToken,
+      assetId: params.assetId,
       grossPrice: params.grossPrice,
       amount: params.amount,
       estDeliverySeconds: params.estDeliverySeconds,
@@ -173,6 +191,8 @@ export function useBuyerSign3() {
   const sign = useCallback(async (params: {
     orderId: bigint;
     seller: `0x${string}`;
+    paymentToken: `0x${string}`;
+    assetId: bigint;
     grossPrice: bigint;
     amount: bigint;
     estDeliverySeconds: bigint;  // Must match seller's estDeliverySeconds
@@ -183,6 +203,8 @@ export function useBuyerSign3() {
       orderId: params.orderId,
       buyer: address,
       seller: params.seller,
+      paymentToken: params.paymentToken,
+      assetId: params.assetId,
       grossPrice: params.grossPrice,
       amount: params.amount,
       estDeliverySeconds: params.estDeliverySeconds,
@@ -196,6 +218,7 @@ export function useBuyerSign3() {
 
 export function useDisputeAgreementSign() {
   const { signTypedDataAsync } = useSignTypedData();
+  const { chainId, disputeManagerAddress } = useProtocolDataNetwork();
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [signature, setSignature] = useState<`0x${string}` | null>(null);
@@ -206,7 +229,14 @@ export function useDisputeAgreementSign() {
     setSignature(null);
 
     try {
-      const typedData = buildDisputeAgreementTypedData(message);
+      if (!chainId || !disputeManagerAddress) {
+        throw new Error('Protocol network is not enabled for dispute signing');
+      }
+
+      const typedData = buildDisputeAgreementTypedData(message, {
+        chainId,
+        verifyingContract: disputeManagerAddress,
+      });
       const sig = await signTypedDataAsync({
         domain: {
           name: typedData.domain.name,
@@ -228,7 +258,7 @@ export function useDisputeAgreementSign() {
     } finally {
       setIsPending(false);
     }
-  }, [signTypedDataAsync]);
+  }, [chainId, disputeManagerAddress, signTypedDataAsync]);
 
   return {
     sign,

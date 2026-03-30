@@ -95,7 +95,9 @@ export interface PriceHistory {
 
 export interface AssetDetails {
   id: string;
+  assetUid?: string;
   tokenId: string;
+  onchainAssetId?: string;
   name: string;
   description: string;
   category: string;
@@ -134,6 +136,9 @@ export interface AssetDetails {
   
   // Metadata
   contractAddress: string;
+  unitId?: string;
+  unitName?: string;
+  unitLabel?: string;
   tokenStandard: string;
   mintDate: number;
   lastSale?: number;

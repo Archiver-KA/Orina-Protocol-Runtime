@@ -6,40 +6,47 @@
  */
 
 import { useReadContract } from 'wagmi';
-import { CONTRACTS } from '@/config/contracts';
 import { PAYMENT_GATEWAY_ABI, ERC20_ABI } from '@/config/abis';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 // ── Read Hooks ────────────────────────────────────────────────
 
 /** Get escrow details for an order */
 export function useEscrow(orderId: bigint | undefined) {
+  const { chainId, paymentGatewayAddress } = useProtocolDataNetwork();
   return useReadContract({
-    address: CONTRACTS.PAYMENT_GATEWAY,
+    chainId: chainId ?? undefined,
+    address: paymentGatewayAddress,
     abi: PAYMENT_GATEWAY_ABI,
     functionName: 'escrows',
     args: orderId !== undefined ? [orderId] : undefined,
-    query: { enabled: orderId !== undefined },
+    query: { enabled: Boolean(chainId && paymentGatewayAddress && orderId !== undefined) },
   });
 }
 
 /** Get total escrowed amount for a specific token */
 export function useTotalEscrowed(token: `0x${string}` | undefined) {
+  const { chainId, paymentGatewayAddress } = useProtocolDataNetwork();
   return useReadContract({
-    address: CONTRACTS.PAYMENT_GATEWAY,
+    chainId: chainId ?? undefined,
+    address: paymentGatewayAddress,
     abi: PAYMENT_GATEWAY_ABI,
     functionName: 'totalEscrowedByToken',
     args: token ? [token] : undefined,
-    query: { enabled: !!token },
+    query: { enabled: Boolean(chainId && paymentGatewayAddress && token) },
   });
 }
 
 /** Get fee vault address */
 export function useFeeVault() {
+  const { chainId, paymentGatewayAddress } = useProtocolDataNetwork();
   return useReadContract({
-    address: CONTRACTS.PAYMENT_GATEWAY,
+    chainId: chainId ?? undefined,
+    address: paymentGatewayAddress,
     abi: PAYMENT_GATEWAY_ABI,
     functionName: 'feeVault',
+    query: { enabled: Boolean(chainId && paymentGatewayAddress) },
   });
 }
 
@@ -47,37 +54,50 @@ export function useFeeVault() {
 
 /** Check ERC20 allowance for PaymentGateway */
 export function useTokenAllowance(token: `0x${string}` | undefined, owner: `0x${string}` | undefined) {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   return useReadContract({
+    chainId: chainId ?? undefined,
     address: token,
     abi: ERC20_ABI,
     functionName: 'allowance',
-    args: owner && token ? [owner, CONTRACTS.MARKETPLACE_ATP] : undefined,
-    query: { enabled: !!token && !!owner },
+    args: owner && token && marketplaceAddress ? [owner, marketplaceAddress] : undefined,
+    query: { enabled: Boolean(chainId && token && owner && marketplaceAddress) },
   });
 }
 
 /** Get ERC20 token balance */
 export function useTokenBalance(token: `0x${string}` | undefined, account: `0x${string}` | undefined) {
+  const { chainId } = useProtocolDataNetwork();
   return useReadContract({
+    chainId: chainId ?? undefined,
     address: token,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: account ? [account] : undefined,
-    query: { enabled: !!token && !!account },
+    query: { enabled: Boolean(chainId && token && account) },
   });
 }
 
 /** Approve ERC20 token for PaymentGateway spending */
 export function useApproveToken() {
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const approve = async (token: `0x${string}`, amount: bigint) => {
+    if (!chainId || !marketplaceAddress) {
+      throw new Error('Protocol network is not enabled for token approvals');
+    }
+
     writeContract({
+      chainId,
       address: token,
       abi: ERC20_ABI,
       functionName: 'approve',
-      args: [CONTRACTS.MARKETPLACE_ATP, amount],
+      args: [marketplaceAddress, amount],
     });
   };
 

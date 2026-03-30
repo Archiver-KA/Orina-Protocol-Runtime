@@ -15,20 +15,35 @@ import { CONTRACTS, ACTIVE_CHAIN_ID } from './contracts';
 // ── EIP-712 Domain ────────────────────────────────────────────
 // Must match: EIP712("MarketplaceATP", VERSION) in Solidity
 // MarketplaceATP.sol: string public constant VERSION = "3.4"
-export const EIP712_DOMAIN = {
-  name: 'MarketplaceATP',
-  version: '3.4',
-  chainId: ACTIVE_CHAIN_ID,
-  verifyingContract: CONTRACTS.MARKETPLACE_ATP,
-} as const;
+export const ORDER_DOMAIN_NAME = 'MarketplaceATP' as const;
+export const ORDER_DOMAIN_VERSION = '3.4' as const;
+
+export function getOrderEip712Domain(
+  chainId: number,
+  verifyingContract: `0x${string}`,
+) {
+  return {
+    name: ORDER_DOMAIN_NAME,
+    version: ORDER_DOMAIN_VERSION,
+    chainId,
+    verifyingContract,
+  } as const;
+}
+
+export const EIP712_DOMAIN = getOrderEip712Domain(ACTIVE_CHAIN_ID, CONTRACTS.MARKETPLACE_ATP);
 
 // ── EIP-712 Types ─────────────────────────────────────────────
-// Must match: ORDER_TYPEHASH = keccak256("Order(uint256 orderId,address buyer,address seller,uint256 grossPrice,uint256 amount,uint256 estDeliverySeconds)")
+// Must match:
+// ORDER_TYPEHASH = keccak256(
+//   "Order(uint256 orderId,address buyer,address seller,address paymentToken,uint256 assetId,uint256 grossPrice,uint256 amount,uint256 estDeliverySeconds)"
+// )
 export const ORDER_TYPES = {
   Order: [
     { name: 'orderId', type: 'uint256' },
     { name: 'buyer', type: 'address' },
     { name: 'seller', type: 'address' },
+    { name: 'paymentToken', type: 'address' },
+    { name: 'assetId', type: 'uint256' },
     { name: 'grossPrice', type: 'uint256' },
     { name: 'amount', type: 'uint256' },
     { name: 'estDeliverySeconds', type: 'uint256' },
@@ -36,25 +51,37 @@ export const ORDER_TYPES = {
 } as const;
 
 // ── Mutual Split EIP-712 Types (DisputeManager) ──────────────
-// Must match: MUTUAL_SPLIT_TYPEHASH = keccak256("MutualSplit(uint256 orderId,uint256 deadline)")
-// Note: DisputeManager uses a simple digest, not EIP-712 with domain separator.
-// It uses: keccak256(abi.encodePacked("\x19\x01", block.chainid, keccak256(abi.encode(MUTUAL_SPLIT_TYPEHASH, orderId, d.deadline))))
-// This is a custom EIP-191 + chainId scheme, not standard EIP-712.
+// Must match:
+// MUTUAL_SPLIT_TYPEHASH = keccak256("MutualSplit(uint256 orderId,uint256 openedAt,uint256 deadline)")
 export const MUTUAL_SPLIT_TYPES = {
   MutualSplit: [
     { name: 'orderId', type: 'uint256' },
+    { name: 'openedAt', type: 'uint256' },
     { name: 'deadline', type: 'uint256' },
   ],
 } as const;
 
 // ── Dispute Agreement EIP-712 Types (DisputeManager v3.4) ───
 // Must match: keccak256("DisputeAgreement(uint256 orderId,uint8 verdict,uint256 buyerShareBps,uint256 sellerShareBps,uint256 openedAt)")
-export const DISPUTE_AGREEMENT_DOMAIN = {
-  name: 'DisputeManager',
-  version: '3.4',
-  chainId: ACTIVE_CHAIN_ID,
-  verifyingContract: CONTRACTS.DISPUTE_MANAGER,
-} as const;
+export const DISPUTE_AGREEMENT_DOMAIN_NAME = 'DisputeManager' as const;
+export const DISPUTE_AGREEMENT_DOMAIN_VERSION = '3.4' as const;
+
+export function getDisputeAgreementDomain(
+  chainId: number,
+  verifyingContract: `0x${string}`,
+) {
+  return {
+    name: DISPUTE_AGREEMENT_DOMAIN_NAME,
+    version: DISPUTE_AGREEMENT_DOMAIN_VERSION,
+    chainId,
+    verifyingContract,
+  } as const;
+}
+
+export const DISPUTE_AGREEMENT_DOMAIN = getDisputeAgreementDomain(
+  ACTIVE_CHAIN_ID,
+  CONTRACTS.DISPUTE_MANAGER,
+);
 
 export const DISPUTE_AGREEMENT_TYPES = {
   DisputeAgreement: [
@@ -71,6 +98,8 @@ export interface OrderSignMessage {
   orderId: bigint;
   buyer: `0x${string}`;
   seller: `0x${string}`;
+  paymentToken: `0x${string}`;
+  assetId: bigint;
   grossPrice: bigint;
   amount: bigint;
   estDeliverySeconds: bigint;
@@ -83,15 +112,26 @@ export interface OrderSignMessage {
  *   - Seller (Sig 2): During sellerConfirm (orderId known, seller can keep or revise estDeliverySeconds)
  *   - Buyer (Sig 3): During payOrder only if seller revised estDeliverySeconds
  */
-export function buildOrderTypedData(message: OrderSignMessage) {
+export function buildOrderTypedData(
+  message: OrderSignMessage,
+  options?: {
+    chainId?: number;
+    verifyingContract?: `0x${string}`;
+  },
+) {
+  const domain = options?.chainId && options?.verifyingContract
+    ? getOrderEip712Domain(options.chainId, options.verifyingContract)
+    : EIP712_DOMAIN;
   return {
-    domain: EIP712_DOMAIN,
+    domain,
     types: ORDER_TYPES,
     primaryType: 'Order' as const,
     message: {
       orderId: message.orderId,
       buyer: message.buyer,
       seller: message.seller,
+      paymentToken: message.paymentToken,
+      assetId: message.assetId,
       grossPrice: message.grossPrice,
       amount: message.amount,
       estDeliverySeconds: message.estDeliverySeconds,
@@ -99,19 +139,32 @@ export function buildOrderTypedData(message: OrderSignMessage) {
   };
 }
 
-/**
- * Build the mutual split digest for signing in DisputeManager.
- * Note: This uses a custom scheme, not standard EIP-712.
- * The frontend needs to sign a message that hashes to the same digest as the contract.
- * 
- * Solidity: keccak256(abi.encodePacked("\x19\x01", block.chainid, keccak256(abi.encode(MUTUAL_SPLIT_TYPEHASH, orderId, deadline))))
- * 
- * For wagmi signMessage, we construct the raw bytes and use personal_sign.
- * For more accurate signing, use viem's custom signing utilities.
- */
 export interface MutualSplitSignMessage {
   orderId: bigint;
+  openedAt: bigint;
   deadline: bigint;
+}
+
+export function buildMutualSplitTypedData(
+  message: MutualSplitSignMessage,
+  options?: {
+    chainId?: number;
+    verifyingContract?: `0x${string}`;
+  },
+) {
+  const domain = options?.chainId && options?.verifyingContract
+    ? getDisputeAgreementDomain(options.chainId, options.verifyingContract)
+    : DISPUTE_AGREEMENT_DOMAIN;
+  return {
+    domain,
+    types: MUTUAL_SPLIT_TYPES,
+    primaryType: 'MutualSplit' as const,
+    message: {
+      orderId: message.orderId,
+      openedAt: message.openedAt,
+      deadline: message.deadline,
+    },
+  };
 }
 
 export interface DisputeAgreementSignMessage {
@@ -122,9 +175,18 @@ export interface DisputeAgreementSignMessage {
   openedAt: bigint;
 }
 
-export function buildDisputeAgreementTypedData(message: DisputeAgreementSignMessage) {
+export function buildDisputeAgreementTypedData(
+  message: DisputeAgreementSignMessage,
+  options?: {
+    chainId?: number;
+    verifyingContract?: `0x${string}`;
+  },
+) {
+  const domain = options?.chainId && options?.verifyingContract
+    ? getDisputeAgreementDomain(options.chainId, options.verifyingContract)
+    : DISPUTE_AGREEMENT_DOMAIN;
   return {
-    domain: DISPUTE_AGREEMENT_DOMAIN,
+    domain,
     types: DISPUTE_AGREEMENT_TYPES,
     primaryType: 'DisputeAgreement' as const,
     message: {

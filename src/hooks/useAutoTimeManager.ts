@@ -9,21 +9,26 @@
  */
 
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { CONTRACTS } from '@/config/contracts';
 import { AUTO_TIME_MANAGER_ABI } from '@/config/abis';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 // ── Read Hooks ────────────────────────────────────────────────
 
 export function useAutoTimeConstants() {
+  const { autoTimeManagerAddress, chainId } = useProtocolDataNetwork();
   const timeout = useReadContract({
-    address: CONTRACTS.AUTOTIME_MANAGER,
+    chainId: chainId ?? undefined,
+    address: autoTimeManagerAddress,
     abi: AUTO_TIME_MANAGER_ABI,
     functionName: 'SELLER_CONFIRM_TIMEOUT',
+    query: { enabled: Boolean(chainId && autoTimeManagerAddress) },
   });
   const maxBatch = useReadContract({
-    address: CONTRACTS.AUTOTIME_MANAGER,
+    chainId: chainId ?? undefined,
+    address: autoTimeManagerAddress,
     abi: AUTO_TIME_MANAGER_ABI,
     functionName: 'MAX_BATCH_SIZE',
+    query: { enabled: Boolean(chainId && autoTimeManagerAddress) },
   });
 
   return {
@@ -36,12 +41,20 @@ export function useAutoTimeConstants() {
 
 /** Check and execute timeout for a single order */
 export function useCheckAndExecute() {
+  const { autoTimeManagerAddress, chainId } = useProtocolDataNetwork();
   const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const checkAndExecute = async (orderId: bigint) => {
+    if (!chainId || !autoTimeManagerAddress) {
+      throw new Error('Protocol network is not enabled for timeout execution');
+    }
     writeContract({
-      address: CONTRACTS.AUTOTIME_MANAGER,
+      chainId,
+      address: autoTimeManagerAddress,
       abi: AUTO_TIME_MANAGER_ABI,
       functionName: 'checkAndExecute',
       args: [orderId],
@@ -53,15 +66,23 @@ export function useCheckAndExecute() {
 
 /** Batch check and execute for multiple orders (max 100) */
 export function useBatchCheckAndExecute() {
+  const { autoTimeManagerAddress, chainId } = useProtocolDataNetwork();
   const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const batchCheckAndExecute = async (orderIds: bigint[]) => {
     if (orderIds.length > 100) {
       throw new Error('Batch size exceeds maximum of 100');
     }
+    if (!chainId || !autoTimeManagerAddress) {
+      throw new Error('Protocol network is not enabled for timeout execution');
+    }
     writeContract({
-      address: CONTRACTS.AUTOTIME_MANAGER,
+      chainId,
+      address: autoTimeManagerAddress,
       abi: AUTO_TIME_MANAGER_ABI,
       functionName: 'batchCheckAndExecute',
       args: [orderIds],

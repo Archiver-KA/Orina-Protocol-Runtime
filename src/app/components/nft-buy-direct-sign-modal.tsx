@@ -10,7 +10,8 @@ import { ProtocolChainBanner } from '@/app/components/ui/protocol-chain-banner';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 import { useBuyerSign1, useSignOrder } from '@/hooks/useEIP712Sign';
 import { useProtocolChain } from '@/hooks/useProtocolChain';
-import { CONTRACTS } from '@/config/contracts';
+import { CONTRACTS, PAYMENT_TOKENS, type PaymentTokenSymbol } from '@/config/contracts';
+import { parseOnchainBigIntLike } from '@/utils/onchainNormalization';
 import { getWalletErrorMessage } from '@/utils/walletErrors';
 
 interface NftBuyDirectSignModalProps {
@@ -36,6 +37,26 @@ function parseAssetPriceToBaseUnits(price: string, currency: MarketplaceAsset['c
   }
 }
 
+function resolveProtocolPaymentToken(currency: MarketplaceAsset['currency']): {
+  symbol: PaymentTokenSymbol;
+  address: `0x${string}`;
+  decimals: number;
+} {
+  if (currency === 'USDC') {
+    return {
+      symbol: 'USDC',
+      address: PAYMENT_TOKENS.USDC,
+      decimals: 6,
+    };
+  }
+
+  return {
+    symbol: 'WBNB',
+    address: PAYMENT_TOKENS.WBNB,
+    decimals: 18,
+  };
+}
+
 export function NftBuyDirectSignModal({
   asset,
   transparentBackdrop = false,
@@ -53,6 +74,11 @@ export function NftBuyDirectSignModal({
   } | null>(null);
 
   const sellerAddress = isValidEvmAddress(asset.seller.address) ? asset.seller.address : null;
+  const paymentToken = useMemo(() => resolveProtocolPaymentToken(asset.currency), [asset.currency]);
+  const canonicalAssetId = useMemo(
+    () => parseOnchainBigIntLike(asset.onchainAssetId ?? asset.tokenId),
+    [asset.onchainAssetId, asset.tokenId],
+  );
   const grossPrice = useMemo(() => parseAssetPriceToBaseUnits(asset.price, asset.currency), [asset.price, asset.currency]);
   const previewOrderId = useMemo(() => BigInt(Date.now()), []);
   const fixedEstDeliverySeconds = 0n;
@@ -61,6 +87,7 @@ export function NftBuyDirectSignModal({
     !!address &&
     isValidEvmAddress(address) &&
     !!sellerAddress &&
+    canonicalAssetId !== null &&
     grossPrice !== null;
 
   const canUsePredictedSignature =
@@ -73,7 +100,7 @@ export function NftBuyDirectSignModal({
   };
 
   const handleSign = async () => {
-    if (!address || !isValidEvmAddress(address) || !sellerAddress || grossPrice === null) {
+    if (!address || !isValidEvmAddress(address) || !sellerAddress || canonicalAssetId === null || grossPrice === null) {
       toast.error('Missing wallet or valid NFT order data for signing');
       return;
     }
@@ -90,6 +117,8 @@ export function NftBuyDirectSignModal({
       if (canUsePredictedSignature && buyerSig1.predictedOrderId !== undefined) {
         signature = await buyerSig1.sign({
           seller: sellerAddress,
+          paymentToken: paymentToken.address,
+          assetId: canonicalAssetId,
           grossPrice,
           amount: 1n,
           estDeliverySeconds: fixedEstDeliverySeconds,
@@ -101,6 +130,8 @@ export function NftBuyDirectSignModal({
           orderId: previewOrderId,
           buyer: address,
           seller: sellerAddress,
+          paymentToken: paymentToken.address,
+          assetId: canonicalAssetId,
           grossPrice,
           amount: 1n,
           estDeliverySeconds: fixedEstDeliverySeconds,
