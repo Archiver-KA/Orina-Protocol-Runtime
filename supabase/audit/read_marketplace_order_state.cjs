@@ -1,8 +1,10 @@
 const { createPublicClient, http } = require('viem');
 const { bscTestnet } = require('viem/chains');
+const { getRuntimeConfig } = require('./protocol_runtime_config.cjs');
 
-const MARKETPLACE = process.env.MARKETPLACE_ATP_ADDRESS || '0x026c9e9a5d007ed46df3de900f53c0786ec650c8';
-const RPC_URL = 'https://data-seed-prebsc-1-s1.bnbchain.org:8545/';
+const RUNTIME = getRuntimeConfig();
+const MARKETPLACE = process.env.MARKETPLACE_ATP_ADDRESS || RUNTIME.addresses.marketplace;
+const RPC_URL = process.env.RPC_URL || RUNTIME.rpcUrl;
 
 const orderIdArg = process.argv[2];
 if (!orderIdArg) {

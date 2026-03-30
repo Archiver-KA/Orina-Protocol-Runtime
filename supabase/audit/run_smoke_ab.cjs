@@ -1,15 +1,17 @@
 const { execFileSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { getRuntimeConfig } = require('./protocol_runtime_config.cjs');
 
+const RUNTIME = getRuntimeConfig();
 const ROOT = process.cwd();
 const FOUNDRY_DIR = path.join(ROOT, 'foundry');
-const GENERATED_BACKFILL_SQL = path.join(ROOT, 'supabase', 'audit', 'generated_protocol_projection_backfill.sql');
-const RPC_URL = 'https://data-seed-prebsc-1-s1.bnbchain.org:8545/';
-const MARKETPLACE = '0x026c9e9a5d007ed46df3de900f53c0786ec650c8';
-const ORINA_RWA = '0x5fc61747b359e089e3ced00494f9e71de836b666';
-const PAYMENT_GATEWAY = '0xce3a439e2aaa9fe86a71c661d8652b1bcb080836';
-const DISPUTE_MANAGER = '0xa31b543254c138178506244f20c0f7630b6709d5';
+const GENERATED_BACKFILL_SQL = RUNTIME.artifacts.projectionSqlOut;
+const RPC_URL = RUNTIME.rpcUrl;
+const MARKETPLACE = RUNTIME.addresses.marketplace;
+const ORINA_RWA = RUNTIME.addresses.orinaRwa;
+const PAYMENT_GATEWAY = RUNTIME.addresses.paymentGateway;
+const DISPUTE_MANAGER = RUNTIME.addresses.disputeManager;
 
 function parseEnvFile(filePath) {
   const map = {};

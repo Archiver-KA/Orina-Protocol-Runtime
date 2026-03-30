@@ -7,5 +7,5 @@ select
   marketplace_contract
 from public.protocol_orders
 where chain_id = 97
-  and marketplace_contract = '0x026c9e9a5d007ed46df3de900f53c0786ec650c8'
+  and marketplace_contract = '0xbc6f46000b2709714c3908bb6b71bab67a2d1495'
 order by order_uid::int;

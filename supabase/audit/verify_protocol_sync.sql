@@ -6,7 +6,7 @@ select
   asset_token_id
 from public.protocol_orders
 where chain_id = 97
-  and marketplace_contract = '0x026c9e9a5d007ed46df3de900f53c0786ec650c8'
+  and marketplace_contract = '0xbc6f46000b2709714c3908bb6b71bab67a2d1495'
 order by order_uid::int;
 
 select
@@ -24,5 +24,5 @@ select
   status
 from public.protocol_assets
 where chain_id = 97
-  and asset_contract = '0x5fc61747b359e089e3ced00494f9e71de836b666'
+  and asset_contract = '0x72c3477c57097f3791501f3839bb380a019b754f'
 order by token_id::int;

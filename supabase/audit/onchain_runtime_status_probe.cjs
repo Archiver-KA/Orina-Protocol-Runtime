@@ -1,56 +1,4 @@
-const fs = require('fs');
-const path = require('path');
-
-const ROOT = process.cwd();
-const CONTRACTS_TS = path.join(ROOT, 'src', 'config', 'contracts.ts');
-
-function parseContractsTs() {
-  const src = fs.readFileSync(CONTRACTS_TS, 'utf8');
-
-  const chainConfig = {};
-  for (const m of src.matchAll(/([A-Z_]+):\s*(\d+),/g)) {
-    if (
-      ['PRIMARY_CHAIN_ID', 'TESTNET_CHAIN_ID', 'DEV_CHAIN_ID'].includes(m[1])
-    ) {
-      chainConfig[m[1]] = Number(m[2]);
-    }
-  }
-
-  let activeChainId = null;
-  const activeRef = src.match(
-    /export const ACTIVE_CHAIN_ID = CHAIN_CONFIG\.([A-Z_]+);/
-  );
-  if (activeRef && chainConfig[activeRef[1]] != null) {
-    activeChainId = chainConfig[activeRef[1]];
-  } else {
-    const activeRaw = src.match(/export const ACTIVE_CHAIN_ID = (\d+);/);
-    if (activeRaw) activeChainId = Number(activeRaw[1]);
-  }
-
-  const rpcUrls = {};
-  const rpcBlockMatch = src.match(
-    /export const RPC_URLS = \{([\s\S]*?)\n\} as const;/
-  );
-  if (rpcBlockMatch) {
-    for (const m of rpcBlockMatch[1].matchAll(/\[(\d+)\]:\s*'([^']+)'/g)) {
-      rpcUrls[Number(m[1])] = m[2];
-    }
-  }
-
-  const contractEntries = {};
-  const contractsBlockMatch = src.match(
-    /export const CONTRACTS = \{([\s\S]*?)\n\} as const;/
-  );
-  if (contractsBlockMatch) {
-    for (const m of contractsBlockMatch[1].matchAll(
-      /([A-Z_]+):\s*'(0x[a-fA-F0-9]{40})'/g
-    )) {
-      contractEntries[m[1]] = m[2];
-    }
-  }
-
-  return { chainConfig, activeChainId, rpcUrls, contractEntries };
-}
+const { ROOT, parseContractsTs } = require('./protocol_runtime_config.cjs');
 
 async function rpcCall(url, method, params = []) {
   const ctrl = new AbortController();
@@ -201,4 +149,3 @@ main().catch((err) => {
   console.error('ONCHAIN_RUNTIME_STATUS_PROBE_ERROR', err);
   process.exit(1);
 });
-

@@ -1,16 +1,17 @@
 import { ACTIVE_CHAIN_ID, CONTRACTS, PAYMENT_TOKENS, PROTOCOL } from "@/config/contracts";
 import { deriveOrderProgress } from "@/utils/orderLifecycle";
 import type { OrderShippingAddressSnapshot, OrderUiRecord } from "@/types/order";
+import { parseOnchainBigIntLike } from "@/utils/onchainNormalization";
 import {
   dispatchSyncEvent,
   isSupabaseRestEnabled,
   restSelect,
-  restUpsert,
 } from "@/utils/supabaseRest";
+import {
+  getProtocolNetworkOptionByKey,
+  PROTOCOL_NETWORK_STORAGE_KEY,
+} from "@/utils/protocolNetwork";
 
-const CURRENT_MARKETPLACE_CONTRACT = CONTRACTS.MARKETPLACE_ATP.toLowerCase();
-const CURRENT_ASSET_CONTRACT = CONTRACTS.ORINA_RWA.toLowerCase();
-const RUNTIME_ORDERS_STORAGE_KEY = `orina_runtime_orders_v2:${ACTIVE_CHAIN_ID}:${CURRENT_MARKETPLACE_CONTRACT}`;
 export const RUNTIME_ORDERS_CHANGED_EVENT = "orina:orders-changed";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as `0x${string}`;
 const DEFAULT_TOKEN_DECIMALS = 18;
@@ -25,6 +26,14 @@ const PAYMENT_TOKEN_DECIMALS_BY_SYMBOL: Record<string, number> = {
   WBNB: 18,
   ORI: 18,
 };
+
+export interface RuntimeOrderScope {
+  chainId?: number | null;
+  marketplaceContract?: string | null;
+  assetContract?: string | null;
+  disputeManagerAddress?: string | null;
+  unitRegistryAddress?: string | null;
+}
 
 type PaymentTokenSnapshot = {
   symbol?: string;
@@ -143,9 +152,9 @@ export function fromPersistedOrder(order: PersistedOrderUiRecord): OrderUiRecord
   };
 }
 
-function readLocalRuntimeOrders(): OrderUiRecord[] {
+function readLocalRuntimeOrders(scope?: RuntimeOrderScope): OrderUiRecord[] {
   if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(RUNTIME_ORDERS_STORAGE_KEY);
+  const raw = window.localStorage.getItem(getRuntimeOrdersStorageKey(scope));
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw) as PersistedOrderUiRecord[];
@@ -155,10 +164,10 @@ function readLocalRuntimeOrders(): OrderUiRecord[] {
   }
 }
 
-function writeLocalRuntimeOrders(orders: OrderUiRecord[]) {
+function writeLocalRuntimeOrders(orders: OrderUiRecord[], scope?: RuntimeOrderScope) {
   if (typeof window === "undefined") return;
   const serialized = JSON.stringify(orders.map(toPersistedOrder));
-  window.localStorage.setItem(RUNTIME_ORDERS_STORAGE_KEY, serialized);
+  window.localStorage.setItem(getRuntimeOrdersStorageKey(scope), serialized);
   dispatchSyncEvent(RUNTIME_ORDERS_CHANGED_EVENT);
 }
 
@@ -209,6 +218,74 @@ function parseTimestampMs(value?: string | number | null, fallback = 0) {
 
 function looksLikeAddress(value?: string | null) {
   return typeof value === "string" && /^0x[a-fA-F0-9]{40}$/.test(value.trim());
+}
+
+function readStoredRuntimeOrderScope(): RuntimeOrderScope {
+  if (typeof window === "undefined") {
+    return {
+      chainId: ACTIVE_CHAIN_ID,
+      marketplaceContract: CONTRACTS.MARKETPLACE_ATP,
+      assetContract: CONTRACTS.ORINA_RWA,
+    };
+  }
+
+  try {
+    const selectedNetworkKey = window.localStorage.getItem(PROTOCOL_NETWORK_STORAGE_KEY);
+    const selectedNetwork = getProtocolNetworkOptionByKey(selectedNetworkKey);
+    return {
+      chainId: selectedNetwork?.chainId ?? ACTIVE_CHAIN_ID,
+      marketplaceContract:
+        selectedNetwork?.contracts?.MARKETPLACE_ATP ?? null,
+      assetContract:
+        selectedNetwork?.contracts?.ORINA_RWA ?? null,
+    };
+  } catch {
+    return {
+      chainId: ACTIVE_CHAIN_ID,
+      marketplaceContract: CONTRACTS.MARKETPLACE_ATP,
+      assetContract: CONTRACTS.ORINA_RWA,
+    };
+  }
+}
+
+function resolveRuntimeOrderScope(scope?: RuntimeOrderScope) {
+  const stored = readStoredRuntimeOrderScope();
+  const chainId = scope?.chainId ?? stored.chainId ?? ACTIVE_CHAIN_ID;
+  const marketplaceContract = String(
+    scope?.marketplaceContract
+    ?? stored.marketplaceContract
+    ?? `unconfigured-marketplace-${chainId}`,
+  ).toLowerCase();
+  const assetContract = String(
+    scope?.assetContract
+    ?? stored.assetContract
+    ?? `unconfigured-asset-${chainId}`,
+  ).toLowerCase();
+  const disputeManagerAddress = scope?.disputeManagerAddress ?? null;
+  const unitRegistryAddress = scope?.unitRegistryAddress ?? null;
+
+  return {
+    chainId,
+    marketplaceContract,
+    assetContract,
+    marketplaceContractAddress: looksLikeAddress(marketplaceContract)
+      ? (marketplaceContract as `0x${string}`)
+      : null,
+    assetContractAddress: looksLikeAddress(assetContract)
+      ? (assetContract as `0x${string}`)
+      : null,
+    disputeManagerAddress: looksLikeAddress(disputeManagerAddress)
+      ? (disputeManagerAddress as `0x${string}`)
+      : null,
+    unitRegistryAddress: looksLikeAddress(unitRegistryAddress)
+      ? (unitRegistryAddress as `0x${string}`)
+      : null,
+  };
+}
+
+function getRuntimeOrdersStorageKey(scope?: RuntimeOrderScope) {
+  const resolvedScope = resolveRuntimeOrderScope(scope);
+  return `orina_runtime_orders_v2:${resolvedScope.chainId}:${resolvedScope.marketplaceContract}`;
 }
 
 function coalesceString(...values: Array<unknown>) {
@@ -268,8 +345,13 @@ function extractRuntimeOrderMetadata(row: ProtocolOrderRow) {
     runtimeOrder?: PersistedOrderUiRecord;
     paymentTokenSymbol?: string;
     paymentTokenDecimals?: number;
+    assetUid?: string;
+    onchainAssetId?: string | number;
+    tokenId?: string;
+    assetContract?: string;
     unitId?: string | number;
     unitName?: string;
+    unitLabel?: string;
     shippingAddressSnapshot?: OrderShippingAddressSnapshot | null;
     shippingMethodLabel?: string;
     paymentToken?: string;
@@ -282,7 +364,8 @@ function extractRuntimeOrderMetadata(row: ProtocolOrderRow) {
   return metadata;
 }
 
-function toProtocolOrderRow(order: OrderUiRecord): ProtocolOrderRow {
+function toProtocolOrderRow(order: OrderUiRecord, scope?: RuntimeOrderScope): ProtocolOrderRow {
+  const resolvedScope = resolveRuntimeOrderScope(scope);
   const amount = Number(order.amount || 0n);
   const grossPrice = Number(order.grossPrice || 0n);
   const pricePerUnit = amount > 0 ? grossPrice / amount : grossPrice;
@@ -293,9 +376,9 @@ function toProtocolOrderRow(order: OrderUiRecord): ProtocolOrderRow {
   );
   return {
     order_uid: order.orderId.toString(),
-    chain_id: ACTIVE_CHAIN_ID,
-    marketplace_contract: CURRENT_MARKETPLACE_CONTRACT,
-    asset_contract: CURRENT_ASSET_CONTRACT,
+    chain_id: resolvedScope.chainId,
+    marketplace_contract: resolvedScope.marketplaceContract,
+    asset_contract: (order.assetContract ?? resolvedScope.assetContract).toLowerCase(),
     asset_token_id: order.assetId.toString(),
     buyer_address: order.buyer.toLowerCase(),
     seller_address: order.seller.toLowerCase(),
@@ -311,14 +394,19 @@ function toProtocolOrderRow(order: OrderUiRecord): ProtocolOrderRow {
       canonical_status_source: "chain_projection",
       paymentTokenSymbol: paymentTokenSnapshot.symbol,
       paymentTokenDecimals: paymentTokenSnapshot.decimals,
+      assetUid: order.assetUid ?? null,
+      onchainAssetId: order.assetId.toString(),
+      tokenId: order.tokenId ?? order.assetId.toString(),
+      assetContract: order.assetContract ?? resolvedScope.assetContract,
       unitId: order.unitId?.toString(),
       unitName: order.unitName ?? null,
+      unitLabel: order.unitLabel ?? order.unitName ?? null,
       shippingAddressSnapshot: order.shippingAddressSnapshot ?? null,
       shippingMethodLabel: order.shippingMethodLabel ?? null,
       deploymentScope: {
-        chainId: ACTIVE_CHAIN_ID,
-        marketplaceContract: CURRENT_MARKETPLACE_CONTRACT,
-        assetContract: CURRENT_ASSET_CONTRACT,
+        chainId: resolvedScope.chainId,
+        marketplaceContract: resolvedScope.marketplaceContract,
+        assetContract: resolvedScope.assetContract,
       },
       runtimeOrder: toPersistedOrder(order),
       selectedAttributes: order.selectedAttributes ?? [],
@@ -326,7 +414,8 @@ function toProtocolOrderRow(order: OrderUiRecord): ProtocolOrderRow {
   };
 }
 
-export function fromProtocolOrderRow(row: ProtocolOrderRow): OrderUiRecord | null {
+export function fromProtocolOrderRow(row: ProtocolOrderRow, scope?: RuntimeOrderScope): OrderUiRecord | null {
+  const resolvedScope = resolveRuntimeOrderScope(scope);
   const metadata = extractRuntimeOrderMetadata(row);
   const persisted = metadata.runtimeOrder;
   if (persisted) {
@@ -443,6 +532,23 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow): OrderUiRecord | nul
       typeof chainSnapshot?.assetName === "string" ? chainSnapshot.assetName : undefined,
       metadata.assetName,
     ) ?? `Asset #${assetId.toString()}`;
+  const assetUid = coalesceString(
+    typeof chainSnapshot?.assetUid === "string" ? chainSnapshot.assetUid : undefined,
+    metadata.assetUid,
+  );
+  const tokenId = coalesceString(
+    typeof chainSnapshot?.tokenId === "string" ? chainSnapshot.tokenId : undefined,
+    metadata.tokenId,
+    row.asset_token_id,
+  );
+  const assetContract = parseAddressLike(
+    coalesceString(
+      typeof chainSnapshot?.assetContract === "string" ? chainSnapshot.assetContract : undefined,
+      metadata.assetContract,
+      row.asset_contract,
+      resolvedScope.assetContractAddress ?? undefined,
+    ),
+  );
   const unitIdSource =
     chainSnapshot?.unitId !== undefined
       ? (chainSnapshot.unitId as string | number)
@@ -451,6 +557,12 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow): OrderUiRecord | nul
     coalesceString(
       typeof chainSnapshot?.unitName === "string" ? chainSnapshot.unitName : undefined,
       metadata.unitName,
+    );
+  const unitLabel =
+    coalesceString(
+      typeof chainSnapshot?.unitLabel === "string" ? chainSnapshot.unitLabel : undefined,
+      metadata.unitLabel,
+      unitName,
     );
   const buyerSig1Present =
     chainSnapshot?.buyerSig1Present === undefined ? true : Boolean(chainSnapshot.buyerSig1Present);
@@ -466,10 +578,17 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow): OrderUiRecord | nul
     buyer: parseAddressLike(row.buyer_address),
     seller: parseAddressLike(row.seller_address),
     assetId,
+    assetUid,
+    tokenId,
+    assetContract,
     assetName,
     unitId: unitIdSource !== undefined ? parseBigIntLike(unitIdSource) : undefined,
     unitName,
-    network: "bnb",
+    unitLabel,
+    network:
+      resolvedScope.chainId === 56 || resolvedScope.chainId === 97
+        ? "bnb"
+        : `chain-${resolvedScope.chainId}`,
     assetImage: metadata.assetImage || DEFAULT_ASSET_IMAGE,
     amount: amount > 0n ? amount : 1n,
     grossPrice,
@@ -520,52 +639,55 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow): OrderUiRecord | nul
   };
 }
 
-export async function readProjectedOrdersForWallet(walletAddress?: string | null) {
-  if (!isSupabaseRestEnabled() || !walletAddress) {
+export async function readProjectedOrdersForWallet(
+  walletAddress?: string | null,
+  scope?: RuntimeOrderScope,
+) {
+  const resolvedScope = resolveRuntimeOrderScope(scope);
+  if (
+    !isSupabaseRestEnabled()
+    || !walletAddress
+    || !resolvedScope.marketplaceContractAddress
+  ) {
     return [] as OrderUiRecord[];
   }
 
   const normalized = walletAddress.toLowerCase();
   const remoteRows = await restSelect<ProtocolOrderRow>(
     "protocol_orders",
-    `?chain_id=eq.${ACTIVE_CHAIN_ID}&marketplace_contract=eq.${CURRENT_MARKETPLACE_CONTRACT}&or=(buyer_address.eq.${normalized},seller_address.eq.${normalized})`,
+    `?chain_id=eq.${resolvedScope.chainId}&marketplace_contract=eq.${resolvedScope.marketplaceContract}&or=(buyer_address.eq.${normalized},seller_address.eq.${normalized})`,
   );
-  return remoteRows.map(fromProtocolOrderRow).filter((value): value is OrderUiRecord => !!value);
+  return remoteRows
+    .map((row) => fromProtocolOrderRow(row, resolvedScope))
+    .filter((value): value is OrderUiRecord => !!value);
 }
 
-async function syncRuntimeOrderToSupabase(order: OrderUiRecord) {
-  if (!isSupabaseRestEnabled()) return;
-  try {
-    await restUpsert<ProtocolOrderRow>("protocol_orders", [toProtocolOrderRow(order)], {
-      onConflict: "chain_id,marketplace_contract,order_uid",
-    });
-  } catch (error) {
-    console.warn("[runtimeOrders] Failed to sync runtime order to Supabase", error);
-  }
-}
-
-export async function hydrateRuntimeOrdersFromSupabase(walletAddress?: string | null) {
+export async function hydrateRuntimeOrdersFromSupabase(
+  walletAddress?: string | null,
+  scope?: RuntimeOrderScope,
+) {
   if (!isSupabaseRestEnabled() || !walletAddress) {
-    return loadRuntimeOrders(walletAddress);
+    return loadRuntimeOrders(walletAddress, scope);
   }
 
   try {
-    const remoteOrders = await readProjectedOrdersForWallet(walletAddress);
+    const resolvedScope = resolveRuntimeOrderScope(scope);
+    const remoteOrders = await readProjectedOrdersForWallet(walletAddress, resolvedScope);
     const remoteOrderIds = new Set(remoteOrders.map((order) => order.orderId.toString()));
-    const localOnlyOrders = readLocalRuntimeOrders().filter(
+    const localOnlyOrders = readLocalRuntimeOrders(resolvedScope).filter(
       (order) => !remoteOrderIds.has(order.orderId.toString()),
     );
     const merged = mergeOrderRecords(remoteOrders, localOnlyOrders);
-    writeLocalRuntimeOrders(merged);
-    return loadRuntimeOrders(walletAddress);
+    writeLocalRuntimeOrders(merged, resolvedScope);
+    return loadRuntimeOrders(walletAddress, resolvedScope);
   } catch (error) {
     console.warn("[runtimeOrders] Failed to hydrate runtime orders from Supabase", error);
-    return loadRuntimeOrders(walletAddress);
+    return loadRuntimeOrders(walletAddress, scope);
   }
 }
 
-export function loadRuntimeOrders(walletAddress?: string | null): OrderUiRecord[] {
-  const orders = readLocalRuntimeOrders();
+export function loadRuntimeOrders(walletAddress?: string | null, scope?: RuntimeOrderScope): OrderUiRecord[] {
+  const orders = readLocalRuntimeOrders(scope);
   if (!walletAddress) return orders;
   const normalized = walletAddress.toLowerCase();
   return orders.filter(
@@ -574,29 +696,29 @@ export function loadRuntimeOrders(walletAddress?: string | null): OrderUiRecord[
   );
 }
 
-export function saveRuntimeOrders(orders: OrderUiRecord[]) {
-  writeLocalRuntimeOrders(orders);
+export function saveRuntimeOrders(orders: OrderUiRecord[], scope?: RuntimeOrderScope) {
+  writeLocalRuntimeOrders(orders, scope);
 }
 
-export function upsertRuntimeOrder(order: OrderUiRecord) {
-  const current = readLocalRuntimeOrders();
+export function upsertRuntimeOrder(order: OrderUiRecord, scope?: RuntimeOrderScope) {
+  const current = readLocalRuntimeOrders(scope);
   const next = mergeOrderRecords(
     current.filter((existing) => existing.orderId !== order.orderId),
     [order],
   );
-  writeLocalRuntimeOrders(next);
-  void syncRuntimeOrderToSupabase(order);
+  writeLocalRuntimeOrders(next, scope);
 }
 
 export function patchRuntimeOrder(
   orderId: bigint,
   updater: (order: OrderUiRecord) => OrderUiRecord,
+  scope?: RuntimeOrderScope,
 ) {
-  const current = readLocalRuntimeOrders();
+  const current = readLocalRuntimeOrders(scope);
   const target = current.find((order) => order.orderId === orderId);
   if (!target) return null;
   const nextOrder = updater(target);
-  upsertRuntimeOrder(nextOrder);
+  upsertRuntimeOrder(nextOrder, scope);
   return nextOrder;
 }
 
@@ -616,11 +738,16 @@ export function createRuntimeOrderFromRwaIntent(params: {
   buyer: `0x${string}`;
   asset: {
     id: bigint | number | string;
+    assetUid?: string;
+    tokenId?: string;
+    onchainAssetId?: bigint | number | string;
+    assetContract?: `0x${string}`;
     name?: string;
     image?: string;
     imageUrl?: string;
     unitId?: bigint | number | string;
     unitName?: string;
+    unitLabel?: string;
     seller: { address: `0x${string}` } | `0x${string}`;
   };
   quantity: number;
@@ -632,21 +759,26 @@ export function createRuntimeOrderFromRwaIntent(params: {
   shippingAddressSnapshot?: OrderShippingAddressSnapshot | null;
   shippingMethodLabel?: string;
   selectedAttributes?: OrderUiRecord["selectedAttributes"];
+  scope?: RuntimeOrderScope;
 }) {
+  const resolvedScope = resolveRuntimeOrderScope(params.scope);
   const orderNow = Date.now();
   const quantity = BigInt(Math.max(1, Math.trunc(params.quantity)));
   const sellerAddress =
     typeof params.asset.seller === "string" ? params.asset.seller : params.asset.seller.address;
-  const assetIdValue =
-    typeof params.asset.id === "bigint"
-      ? params.asset.id
-      : BigInt(Number(params.asset.id) || orderNow);
+  const canonicalAssetIdSource =
+    params.asset.onchainAssetId ?? params.asset.tokenId ?? params.asset.id;
+  const assetIdValue = parseOnchainBigIntLike(canonicalAssetIdSource);
+  if (assetIdValue === null) {
+    throw new Error("createRuntimeOrderFromRwaIntent requires a canonical on-chain assetId");
+  }
   const unitIdValue =
     params.asset.unitId === undefined
       ? undefined
-      : typeof params.asset.unitId === "bigint"
-        ? params.asset.unitId
-        : BigInt(Number(params.asset.unitId) || 0);
+      : parseOnchainBigIntLike(params.asset.unitId);
+  if (params.asset.unitId !== undefined && unitIdValue === null) {
+    throw new Error("createRuntimeOrderFromRwaIntent received an invalid unitId");
+  }
   const proposedAt = BigInt(Math.floor(orderNow / 1000));
   const paymentToken = params.paymentToken;
   const paymentTokenSnapshot = resolvePaymentTokenSnapshot(
@@ -660,10 +792,25 @@ export function createRuntimeOrderFromRwaIntent(params: {
     buyer: params.buyer,
     seller: sellerAddress,
     assetId: assetIdValue,
+    assetUid: params.asset.assetUid ?? (typeof params.asset.id === "string" ? params.asset.id : undefined),
+    tokenId:
+      typeof params.asset.tokenId === "string"
+        ? params.asset.tokenId
+        : typeof canonicalAssetIdSource === "string" || typeof canonicalAssetIdSource === "number"
+          ? String(canonicalAssetIdSource)
+          : assetIdValue.toString(),
+    assetContract:
+      params.asset.assetContract
+      ?? resolvedScope.assetContractAddress
+      ?? CONTRACTS.ORINA_RWA,
     assetName: params.asset.name ?? `Asset #${assetIdValue.toString()}`,
     unitId: unitIdValue,
     unitName: params.asset.unitName,
-    network: "bnb",
+    unitLabel: params.asset.unitLabel ?? params.asset.unitName,
+    network:
+      resolvedScope.chainId === 56 || resolvedScope.chainId === 97
+        ? "bnb"
+        : `chain-${resolvedScope.chainId}`,
     assetImage: params.asset.imageUrl ?? params.asset.image ?? "",
     amount: quantity,
     grossPrice: params.grossPrice,
@@ -704,6 +851,6 @@ export function createRuntimeOrderFromRwaIntent(params: {
     },
   };
 
-  upsertRuntimeOrder(order);
+  upsertRuntimeOrder(order, resolvedScope);
   return order;
 }

@@ -2,13 +2,15 @@
 
 const fs = require('fs');
 const path = require('path');
+const { getRuntimeConfig } = require('./protocol_runtime_config.cjs');
 
+const RUNTIME = getRuntimeConfig();
 const ROOT_DIR = path.resolve(__dirname, '..', '..');
 const DEFAULTS = {
-  chainId: 97,
-  marketplaceContract: '0x026c9e9a5d007ed46df3de900f53c0786ec650c8',
-  assetContract: '0x5fc61747b359e089e3ced00494f9e71de836b666',
-  paymentToken: '0xae13d989dac2f0debff460ac112a837c89baa7cd',
+  chainId: RUNTIME.chainId,
+  marketplaceContract: RUNTIME.addresses.marketplace,
+  assetContract: RUNTIME.addresses.orinaRwa,
+  paymentToken: RUNTIME.paymentTokens.wbnb,
   orderId: '0',
   assetId: '0',
   buyerAddress: '0xB43F3f31fae56C4e8C0be36EC6f84dD5B1571c14',
@@ -24,22 +26,8 @@ const DEFAULTS = {
   assetImage: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=1200&h=1200&fit=crop',
   bridgeFnName: 'make-server-b0d68fc8',
   bridgePathPrefix: '/auth/supabase-claim-bridge',
-  mintCreateBroadcast: path.join(
-    ROOT_DIR,
-    'foundry',
-    'broadcast',
-    'SmokeMintAndCreateOrder.s.sol',
-    '97',
-    'run-latest.json'
-  ),
-  sellerConfirmBroadcast: path.join(
-    ROOT_DIR,
-    'foundry',
-    'broadcast',
-    'SmokeSellerConfirm.s.sol',
-    '97',
-    'run-latest.json'
-  ),
+  mintCreateBroadcast: RUNTIME.artifacts.smokeMintCreateRunJson,
+  sellerConfirmBroadcast: RUNTIME.artifacts.smokeSellerConfirmRunJson,
 };
 
 function parseEnvFile(filePath) {

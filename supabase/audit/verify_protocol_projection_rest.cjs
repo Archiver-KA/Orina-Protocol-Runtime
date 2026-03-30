@@ -2,12 +2,14 @@
 
 const fs = require('fs');
 const path = require('path');
+const { getRuntimeConfig } = require('./protocol_runtime_config.cjs');
 
+const RUNTIME = getRuntimeConfig();
 const ROOT = path.resolve(__dirname, '..', '..');
 const DEFAULTS = {
-  chainId: 97,
-  marketplace: '0x026c9e9a5d007ed46df3de900f53c0786ec650c8',
-  assetContract: '0x5fc61747b359e089e3ced00494f9e71de836b666',
+  chainId: RUNTIME.chainId,
+  marketplace: RUNTIME.addresses.marketplace,
+  assetContract: RUNTIME.addresses.orinaRwa,
   buyer: '0xb43f3f31fae56c4e8c0be36ec6f84dd5b1571c14',
   seller: '0x282be18838d7079c215f49749a9606d77e00888b',
 };
@@ -42,8 +44,8 @@ async function requestJson(url, headers) {
 
 async function main() {
   const env = parseEnvFile(path.join(ROOT, '.env'));
-  const supabaseUrl = String(env.VITE_SUPABASE_URL || '').replace(/\/+$/, '');
-  const anonKey = String(env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY || '').trim();
+  const supabaseUrl = String(env.VITE_SUPABASE_URL || RUNTIME.frontend.supabaseUrl || '').replace(/\/+$/, '');
+  const anonKey = String(env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY || RUNTIME.frontend.anonKey || '').trim();
   if (!supabaseUrl || !anonKey) {
     throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY/VITE_SUPABASE_PUBLISHABLE_KEY');
   }

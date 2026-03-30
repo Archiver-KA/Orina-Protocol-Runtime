@@ -5,25 +5,20 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { createPublicClient, decodeEventLog, http } = require('viem');
 const { bscTestnet } = require('viem/chains');
+const { getRuntimeConfig } = require('./protocol_runtime_config.cjs');
 
-const ROOT = path.resolve(__dirname, '..', '..');
+const RUNTIME = getRuntimeConfig();
+const ROOT = RUNTIME.ROOT;
 const DEFAULTS = {
-  chainId: 97,
-  rpcUrl: 'https://data-seed-prebsc-1-s1.bnbchain.org:8545/',
-  marketplace: '0x026c9e9a5d007ed46df3de900f53c0786ec650c8',
-  disputeManager: '0xa31b543254c138178506244f20c0f7630b6709d5',
-  assetContract: '0x5fc61747b359e089e3ced00494f9e71de836b666',
-  deployArtifact: path.join(
-    ROOT,
-    'foundry',
-    'broadcast',
-    'DeployFullSystemDirect.s.sol',
-    '97',
-    'run-latest.json',
-  ),
-  sqlOut: path.join(ROOT, 'supabase', 'audit', 'generated_protocol_order_events_backfill.sql'),
+  chainId: RUNTIME.chainId,
+  rpcUrl: RUNTIME.rpcUrl,
+  marketplace: RUNTIME.addresses.marketplace,
+  disputeManager: RUNTIME.addresses.disputeManager,
+  assetContract: RUNTIME.addresses.orinaRwa,
+  deployArtifact: RUNTIME.artifacts.coreDeployRunJson,
+  sqlOut: RUNTIME.artifacts.orderEventsSqlOut,
   chunkSize: 5_000n,
-  broadcastDir: path.join(ROOT, 'foundry', 'broadcast'),
+  broadcastDir: RUNTIME.artifacts.broadcastDir,
 };
 
 const MARKETPLACE_EVENT_ABI = [
@@ -750,12 +745,12 @@ function runApplyLinked(sqlFile) {
 }
 
 async function main() {
-  const env = parseEnvFile(path.join(ROOT, '.env'));
+  const env = { ...RUNTIME.rootEnv, ...RUNTIME.foundryEnv };
   const options = parseArgs(process.argv.slice(2));
 
-  const marketplace = normalizeAddress(process.env.MARKETPLACE_ATP_ADDRESS || DEFAULTS.marketplace);
-  const disputeManager = normalizeAddress(process.env.DISPUTE_MANAGER_ADDRESS || DEFAULTS.disputeManager);
-  const assetContract = normalizeAddress(process.env.ORINA_RWA_ADDRESS || DEFAULTS.assetContract);
+  const marketplace = normalizeAddress(process.env.MARKETPLACE_ATP_ADDRESS || env.MARKETPLACE_ATP_ADDRESS || DEFAULTS.marketplace);
+  const disputeManager = normalizeAddress(process.env.DISPUTE_MANAGER_ADDRESS || env.DISPUTE_MANAGER_ADDRESS || DEFAULTS.disputeManager);
+  const assetContract = normalizeAddress(process.env.ORINA_RWA_ADDRESS || env.ORINA_RWA_ADDRESS || DEFAULTS.assetContract);
   const chainId = DEFAULTS.chainId;
   const sqlOut = options.sqlOut || DEFAULTS.sqlOut;
   const deployArtifact = options.deployArtifact || DEFAULTS.deployArtifact;
@@ -768,13 +763,13 @@ async function main() {
 
   const client = createPublicClient({
     chain: bscTestnet,
-    transport: http(process.env.RPC_URL || DEFAULTS.rpcUrl),
+    transport: http(process.env.RPC_URL || env.RPC_URL || env.BSC_TESTNET_RPC_URL || DEFAULTS.rpcUrl),
   });
 
   const toBlock = options.toBlock ?? await client.getBlockNumber();
   const orderIdMap = await fetchOrderIdMap({
-    supabaseUrl: env.VITE_SUPABASE_URL,
-    anonKey: env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    supabaseUrl: env.VITE_SUPABASE_URL || RUNTIME.frontend.supabaseUrl,
+    anonKey: env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY || RUNTIME.frontend.anonKey,
     chainId,
     marketplaceAddress: marketplace,
   });

@@ -4,13 +4,14 @@ import {
   encodeEq,
   isSupabaseRestEnabled,
   restSelect,
-  restUpsert,
   toQuery,
 } from "@/utils/supabaseRest";
 import type { AssetDetails, MyAssetNft, MyAssetRwa } from "@/types/asset";
+import {
+  getProtocolNetworkOptionByKey,
+  PROTOCOL_NETWORK_STORAGE_KEY,
+} from "@/utils/protocolNetwork";
 
-const CURRENT_ASSET_CONTRACT = CONTRACTS.ORINA_RWA.toLowerCase();
-const RUNTIME_MINTED_ASSETS_STORAGE_KEY = `orina_runtime_minted_assets_v2:${ACTIVE_CHAIN_ID}:${CURRENT_ASSET_CONTRACT}`;
 export const RUNTIME_MINTED_ASSETS_CHANGED_EVENT = "orina:runtime-minted-assets-changed";
 const DEFAULT_ASSET_IMAGE =
   "data:image/svg+xml;utf8," +
@@ -46,6 +47,11 @@ interface ProtocolAssetRow {
   metadata?: Record<string, unknown> | null;
 }
 
+export interface RuntimeMintedAssetScope {
+  chainId?: number | null;
+  assetContract?: string | null;
+}
+
 function parseNumberLike(value: unknown, fallback = 0) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
@@ -75,6 +81,56 @@ function coalesceString(...values: Array<unknown>) {
   return undefined;
 }
 
+function looksLikeAddress(value?: string | null) {
+  return typeof value === "string" && /^0x[a-fA-F0-9]{40}$/.test(value.trim());
+}
+
+function readStoredRuntimeMintedAssetScope(): RuntimeMintedAssetScope {
+  if (typeof window === "undefined") {
+    return {
+      chainId: ACTIVE_CHAIN_ID,
+      assetContract: CONTRACTS.ORINA_RWA,
+    };
+  }
+
+  try {
+    const selectedNetworkKey = window.localStorage.getItem(PROTOCOL_NETWORK_STORAGE_KEY);
+    const selectedNetwork = getProtocolNetworkOptionByKey(selectedNetworkKey);
+    return {
+      chainId: selectedNetwork?.chainId ?? ACTIVE_CHAIN_ID,
+      assetContract: selectedNetwork?.contracts?.ORINA_RWA ?? null,
+    };
+  } catch {
+    return {
+      chainId: ACTIVE_CHAIN_ID,
+      assetContract: CONTRACTS.ORINA_RWA,
+    };
+  }
+}
+
+function resolveRuntimeMintedAssetScope(scope?: RuntimeMintedAssetScope) {
+  const stored = readStoredRuntimeMintedAssetScope();
+  const chainId = scope?.chainId ?? stored.chainId ?? ACTIVE_CHAIN_ID;
+  const assetContract = String(
+    scope?.assetContract
+    ?? stored.assetContract
+    ?? `unconfigured-asset-${chainId}`,
+  ).toLowerCase();
+
+  return {
+    chainId,
+    assetContract,
+    assetContractAddress: looksLikeAddress(assetContract)
+      ? (assetContract as `0x${string}`)
+      : null,
+  };
+}
+
+function getRuntimeMintedAssetsStorageKey(scope?: RuntimeMintedAssetScope) {
+  const resolvedScope = resolveRuntimeMintedAssetScope(scope);
+  return `orina_runtime_minted_assets_v2:${resolvedScope.chainId}:${resolvedScope.assetContract}`;
+}
+
 function normalizeAssetStatusLabel(status?: string | null) {
   const normalized = String(status || "").trim().toLowerCase();
   if (!normalized) return "Active";
@@ -92,55 +148,106 @@ function buildGenericDetails(
   tokenId: string,
   ownerAddress: string,
   createdAt: number,
+  scope?: RuntimeMintedAssetScope,
+  fallback?: AssetDetails | null,
 ): AssetDetails {
+  const resolvedScope = resolveRuntimeMintedAssetScope(scope);
   const name =
     coalesceString(
       metadata.assetName,
       metadata.name,
       typeof chainSnapshot.assetName === "string" ? chainSnapshot.assetName : undefined,
+      fallback?.name,
     ) ?? `Asset #${tokenId}`;
   const unitName =
     coalesceString(
       metadata.unitName,
       typeof chainSnapshot.unitName === "string" ? chainSnapshot.unitName : undefined,
+      fallback?.unitName,
     ) ?? "RWA";
   const totalAmount = parseNumberLike(chainSnapshot.totalAmount ?? row.total_amount, 1);
   const availableAmount = parseNumberLike(chainSnapshot.availableAmount ?? row.available_amount, totalAmount);
+  const image =
+    coalesceString(
+      metadata.image,
+      metadata.coverImageUrl,
+      fallback?.image,
+    ) ?? DEFAULT_ASSET_IMAGE;
   return {
+    ...fallback,
     id: tokenId,
+    assetUid:
+      coalesceString(
+        metadata.assetUid,
+        metadata.runtimeAssetUid,
+        fallback?.assetUid,
+      ) ?? tokenId,
     tokenId,
+    onchainAssetId:
+      coalesceString(
+        metadata.onchainAssetId,
+        metadata.assetId,
+        tokenId,
+        fallback?.onchainAssetId,
+      ) ?? tokenId,
     name,
-    description: `On-chain ${unitName} asset #${tokenId}`,
-    category: unitName,
-    blockchain: "BSC",
-    currentPrice: "0",
-    currentPriceUsd: "0",
-    image: DEFAULT_ASSET_IMAGE,
-    images: [DEFAULT_ASSET_IMAGE],
+    description: coalesceString(metadata.description, fallback?.description) ?? `On-chain ${unitName} asset #${tokenId}`,
+    category: coalesceString(metadata.category, fallback?.category) ?? unitName,
+    blockchain:
+      resolvedScope.chainId === 56 || resolvedScope.chainId === 97
+        ? "BSC"
+        : `Chain ${resolvedScope.chainId}`,
+    currentPrice: fallback?.currentPrice ?? "0",
+    currentPriceUsd: fallback?.currentPriceUsd ?? "0",
+    image,
+    images: Array.from(new Set([image, ...(fallback?.images ?? [])].filter(Boolean))),
     properties: [
       { trait_type: "Asset ID", value: tokenId },
       { trait_type: "Unit ID", value: String(chainSnapshot.unitId ?? "0") },
       { trait_type: "Unit Name", value: unitName },
       { trait_type: "Status", value: normalizeAssetStatusLabel(row.status) },
     ],
-    views: 0,
-    favorites: 0,
-    totalVolume: "0",
-    totalSales: Math.max(0, totalAmount - availableAmount),
+    views: fallback?.views ?? 0,
+    favorites: fallback?.favorites ?? 0,
+    totalVolume: fallback?.totalVolume ?? "0",
+    totalSales: fallback?.totalSales ?? Math.max(0, totalAmount - availableAmount),
     currentOwner: ownerAddress,
-    creator: ownerAddress,
-    ownerHistory: [
-      {
-        address: ownerAddress,
-        timestamp: createdAt,
-      },
-    ],
-    priceHistory: [],
-    contractAddress: String(row.asset_contract || CONTRACTS.ORINA_RWA),
-    tokenStandard: Number(chainSnapshot.assetType) === 1 ? "ERC-721-like" : "RWA",
-    mintDate: createdAt,
-    verified: true,
-    seller: {
+    creator: fallback?.creator ?? ownerAddress,
+    ownerHistory:
+      fallback?.ownerHistory?.length
+        ? fallback.ownerHistory
+        : [
+            {
+              address: ownerAddress,
+              timestamp: createdAt,
+            },
+          ],
+    priceHistory: fallback?.priceHistory ?? [],
+    contractAddress: String(
+      row.asset_contract
+      || fallback?.contractAddress
+      || resolvedScope.assetContractAddress
+      || CONTRACTS.ORINA_RWA,
+    ),
+    unitId: coalesceString(
+      metadata.unitId,
+      typeof chainSnapshot.unitId === "string" || typeof chainSnapshot.unitId === "number"
+        ? String(chainSnapshot.unitId)
+        : undefined,
+      fallback?.unitId,
+    ),
+    unitName,
+    unitLabel:
+      coalesceString(
+        metadata.unitLabel,
+        metadata.unitName,
+        typeof chainSnapshot.unitName === "string" ? chainSnapshot.unitName : undefined,
+        fallback?.unitLabel,
+      ) ?? unitName,
+    tokenStandard: fallback?.tokenStandard ?? (Number(chainSnapshot.assetType) === 1 ? "ERC-721-like" : "RWA"),
+    mintDate: fallback?.mintDate ?? createdAt,
+    verified: fallback?.verified ?? true,
+    seller: fallback?.seller ?? {
       name: "On-chain Seller",
       address: ownerAddress,
     },
@@ -174,10 +281,10 @@ function fromPersistedRecord(record: PersistedRuntimeMintedAssetRecord): Runtime
   };
 }
 
-function readLocalRuntimeMintedAssets(): RuntimeMintedAssetRecord[] {
+function readLocalRuntimeMintedAssets(scope?: RuntimeMintedAssetScope): RuntimeMintedAssetRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(RUNTIME_MINTED_ASSETS_STORAGE_KEY);
+    const raw = window.localStorage.getItem(getRuntimeMintedAssetsStorageKey(scope));
     if (!raw) return [];
     const parsed = JSON.parse(raw) as PersistedRuntimeMintedAssetRecord[];
     return Array.isArray(parsed)
@@ -188,10 +295,10 @@ function readLocalRuntimeMintedAssets(): RuntimeMintedAssetRecord[] {
   }
 }
 
-function writeLocalRuntimeMintedAssets(records: RuntimeMintedAssetRecord[]) {
+function writeLocalRuntimeMintedAssets(records: RuntimeMintedAssetRecord[], scope?: RuntimeMintedAssetScope) {
   if (typeof window === "undefined") return;
   const serialized = records.map(toPersistedRecord);
-  window.localStorage.setItem(RUNTIME_MINTED_ASSETS_STORAGE_KEY, JSON.stringify(serialized));
+  window.localStorage.setItem(getRuntimeMintedAssetsStorageKey(scope), JSON.stringify(serialized));
   dispatchSyncEvent(RUNTIME_MINTED_ASSETS_CHANGED_EVENT);
 }
 
@@ -231,12 +338,13 @@ function extractAmounts(record: RuntimeMintedAssetRecord) {
   };
 }
 
-function toProtocolAssetRow(record: RuntimeMintedAssetRecord): ProtocolAssetRow {
+function toProtocolAssetRow(record: RuntimeMintedAssetRecord, scope?: RuntimeMintedAssetScope): ProtocolAssetRow {
+  const resolvedScope = resolveRuntimeMintedAssetScope(scope);
   const { totalAmount, availableAmount } = extractAmounts(record);
   const ownerAddress = record.walletAddress.toLowerCase();
-  const assetContract = (record.details.contractAddress || CONTRACTS.ORINA_RWA).toLowerCase();
+  const assetContract = (record.details.contractAddress || resolvedScope.assetContract).toLowerCase();
   return {
-    chain_id: ACTIVE_CHAIN_ID,
+    chain_id: resolvedScope.chainId,
     asset_contract: assetContract,
     token_id: record.details.tokenId ?? record.id,
     // Owner-facing runtime shadow. Canonical ownership still comes from trusted chain projection.
@@ -251,10 +359,15 @@ function toProtocolAssetRow(record: RuntimeMintedAssetRecord): ProtocolAssetRow 
       canonical_owner_source: 'chain_projection',
       listing_state: 'pending_projection',
       deploymentScope: {
-        chainId: ACTIVE_CHAIN_ID,
+        chainId: resolvedScope.chainId,
         assetContract,
       },
       runtimeRecord: toPersistedRecord(record),
+      assetUid: record.details.assetUid ?? record.id,
+      onchainAssetId: record.details.onchainAssetId ?? record.details.tokenId ?? record.id,
+      unitId: record.details.unitId ?? null,
+      unitName: record.details.unitName ?? null,
+      unitLabel: record.details.unitLabel ?? record.details.unitName ?? null,
       details: record.details,
       myAsset: record.myAsset,
       assetType: record.assetType,
@@ -268,33 +381,60 @@ function toProtocolAssetRow(record: RuntimeMintedAssetRecord): ProtocolAssetRow 
   };
 }
 
-function fromProtocolAssetRow(row: ProtocolAssetRow): RuntimeMintedAssetRecord | null {
+function fromProtocolAssetRow(row: ProtocolAssetRow, scope?: RuntimeMintedAssetScope): RuntimeMintedAssetRecord | null {
   const metadata = row.metadata;
   if (!metadata || typeof metadata !== "object") return null;
+  const resolvedScope = resolveRuntimeMintedAssetScope(scope);
   const runtimeRecord = (metadata as { runtimeRecord?: PersistedRuntimeMintedAssetRecord }).runtimeRecord;
-  if (!runtimeRecord) return null;
-  const record = fromPersistedRecord(runtimeRecord);
-  if (isRuntimeMintedAssetRecord(record)) return record;
+  const persistedRecord =
+    runtimeRecord ? fromPersistedRecord(runtimeRecord) : null;
+  const runtimeFallback =
+    persistedRecord && isRuntimeMintedAssetRecord(persistedRecord) ? persistedRecord : null;
 
   const chainSnapshot =
     typeof (metadata as { chainSnapshot?: unknown }).chainSnapshot === "object"
       ? ((metadata as { chainSnapshot?: Record<string, unknown> }).chainSnapshot ?? {})
       : {};
-  if (!row.token_id || !row.owner_address) return null;
+  const tokenId = coalesceString(row.token_id, runtimeFallback?.details.tokenId, runtimeFallback?.id);
+  const ownerAddress = coalesceString(row.owner_address, runtimeFallback?.walletAddress)?.toLowerCase();
+  if (!tokenId || !ownerAddress) return runtimeFallback;
 
-  const tokenId = String(row.token_id);
-  const ownerAddress = String(row.owner_address).toLowerCase();
   const createdAt = parseTimestampMs(
     coalesceString(
       typeof chainSnapshot.mintedBlockTime === "string" ? chainSnapshot.mintedBlockTime : undefined,
       row.created_at,
+      runtimeFallback ? String(runtimeFallback.createdAt) : undefined,
     ),
-    Date.now(),
+    runtimeFallback?.createdAt ?? Date.now(),
   );
-  const details = buildGenericDetails(row, metadata, chainSnapshot, tokenId, ownerAddress, createdAt);
-  const totalAmount = parseNumberLike(chainSnapshot.totalAmount ?? row.total_amount, 1);
-  const availableAmount = parseNumberLike(chainSnapshot.availableAmount ?? row.available_amount, totalAmount);
-  const assetType = Number(chainSnapshot.assetType) === 1 ? "NFT" : "RWA";
+  const details = buildGenericDetails(
+    row,
+    metadata,
+    chainSnapshot,
+    tokenId,
+    ownerAddress,
+    createdAt,
+    resolvedScope,
+    runtimeFallback?.details,
+  );
+  const fallbackRwaAsset =
+    runtimeFallback?.assetType === "RWA" ? runtimeFallback.myAsset as MyAssetRwa : null;
+  const totalAmount = parseNumberLike(
+    chainSnapshot.totalAmount ?? row.total_amount,
+    parseNumberLike(fallbackRwaAsset?.totalAmount, 1),
+  );
+  const availableAmount = parseNumberLike(
+    chainSnapshot.availableAmount ?? row.available_amount,
+    parseNumberLike(fallbackRwaAsset?.availableAmount, totalAmount),
+  );
+  const assetType =
+    Number(chainSnapshot.assetType ?? (runtimeFallback?.assetType === "NFT" ? 1 : 0)) === 1
+      ? "NFT"
+      : "RWA";
+  const txHash =
+    typeof chainSnapshot.mintedTxHash === "string" && chainSnapshot.mintedTxHash.startsWith("0x")
+      ? chainSnapshot.mintedTxHash
+      : runtimeFallback?.txHash;
 
   if (assetType === "NFT") {
     const nftRecord: RuntimeMintedAssetRecord = {
@@ -302,20 +442,23 @@ function fromProtocolAssetRow(row: ProtocolAssetRow): RuntimeMintedAssetRecord |
       walletAddress: ownerAddress,
       assetType: "NFT",
       createdAt,
-      txHash:
-        typeof chainSnapshot.mintedTxHash === "string" && chainSnapshot.mintedTxHash.startsWith("0x")
-          ? chainSnapshot.mintedTxHash
-          : undefined,
+      txHash,
       myAsset: {
         id: tokenId,
         name: details.name,
         type: "NFT",
         category: details.category,
         image: details.image,
-        currentPrice: "0",
-        floorPrice: "0",
-        collection: "On-chain",
-        transferable: true,
+        currentPrice:
+          runtimeFallback?.assetType === "NFT" ? runtimeFallback.myAsset.currentPrice : details.currentPrice,
+        floorPrice:
+          runtimeFallback?.assetType === "NFT"
+            ? runtimeFallback.myAsset.floorPrice
+            : (details.floorPrice ?? "0"),
+        collection:
+          runtimeFallback?.assetType === "NFT" ? runtimeFallback.myAsset.collection : "On-chain",
+        transferable:
+          runtimeFallback?.assetType === "NFT" ? runtimeFallback.myAsset.transferable : true,
       },
       details,
     };
@@ -327,46 +470,35 @@ function fromProtocolAssetRow(row: ProtocolAssetRow): RuntimeMintedAssetRecord |
     walletAddress: ownerAddress,
     assetType: "RWA",
     createdAt,
-    txHash:
-      typeof chainSnapshot.mintedTxHash === "string" && chainSnapshot.mintedTxHash.startsWith("0x")
-        ? chainSnapshot.mintedTxHash
-        : undefined,
+    txHash,
     myAsset: {
       id: tokenId,
       name: details.name,
       type: "RWA",
       category: details.category,
       image: details.image,
-      status: normalizeAssetStatusLabel(row.status),
+      status: normalizeAssetStatusLabel(row.status ?? fallbackRwaAsset?.status),
       availableAmount,
       totalAmount,
-      minPrice: "0",
-      mintedDate: new Date(createdAt).toISOString().slice(0, 10),
+      minPrice: fallbackRwaAsset?.minPrice ?? details.currentPrice,
+      mintedDate: fallbackRwaAsset?.mintedDate ?? new Date(createdAt).toISOString().slice(0, 10),
     },
     details: {
       ...details,
-      totalVolume: String(Math.max(0, totalAmount - availableAmount)),
+      totalVolume: details.totalVolume ?? String(Math.max(0, totalAmount - availableAmount)),
+      totalSales: details.totalSales ?? Math.max(0, totalAmount - availableAmount),
     },
   };
   return rwaRecord;
 }
 
-async function syncRuntimeMintedAssetToSupabase(record: RuntimeMintedAssetRecord) {
-  if (!isSupabaseRestEnabled()) return;
-  try {
-    await restUpsert<ProtocolAssetRow>("protocol_assets", [toProtocolAssetRow(record)], {
-      onConflict: "chain_id,asset_contract,token_id",
-    });
-    // Marketplace/Search catalog is a public projection and must not be authored directly by clients.
-    // The catalog should be populated by a trusted projection/indexing path after chain/runtime settlement.
-  } catch (error) {
-    console.warn("[runtimeMintedAssets] Failed to sync minted asset to Supabase", error);
-  }
-}
-
-export async function hydrateRuntimeMintedAssetsFromSupabase(walletAddress?: string | null) {
-  if (!isSupabaseRestEnabled() || !walletAddress) {
-    return loadRuntimeMintedAssets(walletAddress);
+export async function hydrateRuntimeMintedAssetsFromSupabase(
+  walletAddress?: string | null,
+  scope?: RuntimeMintedAssetScope,
+) {
+  const resolvedScope = resolveRuntimeMintedAssetScope(scope);
+  if (!isSupabaseRestEnabled() || !walletAddress || !resolvedScope.assetContractAddress) {
+    return loadRuntimeMintedAssets(walletAddress, resolvedScope);
   }
 
   try {
@@ -374,51 +506,51 @@ export async function hydrateRuntimeMintedAssetsFromSupabase(walletAddress?: str
     const remoteRows = await restSelect<ProtocolAssetRow>(
       "protocol_assets",
       toQuery({
-        chain_id: encodeEq(ACTIVE_CHAIN_ID),
-        asset_contract: encodeEq(CURRENT_ASSET_CONTRACT),
+        chain_id: encodeEq(resolvedScope.chainId),
+        asset_contract: encodeEq(resolvedScope.assetContract),
         owner_address: encodeEq(normalized),
       }),
     );
     const remoteRecords = remoteRows
-      .map(fromProtocolAssetRow)
+      .map((row) => fromProtocolAssetRow(row, resolvedScope))
       .filter((value): value is RuntimeMintedAssetRecord => !!value)
       .filter((record) => record.walletAddress.toLowerCase() === normalized);
-    const merged = mergeRuntimeMintedAssets(readLocalRuntimeMintedAssets(), remoteRecords);
-    writeLocalRuntimeMintedAssets(merged);
-    return loadRuntimeMintedAssets(walletAddress);
+    const merged = mergeRuntimeMintedAssets(readLocalRuntimeMintedAssets(resolvedScope), remoteRecords);
+    writeLocalRuntimeMintedAssets(merged, resolvedScope);
+    return loadRuntimeMintedAssets(walletAddress, resolvedScope);
   } catch (error) {
     console.warn("[runtimeMintedAssets] Failed to hydrate minted assets from Supabase", error);
-    return loadRuntimeMintedAssets(walletAddress);
+    return loadRuntimeMintedAssets(walletAddress, resolvedScope);
   }
 }
 
-export function loadRuntimeMintedAssets(walletAddress?: string | null) {
-  const records = readLocalRuntimeMintedAssets().filter((record) => {
-    const assetContract = String(record.details.contractAddress || CONTRACTS.ORINA_RWA).toLowerCase();
-    return assetContract === CURRENT_ASSET_CONTRACT;
+export function loadRuntimeMintedAssets(walletAddress?: string | null, scope?: RuntimeMintedAssetScope) {
+  const resolvedScope = resolveRuntimeMintedAssetScope(scope);
+  const records = readLocalRuntimeMintedAssets(resolvedScope).filter((record) => {
+    const assetContract = String(record.details.contractAddress || resolvedScope.assetContract).toLowerCase();
+    return assetContract === resolvedScope.assetContract;
   });
   if (!walletAddress) return records;
   const normalized = walletAddress.toLowerCase();
   return records.filter((record) => record.walletAddress.toLowerCase() === normalized);
 }
 
-export function saveRuntimeMintedAssets(records: RuntimeMintedAssetRecord[]) {
-  writeLocalRuntimeMintedAssets(dedupeRuntimeMintedAssets(records));
+export function saveRuntimeMintedAssets(records: RuntimeMintedAssetRecord[], scope?: RuntimeMintedAssetScope) {
+  writeLocalRuntimeMintedAssets(dedupeRuntimeMintedAssets(records), scope);
 }
 
-export function upsertRuntimeMintedAsset(record: RuntimeMintedAssetRecord) {
-  const current = readLocalRuntimeMintedAssets();
+export function upsertRuntimeMintedAsset(record: RuntimeMintedAssetRecord, scope?: RuntimeMintedAssetScope) {
+  const current = readLocalRuntimeMintedAssets(scope);
   const next = dedupeRuntimeMintedAssets([record, ...current.filter((item) => item.id !== record.id)]);
-  writeLocalRuntimeMintedAssets(next);
-  void syncRuntimeMintedAssetToSupabase(record);
+  writeLocalRuntimeMintedAssets(next, scope);
 }
 
-export function getRuntimeMintedAssetDetailsById(assetId: string) {
-  return readLocalRuntimeMintedAssets().find((record) => record.id === assetId)?.details ?? null;
+export function getRuntimeMintedAssetDetailsById(assetId: string, scope?: RuntimeMintedAssetScope) {
+  return readLocalRuntimeMintedAssets(scope).find((record) => record.id === assetId)?.details ?? null;
 }
 
-export function loadRuntimeMyAssets(walletAddress?: string | null) {
-  const records = loadRuntimeMintedAssets(walletAddress);
+export function loadRuntimeMyAssets(walletAddress?: string | null, scope?: RuntimeMintedAssetScope) {
+  const records = loadRuntimeMintedAssets(walletAddress, scope);
   const rwaAssets = records
     .filter((record): record is RuntimeMintedAssetRecord & { assetType: "RWA"; myAsset: MyAssetRwa } => record.assetType === "RWA")
     .map((record) => record.myAsset);

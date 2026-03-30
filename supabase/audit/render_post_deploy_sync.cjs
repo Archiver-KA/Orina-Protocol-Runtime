@@ -1,93 +1,57 @@
 const fs = require('fs');
-const path = require('path');
+const { getRuntimeConfig } = require('./protocol_runtime_config.cjs');
 
-const ROOT = process.cwd();
-const DEFAULT_RUN_JSON = path.join(
-  ROOT,
-  'foundry',
-  'broadcast',
-  'DeployFullSystem.s.sol',
-  '97',
-  'run-latest.json',
-);
-
-const TARGET_CONTRACTS = [
-  'MarketplaceATP',
-  'OrinaRWA',
-  'RWAReceiptNFT',
-  'PaymentGateway',
-  'FeeManager',
-  'AutoTimeManager',
-  'DisputeManager',
-  'UnitRegistry',
-  'ShippingRegistry',
-  'TimelockController',
-];
-
-function readRunJson(runJsonPath) {
-  return JSON.parse(fs.readFileSync(runJsonPath, 'utf8'));
-}
-
-function collectAddresses(parsed) {
-  const transactions = Array.isArray(parsed.transactions) ? parsed.transactions : [];
-  const result = {};
-
-  for (const tx of transactions) {
-    if (tx && tx.contractName && tx.contractAddress) {
-      result[tx.contractName] = tx.contractAddress;
-    }
-
-    const nested = Array.isArray(tx?.additionalContracts) ? tx.additionalContracts : [];
-    for (const contract of nested) {
-      if (contract && contract.contractName && contract.address) {
-        result[contract.contractName] = contract.address;
-      }
-    }
-  }
-
-  return result;
-}
+const RUNTIME = getRuntimeConfig();
 
 function printSection(title) {
   console.log(`\n## ${title}`);
 }
 
 function main() {
-  const runJsonPath = process.argv[2]
-    ? path.resolve(ROOT, process.argv[2])
-    : DEFAULT_RUN_JSON;
-
-  if (!fs.existsSync(runJsonPath)) {
-    console.error(`RUN_JSON_NOT_FOUND ${runJsonPath}`);
-    process.exit(1);
-  }
-
-  const parsed = readRunJson(runJsonPath);
-  const addresses = collectAddresses(parsed);
-
   console.log('# Post-Deploy Sync Plan');
-  console.log(`run-latest.json: ${runJsonPath}`);
+  console.log(`chainId: ${RUNTIME.chainId}`);
 
-  printSection('Captured Addresses');
-  for (const name of TARGET_CONTRACTS) {
-    const address = addresses[name] || '(missing)';
-    console.log(`- ${name}: ${address}`);
+  printSection('Current Runtime');
+  for (const [label, address] of Object.entries({
+    MARKETPLACE_ATP: RUNTIME.addresses.marketplace,
+    ORINA_RWA: RUNTIME.addresses.orinaRwa,
+    RECEIPT_NFT: RUNTIME.addresses.receiptNft,
+    PAYMENT_GATEWAY: RUNTIME.addresses.paymentGateway,
+    FEE_MANAGER: RUNTIME.addresses.feeManager,
+    DISPUTE_MANAGER: RUNTIME.addresses.disputeManager,
+    AUTOTIME_MANAGER: RUNTIME.addresses.autotimeManager,
+    UNIT_REGISTRY: RUNTIME.addresses.unitRegistry,
+    SHIPPING_REGISTRY: RUNTIME.addresses.shippingRegistry,
+    TIMELOCK: RUNTIME.addresses.timelock,
+    DELEGATION_MANAGER: RUNTIME.m2m.delegationManager,
+    AI_WALLET_FACTORY_V2: RUNTIME.m2m.aiWalletFactoryV2,
+  })) {
+    console.log(`- ${label}: ${address}`);
   }
 
-  printSection('Frontend Address Sync');
-  console.log('- Update src/config/contracts.ts with the new addresses above.');
-  console.log('- Keep ACTIVE_CHAIN_ID on 97 unless you intentionally switch environments.');
-  console.log('- Update src/config/eip712.ts only if MarketplaceATP.VERSION changed.');
+  printSection('Artifacts');
+  for (const artifactPath of [RUNTIME.artifacts.coreDeployRunJson, RUNTIME.artifacts.m2mDeployRunJson]) {
+    console.log(`- ${artifactPath} ${fs.existsSync(artifactPath) ? '(present)' : '(missing)'}`);
+  }
 
-  printSection('Runtime Sync');
+  printSection('Frontend Sync');
+  console.log('- src/config/contracts.ts must match the addresses above.');
+  console.log('- src/config/eip712.ts must keep MarketplaceATP version/domain aligned with the live contracts.');
+  console.log('- Root .env must keep VITE_M2M_DELEGATION_MANAGER and VITE_M2M_AI_WALLET_FACTORY_V2 on the live M2M stack.');
+
+  printSection('Backend Sync');
+  console.log('- foundry/.env must contain only one authoritative address block for the live stack.');
+  console.log('- supabase/audit/protocol_runtime_config.cjs is the shared source of truth for backfill, probe, and smoke scripts.');
   console.log('- Run: node supabase/audit/onchain_runtime_status_probe.cjs');
+  console.log('- Run: node supabase/audit/backfill_protocol_projection.cjs --apply-linked');
+  console.log('- Run: node supabase/audit/backfill_protocol_order_events.cjs --apply-linked');
+  console.log('- Run: node supabase/audit/verify_protocol_projection_rest.cjs');
   console.log('- Run: npm run build');
-  console.log('- Re-run any smoke importer or order-state probe against the new marketplace address.');
 
-  printSection('Protocol Gate');
-  console.log('- Current contract stack supports RWA order flow and finalization-minted NFTs.');
-  console.log('- It does not by itself implement OpenSea-style NFT direct buy without order lifecycle.');
-  console.log('- Do not treat this redeploy as direct-buy NFT support unless separate listing/exchange contracts are added.');
+  printSection('Operator Docs');
+  console.log('- docs/spec/13-atp-protocol-runtime-spec.md');
+  console.log('- docs/spec/14-production-env-flip-runbook.md');
+  console.log('- foundry/CUTOVER_CHECKLIST.md');
 }
 
 main();

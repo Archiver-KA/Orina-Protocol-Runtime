@@ -5,23 +5,18 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { createPublicClient, http } = require('viem');
 const { bscTestnet } = require('viem/chains');
+const { getRuntimeConfig } = require('./protocol_runtime_config.cjs');
 
-const ROOT = path.resolve(__dirname, '..', '..');
+const RUNTIME = getRuntimeConfig();
+const ROOT = RUNTIME.ROOT;
 const DEFAULTS = {
-  chainId: 97,
-  rpcUrl: 'https://data-seed-prebsc-1-s1.bnbchain.org:8545/',
-  marketplace: '0x026c9e9a5d007ed46df3de900f53c0786ec650c8',
-  disputeManager: '0xa31b543254c138178506244f20c0f7630b6709d5',
-  assetContract: '0x5fc61747b359e089e3ced00494f9e71de836b666',
-  deployArtifact: path.join(
-    ROOT,
-    'foundry',
-    'broadcast',
-    'DeployFullSystemDirect.s.sol',
-    '97',
-    'run-latest.json',
-  ),
-  sqlOut: path.join(ROOT, 'supabase', 'audit', 'generated_protocol_projection_backfill.sql'),
+  chainId: RUNTIME.chainId,
+  rpcUrl: RUNTIME.rpcUrl,
+  marketplace: RUNTIME.addresses.marketplace,
+  disputeManager: RUNTIME.addresses.disputeManager,
+  assetContract: RUNTIME.addresses.orinaRwa,
+  deployArtifact: RUNTIME.artifacts.coreDeployRunJson,
+  sqlOut: RUNTIME.artifacts.projectionSqlOut,
   chunkSize: 20n,
 };
 
@@ -692,10 +687,7 @@ async function collectEventBatches(client, { marketplace, disputeManager, assetC
 }
 
 async function main() {
-  const env = {
-    ...parseEnvFile(path.join(ROOT, '.env')),
-    ...parseEnvFile(path.join(ROOT, 'foundry', '.env')),
-  };
+  const env = { ...RUNTIME.rootEnv, ...RUNTIME.foundryEnv };
   const options = parseArgs(process.argv.slice(2));
   const marketplace = normalizeAddress(process.env.MARKETPLACE_ATP_ADDRESS || env.MARKETPLACE_ATP_ADDRESS || DEFAULTS.marketplace);
   const disputeManager = normalizeAddress(process.env.DISPUTE_MANAGER_ADDRESS || env.DISPUTE_MANAGER_ADDRESS || DEFAULTS.disputeManager);
