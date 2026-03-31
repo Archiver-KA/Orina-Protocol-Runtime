@@ -172,6 +172,22 @@ export function useDelegationSessionPreview(root: Address | undefined, sessionNo
   };
 }
 
+export function useDelegationCyclePreview(root: Address | undefined) {
+  const nextSessionNonce = useDelegationNextSessionNonce(root);
+  const hasActiveCycle = useDelegationHasActiveCycle(root);
+  const activeSessionNonce = useDelegationActiveSessionNonce(root);
+
+  return {
+    nextSessionNonce: nextSessionNonce.data as bigint | undefined,
+    hasActiveCycle: Boolean(hasActiveCycle.data),
+    activeSessionNonce: activeSessionNonce.data as bigint | undefined,
+    isLoading:
+      nextSessionNonce.isLoading ||
+      hasActiveCycle.isLoading ||
+      activeSessionNonce.isLoading,
+  };
+}
+
 export function usePredictAIM2MWallet(params: {
   root?: Address;
   sessionNonce?: bigint;
@@ -323,6 +339,40 @@ export function useAIM2MWalletState(walletAddress: Address | undefined) {
       expiry.isLoading ||
       sessionNonce.isLoading ||
       actionMask.isLoading ||
+      initialized.isLoading ||
+      closed.isLoading ||
+      isActive.isLoading,
+  };
+}
+
+export function useAIM2MWalletLifecycleState(walletAddress: Address | undefined) {
+  const initialized = useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
+    address: walletAddress,
+    abi: AI_WALLET_V2_ABI,
+    functionName: 'initialized',
+    query: { enabled: Boolean(walletAddress) },
+  });
+  const closed = useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
+    address: walletAddress,
+    abi: AI_WALLET_V2_ABI,
+    functionName: 'closed',
+    query: { enabled: Boolean(walletAddress) },
+  });
+  const isActive = useReadContract({
+    chainId: ACTIVE_CHAIN_ID,
+    address: walletAddress,
+    abi: AI_WALLET_V2_ABI,
+    functionName: 'isActive',
+    query: { enabled: Boolean(walletAddress) },
+  });
+
+  return {
+    initialized: initialized.data as boolean | undefined,
+    closed: closed.data as boolean | undefined,
+    isActive: isActive.data as boolean | undefined,
+    isLoading:
       initialized.isLoading ||
       closed.isLoading ||
       isActive.isLoading,

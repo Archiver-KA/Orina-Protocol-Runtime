@@ -11,34 +11,6 @@ function parseMarketplacePrice(price: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function createFavoriteFallbackAsset(assetId: string): MarketplaceAsset {
-  const now = Date.now();
-  return {
-    id: assetId,
-    tokenId: assetId,
-    contractAddress: '0x0000000000000000000000000000000000000000',
-    name: `Asset ${String(assetId).slice(0, 8)}`,
-    category: getCategoryDisplayLabel('physical_goods'),
-    description: 'Legacy favorite item',
-    image: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=800',
-    seller: {
-      address: '0x0000000000000000000000000000000000000000',
-      verified: false,
-    },
-    price: '0 ETH',
-    priceUSD: '$0',
-    currency: 'ETH',
-    listedAt: now,
-    views: 0,
-    likes: 0,
-    verified: false,
-    blockchain: 'BSC',
-    network: 'testnet',
-    createdAt: now,
-    updatedAt: now,
-  };
-}
-
 function assetDetailsToMarketplaceAsset(assetId: string): MarketplaceAsset | null {
   const asset =
     getRuntimeMintedAssetDetailsById(assetId) ||
@@ -52,10 +24,15 @@ function assetDetailsToMarketplaceAsset(assetId: string): MarketplaceAsset | nul
 
   return {
     id: String(asset.id),
+    assetUid: asset.assetUid || String(asset.id),
     tokenId: String(asset.tokenId || asset.id),
+    onchainAssetId: asset.onchainAssetId || String(asset.tokenId || asset.id),
     contractAddress: asset.contractAddress || '0x0000000000000000000000000000000000000000',
+    unitId: asset.unitId,
+    unitName: asset.unitName,
+    unitLabel: asset.unitLabel || asset.unitName,
     name: asset.name || 'Unnamed Asset',
-    category: getCategoryDisplayLabel(asset.category || 'physical_goods'),
+    category: normalizeCategoryFilterValue(asset.category || 'physical_goods'),
     description: asset.description || '',
     image: asset.image || 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=800',
     seller: {
@@ -76,16 +53,17 @@ function assetDetailsToMarketplaceAsset(assetId: string): MarketplaceAsset | nul
   };
 }
 
-export function resolveFavoriteMarketplaceAsset(assetId: string): MarketplaceAsset {
+export function resolveFavoriteMarketplaceAsset(assetId: string): MarketplaceAsset | null {
   return (
     getMarketplaceCatalogAssetById(assetId, loadMarketplaceCatalogSync()) ||
-    assetDetailsToMarketplaceAsset(assetId) ||
-    createFavoriteFallbackAsset(assetId)
+    assetDetailsToMarketplaceAsset(assetId)
   );
 }
 
 export function loadFavoriteMarketplaceAssets(walletAddress: string): MarketplaceAsset[] {
-  return loadFavorites(walletAddress).map((favorite) => resolveFavoriteMarketplaceAsset(favorite.assetId));
+  return loadFavorites(walletAddress)
+    .map((favorite) => resolveFavoriteMarketplaceAsset(favorite.assetId))
+    .filter((asset): asset is MarketplaceAsset => !!asset);
 }
 
 export function matchesFavoriteFilter(asset: MarketplaceAsset, filterBy: FavoriteFilterOption): boolean {

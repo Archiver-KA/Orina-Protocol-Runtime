@@ -1,13 +1,31 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAccount } from 'wagmi';
-import { ACTIVE_CHAIN_ID, CONTRACTS, OrderState } from '@/config/contracts';
-import { getOrderLifecycleLabel, getOrderLifecyclePhase } from '@/utils/orderLifecycle';
+import { OrderState } from '@/config/contracts';
+import {
+  getBuyerDisputeDeadline,
+  getOrderLifecycleLabel,
+  getOrderLifecyclePhase,
+  getSellerConfirmDeadline,
+} from '@/utils/orderLifecycle';
 import { formatOrderGrossPrice } from '@/utils/orderDisplay';
 import { encodeIn, isSupabaseRestEnabled, restSelect } from '@/utils/supabaseRest';
+import type { OrderUiRecord } from '@/types/order';
 import type { ProtocolOrderRow } from '@/utils/runtimeOrders';
 import { useUserOrders } from './useUserOrders';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 export type TimeRange = '7D' | '30D' | '90D' | '1Y' | 'ALL';
+export type UserAnalyticsCalendarPhase =
+  | 'new'
+  | 'seller'
+  | 'buyer'
+  | 'delivery'
+  | 'action'
+  | 'dispute'
+  | 'done'
+  | 'cancel';
+export type UserAnalyticsActionOwner = 'buyer' | 'seller' | 'party' | 'system';
+export type UserInsightsCalendarScope = 'all' | 'needs_action' | 'buyer' | 'seller' | 'completed' | 'disputed';
 
 export interface UserAnalyticsMetricSnapshot {
   totalOrders: number;
@@ -33,12 +51,21 @@ export interface UserAnalyticsEvent {
   id: string;
   orderId: string;
   assetName: string;
+  assetImage?: string;
   title: string;
   detail: string;
   timestamp: number;
   status: 'completed' | 'pending' | 'future';
   kind: string;
   source: 'projection' | 'derived';
+  phase: UserAnalyticsCalendarPhase;
+  phaseLabel: string;
+  phaseShortLabel: string;
+  phaseColor: string;
+  phasePriority: number;
+  actionOwner: UserAnalyticsActionOwner;
+  viewerCanAct: boolean;
+  orderStatusFilter: string;
   txHash?: string;
 }
 
@@ -68,8 +95,6 @@ export interface UserAnalyticsResult {
   isLoading: boolean;
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 interface ProtocolOrderProjectionRow extends ProtocolOrderRow {
   id?: string | null;
   order_uid?: string | null;
@@ -87,6 +112,28 @@ interface ProtocolOrderEventRow {
   payload?: Record<string, unknown> | null;
   created_at?: string | null;
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export const USER_ANALYTICS_PHASE_META: Record<
+  UserAnalyticsCalendarPhase,
+  {
+    label: string;
+    shortLabel: string;
+    color: string;
+    priority: number;
+    orderStatusFilter: string;
+  }
+> = {
+  new: { label: 'Order Created', shortLabel: 'NEW', color: '#60A5FA', priority: 0, orderStatusFilter: 'all' },
+  seller: { label: 'Seller Confirm', shortLabel: 'SELLER', color: '#F59E0B', priority: 1, orderStatusFilter: 'all' },
+  buyer: { label: 'Buyer Re-Sign', shortLabel: 'BUYER', color: '#A78BFA', priority: 2, orderStatusFilter: 'all' },
+  delivery: { label: 'Delivery Window', shortLabel: 'DELIV', color: '#2CC295', priority: 3, orderStatusFilter: 'all' },
+  action: { label: 'Buyer Action Window', shortLabel: 'ACTION', color: '#F7DC7F', priority: 4, orderStatusFilter: 'all' },
+  dispute: { label: 'Dispute', shortLabel: 'DISPUTE', color: '#F97316', priority: 5, orderStatusFilter: 'all' },
+  done: { label: 'Finalized', shortLabel: 'DONE', color: '#10B981', priority: 6, orderStatusFilter: 'all' },
+  cancel: { label: 'Cancelled', shortLabel: 'CANCEL', color: '#71717A', priority: 7, orderStatusFilter: 'all' },
+};
 
 function bigintToNumber(value?: bigint) {
   if (typeof value !== 'bigint') return 0;
@@ -122,177 +169,378 @@ function toDayStart(timestamp: number) {
   return date.getTime();
 }
 
-function buildTimelineEntries(order: ReturnType<typeof useUserOrders>['orders'][number]): UserAnalyticsEvent[] {
-  const orderId = order.orderId.toString();
-  const entries: UserAnalyticsEvent[] = [];
-  const createdAt = toMs(order.proposedAt, order.createdAt ?? 0);
-  const sellerConfirmedAt = toMs(order.sellerConfirmedAt);
-  const paidAt = toMs(order.paidAt);
-  const disputeOpenedAt = toMs(order.disputeOpenedAt);
-  const updatedAt = order.updatedAt ?? createdAt;
-
-  if (createdAt > 0) {
-    entries.push({
-      id: `${orderId}-created`,
-      orderId,
-      assetName: order.assetName,
-      title: 'Order Created',
-      detail: `Order #${orderId} created for ${order.assetName}.`,
-      timestamp: createdAt,
-      status: 'completed',
-      kind: 'order_created',
-      source: 'derived',
-    });
-  }
-
-  if (sellerConfirmedAt > 0) {
-    entries.push({
-      id: `${orderId}-seller-confirm`,
-      orderId,
-      assetName: order.assetName,
-      title: 'Seller Confirmed',
-      detail: `Seller confirmed order #${orderId}.`,
-      timestamp: sellerConfirmedAt,
-      status: 'completed',
-      kind: 'seller_confirmed',
-      source: 'derived',
-    });
-  }
-
-  if (paidAt > 0) {
-    entries.push({
-      id: `${orderId}-paid`,
-      orderId,
-      assetName: order.assetName,
-      title: 'Escrow Locked',
-      detail: `${formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals)} locked for order #${orderId}.`,
-      timestamp: paidAt,
-      status: 'completed',
-      kind: 'escrow_locked',
-      source: 'derived',
-    });
-  }
-
-  if (disputeOpenedAt > 0) {
-    entries.push({
-      id: `${orderId}-dispute`,
-      orderId,
-      assetName: order.assetName,
-      title: 'Dispute Opened',
-      detail: `Dispute opened for order #${orderId}.`,
-      timestamp: disputeOpenedAt,
-      status: 'completed',
-      kind: 'dispute_opened',
-      source: 'derived',
-    });
-  }
-
-  if (order.finalized || order.state === OrderState.FINALIZED) {
-    entries.push({
-      id: `${orderId}-finalized`,
-      orderId,
-      assetName: order.assetName,
-      title: 'Order Finalized',
-      detail: `Order #${orderId} finalized on-chain.`,
-      timestamp: updatedAt,
-      status: 'completed',
-      kind: 'order_finalized',
-      source: 'derived',
-    });
-  }
-
-  if (order.state === OrderState.CANCELLED) {
-    entries.push({
-      id: `${orderId}-cancelled`,
-      orderId,
-      assetName: order.assetName,
-      title: 'Order Cancelled',
-      detail: `Order #${orderId} cancelled on-chain.`,
-      timestamp: updatedAt,
-      status: 'completed',
-      kind: 'order_cancelled',
-      source: 'derived',
-    });
-  }
-
-  const phase = getOrderLifecyclePhase(order);
-  if (phase === 'waiting_seller_confirm') {
-    entries.push({
-      id: `${orderId}-waiting-seller`,
-      orderId,
-      assetName: order.assetName,
-      title: 'Waiting Seller Confirm',
-      detail: `Seller must confirm, revise, or cancel order #${orderId}.`,
-      timestamp: createdAt + DAY_MS,
-      status: 'pending',
-      kind: 'waiting_seller_confirm',
-      source: 'derived',
-    });
-  }
-
-  if (phase === 'waiting_buyer_accept') {
-    entries.push({
-      id: `${orderId}-waiting-buyer`,
-      orderId,
-      assetName: order.assetName,
-      title: 'Waiting Buyer Re-Sign',
-      detail: `Buyer must re-sign or cancel order #${orderId}.`,
-      timestamp: toMs(order.payDeadline),
-      status: 'pending',
-      kind: 'waiting_buyer_accept',
-      source: 'derived',
-    });
-  }
-
-  if (phase === 'agreed_delivery') {
-    entries.push({
-      id: `${orderId}-delivery`,
-      orderId,
-      assetName: order.assetName,
-      title: 'Agreed Delivery Ends',
-      detail: `Buyer can confirm delivery early for order #${orderId}.`,
-      timestamp: toMs(order.autoReleaseAt),
-      status: 'future',
-      kind: 'agreed_delivery_ends',
-      source: 'derived',
-    });
-  }
-
-  if (phase === 'awaiting_auto_finalize') {
-    entries.push({
-      id: `${orderId}-buyer-action`,
-      orderId,
-      assetName: order.assetName,
-      title: 'Buyer Action Window',
-      detail: `Buyer can confirm delivery or dispute order #${orderId}.`,
-      timestamp: toMs(order.disputeDeadline ?? 0n),
-      status: 'future',
-      kind: 'buyer_action_window',
-      source: 'derived',
-    });
-  }
-
-  if (phase === 'auto_finalize_ready') {
-    entries.push({
-      id: `${orderId}-auto-finalize-ready`,
-      orderId,
-      assetName: order.assetName,
-      title: 'Auto Finalize Ready',
-      detail: `Order #${orderId} is eligible for protocol auto-finalization.`,
-      timestamp: Date.now(),
-      status: 'pending',
-      kind: 'auto_finalize_ready',
-      source: 'derived',
-    });
-  }
-
-  return entries;
+function toDayKey(timestamp: number) {
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
 function parseTimestamp(value?: string | null, fallback = 0) {
   if (!value) return fallback;
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) ? timestamp : fallback;
+}
+
+function resolveMilestoneStatus(timestamp: number, nowMs = Date.now()): 'pending' | 'future' {
+  return timestamp <= nowMs ? 'pending' : 'future';
+}
+
+function normalizeAddress(value?: string | null) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isBuyerForOrder(order: OrderUiRecord, viewerAddress?: string | null) {
+  if (!viewerAddress) return false;
+  return normalizeAddress(order.buyer) === normalizeAddress(viewerAddress);
+}
+
+function isSellerForOrder(order: OrderUiRecord, viewerAddress?: string | null) {
+  if (!viewerAddress) return false;
+  return normalizeAddress(order.seller) === normalizeAddress(viewerAddress);
+}
+
+function canViewerActForMilestone(
+  actionOwner: UserAnalyticsActionOwner,
+  order: OrderUiRecord,
+  viewerAddress?: string | null,
+) {
+  if (!viewerAddress) return false;
+  if (actionOwner === 'buyer') return isBuyerForOrder(order, viewerAddress);
+  if (actionOwner === 'seller') return isSellerForOrder(order, viewerAddress);
+  if (actionOwner === 'party') {
+    return isBuyerForOrder(order, viewerAddress) || isSellerForOrder(order, viewerAddress);
+  }
+  return false;
+}
+
+function createAnalyticsEvent(args: {
+  id: string;
+  orderId: string;
+  assetName: string;
+  assetImage?: string;
+  title: string;
+  detail: string;
+  timestamp: number;
+  status: 'completed' | 'pending' | 'future';
+  kind: string;
+  source: 'projection' | 'derived';
+  phase: UserAnalyticsCalendarPhase;
+  actionOwner: UserAnalyticsActionOwner;
+  viewerCanAct: boolean;
+  txHash?: string;
+}): UserAnalyticsEvent {
+  const meta = USER_ANALYTICS_PHASE_META[args.phase];
+  return {
+    ...args,
+    phaseLabel: meta.label,
+    phaseShortLabel: meta.shortLabel,
+    phaseColor: meta.color,
+    phasePriority: meta.priority,
+    orderStatusFilter: meta.orderStatusFilter,
+  };
+}
+
+function buildLifecycleMilestones(order: OrderUiRecord, viewerAddress?: string | null) {
+  const orderId = order.orderId.toString();
+  const createdAt = toMs(order.proposedAt, order.createdAt ?? 0);
+  const sellerConfirmedAt = toMs(order.sellerConfirmedAt);
+  const paidAt = toMs(order.paidAt);
+  const disputeOpenedAt = toMs(order.disputeOpenedAt);
+  const updatedAt = order.updatedAt ?? createdAt;
+  const nowMs = Date.now();
+  const milestones: UserAnalyticsEvent[] = [];
+
+  if (createdAt > 0) {
+    milestones.push(
+      createAnalyticsEvent({
+        id: `${orderId}-created`,
+        orderId,
+        assetName: order.assetName,
+        assetImage: order.assetImage,
+        title: 'Order Created',
+        detail: `Order #${orderId} was created for ${order.assetName}.`,
+        timestamp: createdAt,
+        status: 'completed',
+        kind: 'order_created',
+        source: 'derived',
+        phase: 'new',
+        actionOwner: 'buyer',
+        viewerCanAct: false,
+      }),
+    );
+  }
+
+  if (sellerConfirmedAt > 0) {
+    milestones.push(
+      createAnalyticsEvent({
+        id: `${orderId}-seller-confirmed`,
+        orderId,
+        assetName: order.assetName,
+        assetImage: order.assetImage,
+        title: 'Seller Confirmed',
+        detail: `Seller confirmed order #${orderId}.`,
+        timestamp: sellerConfirmedAt,
+        status: 'completed',
+        kind: 'seller_confirmed',
+        source: 'derived',
+        phase: 'seller',
+        actionOwner: 'seller',
+        viewerCanAct: false,
+      }),
+    );
+  }
+
+  if (paidAt > 0) {
+    milestones.push(
+      createAnalyticsEvent({
+        id: `${orderId}-escrow-locked`,
+        orderId,
+        assetName: order.assetName,
+        assetImage: order.assetImage,
+        title: 'Escrow Locked',
+        detail: `${formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals)} locked for order #${orderId}.`,
+        timestamp: paidAt,
+        status: 'completed',
+        kind: 'escrow_locked',
+        source: 'derived',
+        phase: 'delivery',
+        actionOwner: 'buyer',
+        viewerCanAct: false,
+      }),
+    );
+  }
+
+  if (disputeOpenedAt > 0) {
+    milestones.push(
+      createAnalyticsEvent({
+        id: `${orderId}-dispute-opened`,
+        orderId,
+        assetName: order.assetName,
+        assetImage: order.assetImage,
+        title: 'Dispute Opened',
+        detail: `Dispute opened for order #${orderId}.`,
+        timestamp: disputeOpenedAt,
+        status: 'completed',
+        kind: 'dispute_opened',
+        source: 'derived',
+        phase: 'dispute',
+        actionOwner: 'party',
+        viewerCanAct: false,
+      }),
+    );
+  }
+
+  if (order.finalized || order.state === OrderState.FINALIZED) {
+    milestones.push(
+      createAnalyticsEvent({
+        id: `${orderId}-finalized`,
+        orderId,
+        assetName: order.assetName,
+        assetImage: order.assetImage,
+        title: 'Order Finalized',
+        detail: `Order #${orderId} finalized on-chain.`,
+        timestamp: updatedAt,
+        status: 'completed',
+        kind: 'order_finalized',
+        source: 'derived',
+        phase: 'done',
+        actionOwner: 'system',
+        viewerCanAct: false,
+      }),
+    );
+  }
+
+  if (order.state === OrderState.CANCELLED) {
+    milestones.push(
+      createAnalyticsEvent({
+        id: `${orderId}-cancelled`,
+        orderId,
+        assetName: order.assetName,
+        assetImage: order.assetImage,
+        title: 'Order Cancelled',
+        detail: `Order #${orderId} cancelled on-chain.`,
+        timestamp: updatedAt,
+        status: 'completed',
+        kind: 'order_cancelled',
+        source: 'derived',
+        phase: 'cancel',
+        actionOwner: 'system',
+        viewerCanAct: false,
+      }),
+    );
+  }
+
+  const phase = getOrderLifecyclePhase(order, Math.floor(nowMs / 1000));
+  if (phase === 'waiting_seller_confirm') {
+    const deadlineMs = toMs(getSellerConfirmDeadline(order), createdAt + DAY_MS);
+    milestones.push(
+      createAnalyticsEvent({
+        id: `${orderId}-waiting-seller-confirm`,
+        orderId,
+        assetName: order.assetName,
+        assetImage: order.assetImage,
+        title: 'Seller Decision Due',
+        detail: `Seller must confirm, revise delivery, or cancel order #${orderId}.`,
+        timestamp: deadlineMs,
+        status: resolveMilestoneStatus(deadlineMs, nowMs),
+        kind: 'waiting_seller_confirm',
+        source: 'derived',
+        phase: 'seller',
+        actionOwner: 'seller',
+        viewerCanAct: canViewerActForMilestone('seller', order, viewerAddress),
+      }),
+    );
+  }
+
+  if (phase === 'seller_confirm_expired') {
+    const deadlineMs = toMs(getSellerConfirmDeadline(order), updatedAt || nowMs);
+    milestones.push(
+      createAnalyticsEvent({
+        id: `${orderId}-seller-confirm-expired`,
+        orderId,
+        assetName: order.assetName,
+        assetImage: order.assetImage,
+        title: 'Seller Window Expired',
+        detail: `Seller did not act in time for order #${orderId}. The order is now waiting for protocol cancellation flow.`,
+        timestamp: deadlineMs,
+        status: 'pending',
+        kind: 'seller_confirm_expired',
+        source: 'derived',
+        phase: 'seller',
+        actionOwner: 'system',
+        viewerCanAct: false,
+      }),
+    );
+  }
+
+  if (phase === 'waiting_buyer_accept') {
+    const deadlineMs = toMs(order.payDeadline, nowMs);
+    milestones.push(
+      createAnalyticsEvent({
+        id: `${orderId}-waiting-buyer-accept`,
+        orderId,
+        assetName: order.assetName,
+        assetImage: order.assetImage,
+        title: 'Buyer Re-Sign Due',
+        detail: `Buyer must re-sign or cancel order #${orderId}.`,
+        timestamp: deadlineMs,
+        status: resolveMilestoneStatus(deadlineMs, nowMs),
+        kind: 'waiting_buyer_accept',
+        source: 'derived',
+        phase: 'buyer',
+        actionOwner: 'buyer',
+        viewerCanAct: canViewerActForMilestone('buyer', order, viewerAddress),
+      }),
+    );
+  }
+
+  if (phase === 'buyer_accept_expired') {
+    const deadlineMs = toMs(order.payDeadline, updatedAt || nowMs);
+    milestones.push(
+      createAnalyticsEvent({
+        id: `${orderId}-buyer-accept-expired`,
+        orderId,
+        assetName: order.assetName,
+        assetImage: order.assetImage,
+        title: 'Buyer Re-Sign Expired',
+        detail: `Buyer did not re-sign in time for order #${orderId}. The order is now waiting for protocol cancellation flow.`,
+        timestamp: deadlineMs,
+        status: 'pending',
+        kind: 'buyer_accept_expired',
+        source: 'derived',
+        phase: 'buyer',
+        actionOwner: 'system',
+        viewerCanAct: false,
+      }),
+    );
+  }
+
+  if (phase === 'agreed_delivery') {
+    const deadlineMs = toMs(order.autoReleaseAt, nowMs);
+    milestones.push(
+      createAnalyticsEvent({
+        id: `${orderId}-delivery-window`,
+        orderId,
+        assetName: order.assetName,
+        assetImage: order.assetImage,
+        title: 'Delivery Window Ends',
+        detail: `Buyer can confirm delivery before order #${orderId} enters buyer action window.`,
+        timestamp: deadlineMs,
+        status: resolveMilestoneStatus(deadlineMs, nowMs),
+        kind: 'agreed_delivery',
+        source: 'derived',
+        phase: 'delivery',
+        actionOwner: 'buyer',
+        viewerCanAct: canViewerActForMilestone('buyer', order, viewerAddress),
+      }),
+    );
+  }
+
+  if (phase === 'awaiting_auto_finalize') {
+    const disputeDeadline = order.disputeDeadline ?? getBuyerDisputeDeadline(order);
+    const deadlineMs = toMs(disputeDeadline, nowMs);
+    milestones.push(
+      createAnalyticsEvent({
+        id: `${orderId}-buyer-action-window`,
+        orderId,
+        assetName: order.assetName,
+        assetImage: order.assetImage,
+        title: 'Buyer Action Window',
+        detail: `Buyer can still confirm delivery or open dispute for order #${orderId}.`,
+        timestamp: deadlineMs,
+        status: resolveMilestoneStatus(deadlineMs, nowMs),
+        kind: 'awaiting_auto_finalize',
+        source: 'derived',
+        phase: 'action',
+        actionOwner: 'buyer',
+        viewerCanAct: canViewerActForMilestone('buyer', order, viewerAddress),
+      }),
+    );
+  }
+
+  if (phase === 'auto_finalize_ready') {
+    const disputeDeadline = order.disputeDeadline ?? getBuyerDisputeDeadline(order);
+    const deadlineMs = toMs(disputeDeadline, updatedAt || nowMs);
+    milestones.push(
+      createAnalyticsEvent({
+        id: `${orderId}-auto-finalize-ready`,
+        orderId,
+        assetName: order.assetName,
+        assetImage: order.assetImage,
+        title: 'Auto Finalize Ready',
+        detail: `Order #${orderId} is now eligible for protocol auto-finalization.`,
+        timestamp: deadlineMs || nowMs,
+        status: 'pending',
+        kind: 'auto_finalize_ready',
+        source: 'derived',
+        phase: 'action',
+        actionOwner: 'system',
+        viewerCanAct: false,
+      }),
+    );
+  }
+
+  if (phase === 'disputed') {
+    const deadlineMs = toMs(order.disputeDeadline, updatedAt || nowMs);
+    milestones.push(
+      createAnalyticsEvent({
+        id: `${orderId}-dispute-active`,
+        orderId,
+        assetName: order.assetName,
+        assetImage: order.assetImage,
+        title: 'Dispute Active',
+        detail: `Order #${orderId} is inside the dispute workflow.`,
+        timestamp: deadlineMs || nowMs,
+        status: deadlineMs > nowMs ? 'future' : 'pending',
+        kind: 'disputed',
+        source: 'derived',
+        phase: 'dispute',
+        actionOwner: 'party',
+        viewerCanAct: canViewerActForMilestone('party', order, viewerAddress),
+      }),
+    );
+  }
+
+  return milestones;
 }
 
 function normalizeProjectionEventKind(eventName?: string | null) {
@@ -317,6 +565,44 @@ function normalizeProjectionEventKind(eventName?: string | null) {
   return normalized || 'order_event';
 }
 
+function projectionEventMeta(kind: string): {
+  phase: UserAnalyticsCalendarPhase;
+  actionOwner: UserAnalyticsActionOwner;
+} {
+  if (kind === 'order_created' || kind === 'buyer_signed_1') {
+    return { phase: 'new', actionOwner: 'buyer' };
+  }
+  if (kind === 'seller_signed' || kind === 'seller_confirmed' || kind === 'delivery_time_set') {
+    return { phase: 'seller', actionOwner: 'seller' };
+  }
+  if (kind === 'pay_deadline_set' || kind === 'delivery_time_accepted') {
+    return { phase: 'buyer', actionOwner: 'buyer' };
+  }
+  if (kind === 'escrow_locked') {
+    return { phase: 'delivery', actionOwner: 'buyer' };
+  }
+  if (
+    kind === 'dispute_opened'
+    || kind === 'dispute_extended'
+    || kind === 'dispute_resolved_by_agreement'
+    || kind === 'dispute_resolved_by_arbiter'
+    || kind === 'dispute_auto_split'
+  ) {
+    return { phase: 'dispute', actionOwner: 'party' };
+  }
+  if (kind === 'order_finalized') {
+    return { phase: 'done', actionOwner: 'system' };
+  }
+  if (
+    kind === 'order_cancelled_by_seller'
+    || kind === 'order_cancelled_by_buyer'
+    || kind === 'order_cancelled'
+  ) {
+    return { phase: 'cancel', actionOwner: 'system' };
+  }
+  return { phase: 'new', actionOwner: 'system' };
+}
+
 function createProjectedEventDetail(
   kind: string,
   orderId: string,
@@ -327,15 +613,16 @@ function createProjectedEventDetail(
     payload && typeof payload.args === 'object' && payload.args
       ? payload.args as Record<string, unknown>
       : null;
+
   if (kind === 'order_created') return `Order #${orderId} created for ${assetName}.`;
-  if (kind === 'buyer_signed_1') return `Buyer signed the initial order proposal for order #${orderId}.`;
+  if (kind === 'buyer_signed_1') return `Buyer signed the initial proposal for order #${orderId}.`;
   if (kind === 'seller_signed') return `Seller signed the delivery proposal for order #${orderId}.`;
   if (kind === 'seller_confirmed') return `Seller confirmed order #${orderId}.`;
   if (kind === 'delivery_time_set') {
     const seconds = typeof args?.estDeliverySeconds === 'string' ? args.estDeliverySeconds : null;
     return seconds
-      ? `Seller set agreed delivery to ${seconds} seconds for order #${orderId}.`
-      : `Seller updated agreed delivery for order #${orderId}.`;
+      ? `Seller set delivery time to ${seconds} seconds for order #${orderId}.`
+      : `Seller updated delivery timing for order #${orderId}.`;
   }
   if (kind === 'pay_deadline_set') {
     const deadline = typeof args?.payDeadline === 'string' ? args.payDeadline : null;
@@ -343,30 +630,16 @@ function createProjectedEventDetail(
       ? `Buyer re-sign deadline recorded for order #${orderId}: ${deadline}.`
       : `Buyer re-sign deadline recorded for order #${orderId}.`;
   }
-  if (kind === 'delivery_time_accepted') return `Buyer accepted the revised delivery terms for order #${orderId}.`;
-  if (kind === 'escrow_locked') return `Escrow is locked for order #${orderId}.`;
-  if (kind === 'dispute_opened') {
-    const opener = typeof args?.opener === 'string' ? args.opener : null;
-    return opener ? `Dispute opened by ${opener} for order #${orderId}.` : `Dispute opened for order #${orderId}.`;
-  }
-  if (kind === 'dispute_extended') {
-    const finalDeadline = typeof args?.finalDeadline === 'string' ? args.finalDeadline : null;
-    return finalDeadline
-      ? `Dispute for order #${orderId} extended into phase 2 until ${finalDeadline}.`
-      : `Dispute for order #${orderId} extended into phase 2.`;
-  }
-  if (kind === 'dispute_resolved_by_agreement') {
-    const buyerShare = typeof args?.buyerShareBps === 'string' ? args.buyerShareBps : null;
-    const sellerShare = typeof args?.sellerShareBps === 'string' ? args.sellerShareBps : null;
-    return buyerShare && sellerShare
-      ? `Dispute for order #${orderId} closed by 2/3 agreement with ${buyerShare}/${sellerShare} split.`
-      : `Dispute for order #${orderId} closed by 2/3 agreement.`;
-  }
-  if (kind === 'dispute_resolved_by_arbiter') return `Arbiter resolved dispute for order #${orderId}.`;
-  if (kind === 'dispute_auto_split') return `Dispute for order #${orderId} auto-settled to 50/50 after deadline.`;
+  if (kind === 'delivery_time_accepted') return `Buyer accepted revised delivery timing for order #${orderId}.`;
+  if (kind === 'escrow_locked') return `Escrow locked for order #${orderId}.`;
+  if (kind === 'dispute_opened') return `Dispute opened for order #${orderId}.`;
+  if (kind === 'dispute_extended') return `Dispute for order #${orderId} was extended into the next window.`;
+  if (kind === 'dispute_resolved_by_agreement') return `Dispute for order #${orderId} resolved by agreement.`;
+  if (kind === 'dispute_resolved_by_arbiter') return `Dispute for order #${orderId} resolved by arbiter decision.`;
+  if (kind === 'dispute_auto_split') return `Dispute for order #${orderId} auto-split after deadline.`;
   if (kind === 'order_finalized') return `Order #${orderId} finalized on-chain.`;
-  if (kind === 'order_cancelled_by_seller') return `Seller cancelled order #${orderId} during the seller decision window.`;
-  if (kind === 'order_cancelled_by_buyer') return `Buyer cancelled order #${orderId} during the buyer re-sign window.`;
+  if (kind === 'order_cancelled_by_seller') return `Seller cancelled order #${orderId}.`;
+  if (kind === 'order_cancelled_by_buyer') return `Buyer cancelled order #${orderId}.`;
   if (kind === 'order_cancelled') return `Order #${orderId} cancelled on-chain.`;
   return `Protocol event recorded for order #${orderId}.`;
 }
@@ -396,22 +669,40 @@ function mergeCompletedEvents(
   derivedEvents: UserAnalyticsEvent[],
   projectedEvents: UserAnalyticsEvent[],
 ) {
-  const projectedKeys = new Set(projectedEvents.map((event) => `${event.orderId}:${event.kind}`));
-  const filteredDerived = derivedEvents.filter((event) => !projectedKeys.has(`${event.orderId}:${event.kind}`));
-  return [...projectedEvents, ...filteredDerived].sort((left, right) => right.timestamp - left.timestamp);
+  const merged = new Map<string, UserAnalyticsEvent>();
+
+  for (const event of [...derivedEvents, ...projectedEvents]) {
+    const key = `${event.orderId}:${event.kind}:${toDayKey(event.timestamp)}`;
+    const current = merged.get(key);
+
+    if (!current) {
+      merged.set(key, event);
+      continue;
+    }
+
+    const shouldReplace =
+      (current.source === 'derived' && event.source === 'projection')
+      || (event.timestamp >= current.timestamp && current.source === event.source);
+
+    if (shouldReplace) {
+      merged.set(key, event);
+    }
+  }
+
+  return [...merged.values()].sort((left, right) => right.timestamp - left.timestamp);
 }
 
-function buildActivityPoints(orders: ReturnType<typeof useUserOrders>['orders'], range: TimeRange): UserAnalyticsPoint[] {
+function buildActivityPoints(orders: OrderUiRecord[], range: TimeRange): UserAnalyticsPoint[] {
   const now = Date.now();
   const rangeStart = getRangeWindowStart(range);
   const effectiveStart = range === 'ALL'
-    ? (orders.length > 0
-      ? toDayStart(Math.min(...orders.map((order) => toMs(order.proposedAt, order.createdAt ?? now))))
-      : toDayStart(now))
+    ? (
+      orders.length > 0
+        ? toDayStart(Math.min(...orders.map((order) => toMs(order.proposedAt, order.createdAt ?? now))))
+        : toDayStart(now)
+    )
     : toDayStart(rangeStart);
-  const days = range === 'ALL'
-    ? Math.max(7, Math.ceil((toDayStart(now) - effectiveStart) / DAY_MS) + 1)
-    : Math.max(7, Math.ceil((toDayStart(now) - effectiveStart) / DAY_MS) + 1);
+  const days = Math.max(7, Math.ceil((toDayStart(now) - effectiveStart) / DAY_MS) + 1);
 
   const points = Array.from({ length: days }, (_, index) => {
     const timestamp = effectiveStart + (index * DAY_MS);
@@ -458,6 +749,7 @@ function buildActivityPoints(orders: ReturnType<typeof useUserOrders>['orders'],
 
 export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult {
   const { address } = useAccount();
+  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const { orders, isLoading } = useUserOrders(address);
   const [projectedEvents, setProjectedEvents] = useState<UserAnalyticsEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -466,7 +758,7 @@ export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult 
     let cancelled = false;
 
     const loadProjectedEvents = async () => {
-      if (!address || !isSupabaseRestEnabled()) {
+      if (!address || !isSupabaseRestEnabled() || !chainId || !marketplaceAddress) {
         setProjectedEvents([]);
         setEventsLoading(false);
         return;
@@ -474,10 +766,10 @@ export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult 
 
       setEventsLoading(true);
       try {
-        const normalized = address.toLowerCase();
+        const normalizedAddress = address.toLowerCase();
         const orderRows = await restSelect<ProtocolOrderProjectionRow>(
           'protocol_orders',
-          `?select=id,order_uid,buyer_address,seller_address&chain_id=eq.${ACTIVE_CHAIN_ID}&marketplace_contract=eq.${CONTRACTS.MARKETPLACE_ATP.toLowerCase()}&or=(buyer_address.eq.${normalized},seller_address.eq.${normalized})`,
+          `?select=id,order_uid,buyer_address,seller_address&chain_id=eq.${chainId}&marketplace_contract=eq.${marketplaceAddress.toLowerCase()}&or=(buyer_address.eq.${normalizedAddress},seller_address.eq.${normalizedAddress})`,
         );
         const orderIds = orderRows
           .map((row) => row.id)
@@ -507,21 +799,28 @@ export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult 
             if (!orderUid) return null;
             const order = orderMap.get(orderUid);
             const kind = normalizeProjectionEventKind(row.event_name);
+            const meta = projectionEventMeta(kind);
             const timestamp = parseTimestamp(row.block_time, parseTimestamp(row.created_at, 0));
-            return {
+            if (timestamp <= 0) return null;
+
+            return createAnalyticsEvent({
               id: row.id || `${orderUid}-${kind}-${row.tx_hash || row.log_index || 'event'}`,
               orderId: orderUid,
               assetName: order?.assetName || `Order #${orderUid}`,
+              assetImage: order?.assetImage,
               title: createProjectedEventTitle(kind, row.event_name),
               detail: createProjectedEventDetail(kind, orderUid, order?.assetName || `Order #${orderUid}`, row.payload),
               timestamp,
-              status: 'completed' as const,
+              status: 'completed',
               kind,
-              source: 'projection' as const,
+              source: 'projection',
+              phase: meta.phase,
+              actionOwner: meta.actionOwner,
+              viewerCanAct: false,
               txHash: row.tx_hash || undefined,
-            } satisfies UserAnalyticsEvent;
+            });
           })
-          .filter((value): value is UserAnalyticsEvent => Boolean(value && value.timestamp > 0));
+          .filter((value): value is UserAnalyticsEvent => Boolean(value));
 
         if (!cancelled) {
           setProjectedEvents(normalizedEvents);
@@ -541,13 +840,13 @@ export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult 
     void loadProjectedEvents();
     const poller = window.setInterval(() => {
       void loadProjectedEvents();
-    }, 15000);
+    }, 15_000);
 
     return () => {
       cancelled = true;
       window.clearInterval(poller);
     };
-  }, [address, orders]);
+  }, [address, chainId, marketplaceAddress, orders]);
 
   return useMemo(() => {
     if (!address) {
@@ -564,10 +863,11 @@ export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult 
       };
     }
 
-    const userOrders = orders.filter((order) => {
-      const normalized = address.toLowerCase();
-      return order.buyer.toLowerCase() === normalized || order.seller.toLowerCase() === normalized;
-    });
+    const normalizedAddress = address.toLowerCase();
+    const userOrders = orders.filter((order) => (
+      order.buyer.toLowerCase() === normalizedAddress
+      || order.seller.toLowerCase() === normalizedAddress
+    ));
 
     const activeOrders = userOrders.filter((order) => (
       order.state === OrderState.PENDING_CONFIRM
@@ -577,20 +877,26 @@ export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult 
     const finalizedOrders = userOrders.filter((order) => order.finalized || order.state === OrderState.FINALIZED).length;
     const disputedOrders = userOrders.filter((order) => order.state === OrderState.DISPUTED || order.disputed).length;
     const cancelledOrders = userOrders.filter((order) => order.state === OrderState.CANCELLED).length;
-    const asBuyerCount = userOrders.filter((order) => order.buyer.toLowerCase() === address.toLowerCase()).length;
-    const asSellerCount = userOrders.filter((order) => order.seller.toLowerCase() === address.toLowerCase()).length;
+    const asBuyerCount = userOrders.filter((order) => order.buyer.toLowerCase() === normalizedAddress).length;
+    const asSellerCount = userOrders.filter((order) => order.seller.toLowerCase() === normalizedAddress).length;
 
-    const timelineEntries = userOrders.flatMap(buildTimelineEntries);
-    const completedDerived = timelineEntries.filter((entry) => entry.status === 'completed');
+    const lifecycleEntries = userOrders.flatMap((order) => buildLifecycleMilestones(order, normalizedAddress));
+    const completedDerived = lifecycleEntries.filter((entry) => entry.status === 'completed');
     const completedEvents = mergeCompletedEvents(completedDerived, projectedEvents);
-    const upcomingEvents = [...timelineEntries]
+    const upcomingEvents = lifecycleEntries
       .filter((entry) => entry.status !== 'completed')
-      .sort((left, right) => left.timestamp - right.timestamp)
-      .slice(0, 10);
+      .sort((left, right) => {
+        const leftNeedsAction = left.viewerCanAct ? 0 : 1;
+        const rightNeedsAction = right.viewerCanAct ? 0 : 1;
+        if (leftNeedsAction !== rightNeedsAction) return leftNeedsAction - rightNeedsAction;
+        if (left.phasePriority !== right.phasePriority) return left.phasePriority - right.phasePriority;
+        return left.timestamp - right.timestamp;
+      })
+      .slice(0, 16);
     const calendarEvents = [...completedEvents, ...upcomingEvents].sort((left, right) => left.timestamp - right.timestamp);
     const recentEvents = [...completedEvents]
       .sort((left, right) => right.timestamp - left.timestamp)
-      .slice(0, 10);
+      .slice(0, 12);
 
     const lifecycleMap = new Map<string, { phase: string; label: string; count: number }>();
     const paymentMap = new Map<string, UserAnalyticsTokenBucket>();
@@ -620,6 +926,7 @@ export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult 
       paymentMap.set(symbol, token);
     }
 
+    const actionableUpcomingCount = upcomingEvents.filter((event) => event.viewerCanAct).length;
     const metrics: UserAnalyticsMetricSnapshot = {
       totalOrders: userOrders.length,
       activeOrders,
@@ -628,7 +935,7 @@ export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult 
       cancelledOrders,
       asBuyerCount,
       asSellerCount,
-      upcomingActions: upcomingEvents.length,
+      upcomingActions: actionableUpcomingCount > 0 ? actionableUpcomingCount : upcomingEvents.length,
     };
 
     const insights: UserAnalyticsInsight[] = [];
@@ -636,28 +943,35 @@ export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult 
       insights.push({
         type: 'info',
         title: 'No On-Chain Activity Yet',
-        message: 'Create or fulfill an order to start building your on-chain activity timeline.',
+        message: 'Create or fulfill an order to start building your lifecycle calendar.',
       });
     } else {
-      if (activeOrders > 0) {
+      if (actionableUpcomingCount > 0) {
         insights.push({
           type: 'warning',
-          title: 'Open Workflow Requires Attention',
-          message: `${activeOrders} order(s) still need action or protocol completion.`,
+          title: 'Action Needed',
+          message: `${actionableUpcomingCount} milestone(s) currently require action from this wallet.`,
         });
       }
       if (finalizedOrders > 0) {
         insights.push({
           type: 'success',
-          title: 'Settlements Confirmed On-Chain',
+          title: 'Orders Completed',
           message: `${finalizedOrders} order(s) have already finalized on-chain.`,
+        });
+      }
+      if (disputedOrders > 0) {
+        insights.push({
+          type: 'warning',
+          title: 'Dispute Workflow Present',
+          message: `${disputedOrders} order(s) entered the dispute lifecycle and should be monitored closely.`,
         });
       }
       if (upcomingEvents.length > 0) {
         insights.push({
           type: 'info',
-          title: 'Future Deadlines Tracked',
-          message: `${upcomingEvents.length} upcoming protocol milestone(s) are being tracked from order lifecycle deadlines.`,
+          title: 'Calendar Milestones Ready',
+          message: `${upcomingEvents.length} pending or future lifecycle milestone(s) are mapped from canonical order deadlines.`,
         });
       }
     }
@@ -668,12 +982,12 @@ export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult 
       calendarEvents,
       recentEvents,
       upcomingEvents,
-      lifecycleBreakdown: Array.from(lifecycleMap.values()).sort((left, right) => right.count - left.count),
-      paymentBreakdown: Array.from(paymentMap.values()).sort((left, right) => right.orderCount - left.orderCount),
+      lifecycleBreakdown: [...lifecycleMap.values()].sort((left, right) => right.count - left.count),
+      paymentBreakdown: [...paymentMap.values()].sort((left, right) => right.orderCount - left.orderCount),
       insights,
       isLoading: isLoading || eventsLoading,
     };
-  }, [address, isLoading, eventsLoading, orders, projectedEvents, timeRange]);
+  }, [address, eventsLoading, isLoading, orders, projectedEvents, timeRange]);
 }
 
 export function usePortfolioDistribution() {
@@ -686,7 +1000,7 @@ export function usePortfolioDistribution() {
 }
 
 export function exportAnalytics(result: UserAnalyticsResult) {
-  if (!result.metrics) return;
+  if (!result.metrics || typeof window === 'undefined') return;
 
   const rows = [
     ['User Analytics Export'],
@@ -702,33 +1016,36 @@ export function exportAnalytics(result: UserAnalyticsResult) {
     ['Seller Orders', String(result.metrics.asSellerCount)],
     [''],
     ['Recent Events'],
-    ['Timestamp', 'Order', 'Title', 'Detail', 'Status'],
+    ['Timestamp', 'Order', 'Title', 'Detail', 'Status', 'Phase'],
     ...result.recentEvents.map((event) => [
       new Date(event.timestamp).toISOString(),
       event.orderId,
       event.title,
       event.detail,
       event.status,
+      event.phase,
     ]),
     [''],
     ['Upcoming Events'],
-    ['Timestamp', 'Order', 'Title', 'Detail', 'Status'],
+    ['Timestamp', 'Order', 'Title', 'Detail', 'Status', 'Phase'],
     ...result.upcomingEvents.map((event) => [
       new Date(event.timestamp).toISOString(),
       event.orderId,
       event.title,
       event.detail,
       event.status,
+      event.phase,
     ]),
     [''],
     ['Calendar Events'],
-    ['Timestamp', 'Order', 'Title', 'Detail', 'Status', 'Source'],
+    ['Timestamp', 'Order', 'Title', 'Detail', 'Status', 'Phase', 'Source'],
     ...result.calendarEvents.map((event) => [
       new Date(event.timestamp).toISOString(),
       event.orderId,
       event.title,
       event.detail,
       event.status,
+      event.phase,
       event.source,
     ]),
   ];

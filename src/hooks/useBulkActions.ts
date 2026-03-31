@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { useAccount } from 'wagmi';
 import { BulkAction, BulkOperationResult } from '@/types/bulk';
 import { addFavorite } from '@/utils/favoritesUtils';
 import { toast } from 'sonner';
@@ -7,6 +8,7 @@ import { toast } from 'sonner';
  * Hook for executing bulk actions
  */
 export function useBulkActions() {
+  const { address } = useAccount();
   
   const executeBulkAction = useCallback(async (
     action: BulkAction,
@@ -17,16 +19,21 @@ export function useBulkActions() {
     let successCount = 0;
     let failedCount = 0;
     const errors: string[] = [];
-
-    // Default userId for demo purposes
-    const userId = 'demo-user';
+    const markUnsupported = (message: string) => {
+      failedCount = ids.length;
+      errors.push(message);
+      toast.error(message);
+    };
 
     try {
       switch (action) {
         case 'add-to-favorites':
+          if (!address) {
+            throw new Error('Connect wallet to add favorites');
+          }
           ids.forEach(id => {
             try {
-              addFavorite(userId, id);
+              addFavorite(address, id);
               successCount++;
             } catch (error) {
               failedCount++;
@@ -37,20 +44,7 @@ export function useBulkActions() {
           break;
 
         case 'set-price-alert':
-          // Price alert logic would go here
-          const { targetPrice, condition } = additionalData || {};
-          if (targetPrice) {
-            ids.forEach(id => {
-              try {
-                // In real app, this would call setPriceAlert(id, targetPrice, condition)
-                successCount++;
-              } catch (error) {
-                failedCount++;
-                errors.push(`Failed to set alert for ${id}`);
-              }
-            });
-            toast.success(`Set price alerts for ${successCount} items`);
-          }
+          markUnsupported('Bulk price alerts are not implemented yet');
           break;
 
         case 'export':
@@ -78,45 +72,15 @@ export function useBulkActions() {
           break;
 
         case 'delete':
-          // Delete logic (would need confirmation)
-          ids.forEach(id => {
-            try {
-              // In real app: deleteItem(id)
-              successCount++;
-            } catch (error) {
-              failedCount++;
-              errors.push(`Failed to delete ${id}`);
-            }
-          });
-          toast.success(`Deleted ${successCount} items`);
+          markUnsupported('Bulk delete is not implemented yet');
           break;
 
         case 'mark-as-read':
-          // Mark notifications as read
-          ids.forEach(id => {
-            try {
-              // In real app: markNotificationAsRead(id)
-              successCount++;
-            } catch (error) {
-              failedCount++;
-              errors.push(`Failed to mark ${id} as read`);
-            }
-          });
-          toast.success(`Marked ${successCount} items as read`);
+          markUnsupported('Bulk mark-as-read is not implemented yet');
           break;
 
         case 'archive':
-          // Archive logic
-          ids.forEach(id => {
-            try {
-              // In real app: archiveItem(id)
-              successCount++;
-            } catch (error) {
-              failedCount++;
-              errors.push(`Failed to archive ${id}`);
-            }
-          });
-          toast.success(`Archived ${successCount} items`);
+          markUnsupported('Bulk archive is not implemented yet');
           break;
 
         default:
@@ -133,7 +97,7 @@ export function useBulkActions() {
       failedCount,
       errors: errors.length > 0 ? errors : undefined,
     };
-  }, []);
+  }, [address]);
 
   return {
     executeBulkAction,

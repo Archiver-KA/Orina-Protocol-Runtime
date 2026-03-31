@@ -74,8 +74,25 @@ type DbProfileRow = {
 type DbWalletSessionRow = {
   id: string;
   wallet_address: string;
+  created_at: string;
   expires_at: string;
   revoked_at: string | null;
+  last_seen_at: string | null;
+};
+
+type DbWalletSessionListRow = {
+  id: string;
+  wallet_address: string;
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  last_seen_at: string | null;
+  device_label: string | null;
+};
+
+type DbUserAppSettingsSecurityRow = {
+  user_id: string;
+  security_settings: Record<string, unknown> | null;
 };
 
 type DbAssetCatalogRow = {
@@ -130,6 +147,12 @@ function isEnabled(name: string): boolean {
   return (Deno.env.get(name) || '').toLowerCase() === 'true';
 }
 
+function safeObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 function getVerificationMode(): VerificationMode {
   const raw = (Deno.env.get('ATP2_SUPABASE_AUTH_BRIDGE_VERIFY_MODE') || '')
     .toLowerCase()
@@ -158,6 +181,12 @@ function getWalletSessionTtlMs(): number {
   );
   if (!Number.isFinite(raw) || raw <= 0) return 7 * 24 * 60 * 60 * 1000;
   return Math.floor(raw);
+}
+
+function getSessionLockoutIdleMs(): number {
+  const raw = Number(Deno.env.get('ATP2_WALLET_SESSION_LOCKOUT_IDLE_MS') || 30 * 60 * 1000);
+  if (!Number.isFinite(raw) || raw <= 0) return 30 * 60 * 1000;
+  return Math.min(Math.max(Math.floor(raw), 5 * 60 * 1000), 12 * 60 * 60 * 1000);
 }
 
 function getJwtSecret(): string | null {
@@ -277,7 +306,7 @@ async function findActiveWalletSession(
   const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .from('wallet_sessions')
-    .select('id,wallet_address,expires_at,revoked_at')
+    .select('id,wallet_address,created_at,expires_at,revoked_at,last_seen_at')
     .eq('wallet_address', walletAddress)
     .is('revoked_at', null)
     .gt('expires_at', nowIso)
@@ -319,7 +348,7 @@ async function createWalletSession(
       last_seen_at: new Date(now).toISOString(),
       device_label: opts?.clientApp ? `claim_bridge:${String(opts.clientApp).slice(0, 120)}` : 'claim_bridge',
     })
-    .select('id,wallet_address,expires_at,revoked_at')
+    .select('id,wallet_address,created_at,expires_at,revoked_at,last_seen_at')
     .limit(1);
 
   if (error) {
@@ -338,8 +367,9 @@ async function ensureActiveWalletSession(
   supabase: ServiceSupabaseClient,
   walletAddress: string,
   body: ExchangeRequest,
+  existingSession?: DbWalletSessionRow | null,
 ): Promise<DbWalletSessionRow> {
-  const existing = await findActiveWalletSession(supabase, walletAddress);
+  const existing = existingSession ?? await findActiveWalletSession(supabase, walletAddress);
   if (existing) {
     void touchWalletSessionLastSeen(supabase, existing.id);
     return existing;
@@ -362,6 +392,20 @@ async function touchWalletSessionLastSeen(
     .eq('id', sessionId);
   if (error) {
     console.warn('[H1 Bridge] Failed to touch wallet_sessions.last_seen_at:', error.message);
+  }
+}
+
+async function revokeWalletSession(
+  supabase: ServiceSupabaseClient,
+  sessionId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('wallet_sessions')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('id', sessionId)
+    .is('revoked_at', null);
+  if (error) {
+    throw new Error(`wallet_sessions revoke stale session failed: ${error.message}`);
   }
 }
 
@@ -417,6 +461,84 @@ async function resolveOrCreateProfile(
   const inserted = (insertedRows?.[0] as DbProfileRow | undefined) || null;
   if (!inserted) throw new Error('profiles create failed: empty insert result');
   return inserted;
+}
+
+async function isSessionLockoutEnabled(
+  supabase: ServiceSupabaseClient,
+  profileId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('user_app_settings')
+    .select('user_id,security_settings')
+    .eq('user_id', profileId)
+    .limit(1);
+
+  if (error) {
+    throw new Error(`user_app_settings lookup failed: ${error.message}`);
+  }
+
+  const row = (data?.[0] as DbUserAppSettingsSecurityRow | undefined) || null;
+  const security = safeObject(row?.security_settings);
+  return security.sessionLockout === true;
+}
+
+function getWalletSessionLastActivityMs(session: DbWalletSessionRow | null): number {
+  const raw = session?.last_seen_at || session?.created_at || '';
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function hasFreshWalletAuthSignature(
+  body: ExchangeRequest,
+): boolean {
+  const signedAt = Number(body.walletAuthSession?.signedAt || 0);
+  if (!Number.isFinite(signedAt) || signedAt <= 0) return false;
+  return Date.now() - signedAt <= getSessionLockoutIdleMs();
+}
+
+async function applySessionLockoutPolicy(
+  supabase: ServiceSupabaseClient,
+  body: ExchangeRequest,
+  activeSession: DbWalletSessionRow | null,
+  sessionLockoutEnabled: boolean,
+): Promise<{
+  error?: string;
+  nextSession: DbWalletSessionRow | null;
+}> {
+  if (!sessionLockoutEnabled) {
+    return { nextSession: activeSession };
+  }
+
+  const idleWindowMs = getSessionLockoutIdleMs();
+  const now = Date.now();
+  const lastActivityMs = getWalletSessionLastActivityMs(activeSession);
+  const sessionIsIdleLocked =
+    !!activeSession &&
+    lastActivityMs > 0 &&
+    now - lastActivityMs > idleWindowMs;
+
+  if (!activeSession) {
+    return hasFreshWalletAuthSignature(body)
+      ? { nextSession: null }
+      : {
+          error: 'Secure Orina session locked after inactivity. Sign the Orina wallet auth message again to continue.',
+          nextSession: null,
+        };
+  }
+
+  if (!sessionIsIdleLocked) {
+    return { nextSession: activeSession };
+  }
+
+  if (!hasFreshWalletAuthSignature(body)) {
+    return {
+      error: 'Secure Orina session locked after inactivity. Sign the Orina wallet auth message again to continue.',
+      nextSession: null,
+    };
+  }
+
+  await revokeWalletSession(supabase, activeSession.id);
+  return { nextSession: null };
 }
 
 function base64UrlEncodeString(value: string): string {
@@ -533,13 +655,30 @@ async function verifyRequestAndResolveIdentity(
 
   const supabase = getServiceSupabaseClient();
   const mode = getVerificationMode();
+  const profile = await resolveOrCreateProfile(supabase, walletAddress);
+  const sessionLockoutEnabled = await isSessionLockoutEnabled(supabase, profile.id);
+  const activeWalletSession = mode === 'wallet_session_row'
+    ? await findActiveWalletSession(supabase, walletAddress)
+    : null;
+  const lockoutResult = await applySessionLockoutPolicy(
+    supabase,
+    body,
+    activeWalletSession,
+    sessionLockoutEnabled,
+  );
+  if (lockoutResult.error) {
+    return { ok: false as const, status: 401, error: lockoutResult.error };
+  }
 
   let walletSessionRow: DbWalletSessionRow | null = null;
   if (mode === 'wallet_session_row') {
-    walletSessionRow = await ensureActiveWalletSession(supabase, walletAddress, body);
+    walletSessionRow = await ensureActiveWalletSession(
+      supabase,
+      walletAddress,
+      body,
+      lockoutResult.nextSession,
+    );
   }
-
-  const profile = await resolveOrCreateProfile(supabase, walletAddress);
 
   if (walletSessionRow?.id) {
     void touchWalletSessionLastSeen(supabase, walletSessionRow.id);
@@ -625,8 +764,112 @@ router.post('/refresh', async (c) => {
 });
 
 router.post('/logout', async (c) => {
-  // Client can clear local bridge token without server coordination in H1.
-  return c.json({ ok: true, status: 'noop_h1' });
+  const auth = await requireAuthenticatedWallet(c);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  if (!isEnabled('ATP2_ENABLE_SUPABASE_AUTH_CLAIM_BRIDGE')) {
+    return c.json({ error: 'Bridge is disabled' }, 501);
+  }
+
+  try {
+    const supabase = getServiceSupabaseClient();
+    const revokedAt = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('wallet_sessions')
+      .update({ revoked_at: revokedAt })
+      .eq('wallet_address', auth.identity.walletAddress)
+      .is('revoked_at', null)
+      .select('id');
+
+    if (error) {
+      throw new Error(`wallet_sessions revoke failed: ${error.message}`);
+    }
+
+    return c.json({
+      ok: true,
+      status: 'revoked',
+      walletAddress: auth.identity.walletAddress,
+      currentSessionId: auth.identity.walletSessionId,
+      revokedCount: Array.isArray(data) ? data.length : 0,
+      revokedAt,
+    });
+  } catch (error) {
+    console.error('[H1 Bridge] logout failed:', error);
+    return c.json(
+      { error: error instanceof Error ? error.message : 'Unable to revoke wallet sessions' },
+      500,
+    );
+  }
+});
+
+router.get('/sessions', async (c) => {
+  const auth = await requireAuthenticatedWallet(c);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  if (!isEnabled('ATP2_ENABLE_SUPABASE_AUTH_CLAIM_BRIDGE')) {
+    return c.json({ error: 'Bridge is disabled' }, 501);
+  }
+
+  try {
+    const supabase = getServiceSupabaseClient();
+    const currentSessionId = auth.identity.walletSessionId;
+
+    if (currentSessionId) {
+      void touchWalletSessionLastSeen(supabase, currentSessionId);
+    }
+
+    const { data, error } = await supabase
+      .from('wallet_sessions')
+      .select('id,wallet_address,created_at,expires_at,revoked_at,last_seen_at,device_label')
+      .eq('wallet_address', auth.identity.walletAddress)
+      .order('last_seen_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .limit(8);
+
+    if (error) {
+      throw new Error(`wallet_sessions list failed: ${error.message}`);
+    }
+
+    const now = Date.now();
+    const sessions = ((data || []) as DbWalletSessionListRow[]).map((row) => {
+      const expiresAtMs = Date.parse(row.expires_at);
+      const status =
+        row.revoked_at
+          ? 'revoked'
+          : Number.isFinite(expiresAtMs) && expiresAtMs > now
+            ? 'active'
+            : 'expired';
+
+      return {
+        id: row.id,
+        walletAddress: row.wallet_address,
+        createdAt: row.created_at,
+        lastSeenAt: row.last_seen_at,
+        expiresAt: row.expires_at,
+        revokedAt: row.revoked_at,
+        deviceLabel: row.device_label,
+        status,
+        isCurrent: !!currentSessionId && row.id === currentSessionId,
+      };
+    });
+
+    return c.json({
+      ok: true,
+      source: 'wallet_sessions',
+      currentSessionId,
+      sessions,
+    });
+  } catch (error) {
+    console.error('[H1 Bridge] sessions failed:', error);
+    return c.json(
+      { error: error instanceof Error ? error.message : 'Unable to load wallet sessions' },
+      500,
+    );
+  }
 });
 
 router.post('/community-notify', async (c) => {

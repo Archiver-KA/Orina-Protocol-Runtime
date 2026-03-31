@@ -25,6 +25,7 @@ import { formatAddress } from '@/utils/format';
 import { formatOrderGrossPrice, formatOrderQuantity } from '@/utils/orderDisplay';
 import { getOrderLifecycleLabel, getOrderLifecyclePhase } from '@/utils/orderLifecycle';
 import { extractNumericValue, preventInvalidNumberKeyDown } from '@/utils/numericInput';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
 interface SellerAsset {
   id: string;
@@ -300,7 +301,7 @@ export function SellerAssetManagementModal({
                     </div>
                     <div className="studio-glass-chip absolute right-[17px] top-[13px] px-2 py-[2.5px] bg-black/60 border border-white/10 backdrop-blur-[6px] rounded-[6px]">
                       <span className="text-[9px] leading-[14px] font-bold uppercase text-zinc-400">
-                        {asset.category}
+                        {getCategoryDisplayLabel(asset.category)}
                       </span>
                     </div>
                   </div>
@@ -461,7 +462,7 @@ function OverviewTab({
         </div>
         <div className="space-y-3">
           <InfoRow label="Name" value={asset.name} />
-          <InfoRow label="Category" value={asset.category} />
+          <InfoRow label="Category" value={getCategoryDisplayLabel(asset.category)} />
           <InfoRow label="Minted Date" value={asset.mintedDate} />
           <InfoRow label="Sold Units" value={`${soldUnits}/${asset.totalAmount}`} />
           <InfoRow label="Seller Orders" value={`${metrics.totalOrders}`} />
@@ -498,7 +499,7 @@ function OverviewTab({
                   </StudioStatusBadge>
                 </div>
                 <p className="text-[11px] text-zinc-500">
-                  Buyer {formatAddress(order.buyer)} · {formatOrderQuantity(order.amount, order.unitName)}
+                  Buyer {formatAddress(order.buyer)} · {formatOrderQuantity(order.amount, order.unitLabel, order.unitName)}
                 </p>
                 <p className="text-[11px] text-zinc-500">{formatOrderDate(order)}</p>
                 {index < metrics.latestOrders.length - 1 ? <div className="pt-2 border-b border-white/5" /> : null}
@@ -559,7 +560,7 @@ function ActiveTab({
           <div className="grid grid-cols-2 gap-3 text-[10px]">
             <div>
               <p className="text-zinc-500 uppercase tracking-widest font-bold">Quantity</p>
-              <p className="text-white font-bold mt-1">{formatOrderQuantity(order.amount, order.unitName)}</p>
+              <p className="text-white font-bold mt-1">{formatOrderQuantity(order.amount, order.unitLabel, order.unitName)}</p>
             </div>
             <div>
               <p className="text-zinc-500 uppercase tracking-widest font-bold">Gross Value</p>
@@ -613,7 +614,7 @@ function HistoryTab({
           </div>
           <div className="flex items-center justify-between text-[10px]">
             <span className="text-zinc-500">
-              Amount: <span className="text-white font-bold">{formatOrderQuantity(order.amount, order.unitName)}</span>
+              Amount: <span className="text-white font-bold">{formatOrderQuantity(order.amount, order.unitLabel, order.unitName)}</span>
             </span>
             <span className="text-[#2CC295] font-bold">
               {formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals)}

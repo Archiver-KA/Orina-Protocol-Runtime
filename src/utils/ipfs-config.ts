@@ -1,12 +1,16 @@
 import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { getSupabaseFunctionUrl } from '/utils/supabase/functions';
 
 /**
  * Check if IPFS upload is configured (PINATA_JWT is set)
  */
 export async function checkIPFSConfigured(): Promise<boolean> {
   try {
+    const checkUrl = getSupabaseFunctionUrl('ipfs/check');
+    if (!checkUrl || !publicAnonKey) return false;
+
     const response = await fetch(
-      `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ipfs/check`,
+      checkUrl,
       {
         method: 'GET',
         headers: {
@@ -29,7 +33,9 @@ export async function checkIPFSConfigured(): Promise<boolean> {
  * Get IPFS setup instructions URL
  */
 export function getIPFSSetupUrl(): string {
-  return `https://supabase.com/dashboard/project/${projectId}/settings/functions`;
+  return projectId
+    ? `https://supabase.com/dashboard/project/${projectId}/settings/functions`
+    : 'https://supabase.com/dashboard/projects';
 }
 
 /**

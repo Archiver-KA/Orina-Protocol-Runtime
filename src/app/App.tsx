@@ -29,19 +29,21 @@ import { useState, useEffect, useRef } from 'react';
 import { Web3Provider } from '@/providers/Web3Provider';
 import { NotificationProvider, useNotifications } from '@/contexts/NotificationContext';
 import { WalletModalProvider } from '@/contexts/WalletModalContext';
+import { ProtocolNetworkProvider } from '@/contexts/ProtocolNetworkContext';
 import { UserProvider } from '@/contexts/UserContext';
 import { WalletConnectionStatus } from '@/app/components/wallet-connection-status';
 import { RuntimeErrorBoundary } from '@/app/components/ui/runtime-error-boundary';
 import { Toaster } from '@/app/components/ui/sonner';
 import { useTheme } from '@/app/contexts/ThemeContext';
 import { useUserInitialization } from '@/hooks/useUserInitialization';
-import { cleanupAllStaleSellerProfiles } from '@/utils/cleanupSellerProfiles';
+
 import { useAccessMode } from '@/hooks/useAccessMode';
 import { useAccessGuard } from '@/hooks/useAccessGuard';
 import { useCommandPalette } from '@/hooks/useCommandPalette';
 import { getConversations as getChatConversations } from '@/utils/messagesClient';
 import { buildNotificationSourceId } from '@/utils/notifications';
 import { shortenUserDisplayName } from '@/utils/profileUtils';
+import type { OrderNavigationRequest } from '@/types/orderNavigation';
 
 // Inner component that uses wagmi hooks (must be inside Web3Provider)
 function AppContent({
@@ -54,6 +56,9 @@ function AppContent({
   previousPage,
   selectedConversationId,
   selectedProfileAddress,
+  ordersNavigationRequest,
+  onConsumeOrderNavigationRequest,
+  onOpenInsightsOrder,
   handleNavigateToAsset,
   handleBackFromAssetDetails,
   handleSearch,
@@ -261,9 +266,15 @@ function AppContent({
             } : undefined}
           >
             {activePage === 'overview' && <MainContent />}
-            {activePage === 'orders' && <Orders onNavigateToPage={guardedSetActivePage} />}
+            {activePage === 'orders' && (
+              <Orders
+                onNavigateToPage={guardedSetActivePage}
+                navigationRequest={ordersNavigationRequest}
+                onConsumeNavigationRequest={onConsumeOrderNavigationRequest}
+              />
+            )}
             {activePage === 'marketplace' && <Marketplace onNavigateToPage={guardedSetActivePage} onNavigateToUserProfile={guardedNavigateToUserProfile} />}
-            {activePage === 'market-insights' && <MarketInsights />}
+            {activePage === 'market-insights' && <MarketInsights onOpenOrderRequest={onOpenInsightsOrder} />}
             {activePage === 'minting' && (
               <RuntimeErrorBoundary
                 title="Minting Page Failed to Load"
@@ -382,6 +393,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [selectedProfileAddress, setSelectedProfileAddress] = useState<string | null>(null);
+  const [ordersNavigationRequest, setOrdersNavigationRequest] = useState<OrderNavigationRequest | null>(null);
 
   // ✅ SMART NAVIGATION: Wrap setActivePage to clear profile address when navigating to own profile
   // This ensures clicking "Profile" from dropdown/sidebar shows OWN profile, not the last visited one
@@ -432,11 +444,7 @@ export default function App() {
     };
   }, []);
 
-  // 🧹 CLEANUP: Run comprehensive seller profile cleanup on app startup
-  useEffect(() => {
-    const report = cleanupAllStaleSellerProfiles();
-    void report;
-  }, []); // Run once on mount
+
 
   // NOTE: ⌘K is now handled by Navbar search bar
   // Command Palette shortcuts are disabled in favor of search
@@ -486,6 +494,21 @@ export default function App() {
     setActivePage('messages');
   };
 
+  const handleOpenInsightsOrder = (request: Omit<OrderNavigationRequest, 'requestKey'>) => {
+    if (!request.orderId) return;
+    setOrdersNavigationRequest({
+      ...request,
+      requestKey: `${request.source || 'orders'}:${request.orderId}:${request.timestamp || Date.now()}`,
+    });
+    setActivePage('orders');
+  };
+
+  const handleConsumeOrderNavigationRequest = (requestKey: string) => {
+    setOrdersNavigationRequest((current) => (
+      current?.requestKey === requestKey ? null : current
+    ));
+  };
+
   // Handle profile navigation from community
   const handleNavigateToUserProfile = (walletAddress: string) => {
     // ✅ SIMPLIFIED: Just validate address and navigate
@@ -514,29 +537,34 @@ export default function App() {
 
   return (
     <Web3Provider>
-      <NotificationProvider>
-        <WalletModalProvider>
-          <UserProvider>
-            <AppContent
-              activePage={activePage}
-              setActivePage={handleSetActivePage}
-              sidebarCollapsed={sidebarCollapsed}
-              setSidebarCollapsed={setSidebarCollapsed}
-              selectedAssetId={selectedAssetId}
-              searchQuery={searchQuery}
-              previousPage={previousPage}
-              selectedConversationId={selectedConversationId}
-              selectedProfileAddress={selectedProfileAddress}
-              handleNavigateToAsset={handleNavigateToAsset}
-              handleBackFromAssetDetails={handleBackFromAssetDetails}
-              handleSearch={handleSearch}
-              handleNavigateToUserProfile={handleNavigateToUserProfile}
-              handleNavigateToMessages={handleNavigateToMessages}
-              getGridLayout={getGridLayout}
-            />
-          </UserProvider>
-        </WalletModalProvider>
-      </NotificationProvider>
+      <ProtocolNetworkProvider>
+        <NotificationProvider>
+          <WalletModalProvider>
+            <UserProvider>
+              <AppContent
+                activePage={activePage}
+                setActivePage={handleSetActivePage}
+                sidebarCollapsed={sidebarCollapsed}
+                setSidebarCollapsed={setSidebarCollapsed}
+                selectedAssetId={selectedAssetId}
+                searchQuery={searchQuery}
+                previousPage={previousPage}
+                selectedConversationId={selectedConversationId}
+                selectedProfileAddress={selectedProfileAddress}
+                ordersNavigationRequest={ordersNavigationRequest}
+                onConsumeOrderNavigationRequest={handleConsumeOrderNavigationRequest}
+                onOpenInsightsOrder={handleOpenInsightsOrder}
+                handleNavigateToAsset={handleNavigateToAsset}
+                handleBackFromAssetDetails={handleBackFromAssetDetails}
+                handleSearch={handleSearch}
+                handleNavigateToUserProfile={handleNavigateToUserProfile}
+                handleNavigateToMessages={handleNavigateToMessages}
+                getGridLayout={getGridLayout}
+              />
+            </UserProvider>
+          </WalletModalProvider>
+        </NotificationProvider>
+      </ProtocolNetworkProvider>
     </Web3Provider>
   );
 }

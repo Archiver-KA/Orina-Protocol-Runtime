@@ -1,3 +1,9 @@
+/**
+ * @deprecated Phase 3 - Hybrid wallet data: Notifications.
+ * localStorage persistence should migrate to remote-first via the
+ * notifications table server table.
+ * See spec: 15-local-api-audit-and-server-migration-plan.md
+ */
 import { AppNotification, NotificationPreferences, NotificationType } from '@/types/notifications';
 import {
   dispatchSyncEvent,
@@ -11,7 +17,6 @@ import {
 import { ensureRemoteProfileIdForWallet, getCachedRemoteProfileId } from '@/utils/profileRemoteIdentity';
 import {
   appSettingsToNotificationPreferences,
-  hasLocalUserAppSettings,
   mergeNotificationPreferencesIntoAppSettings,
   readLocalUserAppSettings,
   saveUserAppSettings,
@@ -19,13 +24,49 @@ import {
 } from '@/utils/userSettingsUtils';
 
 // 🔒 PHASE 1 FIX: Address-based storage for privacy isolation
-const LEGACY_STORAGE_KEY = 'studio_notifications'; // For migration
-const LEGACY_PREFERENCES_KEY = 'studio_notification_preferences';
+// REMOVED: Legacy localStorage keys — data now fully server-side via notifications table
+// const LEGACY_STORAGE_KEY = 'studio_notifications';
+// const LEGACY_PREFERENCES_KEY = 'studio_notification_preferences';
 const NOTIFICATION_SOURCE_TYPE = 'atp2_app_v1';
 const NOTIFICATIONS_SYNC_EVENT = 'orina:notifications-changed';
 const PREFERENCES_SYNC_EVENT = 'orina:notification-preferences-changed';
 const notifSyncTimers = new Map<string, number>();
 const notifHydrateInFlight = new Set<string>();
+
+function normalizeNotificationType(value: unknown): NotificationType {
+  switch (value) {
+    case 'order':
+    case 'message':
+    case 'system':
+    case 'success':
+    case 'warning':
+    case 'error':
+    case 'community':
+      return value;
+    default:
+      return 'system';
+  }
+}
+
+function normalizeStoredNotification(value: unknown): AppNotification | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const id = normalizeNotificationSourceId(raw.id) || generateNotificationId();
+  const title = typeof raw.title === 'string' && raw.title.trim() ? raw.title.trim() : 'Notification';
+  const message = typeof raw.message === 'string' ? raw.message : '';
+  const timestamp = Number(raw.timestamp);
+
+  return {
+    id,
+    type: normalizeNotificationType(raw.type),
+    title,
+    message,
+    timestamp: Number.isFinite(timestamp) ? timestamp : Date.now(),
+    read: !!raw.read,
+    actionUrl: typeof raw.actionUrl === 'string' ? raw.actionUrl : undefined,
+    metadata: normalizeNotificationMetadata(raw.metadata as AppNotification['metadata']),
+  };
+}
 
 function normalizeNotificationSourceId(value: unknown): string | null {
   const raw = String(value ?? '').trim();
@@ -159,9 +200,15 @@ export function loadNotificationsLocalOnly(walletAddress: string): AppNotificati
 function loadNotificationsInternal(walletAddress: string, skipHydrate: boolean): AppNotification[] {
   try {
     const key = getNotificationsKey(walletAddress);
-    const stored = localStorage.getItem(key);
+    // In-memory cache via sessionStorage for tab persistence, no localStorage
+    const stored = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem(key) : null;
     const parsed = stored ? JSON.parse(stored) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    const normalized = Array.isArray(parsed)
+      ? parsed
+          .map(normalizeStoredNotification)
+          .filter((item): item is AppNotification => !!item)
+      : [];
+    return normalized;
   } catch (error) {
     console.error('[Notifications] Failed to load:', error);
     return [];
@@ -206,7 +253,10 @@ function saveNotificationsInternal(walletAddress: string, notifications: AppNoti
   try {
     const normalized = dedupeNotificationsById(notifications || []);
     const key = getNotificationsKey(walletAddress);
-    localStorage.setItem(key, JSON.stringify(normalized));
+    // Tab-session cache only, no localStorage
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(key, JSON.stringify(normalized));
+    }
     dispatchSyncEvent(NOTIFICATIONS_SYNC_EVENT);
     if (walletAddress && !skipRemoteSync) {
       queueNotificationsSync(walletAddress, normalized);
@@ -223,20 +273,7 @@ function saveNotificationsInternal(walletAddress: string, notifications: AppNoti
 export function loadPreferences(walletAddress: string): NotificationPreferences {
   try {
     if (!walletAddress) return getDefaultPreferences();
-
     const currentSettings = settingsRecordToAppSettings(readLocalUserAppSettings(walletAddress));
-    if (hasLocalUserAppSettings(walletAddress)) {
-      return appSettingsToNotificationPreferences(currentSettings);
-    }
-
-    const key = getPreferencesKey(walletAddress);
-    const stored = localStorage.getItem(key);
-    if (stored) {
-      const parsed = { ...getDefaultPreferences(), ...JSON.parse(stored) } as NotificationPreferences;
-      void saveUserAppSettings(walletAddress, mergeNotificationPreferencesIntoAppSettings(currentSettings, parsed));
-      return parsed;
-    }
-
     return appSettingsToNotificationPreferences(currentSettings);
   } catch (error) {
     console.error('[Notifications] Failed to load preferences:', error);
@@ -251,8 +288,6 @@ export function loadPreferences(walletAddress: string): NotificationPreferences 
  */
 export function savePreferences(walletAddress: string, preferences: NotificationPreferences): void {
   try {
-    const key = getPreferencesKey(walletAddress);
-    localStorage.setItem(key, JSON.stringify(preferences));
     if (walletAddress) {
       const currentSettings = settingsRecordToAppSettings(readLocalUserAppSettings(walletAddress));
       void saveUserAppSettings(walletAddress, mergeNotificationPreferencesIntoAppSettings(currentSettings, preferences));
@@ -348,9 +383,7 @@ export async function hydrateNotificationsFromSupabase(walletAddress: string): P
       })
     );
     const mapped = mapDbNotificationsToApp(rows);
-    const existingRaw = localStorage.getItem(getNotificationsKey(walletKey));
-    const existing = existingRaw ? JSON.parse(existingRaw) : [];
-    const existingList = Array.isArray(existing) ? (existing as AppNotification[]) : [];
+    const existingList = loadNotificationsLocalOnly(walletKey);
 
     const remoteById = new Map<string, AppNotification>(
       mapped.filter((n) => n?.id).map((n) => [String(n.id), n])
@@ -361,8 +394,6 @@ export async function hydrateNotificationsFromSupabase(walletAddress: string): P
       const key = String(localNotif.id);
       const remoteNotif = remoteById.get(key);
       if (!remoteNotif) continue;
-      // Preserve local read-state immediately after user actions while remote sync catches up.
-      // This avoids unread badges/items "coming back" on refresh in non-realtime mode.
       remoteById.set(key, {
         ...remoteNotif,
         read: !!remoteNotif.read || !!localNotif.read,
@@ -374,8 +405,7 @@ export async function hydrateNotificationsFromSupabase(walletAddress: string): P
     const merged = [...Array.from(remoteById.values()), ...localOnly]
       .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))
       .slice(0, 100);
-    localStorage.setItem(getNotificationsKey(walletKey), JSON.stringify(merged));
-    dispatchSyncEvent(NOTIFICATIONS_SYNC_EVENT);
+    saveNotificationsLocalOnly(walletKey, merged);
   } catch (error) {
     console.debug('[Notifications] Supabase hydrate skipped:', error);
   } finally {
@@ -705,43 +735,9 @@ export function createNotification(
  * @param walletAddress - The wallet address to migrate data for
  * @param userId - The legacy userId (if available for filtering)
  */
-export function migrateNotificationsToAddressBased(walletAddress: string, userId?: string): void {
-  try {
-    console.log(`[Notifications Migration] Starting migration for ${walletAddress}`);
-    
-    // Check if already migrated
-    const newNotificationsKey = getNotificationsKey(walletAddress);
-    const existing = localStorage.getItem(newNotificationsKey);
-    if (existing && JSON.parse(existing).length > 0) {
-      console.log(`[Notifications Migration] Already migrated (${JSON.parse(existing).length} notifications found)`);
-      return;
-    }
-    
-    // Load from legacy global storage
-    const legacyNotifications = localStorage.getItem(LEGACY_STORAGE_KEY);
-    const legacyPreferences = localStorage.getItem(LEGACY_PREFERENCES_KEY);
-    
-    // Migrate notifications
-    if (legacyNotifications) {
-      const allNotifications: AppNotification[] = JSON.parse(legacyNotifications);
-      
-      // For now, migrate ALL notifications to this user
-      // In a real scenario, you'd filter by userId if available
-      if (allNotifications.length > 0) {
-        saveNotifications(walletAddress, allNotifications);
-        console.log(`[Notifications Migration] ✅ Migrated ${allNotifications.length} notifications`);
-      }
-    }
-    
-    // Migrate preferences
-    if (legacyPreferences) {
-      const preferences: NotificationPreferences = JSON.parse(legacyPreferences);
-      savePreferences(walletAddress, preferences);
-      console.log(`[Notifications Migration] ✅ Migrated preferences`);
-    }
-    
-    console.log(`[Notifications Migration] ✅ Migration complete for ${walletAddress}`);
-  } catch (error) {
-    console.error('[Notifications Migration] Failed:', error);
-  }
+/**
+ * @deprecated Legacy migration removed. Notifications now fully server-side.
+ */
+export function migrateNotificationsToAddressBased(_walletAddress: string, _userId?: string): void {
+  // No-op: legacy localStorage migration removed
 }

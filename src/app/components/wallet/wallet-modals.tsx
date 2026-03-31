@@ -1,5 +1,6 @@
 import { useWalletModalContext } from '@/contexts/WalletModalContext';
 import { ConnectWalletModal } from './connect-wallet-modal';
+import { SecurityCheckModal } from './security-check-modal';
 import { SignatureRequestModal } from './signature-request-modal';
 import { TransactionProcessingModal } from './transaction-processing-modal';
 import { TransactionSuccessModal } from './transaction-success-modal';
@@ -17,11 +18,12 @@ export function WalletModals() {
     modalState,
     closeModal,
     handleWalletConnect,
+    handleSecurityCheckConfirm,
     handleSignatureConfirm,
     handleSignatureCancel,
   } = useWalletModalContext();
 
-  const { step, signatureData, transactionResult, isBusy } = modalState;
+  const { step, securityCheckData, signatureData, transactionResult, isBusy } = modalState;
 
   if (!step) return null;
 
@@ -29,6 +31,15 @@ export function WalletModals() {
     <>
       {step === 'connect' && (
         <ConnectWalletModal onClose={closeModal} onConnect={handleWalletConnect} />
+      )}
+
+      {step === 'security_check' && securityCheckData && (
+        <SecurityCheckModal
+          data={securityCheckData}
+          isSigning={Boolean(isBusy)}
+          onConfirm={handleSecurityCheckConfirm}
+          onCancel={handleSignatureCancel}
+        />
       )}
 
       {step === 'signature' && signatureData && (

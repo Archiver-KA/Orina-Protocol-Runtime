@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Upload, Twitter, MessageCircle, Send, Globe } from 'lucide-react';
+import { Upload, Twitter, MessageCircle, Send, Globe, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { UserProfile } from '@/types/profile';
@@ -17,6 +17,7 @@ interface EditProfileModalProps {
 export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalProps) {
   const [displayName, setDisplayName] = useState(profile.displayName || '');
   const [username, setUsername] = useState(profile.username);
+  const [email, setEmail] = useState(profile.email || '');
   const [bio, setBio] = useState(profile.bio || '');
   const [twitter, setTwitter] = useState(profile.socialLinks?.twitter || '');
   const [discord, setDiscord] = useState(profile.socialLinks?.discord || '');
@@ -40,6 +41,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
     onSave({
       displayName: displayName.trim() || undefined,
       username: username.trim(),
+      email: email.trim().toLowerCase() || undefined,
       bio: bio.trim() || undefined,
       // Include IPFS uploaded images
       avatarUrl: avatarImage?.url || profile.avatarUrl,
@@ -110,12 +112,14 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                     label="Profile Banner"
                     description="Recommended: 1500x500px"
                     showPreview={true}
+                    hidePlaceholderIcon
                   />
                 </div>
 
                 {/* Avatar Upload */}
-                <div className="studio-form-surface p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-[20px] backdrop-blur-[8px]">
+                <div className="studio-form-surface flex items-center justify-center p-4 bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-[20px] backdrop-blur-[8px]">
                   <ImageUpload
+                    className="flex w-full max-w-[220px] flex-col items-center"
                     walletAddress={profile.address}
                     variant="avatar"
                     onUploadSuccess={(image) => {
@@ -129,6 +133,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                     label="Profile Picture"
                     description="Recommended: 400x400px"
                     showPreview={true}
+                    hidePlaceholderIcon
                   />
                 </div>
 
@@ -167,6 +172,25 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                   />
                   <StudioFieldHint className="text-[10px]">
                     Letters, numbers, and underscores only
+                  </StudioFieldHint>
+                </div>
+
+                {/* Email */}
+                <div>
+                  <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
+                    Email
+                  </StudioFieldLabel>
+                  <StudioInputField
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    maxLength={120}
+                    leftSlot={<Mail size={16} className="text-ui-secondary" />}
+                    className="studio-form-input py-4"
+                  />
+                  <StudioFieldHint className="text-[10px]">
+                    Synced with your Orina profile preferences and shared with Settings.
                   </StudioFieldHint>
                 </div>
 

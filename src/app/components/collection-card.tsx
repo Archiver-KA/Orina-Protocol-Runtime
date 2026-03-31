@@ -2,6 +2,7 @@ import { Heart } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
 import type { CollectionSummary } from '@/types/collection';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
 interface CollectionCardProps {
   collection: CollectionSummary;
@@ -87,7 +88,7 @@ export function CollectionCard({
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.45)_0%,rgba(0,0,0,0)_40%,rgba(0,0,0,0)_55%,rgba(0,0,0,0.85)_100%)]" />
 
           <div className="absolute left-4 top-4 inline-flex items-center rounded-full border border-white/18 bg-black/55 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white backdrop-blur-md">
-            {collection.category}
+            {getCategoryDisplayLabel(collection.category)}
           </div>
 
           <button type="button" onClick={handleLike} className={`${likeButtonClass} absolute right-4 top-4`}>
@@ -115,7 +116,7 @@ export function CollectionCard({
         <ImageWithFallback src={collection.coverImage} alt={collection.name} className="h-full w-full object-cover" />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.42)_0%,rgba(0,0,0,0.1)_100%)]" />
         <div className="absolute left-4 top-4 inline-flex items-center rounded-full border border-white/18 bg-black/55 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white backdrop-blur-md">
-          {collection.category}
+          {getCategoryDisplayLabel(collection.category)}
         </div>
         <button type="button" onClick={handleLike} className={`${likeButtonClass} absolute right-4 top-4`}>
           <Heart size={16} className={isLiked ? 'fill-red-500 text-red-500' : ''} />
@@ -125,7 +126,7 @@ export function CollectionCard({
       <div className="flex min-w-0 flex-1 flex-col px-6 py-5">
         <div className="flex items-center justify-between gap-3">
           <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-ui-muted">
-            {collection.category}
+            {getCategoryDisplayLabel(collection.category)}
           </span>
           {statusLabel ? (
             <span className="rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[#2CC295]">

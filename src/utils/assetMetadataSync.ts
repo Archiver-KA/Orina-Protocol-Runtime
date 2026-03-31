@@ -11,6 +11,7 @@ import {
   encodeIn,
 } from '@/utils/supabaseRest';
 import { sendAssetMetadataSeedViaBridge } from '@/utils/supabaseAuthClaimBridge';
+import { normalizeCategoryFilterValue } from '@/utils/taxonomy';
 
 type AssetCatalogRow = {
   id: string;
@@ -105,9 +106,10 @@ function buildSeedItemFromAssetId(assetId: string): AssetMetadataSeedItem | null
   }));
 
   const namespace = isOwnedFixtureAssetId(normalized) ? 'owned_fixture' : 'owned_asset';
+  const normalizedCategory = details.category ? normalizeCategoryFilterValue(details.category) : null;
 
   const tags = uniqueStrings([
-    String(details.category || '').toLowerCase(),
+    normalizedCategory || '',
     namespace,
     String(details.blockchain || '').toLowerCase(),
   ]).map((tag) => slugify(tag)).filter(Boolean);
@@ -120,7 +122,7 @@ function buildSeedItemFromAssetId(assetId: string): AssetMetadataSeedItem | null
     assetUid: normalized,
     title,
     slug,
-    category: details.category || null,
+    category: normalizedCategory,
     subcategory: null,
     description: details.description || null,
     coverImageUrl: details.image || null,
@@ -217,7 +219,10 @@ async function resolveExistingCatalogRows(assetUids: string[]): Promise<Record<s
   return known;
 }
 
-export async function ensureAssetMetadataSeedForIds(assetIds: string[]): Promise<void> {
+export async function ensureAssetMetadataSeedForIds(
+  assetIds: string[],
+  walletAddress?: string | null,
+): Promise<void> {
   if (!isSupabaseRestEnabled()) return;
 
   const normalizedIds = Array.from(new Set(assetIds.map(normalizeAssetUid).filter(Boolean)));
@@ -274,5 +279,5 @@ export async function ensureAssetMetadataSeedForWalletFixtures(walletAddress?: s
     ...fixture.nftAssets.map((a) => a.id),
   ];
 
-  await ensureAssetMetadataSeedForIds(assetIds);
+  await ensureAssetMetadataSeedForIds(assetIds, walletAddress);
 }

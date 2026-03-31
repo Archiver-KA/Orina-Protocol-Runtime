@@ -13,7 +13,7 @@ import {
   loadUserProfileLocalOnlySnapshot,
   shortenUserDisplayName,
 } from '@/utils/profileUtils';
-import { migrateConversationsToAddressBased } from '@/utils/conversationUtils';
+
 import { migrateFavoritesToAddressBased } from '@/utils/favoritesUtils';
 import { migrateNotificationsToAddressBased } from '@/utils/notifications';
 
@@ -61,6 +61,7 @@ export function useUserInitialization() {
             avatarType,
             displayName: savedProfile.displayName,
             username: savedProfile.username,
+            email: savedProfile.email,
             avatarUrl: savedProfile.avatar,
             bannerUrl: savedProfile.banner,
             bio: savedProfile.bio,
@@ -73,30 +74,7 @@ export function useUserInitialization() {
           console.log(`[Orina] Avatar URL: ${savedProfile.avatar || 'default'}`);
         }
         
-        // PRIORITY 2: Fallback to UserContext localStorage (orina_user_data)
-        if (!hasExistingProfile) {
-          const savedData = localStorage.getItem('orina_user_data');
-          
-          if (savedData) {
-            try {
-              const parsed = JSON.parse(savedData);
-              console.log(`[Orina] Parsed UserContext data:`, parsed);
-              
-              // Check if saved data is for this address
-              if (parsed.address && parsed.address.toLowerCase() === address.toLowerCase()) {
-                hasExistingProfile = true;
-                // Update address to ensure it's set correctly after reconnect
-                updateUserData({ ...parsed, address });
-                console.log(`[Orina] ✅ Loaded profile from UserContext`);
-                console.log(`[Orina] Display name: ${parsed.displayName || parsed.username}`);
-              }
-            } catch (e) {
-              console.error('[Orina] Failed to parse saved user data:', e);
-            }
-          }
-        }
-        
-        // PRIORITY 3: Create default profile if no existing profile found
+        // PRIORITY 2: Create default profile if no existing profile found
         if (!hasExistingProfile) {
           const avatarType = getAvatarTypeForAddress(address);
           const defaultUsername = getDefaultUsername(address);
@@ -152,6 +130,7 @@ export function useUserInitialization() {
           avatarType,
           displayName: hydratedProfile.displayName,
           username: hydratedProfile.username,
+          email: hydratedProfile.email,
           avatarUrl: hydratedProfile.avatarUrl || hydratedProfile.avatar,
           bannerUrl: hydratedProfile.bannerUrl || hydratedProfile.banner,
           bio: hydratedProfile.bio,
@@ -184,9 +163,6 @@ function runDataMigration(address: string) {
   console.log(`[Migration] 🔄 Starting data migration for ${address}...`);
   
   try {
-    // Migrate conversations
-    migrateConversationsToAddressBased(address);
-    
     // ✅ PHASE 1: Migrate favorites (no userId needed - address-based only)
     migrateFavoritesToAddressBased(address);
     

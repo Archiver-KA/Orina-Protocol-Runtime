@@ -15,7 +15,9 @@ import { loadSearchHistory } from '@/utils/searchUtils';
 import {
   getCategoryDisplayLabel,
   getTaxonomyCategoryOptions,
+  hydrateTaxonomyFromSupabase,
   normalizeTaxonomySelection,
+  TAXONOMY_SYNC_EVENT,
 } from '@/utils/taxonomy';
 
 interface NavbarProps {
@@ -67,6 +69,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
   const [collectionCategories, setCollectionCategories] = useState<string[]>(() =>
     loadRuntimeCollections().map((collection) => collection.category)
   );
+  const [taxonomyVersion, setTaxonomyVersion] = useState(0);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -78,7 +81,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
     return getTaxonomyCategoryOptions()
       .slice(0, 4)
       .map((option) => ({ label: option.label, count: 0 }));
-  }, [collectionCategories, marketplaceCategories]);
+  }, [collectionCategories, marketplaceCategories, taxonomyVersion]);
 
   const trendingSearches = useMemo(
     () =>
@@ -154,6 +157,18 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
   }, []);
 
   useEffect(() => {
+    const syncTaxonomy = () => {
+      setTaxonomyVersion((value) => value + 1);
+    };
+
+    void hydrateTaxonomyFromSupabase().catch(() => undefined);
+    window.addEventListener(TAXONOMY_SYNC_EVENT, syncTaxonomy as EventListener);
+    return () => {
+      window.removeEventListener(TAXONOMY_SYNC_EVENT, syncTaxonomy as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isSearchOpen) return;
 
     const nextRecent = loadSearchHistory()
@@ -201,7 +216,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
                 className={`rounded-full px-3 py-2 text-[13px] font-medium leading-none transition-all ${
                   isActive
                     ? 'bg-white/[0.08] text-white'
-                    : 'text-[rgba(148,163,184,0.9)] hover:bg-white/[0.04] hover:text-white'
+                    : 'text-ui-secondary hover:bg-white/[0.04] hover:text-ui-primary'
                 }`}
                 style={{ fontFamily: "'Space Grotesk', var(--font-sans)" }}
               >
@@ -223,8 +238,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
           >
             <Search
               size={13}
-              className="absolute left-4 top-1/2 -translate-y-1/2 opacity-60"
-              style={{ color: '#4A4A4A' }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-ui-muted opacity-70"
             />
             <input
               ref={searchInputRef}
@@ -233,7 +247,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => setIsSearchOpen(true)}
               placeholder="Search assets, collections, or categories..."
-              className="w-full h-full bg-transparent border-0 outline-none rounded-full pl-10 pr-4 text-[13px] leading-[17px] font-normal text-[rgba(241,245,249,0.92)] placeholder:text-[rgba(148,163,184,0.72)]"
+              className="w-full h-full rounded-full border-0 bg-transparent pl-10 pr-4 text-[13px] leading-[17px] font-normal text-ui-secondary outline-none placeholder:text-ui-muted"
               style={{ fontFamily: "'Space Grotesk', var(--font-sans)" }}
             />
           </div>

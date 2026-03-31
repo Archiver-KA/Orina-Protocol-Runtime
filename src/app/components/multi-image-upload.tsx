@@ -183,6 +183,7 @@ export function MultiImageUpload({
               
               {/* Remove Button */}
               <button
+                type="button"
                 onClick={() => handleRemoveImage(index)}
                 className="absolute top-2 right-2 p-1.5 bg-red-500/90 hover:bg-red-500 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                 title="Remove image"

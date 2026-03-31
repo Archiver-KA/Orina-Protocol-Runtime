@@ -2,9 +2,18 @@ import type { RwaConfigurableAttributeGroup } from '@/app/types/asset';
 import type { DeliveryAddressDraft, DeliveryAddressRecord } from '@/types/address';
 import type { AssetLocationSnapshot } from '@/types/asset';
 import { dispatchSyncEvent } from '@/utils/supabaseRest';
+import {
+  restSelect,
+  restUpsert,
+  restDelete,
+  isSupabaseRestEnabled,
+  encodeEq,
+  toQuery,
+} from '@/utils/supabaseRest';
 
 export const MINTING_DRAFTS_CHANGED_EVENT = 'orina:minting-drafts-changed';
 
+/** @deprecated Kept only for one-time migration read, then cleared. */
 const MINTING_DRAFTS_STORAGE_KEY = 'orina_minting_drafts_v1';
 
 export interface MintingDraftMedia {
@@ -55,79 +64,205 @@ function normalizeWalletAddress(value?: string | null) {
   return String(value || '').trim().toLowerCase();
 }
 
-function getStorageKey(walletAddress?: string | null) {
-  const normalized = normalizeWalletAddress(walletAddress);
-  return normalized ? `${MINTING_DRAFTS_STORAGE_KEY}:${normalized}` : '';
+// ─── Server row ↔ Client record mappers ──────────────────────────────────────
+
+interface MintingDraftRow {
+  id: string;
+  wallet_address: string;
+  status: string;
+  asset_type: string;
+  name: string;
+  description: string;
+  category: string;
+  subcategory: string;
+  blockchain: string;
+  unit_id: string;
+  total_amount: string;
+  price: string;
+  price_currency: string;
+  expiry_type: string;
+  expiry_days: string;
+  media_data: any;
+  delivery_state: any;
+  configurable_attributes: any;
+  preview_image: string | null;
+  completeness: number;
+  created_at: string;
+  updated_at: string;
 }
 
-function readLocalMintingDrafts(walletAddress?: string | null): MintingDraftRecord[] {
+function rowToRecord(row: MintingDraftRow): MintingDraftRecord {
+  return {
+    id: row.id,
+    walletAddress: row.wallet_address,
+    status: 'draft',
+    assetType: (row.asset_type || 'RWA') as 'RWA' | 'NFT',
+    name: row.name,
+    description: row.description,
+    category: row.category,
+    subcategory: row.subcategory,
+    blockchain: row.blockchain,
+    unitId: row.unit_id,
+    totalAmount: row.total_amount,
+    price: row.price,
+    priceCurrency: row.price_currency,
+    expiryType: (row.expiry_type || 'Non-Expiry') as 'Expiry' | 'Non-Expiry',
+    expiryDays: row.expiry_days,
+    uploadedMedia: row.media_data?.uploadedMedia ?? null,
+    uploadedImages: row.media_data?.uploadedImages ?? [],
+    configurableAttributes: row.configurable_attributes ?? [],
+    deliveryState: row.delivery_state ?? null,
+    previewImage: row.preview_image ?? '',
+    completeness: row.completeness ?? 0,
+    createdAt: new Date(row.created_at).getTime(),
+    updatedAt: new Date(row.updated_at).getTime(),
+  };
+}
+
+function recordToRow(draft: MintingDraftRecord): Record<string, any> {
+  return {
+    id: draft.id,
+    wallet_address: normalizeWalletAddress(draft.walletAddress),
+    status: draft.status,
+    asset_type: draft.assetType,
+    name: draft.name,
+    description: draft.description,
+    category: draft.category,
+    subcategory: draft.subcategory,
+    blockchain: draft.blockchain,
+    unit_id: draft.unitId,
+    total_amount: draft.totalAmount,
+    price: draft.price,
+    price_currency: draft.priceCurrency,
+    expiry_type: draft.expiryType,
+    expiry_days: draft.expiryDays,
+    media_data: {
+      uploadedMedia: draft.uploadedMedia,
+      uploadedImages: draft.uploadedImages,
+    },
+    delivery_state: draft.deliveryState,
+    configurable_attributes: draft.configurableAttributes,
+    preview_image: draft.previewImage || null,
+    completeness: draft.completeness,
+  };
+}
+
+// ─── Legacy localStorage (read-once migration) ──────────────────────────────
+
+function readAndClearLegacyDrafts(walletAddress: string): MintingDraftRecord[] {
   if (typeof window === 'undefined') return [];
+  const normalized = normalizeWalletAddress(walletAddress);
+  if (!normalized) return [];
 
-  const key = getStorageKey(walletAddress);
-  if (!key) return [];
-
+  const key = `${MINTING_DRAFTS_STORAGE_KEY}:${normalized}`;
   try {
     const raw = window.localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed)
-      ? (parsed as MintingDraftRecord[]).filter((draft) => normalizeWalletAddress(draft.walletAddress) === normalizeWalletAddress(walletAddress))
-      : [];
+    // Clear after reading
+    window.localStorage.removeItem(key);
+    return Array.isArray(parsed) ? parsed as MintingDraftRecord[] : [];
   } catch {
     return [];
   }
-}
-
-function writeLocalMintingDrafts(walletAddress: string, drafts: MintingDraftRecord[]) {
-  if (typeof window === 'undefined') return;
-
-  const key = getStorageKey(walletAddress);
-  if (!key) return;
-
-  window.localStorage.setItem(key, JSON.stringify(drafts));
-  dispatchSyncEvent(MINTING_DRAFTS_CHANGED_EVENT);
 }
 
 function sortDrafts(drafts: MintingDraftRecord[]) {
   return [...drafts].sort((left, right) => right.updatedAt - left.updatedAt);
 }
 
+// ─── Public API ──────────────────────────────────────────────────────────────
+
 export function createMintingDraftId() {
   return `mint-draft-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function loadMintingDrafts(walletAddress?: string | null) {
-  return sortDrafts(readLocalMintingDrafts(walletAddress));
+export async function loadMintingDrafts(walletAddress?: string | null): Promise<MintingDraftRecord[]> {
+  const normalized = normalizeWalletAddress(walletAddress);
+  if (!normalized) return [];
+
+  // Try server first
+  if (isSupabaseRestEnabled()) {
+    try {
+      const query = toQuery({
+        wallet_address: encodeEq(normalized),
+        order: 'updated_at.desc',
+        limit: '50',
+      });
+      const rows = await restSelect<MintingDraftRow>('minting_drafts', query);
+      if (rows.length > 0) return rows.map(rowToRecord);
+
+      // No server data — check for legacy migration
+      const legacy = readAndClearLegacyDrafts(normalized);
+      if (legacy.length > 0) {
+        // Migrate legacy to server
+        for (const draft of legacy) {
+          try {
+            await restUpsert('minting_drafts', recordToRow(draft), { onConflict: 'id' });
+          } catch { /* best effort */ }
+        }
+        return sortDrafts(legacy);
+      }
+      return [];
+    } catch (err) {
+      console.warn('[mintingDrafts] Server read failed, returning empty:', err);
+      return [];
+    }
+  }
+
+  // Fallback: no supabase configured  
+  return [];
 }
 
 export function getMintingDraftById(walletAddress: string | null | undefined, draftId: string) {
-  return loadMintingDrafts(walletAddress).find((draft) => draft.id === draftId) ?? null;
+  // Sync wrapper for backward compat — returns null, caller should use async version
+  return null;
 }
 
-export function upsertMintingDraft(draft: MintingDraftRecord) {
+/** Async version: fetches from server */
+export async function getMintingDraftByIdAsync(
+  walletAddress: string | null | undefined,
+  draftId: string,
+): Promise<MintingDraftRecord | null> {
+  const drafts = await loadMintingDrafts(walletAddress);
+  return drafts.find((d) => d.id === draftId) ?? null;
+}
+
+export async function upsertMintingDraft(draft: MintingDraftRecord): Promise<MintingDraftRecord | null> {
   const walletAddress = normalizeWalletAddress(draft.walletAddress);
   if (!walletAddress) return null;
 
-  const current = readLocalMintingDrafts(walletAddress);
-  const next = sortDrafts([
-    {
-      ...draft,
-      walletAddress,
-    },
-    ...current.filter((item) => item.id !== draft.id),
-  ]);
+  const row = recordToRow({ ...draft, walletAddress });
 
-  writeLocalMintingDrafts(walletAddress, next);
+  if (isSupabaseRestEnabled()) {
+    try {
+      await restUpsert('minting_drafts', row, { onConflict: 'id' });
+    } catch (err) {
+      console.error('[mintingDrafts] Failed to upsert:', err);
+    }
+  }
+
+  dispatchSyncEvent(MINTING_DRAFTS_CHANGED_EVENT);
   return draft;
 }
 
-export function deleteMintingDraft(walletAddress: string | null | undefined, draftId: string) {
+export async function deleteMintingDraft(walletAddress: string | null | undefined, draftId: string) {
   const normalized = normalizeWalletAddress(walletAddress);
-  if (!normalized) return;
+  if (!normalized || !draftId) return;
 
-  const current = readLocalMintingDrafts(normalized);
-  const next = current.filter((draft) => draft.id !== draftId);
-  writeLocalMintingDrafts(normalized, next);
+  if (isSupabaseRestEnabled()) {
+    try {
+      const query = toQuery({
+        id: encodeEq(draftId),
+        wallet_address: encodeEq(normalized),
+      });
+      await restDelete('minting_drafts', query);
+    } catch (err) {
+      console.error('[mintingDrafts] Failed to delete:', err);
+    }
+  }
+
+  dispatchSyncEvent(MINTING_DRAFTS_CHANGED_EVENT);
 }
 
 export function subscribeToMintingDrafts(listener: () => void) {

@@ -1,10 +1,12 @@
 import { Context } from 'npm:hono';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 export interface AuthenticatedWalletIdentity {
   walletAddress: string;
   profileId: string | null;
   token: string;
   claims: Record<string, unknown>;
+  walletSessionId: string;
 }
 
 type AuthResult =
@@ -27,6 +29,24 @@ function getExpectedIssuer(): string {
 function getExpectedClaimVersion(): string {
   return Deno.env.get('ATP2_SUPABASE_AUTH_BRIDGE_EXPECTED_CLAIM_VERSION') || 'h1';
 }
+
+function getServiceSupabaseClient() {
+  const url = Deno.env.get('SUPABASE_URL') || '';
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+  if (!url || !serviceRoleKey) {
+    throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  }
+  return createClient(url, serviceRoleKey);
+}
+
+type ServiceSupabaseClient = ReturnType<typeof getServiceSupabaseClient>;
+
+type WalletSessionAuthRow = {
+  id: string;
+  wallet_address: string;
+  expires_at: string;
+  revoked_at: string | null;
+};
 
 export function normalizeWalletAddress(address: string | null | undefined): string {
   return String(address || '').trim().toLowerCase();
@@ -151,7 +171,30 @@ function buildIdentity(token: string, claims: Record<string, unknown>): Authenti
     profileId,
     token,
     claims,
+    walletSessionId,
   };
+}
+
+async function hasActiveWalletSession(
+  supabase: ServiceSupabaseClient,
+  walletSessionId: string,
+  walletAddress: string,
+): Promise<boolean> {
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('wallet_sessions')
+    .select('id,wallet_address,expires_at,revoked_at')
+    .eq('id', walletSessionId)
+    .eq('wallet_address', walletAddress)
+    .is('revoked_at', null)
+    .gt('expires_at', nowIso)
+    .limit(1);
+
+  if (error) {
+    throw new Error(`wallet session verification failed: ${error.message}`);
+  }
+
+  return Boolean((data?.[0] as WalletSessionAuthRow | undefined)?.id);
 }
 
 export async function requireAuthenticatedWallet(c: Context): Promise<AuthResult> {
@@ -174,6 +217,27 @@ export async function requireAuthenticatedWallet(c: Context): Promise<AuthResult
   const identity = buildIdentity(token, claims);
   if (!identity) {
     return { ok: false, response: c.json({ error: 'Authenticated wallet claims are required' }, 401) };
+  }
+
+  try {
+    const supabase = getServiceSupabaseClient();
+    const isSessionActive = await hasActiveWalletSession(
+      supabase,
+      identity.walletSessionId,
+      identity.walletAddress,
+    );
+    if (!isSessionActive) {
+      return { ok: false, response: c.json({ error: 'Authenticated wallet session is no longer active' }, 401) };
+    }
+  } catch (error) {
+    console.error('[AI Auth] Wallet session verification failed:', error);
+    return {
+      ok: false,
+      response: c.json(
+        { error: error instanceof Error ? error.message : 'Wallet session verification failed' },
+        500,
+      ),
+    };
   }
 
   return { ok: true, identity };

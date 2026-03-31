@@ -1,3 +1,9 @@
+/**
+ * @deprecated Phase 3 - Hybrid wallet data: Collections.
+ * localStorage persistence should migrate to remote-first via the
+ * collections, collection_memberships (000031) server table.
+ * See spec: 15-local-api-audit-and-server-migration-plan.md
+ */
 import type {
   CollectionAssetItem,
   CollectionDetails,
@@ -11,7 +17,7 @@ import {
   getMarketplaceCatalogAssetById,
   loadMarketplaceCatalogSync,
 } from '@/utils/marketplaceCatalog';
-import { getCategoryDisplayLabel } from '@/utils/taxonomy';
+import { getCategoryDisplayLabel, normalizeCategoryFilterValue } from '@/utils/taxonomy';
 import {
   encodeEq,
   isSupabaseRestEnabled,
@@ -24,7 +30,11 @@ import {
   getDeterministicOwnedAssetDetailsById,
   getTestWalletMyAssets,
 } from '@/utils/testWalletAssetFixtures';
-import { getRuntimeMintedAssetDetailsById, loadRuntimeMyAssets } from '@/utils/runtimeMintedAssets';
+import {
+  getRuntimeMintedAssetDetailsById,
+  loadRuntimeMyAssets,
+  type RuntimeMintedAssetScope,
+} from '@/utils/runtimeMintedAssets';
 import { ensureRemoteProfileIdForWallet, getCachedRemoteProfileId } from '@/utils/profileRemoteIdentity';
 
 const COLLECTION_FAVORITES_PREFIX = 'orina_collection_favorites_';
@@ -181,8 +191,14 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, '') || `collection-${Date.now().toString(36)}`;
 }
 
-function uniqueStrings(values: string[]): string[] {
-  return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));
+function uniqueStrings(values: unknown): string[] {
+  const rawValues = Array.isArray(values)
+    ? values
+    : values === undefined || values === null
+      ? []
+      : [values];
+
+  return Array.from(new Set(rawValues.map((value) => String(value || '').trim()).filter(Boolean)));
 }
 
 function buildMarketplaceCollectionAsset(assetId: string): CollectionAssetItem | null {
@@ -192,7 +208,7 @@ function buildMarketplaceCollectionAsset(assetId: string): CollectionAssetItem |
   return {
     id: asset.id,
     name: asset.name,
-    category: getCategoryDisplayLabel(asset.category),
+    category: normalizeCategoryFilterValue(asset.category),
     image: asset.image,
     price: asset.price,
     ownerWallet: asset.seller.address,
@@ -202,16 +218,16 @@ function buildMarketplaceCollectionAsset(assetId: string): CollectionAssetItem |
   };
 }
 
-function buildOwnedCollectionAsset(assetId: string): CollectionAssetItem | null {
+function buildOwnedCollectionAsset(assetId: string, scope?: RuntimeMintedAssetScope): CollectionAssetItem | null {
   const asset =
-    getRuntimeMintedAssetDetailsById(assetId) ||
+    getRuntimeMintedAssetDetailsById(assetId, scope) ||
     getDeterministicOwnedAssetDetailsById(assetId);
   if (!asset) return null;
 
   return {
     id: asset.id,
     name: asset.name,
-    category: getCategoryDisplayLabel(asset.category),
+    category: normalizeCategoryFilterValue(asset.category),
     image: asset.image,
     price: asset.currentPrice,
     ownerWallet: asset.currentOwner,
@@ -221,13 +237,13 @@ function buildOwnedCollectionAsset(assetId: string): CollectionAssetItem | null 
   };
 }
 
-function resolveCollectionAsset(assetId: string): CollectionAssetItem | null {
-  return buildMarketplaceCollectionAsset(assetId) || buildOwnedCollectionAsset(assetId);
+function resolveCollectionAsset(assetId: string, scope?: RuntimeMintedAssetScope): CollectionAssetItem | null {
+  return buildMarketplaceCollectionAsset(assetId) || buildOwnedCollectionAsset(assetId, scope);
 }
 
-function resolveCollectionAssets(itemIds: string[]): CollectionAssetItem[] {
+function resolveCollectionAssets(itemIds: string[], scope?: RuntimeMintedAssetScope): CollectionAssetItem[] {
   return uniqueStrings(itemIds)
-    .map((assetId) => resolveCollectionAsset(assetId))
+    .map((assetId) => resolveCollectionAsset(assetId, scope))
     .filter((asset): asset is CollectionAssetItem => Boolean(asset));
 }
 
@@ -251,7 +267,7 @@ function normalizeCollectionSummary(collection: CollectionSummary): CollectionSu
   return {
     ...collection,
     slug: slugify(collection.slug || collection.name),
-    category: getCategoryDisplayLabel(collection.category),
+    category: normalizeCategoryFilterValue(collection.category),
     description,
     bio,
     tags: uniqueStrings(collection.tags),
@@ -361,7 +377,7 @@ function mapCollectionToDbRow(collection: CollectionSummary, ownerUserId: string
     owner_wallet_snapshot: walletKey(collection.ownerWallet),
     slug: slugify(collection.slug || collection.name),
     name: collection.name,
-    category: collection.category,
+    category: normalizeCategoryFilterValue(collection.category),
     description: collection.description,
     cover_image: collection.coverImage,
     bio: collection.bio,
@@ -390,7 +406,7 @@ function mapDbCollectionToSummary(
     id: row.id,
     slug: row.slug,
     name: row.name,
-    category: getCategoryDisplayLabel(row.category),
+    category: normalizeCategoryFilterValue(row.category),
     description: row.description,
     coverImage: row.cover_image,
     ownerWallet: walletKey(row.owner_wallet_snapshot),
@@ -848,17 +864,20 @@ export function loadCollectionDetailsById(collectionId: string): CollectionDetai
   return loadRuntimeCollectionDetails().find((collection) => collection.id === collectionId);
 }
 
-export function loadCollectionAssetOptions(walletAddress?: string | null): CollectionAssetItem[] {
+export function loadCollectionAssetOptions(
+  walletAddress?: string | null,
+  scope?: RuntimeMintedAssetScope,
+): CollectionAssetItem[] {
   const normalizedWallet = walletKey(walletAddress);
   const marketplaceCatalog = loadMarketplaceCatalogSync();
   const fixture = getTestWalletMyAssets(walletAddress);
-  const runtimeAssets = loadRuntimeMyAssets(walletAddress);
+  const runtimeAssets = loadRuntimeMyAssets(walletAddress, scope);
   const ownedAssets: CollectionAssetItem[] = fixture
     ? [
         ...fixture.rwaAssets.map((asset) => ({
           id: asset.id,
           name: asset.name,
-          category: getCategoryDisplayLabel(asset.category),
+          category: normalizeCategoryFilterValue(asset.category),
           image: asset.image,
           price: asset.minPrice,
           ownerWallet: normalizedWallet,
@@ -869,7 +888,7 @@ export function loadCollectionAssetOptions(walletAddress?: string | null): Colle
         ...fixture.receiptAssets.map((asset) => ({
           id: asset.id,
           name: asset.name,
-          category: getCategoryDisplayLabel(asset.category),
+          category: normalizeCategoryFilterValue(asset.category),
           image: asset.image,
           price: asset.purchaseValue,
           ownerWallet: normalizedWallet,
@@ -880,7 +899,7 @@ export function loadCollectionAssetOptions(walletAddress?: string | null): Colle
         ...fixture.nftAssets.map((asset) => ({
           id: asset.id,
           name: asset.name,
-          category: getCategoryDisplayLabel(asset.category),
+          category: normalizeCategoryFilterValue(asset.category),
           image: asset.image,
           price: asset.currentPrice,
           ownerWallet: normalizedWallet,
@@ -894,7 +913,7 @@ export function loadCollectionAssetOptions(walletAddress?: string | null): Colle
     ...runtimeAssets.rwaAssets.map((asset) => ({
       id: asset.id,
       name: asset.name,
-      category: getCategoryDisplayLabel(asset.category),
+      category: normalizeCategoryFilterValue(asset.category),
       image: asset.image,
       price: asset.minPrice,
       ownerWallet: normalizedWallet,
@@ -905,7 +924,7 @@ export function loadCollectionAssetOptions(walletAddress?: string | null): Colle
     ...runtimeAssets.nftAssets.map((asset) => ({
       id: asset.id,
       name: asset.name,
-      category: getCategoryDisplayLabel(asset.category),
+      category: normalizeCategoryFilterValue(asset.category),
       image: asset.image,
       price: asset.currentPrice,
       ownerWallet: normalizedWallet,
@@ -920,7 +939,7 @@ export function loadCollectionAssetOptions(walletAddress?: string | null): Colle
     .map((asset) => ({
       id: asset.id,
       name: asset.name,
-      category: getCategoryDisplayLabel(asset.category),
+      category: normalizeCategoryFilterValue(asset.category),
       image: asset.image,
       price: asset.price,
       ownerWallet: normalizedWallet,
@@ -941,18 +960,26 @@ export function loadCollectionAssetOptions(walletAddress?: string | null): Colle
 export function createCollection(walletAddress: string, draft: CollectionDraft): CollectionSummary {
   const now = Date.now();
   const normalizedWallet = walletKey(walletAddress);
-  const normalizedName = draft.name.trim() || 'Untitled Collection';
+  const normalizedName = String(draft.name || '').trim() || 'Untitled Collection';
+  const normalizedCategoryValue = String(draft.category ?? '').trim();
+  const normalizedCategory = normalizeCategoryFilterValue(
+    normalizedCategoryValue !== '' ? normalizedCategoryValue : 'uncategorized'
+  );
+  const normalizedBio = String(draft.bio || '').trim();
+  const normalizedCoverImage = String(draft.coverImage || '').trim();
+  const normalizedTags = uniqueStrings(draft.tags);
+  const normalizedItemIds = uniqueStrings(draft.itemIds);
   const summary: CollectionSummary = {
     id: `collection-${slugify(normalizedName)}-${now.toString(36)}`,
     slug: slugify(normalizedName),
     name: normalizedName,
-    category: getCategoryDisplayLabel(draft.category.trim() || 'physical_goods'),
-    description: (draft.bio || `Curated collection by ${shortWallet(walletAddress)}`).trim(),
-    coverImage: draft.coverImage.trim(),
+    category: normalizedCategory,
+    description: (normalizedBio || `Curated collection by ${shortWallet(walletAddress)}`).trim(),
+    coverImage: normalizedCoverImage,
     ownerWallet: normalizedWallet,
-    bio: draft.bio.trim(),
-    tags: uniqueStrings(draft.tags),
-    itemIds: uniqueStrings(draft.itemIds),
+    bio: normalizedBio,
+    tags: normalizedTags,
+    itemIds: normalizedItemIds,
     itemCount: 0,
     floorPrice: '0 ETH',
     volume: '0 ETH',
@@ -977,13 +1004,18 @@ export function updateCollection(
 
   const next: CollectionSummary = {
     ...existing,
-    name: updates.name?.trim() || existing.name,
-    slug: slugify(updates.name?.trim() || existing.slug || existing.name),
-    category: getCategoryDisplayLabel(updates.category?.trim() || existing.category),
-    description: (updates.bio ?? existing.bio ?? existing.description).trim() || existing.description,
-    bio: (updates.bio ?? existing.bio).trim(),
+    name: String(updates.name ?? existing.name ?? '').trim() || existing.name,
+    slug: slugify(String(updates.name ?? existing.slug ?? existing.name ?? '').trim() || existing.slug || existing.name),
+    category: normalizeCategoryFilterValue(
+      String(updates.category ?? existing.category ?? '').trim() !== ''
+        ? String(updates.category ?? existing.category ?? '').trim()
+        : 'uncategorized'
+    ),
+    description:
+      String(updates.bio ?? existing.bio ?? existing.description ?? '').trim() || existing.description,
+    bio: String(updates.bio ?? existing.bio ?? '').trim(),
     tags: updates.tags ? uniqueStrings(updates.tags) : existing.tags,
-    coverImage: updates.coverImage?.trim() || existing.coverImage,
+    coverImage: String(updates.coverImage ?? existing.coverImage ?? '').trim() || existing.coverImage,
     itemIds: updates.itemIds ? uniqueStrings(updates.itemIds) : existing.itemIds,
     updatedAt: Date.now(),
   };

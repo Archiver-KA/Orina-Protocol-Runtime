@@ -3,14 +3,16 @@ import { useAccount } from 'wagmi';
 import { Check, Coins, FolderPlus, Fuel, TrendingUp } from 'lucide-react';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
+import { useProtocolNetworkRouter } from '@/contexts/ProtocolNetworkContext';
 import type { CollectionSummary } from '@/types/collection';
 import { COLLECTIONS_SYNC_EVENT, loadCollectionsByOwner } from '@/utils/collectionsUtils';
+import { PROTOCOL_NETWORK_OPTIONS } from '@/utils/protocolNetwork';
 
 export function MintingRightSidebar() {
   const { address } = useAccount();
   const [ownedCollections, setOwnedCollections] = useState<CollectionSummary[]>([]);
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
-  const [protocolNetwork, setProtocolNetwork] = useState('Mainnet-V3');
+  const { selectedNetworkKey, syncNetworkFromValue } = useProtocolNetworkRouter();
   const sidebarCardClass = 'p-4 bg-[var(--t-surface-5)] rounded-xl';
   const sidebarMutedCardClass = 'p-4 bg-[var(--t-surface-2)] rounded-xl';
   const selectedCollectionsCount = selectedCollectionIds.length;
@@ -74,13 +76,16 @@ export function MintingRightSidebar() {
             <div className="flex-grow min-w-0">
               <CustomDropdown
                 variant="compact"
-                defaultValue={protocolNetwork}
-                onChange={(value) => setProtocolNetwork(value)}
+                defaultValue={selectedNetworkKey}
+                onChange={(value) => {
+                  void syncNetworkFromValue(value);
+                }}
                 openOnHover
-                options={[
-                  { value: 'Mainnet-V3', label: 'Mainnet-V3' },
-                  { value: 'BSC Testnet', label: 'BSC Testnet' },
-                ]}
+                options={PROTOCOL_NETWORK_OPTIONS.map((network) => ({
+                  value: network.key,
+                  label: network.shortLabel,
+                  tag: network.status === 'live' ? 'Live' : 'Coming',
+                }))}
                 className="w-full"
                 triggerClassName="!h-[40px] !w-full !justify-between !rounded-xl !border !border-ui-border-subtle !bg-ui-input !px-4 !text-[11px] !font-bold !uppercase !tracking-tight !text-ui-secondary hover:!bg-ui-input-focus"
                 menuClassName="mt-2 rounded-[16px] z-[9999]"

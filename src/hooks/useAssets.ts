@@ -8,70 +8,66 @@
  */
 
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { CONTRACTS, AssetType } from '@/config/contracts';
+import { AssetType } from '@/config/contracts';
 import { ORINA_RWA_ABI } from '@/config/abis';
 import type { Asset } from '@/types/contracts';
+import { normalizeAssetResult } from '@/utils/onchainNormalization';
+import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 // ── Read Hooks ────────────────────────────────────────────────
 
 /** Get total number of assets */
 export function useNextAssetId() {
+  const { chainId, assetAddress } = useProtocolDataNetwork();
   return useReadContract({
-    address: CONTRACTS.ORINA_RWA,
+    chainId: chainId ?? undefined,
+    address: assetAddress,
     abi: ORINA_RWA_ABI,
     functionName: 'nextAssetId',
+    query: { enabled: Boolean(chainId && assetAddress) },
   });
 }
 
 /** Get a single asset by ID (returns typed Asset with assetType) */
 export function useAsset(assetId: number | bigint) {
+  const { chainId, assetAddress } = useProtocolDataNetwork();
   const result = useReadContract({
-    address: CONTRACTS.ORINA_RWA,
+    chainId: chainId ?? undefined,
+    address: assetAddress,
     abi: ORINA_RWA_ABI,
     functionName: 'getAsset',
     args: [BigInt(assetId)],
+    query: { enabled: Boolean(chainId && assetAddress) },
   });
 
-  // Transform tuple result into typed Asset object
-  let asset: Asset | undefined;
-
-  if (result.data) {
-    const data = result.data as any;
-    // getAsset returns a tuple struct
-    asset = {
-      seller: data.seller || data[0],
-      unitId: data.unitId || data[1],
-      totalAmount: data.totalAmount || data[2],
-      availableAmount: data.availableAmount || data[3],
-      consumedAmount: data.consumedAmount || data[4],
-      active: data.active ?? data[5],
-      expiryAt: data.expiryAt || data[6],
-      finalized: data.finalized ?? data[7],
-      assetType: data.assetType ?? data[8] ?? AssetType.RWA,
-    };
-  }
+  const asset = normalizeAssetResult(result.data) ?? undefined;
 
   return { ...result, asset };
 }
 
 /** Get locked amount for an asset */
 export function useTotalLocked(assetId: number | bigint) {
+  const { chainId, assetAddress } = useProtocolDataNetwork();
   return useReadContract({
-    address: CONTRACTS.ORINA_RWA,
+    chainId: chainId ?? undefined,
+    address: assetAddress,
     abi: ORINA_RWA_ABI,
     functionName: 'totalLocked',
     args: [BigInt(assetId)],
+    query: { enabled: Boolean(chainId && assetAddress) },
   });
 }
 
 /** Get locked amount for a specific asset + order */
 export function useLockedAmount(assetId: bigint | undefined, orderId: bigint | undefined) {
+  const { chainId, assetAddress } = useProtocolDataNetwork();
   return useReadContract({
-    address: CONTRACTS.ORINA_RWA,
+    chainId: chainId ?? undefined,
+    address: assetAddress,
     abi: ORINA_RWA_ABI,
     functionName: 'lockedAmounts',
     args: assetId !== undefined && orderId !== undefined ? [assetId, orderId] : undefined,
-    query: { enabled: assetId !== undefined && orderId !== undefined },
+    query: { enabled: Boolean(chainId && assetAddress && assetId !== undefined && orderId !== undefined) },
   });
 }
 
@@ -98,8 +94,12 @@ export function useAssets(assetIds: number[]) {
  * @param assetType - 0=RWA (non-transferable receipt), 1=NFT (transferable receipt)
  */
 export function useMintAsset() {
+  const { chainId, assetAddress } = useProtocolDataNetwork();
   const { data: hash, writeContract, isPending, error, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+    chainId: chainId ?? undefined,
+  });
 
   const mintAsset = async (
     unitId: bigint,
@@ -107,8 +107,13 @@ export function useMintAsset() {
     expiryAt: bigint,
     assetType: AssetType = AssetType.RWA,
   ) => {
+    if (!chainId || !assetAddress) {
+      throw new Error('Protocol network is not enabled for minting');
+    }
+
     writeContract({
-      address: CONTRACTS.ORINA_RWA,
+      chainId,
+      address: assetAddress,
       abi: ORINA_RWA_ABI,
       functionName: 'mintAsset',
       args: [unitId, totalAmount, expiryAt, assetType],

@@ -9,7 +9,7 @@ import { StudioStatsCard } from '@/app/components/ui/studio-stats-card';
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { Checkbox } from '@/app/components/ui/checkbox';
 import type { SellerMintingConfig } from '@/app/types/ai-agent';
-import { projectId } from '/utils/supabase/info';
+import { getSupabaseFunctionUrl } from '/utils/supabase/functions';
 import { getSellerAIHeaders } from '@/utils/seller-ai-minting-utils';
 
 interface SellerAIMintingSettingsProps {
@@ -40,8 +40,13 @@ export function SellerAIMintingSettings({
     try {
       setLoading(true);
       setError('');
+      const configUrl = getSupabaseFunctionUrl(`ai/seller/config/${walletAddress}`);
+      if (!configUrl) {
+        setError('Supabase AI config function is not configured');
+        return;
+      }
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ai/seller/config/${walletAddress}`,
+        configUrl,
         { headers: await getSellerAIHeaders(walletAddress) },
       );
 
@@ -81,8 +86,15 @@ export function SellerAIMintingSettings({
         return;
       }
 
+      const configUrl = getSupabaseFunctionUrl('ai/seller/config');
+      if (!configUrl) {
+        setError('Supabase AI config function is not configured');
+        setSaving(false);
+        return;
+      }
+
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ai/seller/config`,
+        configUrl,
         {
           method: 'POST',
           headers: await getSellerAIHeaders(walletAddress, true),

@@ -1,23 +1,40 @@
-// ai-chat.tsx — v2 rewrite: uses ORINAEngine + kv_store directly
+// ai-chat.tsx — v2 rewrite: uses ORINAEngine + agent_configs table directly
 // Legacy AIAgentEngine (rule-based) fully removed.
 
 import { Hono } from 'npm:hono';
 import { AIAgentConfig } from './types.ts';
-import * as kv from './kv_store.tsx';
+import { createClient } from 'npm:@supabase/supabase-js';
 import { ORINAEngine } from './orina-ai-engine-v2.tsx';
 import { assertAuthenticatedWalletMatch, requireAuthenticatedWallet } from './request-auth.ts';
 
 const aiChat = new Hono();
 
-// ─── Helper: KV keys ─────────────────────────────────────────────────────────
-const configKey = (wallet: string) => `ai_agent_config:${wallet}`;
+function getSupabaseClient() {
+  const url = Deno.env.get('SUPABASE_URL');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !serviceKey) throw new Error('Missing Supabase env vars');
+  return createClient(url, serviceKey);
+}
 
 async function getStoredConfig(walletAddress: string): Promise<AIAgentConfig | null> {
-  const config = await kv.get(configKey(walletAddress));
-  if (!config || typeof config !== 'object') {
-    return null;
-  }
-  return config as AIAgentConfig;
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('agent_configs')
+    .select('*')
+    .eq('wallet_address', walletAddress)
+    .maybeSingle();
+  if (error || !data) return null;
+  return {
+    id: String(data.id),
+    walletAddress: data.wallet_address,
+    enabled: data.auto_reply ?? false,
+    name: data.persona || 'AI Assistant',
+    behavior: 'moderate',
+    autoReplyEnabled: data.auto_reply ?? false,
+    greetingMessage: (data.metadata as any)?.greetingMessage,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+  } as AIAgentConfig;
 }
 
 // ─── POST /ai/chat ─── Legacy seller AI message route ────────────────────────
@@ -118,8 +135,8 @@ aiChat.post('/config', async (c) => {
     const walletMismatch = assertAuthenticatedWalletMatch(c, auth.identity, walletAddress, 'walletAddress');
     if (walletMismatch) return walletMismatch;
 
-    // Merge with existing config (or create new)
     const resolvedWalletAddress = auth.identity.walletAddress;
+    const supabase = getSupabaseClient();
     const existing = await getStoredConfig(resolvedWalletAddress);
     const config: AIAgentConfig = {
       id: existing?.id ?? `ai_agent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -133,7 +150,18 @@ aiChat.post('/config', async (c) => {
       updatedAt:         new Date().toISOString(),
     };
 
-    await kv.set(configKey(resolvedWalletAddress), config);
+    await supabase
+      .from('agent_configs')
+      .upsert({
+        wallet_address: resolvedWalletAddress,
+        persona: config.name || 'AI Assistant',
+        auto_reply: config.autoReplyEnabled ?? config.enabled,
+        metadata: {
+          behavior: config.behavior,
+          greetingMessage: config.greetingMessage,
+          enabled: config.enabled,
+        },
+      }, { onConflict: 'wallet_address' });
 
     return c.json({ success: true, config });
 

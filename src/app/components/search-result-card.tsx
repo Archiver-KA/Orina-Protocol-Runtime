@@ -11,6 +11,7 @@ import { useState, useRef, useEffect, useCallback, useLayoutEffect, type MouseEv
 import { createPortal } from 'react-dom';
 import { MarketplaceAsset } from '@/app/types/asset';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
 // ============================================================================
 // BLOCKCHAIN DETAILED CONFIG
@@ -419,7 +420,7 @@ export function SearchResultCard({
   const categoryRow = (
     <div className="flex min-w-0 items-center gap-2">
       <span className="truncate text-[11px] font-bold uppercase tracking-[0.1em] text-ui-muted">
-        {asset.category}
+        {getCategoryDisplayLabel(asset.category)}
       </span>
       {asset.seller?.verified && <Shield size={13} className="shrink-0 text-primary" />}
     </div>

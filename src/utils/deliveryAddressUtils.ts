@@ -1,3 +1,9 @@
+/**
+ * @deprecated Phase 3 - Hybrid wallet data: Delivery addresses.
+ * localStorage persistence should migrate to remote-first via the
+ * delivery_addresses (000015) server table.
+ * See spec: 15-local-api-audit-and-server-migration-plan.md
+ */
 import type {
   DeliveryAddressDraft,
   DeliveryAddressFieldErrors,
@@ -24,7 +30,7 @@ import { getWalletSettingsKey } from '@/utils/themePreferences';
 
 const DELIVERY_ADDRESSES_SYNC_EVENT = 'orina:delivery-addresses-changed';
 const deliveryHydrateInFlight = new Set<string>();
-const deliverySyncTimers = new Map<string, number>();
+
 
 let geoCountriesCache: GeoCountry[] | null = null;
 const geoPlacesCache = new Map<string, GeoPlace[]>();
@@ -233,16 +239,7 @@ function buildAddressDbRow(userId: string, record: DeliveryAddressRecord): Recor
   };
 }
 
-function queueSync(map: Map<string, number>, key: string, job: () => void): void {
-  if (typeof window === 'undefined') return;
-  const prev = map.get(key);
-  if (prev) window.clearTimeout(prev);
-  const timer = window.setTimeout(() => {
-    map.delete(key);
-    job();
-  }, 300);
-  map.set(key, timer);
-}
+
 
 function sortDeliveryAddresses(addresses: DeliveryAddressRecord[]): DeliveryAddressRecord[] {
   return [...addresses].sort((a, b) => {
@@ -332,14 +329,14 @@ async function hydrateDeliveryAddressesFromSupabase(walletAddress: string): Prom
   }
 }
 
-async function syncDeliveryAddressesToSupabase(walletAddress: string): Promise<void> {
+async function syncDeliveryAddressesToSupabase(walletAddress: string, items?: DeliveryAddressRecord[]): Promise<void> {
   if (!isSupabaseRestEnabled()) return;
 
   try {
     const userId = await ensureRemoteProfileIdForWallet(walletAddress);
     if (!userId) return;
 
-    const current = loadLocalDeliveryAddresses(walletAddress);
+    const current = items ?? loadLocalDeliveryAddresses(walletAddress);
     await restDelete('user_delivery_addresses', toQuery({ user_id: encodeEq(userId) }));
 
     if (current.length === 0) return;
@@ -600,10 +597,9 @@ export async function saveUserDeliveryAddress(
     ? withoutCurrent.map((item) => ({ ...item, isDefault: false })).concat(persistedRecord)
     : withoutCurrent.concat(persistedRecord);
 
+  // Server-first: persist to Supabase immediately, cache locally
   saveLocalDeliveryAddresses(normalizedWallet, nextItems);
-  queueSync(deliverySyncTimers, normalizedWallet, () => {
-    void syncDeliveryAddressesToSupabase(normalizedWallet);
-  });
+  await syncDeliveryAddressesToSupabase(normalizedWallet, nextItems);
 
   return persistedRecord;
 }

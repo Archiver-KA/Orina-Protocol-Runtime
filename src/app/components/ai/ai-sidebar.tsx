@@ -14,7 +14,6 @@ import {
 } from '@/app/types/ai-agent';
 import { AIAgentClient } from '@/utils/aiAgentClient';
 import { BorderlessTextarea } from './borderless-textarea';
-import { useTheme } from '@/app/contexts/ThemeContext';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +23,29 @@ interface AISidebarProps {
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
+
+function AIFlowerIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      viewBox="120 120 160 160"
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <g fill="currentColor">
+        <ellipse cx="200" cy="251" rx="11" ry="22" transform="rotate(22, 200, 200) rotate(-45, 200, 251)" />
+        <ellipse cx="200" cy="251" rx="11" ry="22" transform="rotate(67, 200, 200) rotate(-45, 200, 251)" />
+        <ellipse cx="200" cy="251" rx="11" ry="22" transform="rotate(112, 200, 200) rotate(-45, 200, 251)" />
+        <ellipse cx="200" cy="251" rx="11" ry="22" transform="rotate(157, 200, 200) rotate(-45, 200, 251)" />
+        <ellipse cx="200" cy="251" rx="11" ry="22" transform="rotate(202, 200, 200) rotate(-45, 200, 251)" />
+        <ellipse cx="200" cy="251" rx="11" ry="22" transform="rotate(247, 200, 200) rotate(-45, 200, 251)" />
+        <ellipse cx="200" cy="251" rx="11" ry="22" transform="rotate(292, 200, 200) rotate(-45, 200, 251)" />
+        <ellipse cx="200" cy="251" rx="11" ry="22" transform="rotate(337, 200, 200) rotate(-45, 200, 251)" />
+      </g>
+    </svg>
+  );
+}
 
 // ── Simple inline markdown renderer ─────────────────────────────────────────
 function renderMarkdown(text: string) {
@@ -77,7 +99,7 @@ function ChatBubble({ entry }: { entry: AIChatEntry }) {
 
 function AIProductCard({ product, onView }: { product: AIProductResult; onView: (p: AIProductResult) => void }) {
   return (
-    <div className="flex items-center gap-2.5 p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px] hover:bg-[rgba(255,255,255,0.04)] transition-colors group">
+    <div className="flex items-center gap-2.5 rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] p-5 transition-colors hover:bg-[var(--t-surface-hover)] group">
       <div className="w-10 h-10 rounded-lg bg-[var(--t-input-bg)] overflow-hidden shrink-0">
         {product.imageUrl
           ? <img src={product.imageUrl} alt={product.title} className="w-full h-full object-cover" />
@@ -107,7 +129,7 @@ function AIOrderCard({ order }: { order: AIOrderSummary }) {
     cancelled: 'text-ui-muted',
   };
   return (
-    <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px] space-y-1">
+    <div className="space-y-1 rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] p-5">
       <div className="flex items-center justify-between gap-2">
         <p className="text-[12px] font-bold text-ui-primary truncate flex-1">{order.assetName}</p>
         <span className={`text-[11px] font-medium shrink-0 ${statusColor[order.status] ?? 'text-ui-muted'}`}>
@@ -137,7 +159,7 @@ function AIDisputeCard({ dispute }: { dispute: AIDisputeSuggestion }) {
     split: 'text-yellow-400',
   };
   return (
-    <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px] space-y-2">
+    <div className="space-y-2 rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] p-5">
       <div className="flex items-center justify-between">
         <span className={`text-[12px] font-bold uppercase tracking-wider ${verdictColor[dispute.verdict] ?? 'text-ui-secondary'}`}>
           {verdictLabel[dispute.verdict]}
@@ -161,7 +183,7 @@ function AIMintDraftCard({ draft }: { draft: any }) {
     window.dispatchEvent(new CustomEvent('ai:mint-draft', { detail: draft }));
   };
   return (
-    <div className="p-5 bg-[rgba(44,194,149,0.05)] border border-[rgba(44,194,149,0.2)] rounded-[24px] backdrop-blur-[10px] space-y-2">
+    <div className="space-y-2 rounded-[24px] border border-[rgba(44,194,149,0.2)] bg-[rgba(44,194,149,0.08)] p-5">
       <p className="text-[11px] font-bold text-primary uppercase tracking-wider">Mint Draft Ready</p>
       {draft?.name && <p className="text-[13px] font-bold text-ui-primary">{draft.name}</p>}
       {draft?.description && <p className="text-[11px] text-ui-muted line-clamp-2">{draft.description}</p>}
@@ -178,7 +200,7 @@ function AIMintDraftCard({ draft }: { draft: any }) {
 
 function MarketAnalysisCard({ analysis }: { analysis: MarketAnalysis }) {
   return (
-    <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px] space-y-3">
+    <div className="space-y-3 rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] p-5">
       <p className="text-[11px] font-bold text-ui-muted uppercase tracking-wider">{analysis.category}</p>
       <div className="grid grid-cols-2 gap-3 text-[11px]">
         <div className="p-3 bg-ui-input rounded-xl border-0">
@@ -231,7 +253,7 @@ function AIClarificationCard({
   };
 
   return (
-    <div className="mx-2 mb-3 p-5 rounded-[24px] bg-[rgba(255,255,255,0.02)] border border-[var(--t-border-subtle)] backdrop-blur-[10px] space-y-3">
+    <div className="mx-2 mb-3 space-y-3 rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] p-5">
       <p className="text-[13px] text-ui-primary font-bold">{question}</p>
       <div className="space-y-2">
         {options.map(opt => (
@@ -572,23 +594,31 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
       initial={{ x: 360, opacity: 0 }}
       animate={isFullscreen ? { x: 0, y: 0, opacity: 1, scale: 1 } : { x: 0, opacity: 1, scale: 1 }}
       exit={{ x: 360, opacity: 0 }}
-      transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+      transition={{
+        type: 'tween',
+        duration: isFullscreen ? 0.18 : 0.16,
+        ease: [0.22, 1, 0.36, 1],
+      }}
       className={isFullscreen ? "fixed inset-0 z-[60] p-4 sm:p-6 md:p-8 flex items-center justify-center pointer-events-none" : "fixed right-0 top-0 h-[100dvh] w-[344px] z-[60] p-[10px] pointer-events-none"}
+      style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden' }}
     >
       {isFullscreen && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto"
+          className="absolute inset-0 bg-black/72 pointer-events-auto"
           onClick={onClose}
         />
       )}
-      <div className={`relative h-full ${isFullscreen ? 'w-full max-w-6xl' : 'w-full'} rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[12px] flex flex-col border border-[var(--t-border-subtle)] overflow-hidden shadow-2xl pointer-events-auto`}>
+      <div
+        className={`relative h-full ${isFullscreen ? 'w-full max-w-6xl' : 'w-full'} rounded-[24px] bg-[var(--color-ai-sidebar-shell)] flex flex-col border border-[var(--t-border-subtle)] overflow-hidden shadow-2xl pointer-events-auto`}
+        style={{ contain: 'layout paint' }}
+      >
       {/* Header */}
       <div className="flex items-center gap-2.5 p-5 border-b border-[var(--t-border-subtle)] shrink-0">
-        <div className="w-[30px] h-[30px] rounded-full flex items-center justify-center shrink-0">
-          <img src="/flower-static.svg" alt="AI" className="w-[20px] h-[20px] object-contain" />
+        <div className="flex items-center justify-center shrink-0 text-ui-primary">
+          <AIFlowerIcon className="h-[20px] w-[20px] object-contain" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-ui-primary uppercase tracking-wider">ORINA AI</p>
@@ -632,7 +662,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
               initial={isFullscreen ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className={`${isFullscreen ? 'w-[320px] shrink-0 border-r border-[var(--t-border-subtle)] bg-[rgba(0,0,0,0.2)]' : 'absolute inset-0 z-10 bg-[var(--t-card-bg)]'} flex flex-col overflow-hidden`}
+              className={`${isFullscreen ? 'w-[320px] shrink-0 border-r border-[var(--t-border-subtle)] bg-[var(--color-ai-sidebar-panel)]' : 'absolute inset-0 z-10 bg-[var(--color-ai-sidebar-shell)]'} flex flex-col overflow-hidden`}
             >
               <div className="p-5 border-b border-[var(--t-border-subtle)] flex items-center justify-between shrink-0">
                 <span className="text-[12px] font-bold text-ui-muted uppercase tracking-wider">History</span>
@@ -653,7 +683,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
                       key={conv.conversationId}
                       type="button"
                       onClick={() => loadConversation(conv.conversationId)}
-                      className={`w-full text-left p-4 rounded-[24px] ${conv.conversationId === conversationId ? 'bg-[var(--t-input-focus-bg)] border-[#2CC295]/50' : 'bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] border-[var(--t-border-subtle)]'} backdrop-blur-[10px] transition-colors group flex items-start gap-3 border`}
+                      className={`w-full text-left p-4 rounded-[24px] ${conv.conversationId === conversationId ? 'bg-[var(--t-input-focus-bg)] border-[#2CC295]/50' : 'bg-[var(--t-surface-5)] hover:bg-[var(--t-surface-hover)] border-[var(--t-border-subtle)]'} transition-colors group flex items-start gap-3 border`}
                     >
                       <div className="flex-1 min-w-0">
                         <p className={`text-[13px] font-bold truncate ${conv.conversationId === conversationId ? 'text-[#2CC295]' : 'text-ui-primary'}`}>{conv.title}</p>
@@ -694,8 +724,8 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
             >
               {entries.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6 mt-8">
-                  <div className="w-[48px] h-[48px] rounded-full flex items-center justify-center">
-                    <img src="/flower-static.svg" alt="AI" className="w-[32px] h-[32px] opacity-60 object-contain" />
+                  <div className="w-[48px] h-[48px] rounded-full flex items-center justify-center border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] text-ui-primary">
+                    <AIFlowerIcon className="w-[32px] h-[32px] opacity-60 object-contain" />
                   </div>
                   <p className="text-[13px] text-ui-muted">
                     {agentContext === 'seller'
@@ -737,7 +767,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
                         key={text}
                         type="button"
                         onClick={() => sendMessage(text)}
-                        className="text-left text-[12px] font-medium px-4 py-2.5 rounded-[12px] bg-[rgba(255,255,255,0.02)] border border-[var(--t-border-subtle)] hover:bg-[var(--t-input-focus-bg)] text-ui-secondary hover:text-ui-primary transition-colors"
+                        className="text-left text-[12px] font-medium px-4 py-2.5 rounded-[12px] bg-[var(--t-surface-5)] border border-[var(--t-border-subtle)] hover:bg-[var(--t-input-focus-bg)] text-ui-secondary hover:text-ui-primary transition-colors"
                       >
                         {text}
                       </button>
@@ -793,13 +823,13 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
               <div className="flex gap-1.5 px-3 pb-2 flex-wrap">
                 {pendingImages.map((img, i) => (
                   <div key={i} className="relative">
-                    <img src={img} alt="" className="w-12 h-12 rounded-lg object-cover border border-white/10" />
+                    <img src={img} alt="" className="w-12 h-12 rounded-lg object-cover border border-[var(--t-border-subtle)]" />
                     <button
                       type="button"
                       onClick={() => setPendingImages(prev => prev.filter((_, j) => j !== i))}
-                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-neutral-800 border border-white/20 flex items-center justify-center"
+                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-[var(--t-surface-10)] border border-[var(--t-border-subtle)] flex items-center justify-center"
                     >
-                      <X size={9} className="text-white" />
+                      <X size={9} className="text-ui-primary" />
                     </button>
                   </div>
                 ))}
@@ -808,7 +838,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
 
             {/* Input area */}
             <div className="p-4 pt-0 border-t-0 shrink-0 bg-transparent mb-1">
-              <div className="flex items-end gap-2 bg-[var(--t-input-bg)] rounded-[24px] px-2 py-2 transition-colors">
+              <div className="flex items-end gap-2 bg-[var(--color-ai-sidebar-input)] rounded-[24px] px-2 py-2 transition-colors">
                 <input
                   ref={imageInputRef}
                   type="file"

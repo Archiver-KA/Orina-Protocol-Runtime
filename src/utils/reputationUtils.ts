@@ -1,3 +1,12 @@
+/**
+ * @deprecated Phase 2 — Legacy localStorage reputation utils.
+ * Reputation/rating persistence (load/save) should migrate to the
+ * server-side profile_reputation_summary view and profile_reviews
+ * table (see migrations 000045, 000047). Pure-computation helpers
+ * (calculateReputationScore, getReputationLevel, getTrustBadges,
+ * getReputationInsights, etc.) remain safe to use.
+ * See spec: 15-local-api-audit-and-server-migration-plan.md § F6
+ */
 import {
   ReputationScore,
   ReputationLevel,
@@ -10,10 +19,19 @@ import {
   ReputationComparison,
 } from '@/types/reputation';
 import { ActivityItem } from '@/types/profile';
+import { normalizeAddress } from '@/utils/storageScope';
 
-const REPUTATION_KEY = 'studio_reputation';
-const RATINGS_KEY = 'studio_ratings';
-const DISPUTES_KEY = 'studio_disputes';
+// REMOVED: localStorage keys — data now lives in profile_reputation_summary (000047)
+// const REPUTATION_KEY = 'studio_reputation';
+// const RATINGS_KEY = 'studio_ratings';
+// const DISPUTES_KEY = 'studio_disputes';
+
+function normalizeStorageUserId(userId: string): string {
+  if (/^0x[a-fA-F0-9]{40}$/.test(userId)) {
+    return normalizeAddress(userId);
+  }
+  return userId;
+}
 
 /**
  * Reputation level information
@@ -106,7 +124,7 @@ export function calculateReputationScore(
   accountAge: number, // days
   isVerified: boolean
 ): ReputationScore {
-  const userId = activities[0]?.userId || 'unknown';
+  const userId = normalizeStorageUserId(activities[0]?.userId || ratings[0]?.toUserId || 'unknown');
   
   // Transaction metrics
   const totalTransactions = activities.filter(a => 
@@ -263,60 +281,53 @@ function calculateVerificationScore(isVerified: boolean, accountAge: number): nu
 /**
  * Load reputation score
  */
-export function loadReputationScore(userId: string): ReputationScore | null {
-  try {
-    const stored = localStorage.getItem(`${REPUTATION_KEY}_${userId}`);
-    if (!stored) return null;
-    return JSON.parse(stored);
-  } catch (error) {
-    console.error('Failed to load reputation score:', error);
-    return null;
-  }
+/**
+ * @deprecated Use server-side profile_reputation_summary view.
+ */
+export function loadReputationScore(_userId: string): ReputationScore | null {
+  console.warn('[reputationUtils] loadReputationScore() is deprecated — use server API');
+  return null;
 }
 
 /**
  * Save reputation score
  */
-export function saveReputationScore(score: ReputationScore): void {
-  try {
-    localStorage.setItem(`${REPUTATION_KEY}_${score.userId}`, JSON.stringify(score));
-  } catch (error) {
-    console.error('Failed to save reputation score:', error);
-  }
+/**
+ * @deprecated Use server-side profile_reputation_summary view.
+ */
+export function saveReputationScore(_score: ReputationScore): void {
+  console.warn('[reputationUtils] saveReputationScore() is deprecated — use server API');
 }
 
 /**
  * Load ratings
  */
-export function loadRatings(userId: string): Rating[] {
-  try {
-    const stored = localStorage.getItem(`${RATINGS_KEY}_${userId}`);
-    if (!stored) return [];
-    return JSON.parse(stored);
-  } catch (error) {
-    console.error('Failed to load ratings:', error);
-    return [];
-  }
+/**
+ * @deprecated Use server-side profile_reviews table.
+ */
+export function loadRatings(_userId: string): Rating[] {
+  console.warn('[reputationUtils] loadRatings() is deprecated — use server API');
+  return [];
 }
 
 /**
  * Save ratings
  */
-export function saveRatings(userId: string, ratings: Rating[]): void {
-  try {
-    localStorage.setItem(`${RATINGS_KEY}_${userId}`, JSON.stringify(ratings));
-  } catch (error) {
-    console.error('Failed to save ratings:', error);
-  }
+/**
+ * @deprecated Use server-side profile_reviews table.
+ */
+export function saveRatings(_userId: string, _ratings: Rating[]): void {
+  console.warn('[reputationUtils] saveRatings() is deprecated — use server API');
 }
 
 /**
  * Add rating
  */
 export function addRating(rating: Rating): void {
-  const ratings = loadRatings(rating.toUserId);
+  const normalizedToUserId = normalizeStorageUserId(rating.toUserId);
+  const ratings = loadRatings(normalizedToUserId);
   ratings.unshift(rating);
-  saveRatings(rating.toUserId, ratings);
+  saveRatings(normalizedToUserId, ratings);
 }
 
 /**
@@ -352,7 +363,7 @@ export function getTrustBadges(score: ReputationScore): TrustBadge[] {
   }
   
   // Fast responder
-  if (score.metrics.averageResponseTime <= 30) {
+  if (score.metrics.totalTransactions > 0 && score.metrics.averageResponseTime > 0 && score.metrics.averageResponseTime <= 30) {
     badges.push({
       id: 'fast_responder',
       type: 'fast_responder',
@@ -365,7 +376,7 @@ export function getTrustBadges(score: ReputationScore): TrustBadge[] {
   }
   
   // Reliable (high completion rate)
-  if (score.metrics.completionRate >= 95) {
+  if (score.metrics.totalTransactions > 0 && score.metrics.completionRate >= 95) {
     badges.push({
       id: 'reliable',
       type: 'reliable',
@@ -449,14 +460,14 @@ export function getReputationInsights(score: ReputationScore): ReputationInsight
   }
   
   // Response time
-  if (score.metrics.averageResponseTime <= 30) {
+  if (score.metrics.totalTransactions > 0 && score.metrics.averageResponseTime > 0 && score.metrics.averageResponseTime <= 30) {
     insights.push({
       type: 'positive',
       category: 'Response',
       message: 'Very fast response time',
       impact: 'medium',
     });
-  } else if (score.metrics.averageResponseTime > 120) {
+  } else if (score.metrics.totalTransactions > 0 && score.metrics.averageResponseTime > 120) {
     insights.push({
       type: 'negative',
       category: 'Response',
@@ -467,7 +478,7 @@ export function getReputationInsights(score: ReputationScore): ReputationInsight
   }
   
   // Disputes
-  if (score.metrics.disputeRate === 0) {
+  if (score.metrics.totalTransactions > 0 && score.metrics.disputeRate === 0) {
     insights.push({
       type: 'positive',
       category: 'Disputes',

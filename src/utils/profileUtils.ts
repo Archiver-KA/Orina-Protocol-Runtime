@@ -1,3 +1,10 @@
+/**
+ * @deprecated Phase 3 — Hybrid wallet data: Profiles.
+ * localStorage-based profile persistence (loadProfile, saveProfile)
+ * should migrate to remote-first via the profiles table (see migration
+ * 000003). Pure-UI helpers remain safe to use.
+ * See spec: 15-local-api-audit-and-server-migration-plan.md § Phase 3
+ */
 import {
   UserProfile,
   ActivityItem,
@@ -35,51 +42,24 @@ import {
   mergeProfileSettingsIntoAppSettings,
   readLocalUserAppSettings,
   saveUserAppSettings,
+  saveUserProfileEmail,
   settingsRecordToAppSettings,
 } from '@/utils/userSettingsUtils';
 
 // ✅ NEW ARCHITECTURE: Address-based only, no userId concept
 const ACTIVITIES_KEY = 'studio_user_activities';
-const PROFILE_SYNC_EVENT = 'orina:profile-changed';
+export const PROFILE_SYNC_EVENT = 'orina:profile-changed';
 const PROFILE_SYNC_IN_FLIGHT = new Set<string>();
 const PROFILE_HYDRATE_LAST_AT = new Map<string, number>();
 const PROFILE_HYDRATE_MIN_INTERVAL_MS = 15_000;
 const DISPLAY_NAME_PREVIEW_LIMIT = 15;
 const DEFAULT_STORY_SETTINGS: StorySettings = {
-  category: 'Institutional',
-  tags: 'rwa, logistics, yield',
+  category: '',
+  tags: '',
 };
 
 function createDefaultStoryBlocks(): StoryBlock[] {
-  return [
-    {
-      id: 'story-heading-intro',
-      type: 'heading',
-      content: 'Introduction to the Asset',
-    },
-    {
-      id: 'story-paragraph-intro',
-      type: 'paragraph',
-      content:
-        'The evolving landscape of Real World Assets (RWA) is creating unprecedented opportunities for retail and institutional sellers alike. This storefront collection focuses on high-yield industrial logistics centers in emerging tech hubs.',
-    },
-    {
-      id: 'story-image-main',
-      type: 'image',
-      content: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=1600',
-    },
-    {
-      id: 'story-heading-market',
-      type: 'heading',
-      content: 'Market Dynamics',
-    },
-    {
-      id: 'story-paragraph-market',
-      type: 'paragraph',
-      content:
-        'By leveraging tokenized ownership, we can now provide liquidity in markets that were previously locked behind massive capital requirements. This entry details the methodology for asset selection and risk mitigation in volatile cycles.',
-    },
-  ];
+  return [];
 }
 
 function createDefaultStoryDocument(): UserStoryDocument {
@@ -206,6 +186,10 @@ function normalizeUserProfileShape(address: string, raw: Partial<UserProfile> | 
   const parsed = (raw && typeof raw === 'object') ? raw : {};
   const avatarValue = (parsed as any).avatarUrl || (parsed as any).avatar;
   const bannerValue = (parsed as any).bannerUrl || (parsed as any).banner;
+  const rawEmailValue = typeof (parsed as any).email === 'string'
+    ? (parsed as any).email.trim().toLowerCase()
+    : '';
+  const emailValue = rawEmailValue || undefined;
   const usernameValue = typeof (parsed as any).username === 'string' && (parsed as any).username.trim()
     ? (parsed as any).username
     : `@${normalizedAddress.slice(2, 10)}`;
@@ -246,6 +230,7 @@ function normalizeUserProfileShape(address: string, raw: Partial<UserProfile> | 
     address: normalizedAddress,
     username: usernameValue,
     displayName: displayNameValue,
+    email: emailValue,
     avatar: avatarValue,
     banner: bannerValue,
     avatarUrl: avatarValue,
@@ -327,6 +312,11 @@ type DbUserPreferencesRow = {
   privacy_settings: Record<string, any>;
 };
 
+type DbProfileStoryRow = {
+  user_id: string;
+  story_document: Record<string, any>;
+};
+
 type DbUserBadgeRow = {
   user_id: string;
   badge_key: string;
@@ -335,15 +325,25 @@ type DbUserBadgeRow = {
 function mapDbProfileToLocal(
   address: string,
   row: DbProfileRow,
+  storyRow?: DbProfileStoryRow | null,
   prefsRow?: DbUserPreferencesRow | null,
   badgeRows?: DbUserBadgeRow[],
   followers?: string[],
   following?: string[],
-  canonicalSettings?: ReturnType<typeof settingsRecordToAppSettings>
+  canonicalSettings?: ReturnType<typeof settingsRecordToAppSettings>,
+  canonicalProfileEmail?: string
 ): UserProfile {
   const base = loadUserProfileLocalOnly(address) || createDefaultProfile(address);
   const nextSettings = canonicalSettings || base.settings;
-  const remoteStory = prefsRow?.ui_preferences?.story_document;
+  const remoteStory = storyRow?.story_document || prefsRow?.ui_preferences?.story_document;
+  const hasRemoteEmail =
+    !!prefsRow?.ui_preferences &&
+    Object.prototype.hasOwnProperty.call(prefsRow.ui_preferences, 'profile_email');
+  const remoteEmail = hasRemoteEmail
+    ? (typeof prefsRow?.ui_preferences?.profile_email === 'string'
+      ? prefsRow.ui_preferences.profile_email
+      : undefined)
+    : undefined;
 
   return normalizeUserProfileShape(address, {
     ...base,
@@ -356,6 +356,7 @@ function mapDbProfileToLocal(
     banner: row.banner_url ?? base.banner,
     avatarUrl: row.avatar_url ?? base.avatarUrl,
     bannerUrl: row.banner_url ?? base.bannerUrl,
+    email: canonicalProfileEmail || remoteEmail || base.email,
     verified: !!row.is_verified,
     socialLinks: {
       ...(base.socialLinks || {}),
@@ -422,9 +423,9 @@ async function hydrateProfileFromSupabase(address: string): Promise<void> {
 
   PROFILE_SYNC_IN_FLIGHT.add(normalized);
   try {
-    const canonicalSettings = settingsRecordToAppSettings(
-      await hydrateUserAppSettingsFromSupabase(normalized).catch(() => readLocalUserAppSettings(normalized))
-    );
+    const canonicalSettingsRecord = await hydrateUserAppSettingsFromSupabase(normalized)
+      .catch(() => readLocalUserAppSettings(normalized));
+    const canonicalSettings = settingsRecordToAppSettings(canonicalSettingsRecord);
     const rows = await restSelect<DbProfileRow>(
       'profiles',
       toQuery({ select: '*', wallet_address: encodeEq(normalized), limit: '1' })
@@ -434,7 +435,8 @@ async function hydrateProfileFromSupabase(address: string): Promise<void> {
 
     setLocalSupabaseId('profile', profileMapKey(normalized), row.id);
 
-    const [prefsRows, badgeRows, followingRows, followerRows] = await Promise.all([
+    const [storyRows, prefsRows, badgeRows, followingRows, followerRows] = await Promise.all([
+      restSelect<DbProfileStoryRow>('profile_story_documents', toQuery({ select: 'user_id,story_document', user_id: encodeEq(row.id), limit: '1' })).catch(() => []),
       restSelect<DbUserPreferencesRow>('user_preferences', toQuery({ select: '*', user_id: encodeEq(row.id), limit: '1' })).catch(() => []),
       restSelect<DbUserBadgeRow>('user_badges', toQuery({ select: 'user_id,badge_key', user_id: encodeEq(row.id) })).catch(() => []),
       restSelect<{ following_user_id: string }>('user_follows', toQuery({ select: 'following_user_id', follower_user_id: encodeEq(row.id) })).catch(() => []),
@@ -450,11 +452,13 @@ async function hydrateProfileFromSupabase(address: string): Promise<void> {
     const merged = mapDbProfileToLocal(
       normalized,
       row,
+      storyRows[0] || null,
       prefsRows[0] || null,
       badgeRows,
       followerRows.map((x) => walletById[x.follower_user_id]).filter(Boolean),
       followingRows.map((x) => walletById[x.following_user_id]).filter(Boolean),
-      appSettingsToProfileSettings(canonicalSettings)
+      appSettingsToProfileSettings(canonicalSettings),
+      canonicalSettingsRecord.profileEmail
     );
 
     const currentLocal = loadUserProfileLocalOnly(normalized);
@@ -507,28 +511,18 @@ async function syncProfileToSupabase(profile: UserProfile): Promise<void> {
   }
 
   try {
-    const existingPrefsRows = await restSelect<DbUserPreferencesRow>(
-      'user_preferences',
-      toQuery({ select: '*', user_id: encodeEq(remoteProfileId), limit: '1' })
-    ).catch(() => []);
-    const existingPrefs = existingPrefsRows[0] || null;
-
     await restUpsert(
-      'user_preferences',
+      'profile_story_documents',
       [{
         user_id: remoteProfileId,
-        notification_settings: existingPrefs?.notification_settings || {},
-        ui_preferences: {
-          ...(existingPrefs?.ui_preferences || {}),
-          story_document: local.story,
-        },
-        privacy_settings: existingPrefs?.privacy_settings || {},
+        story_document: local.story,
       }],
       { onConflict: 'user_id' }
     );
   } catch (error) {
-    console.debug('[Profile] Remote story sync skipped:', error);
+    console.debug('[Profile] Remote story sync failed:', error);
   }
+
 }
 
 async function syncFollowRelation(currentAddress: string, targetAddress: string, follow: boolean): Promise<void> {
@@ -600,27 +594,48 @@ export async function forceHydrateProfileFromSupabase(address: string): Promise<
 /**
  * ✅ NEW: Save user profile by wallet address
  */
-export function saveUserProfile(profile: UserProfile): void {
+export async function saveUserProfile(profile: UserProfile): Promise<void> {
   try {
     if (!profile.address) {
       console.error('Cannot save profile without wallet address');
       return;
     }
     const normalizedAddress = normalizeAddress(profile.address);
-    const currentCanonical = settingsRecordToAppSettings(readLocalUserAppSettings(normalizedAddress));
-    const nextCanonical = mergeProfileSettingsIntoAppSettings(currentCanonical, profile.settings);
-    void saveUserAppSettings(normalizedAddress, nextCanonical);
-    const repaired = saveUserProfileLocalOnly({
-      ...profile,
+    const normalizedProfile = normalizeUserProfileShape(normalizedAddress, profile);
+    const currentCanonicalRecord = readLocalUserAppSettings(normalizedAddress);
+    const currentCanonical = settingsRecordToAppSettings(currentCanonicalRecord);
+    const nextCanonical = mergeProfileSettingsIntoAppSettings(currentCanonical, normalizedProfile.settings);
+    if ((currentCanonicalRecord.profileEmail || undefined) !== normalizedProfile.email) {
+      await saveUserProfileEmail(normalizedAddress, normalizedProfile.email).catch(() => undefined);
+    }
+    await saveUserAppSettings(normalizedAddress, nextCanonical).catch(() => undefined);
+
+    // Server-first: persist to Supabase, then cache locally
+    const repaired = normalizeUserProfileShape(normalizedAddress, {
+      ...normalizedProfile,
       address: normalizedAddress,
       settings: appSettingsToProfileSettings(nextCanonical),
     });
-    dispatchSyncEvent(PROFILE_SYNC_EVENT);
     if (!isGuestModeForced()) {
-      void syncProfileToSupabase(repaired);
+      await syncProfileToSupabase(repaired);
     }
+    saveUserProfileLocalOnly(repaired);
+    dispatchSyncEvent(PROFILE_SYNC_EVENT);
   } catch (error) {
     console.error('Failed to save user profile:', error);
+  }
+}
+
+export function saveUserProfileSnapshot(profile: UserProfile): void {
+  try {
+    if (!profile.address) {
+      console.error('Cannot save profile snapshot without wallet address');
+      return;
+    }
+    saveUserProfileLocalOnly(profile);
+    dispatchSyncEvent(PROFILE_SYNC_EVENT);
+  } catch (error) {
+    console.error('Failed to save user profile snapshot:', error);
   }
 }
 
@@ -634,6 +649,7 @@ export function createDefaultProfile(address: string): UserProfile {
     address: normalized,
     username: `@${address.slice(2, 10)}`,
     displayName: shortenUserDisplayName(address),
+    email: undefined,
     bio: undefined,
     avatar: undefined,
     banner: undefined,
@@ -777,12 +793,12 @@ export function followUser(currentAddress: string, targetAddress: string): void 
 
   if (!profile.following.includes(normalizedTarget)) {
     profile.following.push(normalizedTarget);
-    saveUserProfile(profile);
+    saveUserProfileSnapshot(profile);
   }
 
   if (!targetProfile.followers.includes(normalizedCurrent)) {
     targetProfile.followers.push(normalizedCurrent);
-    saveUserProfile(targetProfile);
+    saveUserProfileSnapshot(targetProfile);
   }
   if (!isGuestModeForced()) {
     void syncFollowRelation(normalizedCurrent, normalizedTarget, true);
@@ -800,13 +816,13 @@ export function unfollowUser(currentAddress: string, targetAddress: string): voi
 
   const profile = loadUserProfile(normalizedCurrent) || createDefaultProfile(normalizedCurrent);
   profile.following = profile.following.filter(addr => addr !== normalizedTarget);
-  saveUserProfile(profile);
+  saveUserProfileSnapshot(profile);
   
   // Remove from target's followers
   const targetProfile = loadUserProfile(normalizedTarget);
   if (targetProfile) {
     targetProfile.followers = targetProfile.followers.filter(addr => addr !== normalizedCurrent);
-    saveUserProfile(targetProfile);
+    saveUserProfileSnapshot(targetProfile);
   }
   if (!isGuestModeForced()) {
     void syncFollowRelation(normalizedCurrent, normalizedTarget, false);

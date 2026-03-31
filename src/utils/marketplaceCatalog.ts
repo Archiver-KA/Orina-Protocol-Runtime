@@ -9,10 +9,8 @@ import {
 } from '@/utils/taxonomy';
 
 export const MARKETPLACE_CATALOG_SYNC_EVENT = 'orina:marketplace-catalog-changed';
-const MARKETPLACE_CATALOG_CACHE_KEY = 'orina_marketplace_catalog_cache_v2';
-const LEGACY_MARKETPLACE_CATALOG_CACHE_KEYS = [
-  'orina_marketplace_catalog_cache_v1',
-];
+// REMOVED: localStorage cache — data served from in-memory cache + Supabase hydration only
+// const MARKETPLACE_CATALOG_CACHE_KEY = 'orina_marketplace_catalog_cache_v2';
 
 type AssetCatalogRemoteRow = {
   id: string;
@@ -40,43 +38,12 @@ type MarketplaceCatalogStats = {
 };
 
 function loadCatalogCacheFromStorage(): MarketplaceAsset[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    for (const legacyKey of LEGACY_MARKETPLACE_CATALOG_CACHE_KEYS) {
-      try {
-        window.localStorage.removeItem(legacyKey);
-      } catch {
-        // best-effort legacy cleanup only
-      }
-    }
-    const raw = window.localStorage.getItem(MARKETPLACE_CATALOG_CACHE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return (parsed as MarketplaceAsset[])
-      .filter((asset) => {
-        const id = normalizeAssetUid(asset?.id);
-        // Hard-drop old public mock catalog IDs from browser cache.
-        if (/^asset-\d{3}$/i.test(id)) return false;
-        return Boolean(id && asset?.image);
-      })
-      .map((asset) => ({
-        ...asset,
-        category: getCategoryDisplayLabel(asset?.category),
-        tags: Array.from(new Set([...(asset?.tags || []), getCategoryDisplayLabel(asset?.category)])),
-      }));
-  } catch {
-    return [];
-  }
+  // localStorage cache removed — always start empty, hydrate from Supabase
+  return [];
 }
 
-function saveCatalogCacheToStorage(assets: MarketplaceAsset[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(MARKETPLACE_CATALOG_CACHE_KEY, JSON.stringify(assets));
-  } catch {
-    // best-effort cache only
-  }
+function saveCatalogCacheToStorage(_assets: MarketplaceAsset[]): void {
+  // localStorage cache removed — no-op
 }
 
 let cachedAssets: MarketplaceAsset[] = (() => {
@@ -138,19 +105,32 @@ function mapRemoteRowToMarketplaceAsset(
 
   if (!image) return fallback || null;
 
-  const resolvedCategory = coalesceString(row.category, metadata.category, fallback?.category) || 'Uncategorized';
+  const resolvedCategory = coalesceString(row.category, metadata.category, fallback?.category) || 'uncategorized';
   const resolvedSubcategory = coalesceString(metadata.subcategory);
-  const categoryLabel = getCategoryDisplayLabel(resolvedCategory, resolvedSubcategory);
-  const subcategoryLabel = getSubcategoryDisplayLabel(resolvedCategory, resolvedSubcategory);
+  const categorySlug = normalizeCategoryFilterValue(resolvedCategory, resolvedSubcategory);
+  const categoryLabel = getCategoryDisplayLabel(categorySlug, resolvedSubcategory);
+  const subcategoryLabel = getSubcategoryDisplayLabel(categorySlug, resolvedSubcategory);
 
   return {
     ...(fallback || {}),
     id: assetUid || fallback?.id || row.id,
+    assetUid: assetUid || fallback?.assetUid || fallback?.id || row.id,
     tokenId: coalesceString(row.token_id, metadata.tokenId, fallback?.tokenId) || '',
+    onchainAssetId:
+      coalesceString(
+        metadata.onchainAssetId,
+        metadata.assetId,
+        row.token_id,
+        fallback?.onchainAssetId,
+        fallback?.tokenId,
+      ),
     contractAddress:
       coalesceString(row.contract_address, metadata.contractAddress, fallback?.contractAddress) || '',
+    unitId: coalesceString(metadata.unitId, fallback?.unitId),
+    unitName: coalesceString(metadata.unitName, fallback?.unitName),
+    unitLabel: coalesceString(metadata.unitLabel, metadata.unitName, fallback?.unitLabel, fallback?.unitName),
     name: coalesceString(row.title, metadata.name, fallback?.name) || assetUid || 'Untitled Asset',
-    category: categoryLabel,
+    category: categorySlug,
     description: coalesceString(row.description, metadata.description, fallback?.description),
     image,
     images: Array.from(
@@ -193,8 +173,8 @@ function mapRemoteRowToMarketplaceAsset(
       new Set([
         ...(fallback?.tags || []),
         ...asStringArray(metadata.tags),
+        categorySlug,
         categoryLabel,
-        normalizeCategoryFilterValue(resolvedCategory, resolvedSubcategory),
         subcategoryLabel || '',
       ].filter(Boolean))
     ),

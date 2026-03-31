@@ -1,18 +1,12 @@
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
-import * as kv from "./kv_store.tsx";
-import apiEndpoints from "./api-endpoints.tsx";
 import aiChat from "./ai-chat.tsx";
 import aiAssist from "./ai-assist.ts";
 import aiM2MWallet from "./ai-m2m-wallet.ts";
 import ipfsRouter from "./ipfs-upload.tsx";
 import sellerMintingRouter from "./seller-ai-minting-handler.ts";
 import walletAuthClaimBridge from "./wallet-auth-claim-bridge.tsx";
-import { storeAPIKey, getAllKeysForWallet } from "./api-auth.tsx";
-import { APIKey } from "./types.ts";
-import * as messagesHandler from "./messages-handler.ts";
-import { assertAuthenticatedWalletMatch, requireAuthenticatedWallet } from "./request-auth.ts";
 
 export const app = new Hono();
 
@@ -47,112 +41,6 @@ app.get("/make-server-b0d68fc8/health", (c) => {
   return c.json({ status: "ok" });
 });
 
-// API Key management endpoints (require H1 bridge JWT; wallet must match body/param)
-app.post("/make-server-b0d68fc8/keys/generate", async (c) => {
-  try {
-    const auth = await requireAuthenticatedWallet(c);
-    if (!auth.ok) return auth.response;
-
-    const body = await c.req.json();
-    const { walletAddress, name, permissions, expiresInDays } = body;
-
-    if (!walletAddress || !name || !permissions) {
-      return c.json({ error: "Missing required fields" }, 400);
-    }
-
-    const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, walletAddress, "walletAddress");
-    if (mismatch) return mismatch;
-
-    // Generate API key
-    const keyId = `key_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const apiKey = `sk_seller_${generateRandomToken(32)}`;
-    
-    const now = new Date().toISOString();
-    const expiresAt = expiresInDays 
-      ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString()
-      : null;
-
-    const newKey: APIKey = {
-      id: keyId,
-      key: apiKey,
-      name,
-      walletAddress,
-      permissions,
-      createdAt: now,
-      lastUsedAt: null,
-      expiresAt,
-      isActive: true,
-      usageStats: {
-        totalRequests: 0,
-        successRate: 100,
-        lastDayRequests: 0
-      }
-    };
-
-    await storeAPIKey(newKey);
-
-    return c.json({ success: true, key: newKey });
-  } catch (error) {
-    console.error("Error generating API key:", error);
-    return c.json({ error: "Failed to generate API key" }, 500);
-  }
-});
-
-app.get("/make-server-b0d68fc8/keys/:walletAddress", async (c) => {
-  try {
-    const auth = await requireAuthenticatedWallet(c);
-    if (!auth.ok) return auth.response;
-
-    const walletAddress = c.req.param("walletAddress");
-    const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, walletAddress, "walletAddress");
-    if (mismatch) return mismatch;
-
-    const keys = await getAllKeysForWallet(walletAddress);
-    
-    return c.json({ success: true, keys });
-  } catch (error) {
-    console.error("Error fetching API keys:", error);
-    return c.json({ error: "Failed to fetch API keys" }, 500);
-  }
-});
-
-app.post("/make-server-b0d68fc8/keys/:keyId/revoke", async (c) => {
-  try {
-    const auth = await requireAuthenticatedWallet(c);
-    if (!auth.ok) return auth.response;
-
-    const keyId = c.req.param("keyId");
-    const { walletAddress } = await c.req.json();
-
-    if (!walletAddress) {
-      return c.json({ error: "Missing walletAddress" }, 400);
-    }
-
-    const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, walletAddress, "walletAddress");
-    if (mismatch) return mismatch;
-
-    // Get all keys for wallet
-    const keys = await getAllKeysForWallet(walletAddress);
-    const key = keys.find(k => k.id === keyId);
-
-    if (!key) {
-      return c.json({ error: "Key not found" }, 404);
-    }
-
-    // Revoke key
-    key.isActive = false;
-    await storeAPIKey(key);
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.error("Error revoking API key:", error);
-    return c.json({ error: "Failed to revoke API key" }, 500);
-  }
-});
-
-// Mount API endpoints (prefixed with /make-server-b0d68fc8/api/v1)
-app.route("/make-server-b0d68fc8/api/v1", apiEndpoints);
-
 // Mount AI endpoints — V2 first (assist, search, conversations), then legacy (chat, config)
 app.route("/make-server-b0d68fc8/ai", aiAssist);
 app.route("/make-server-b0d68fc8/ai", aiChat);
@@ -164,23 +52,6 @@ app.route("/make-server-b0d68fc8/ipfs", ipfsRouter);
 
 // H1 scaffold: wallet-auth -> Supabase auth claim bridge
 app.route("/make-server-b0d68fc8/auth/supabase-claim-bridge", walletAuthClaimBridge);
-
-// Messages endpoints
-app.post("/make-server-b0d68fc8/messages/send", messagesHandler.handleSendMessage);
-app.get("/make-server-b0d68fc8/messages/conversations/:address", messagesHandler.handleGetConversations);
-app.get("/make-server-b0d68fc8/messages/:conversationId", messagesHandler.handleGetMessages);
-app.post("/make-server-b0d68fc8/messages/read", messagesHandler.handleMarkAsRead);
-app.delete("/make-server-b0d68fc8/messages/:conversationId", messagesHandler.handleDeleteConversation);
-
-// Helper function
-function generateRandomToken(length: number): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
 
 if (import.meta.main) {
   Deno.serve(app.fetch);

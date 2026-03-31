@@ -6,7 +6,7 @@
  * 2. Wallet address is the SINGLE source of truth
  * 3. All addresses normalized to lowercase before any operation
  * 4. Graceful fallbacks - never crashes, always returns defaults
- * 5. No side effects - pure computation from existing data stores
+ * 5. Cache-first reads with background synchronization for reputation data
  * 
  * SECURITY:
  * - All address inputs are validated and normalized
@@ -29,7 +29,7 @@ import type {
   WalletVerificationStatus,
 } from '@/types/wallet-identity';
 import type { UserProfile, ActivityItem } from '@/types/profile';
-import type { ReputationScore, Rating, TrustBadge } from '@/types/reputation';
+import type { ReputationScore } from '@/types/reputation';
 
 // Import from existing subsystems
 import {
@@ -41,13 +41,12 @@ import {
   loadReputationScore,
   calculateReputationScore,
   loadRatings,
-  generateMockRatings,
-  saveRatings,
   saveReputationScore,
   getReputationLevel,
   getLevelInfo,
   getTrustBadges,
 } from '@/utils/reputationUtils';
+import { buildNeutralReputationScore, hydrateReputationFromSupabase } from '@/utils/profileReputationSync';
 
 // ═══════════════════════════════════════════════════
 // ADDRESS NORMALIZATION
@@ -143,6 +142,17 @@ function computeTrustMetrics(
 ): WalletTrustMetrics {
   // If we have reputation data, use it
   if (reputation) {
+    if (reputation.metrics.totalTransactions === 0) {
+      return {
+        responseRate: 0,
+        orderCompletionRate: 0,
+        avgResponseTimeHours: 0,
+        disputeRate: 0,
+        successfulTransactions: 0,
+        failedTransactions: 0,
+      };
+    }
+
     return {
       responseRate: Math.round(reputation.responseScore),
       orderCompletionRate: Math.round(reputation.completionScore),
@@ -207,6 +217,7 @@ function computeReputationSummary(
   profile: UserProfile | null
 ): WalletReputationSummary {
   const addr = normalize(address);
+  void hydrateReputationFromSupabase(addr);
   
   // Try to load existing reputation score
   // Try both normalized and original address for backward compat
@@ -223,42 +234,25 @@ function computeReputationSummary(
   
   // If no reputation score exists and we have some data, calculate it
   if (!reputation) {
-    if (ratings.length === 0 && activities.length === 0) {
-      // Brand new wallet - return defaults
-      return {
-        overallScore: 50, // Neutral starting score
-        level: 'Newcomer',
-        levelIcon: '🌱',
-        levelColor: 'text-zinc-400',
-        averageRating: 0,
-        totalReviews: 0,
-        trustBadges: [],
-        recentRatings: [],
-        fullScore: null,
-      };
-    }
-    
-    // Generate mock ratings for demo if no real ratings exist
-    if (ratings.length === 0) {
-      ratings = generateMockRatings(addr, 8);
-      saveRatings(addr, ratings);
-    }
-    
     const accountAge = profile 
       ? Math.floor((Date.now() - profile.stats.joinedDate) / (1000 * 60 * 60 * 24))
       : 30;
-    
-    reputation = calculateReputationScore(
-      activities.length > 0 ? activities : activities,
-      ratings,
-      [],
-      accountAge,
-      profile?.verified || false
-    );
-    
-    // Save with normalized address
-    reputation.userId = addr;
-    saveReputationScore(reputation);
+
+    if (ratings.length === 0 && activities.length === 0) {
+      reputation = buildNeutralReputationScore(addr, accountAge, profile?.verified || false);
+    } else {
+      reputation = calculateReputationScore(
+        activities,
+        ratings,
+        [],
+        accountAge,
+        profile?.verified || false
+      );
+      
+      // Save with normalized address
+      reputation.userId = addr;
+      saveReputationScore(reputation);
+    }
   }
   
   // Get level info
@@ -269,9 +263,13 @@ function computeReputationSummary(
   const trustBadges = getTrustBadges(reputation);
   
   // Compute average rating
-  const avgRating = ratings.length > 0
-    ? ratings.reduce((sum, r) => sum + r.overallRating, 0) / ratings.length
-    : reputation.metrics.averageRating;
+  const totalReviews = ratings.length > 0 ? ratings.length : reputation.metrics.totalReviews;
+  const avgRating = totalReviews > 0
+    ? (ratings.length > 0
+      ? ratings.reduce((sum, r) => sum + r.overallRating, 0) / ratings.length
+      : reputation.metrics.averageRating)
+    : 0;
+  const recentRatings = ratings.length > 0 ? ratings.slice(0, 5) : reputation.recentRatings;
   
   return {
     overallScore: reputation.overallScore,
@@ -279,9 +277,9 @@ function computeReputationSummary(
     levelIcon: levelInfo.icon,
     levelColor: levelInfo.color,
     averageRating: Math.round(avgRating * 10) / 10,
-    totalReviews: ratings.length,
+    totalReviews,
     trustBadges,
-    recentRatings: ratings.slice(0, 5),
+    recentRatings,
     fullScore: reputation,
   };
 }
@@ -326,7 +324,7 @@ function computeVerificationStatus(
  * GUARANTEES:
  * - Always returns a valid WalletIdentity (never null)
  * - All addresses normalized to lowercase
- * - No side effects except lazy initialization of reputation data
+ * - Side effects are limited to lazy reputation cache synchronization
  * - Idempotent - calling multiple times with same address returns consistent data
  */
 export function getWalletIdentity(address: string): WalletIdentity {

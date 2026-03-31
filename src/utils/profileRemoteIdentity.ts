@@ -8,7 +8,7 @@ import {
   toQuery,
   encodeEq,
 } from '@/utils/supabaseRest';
-import { exchangeWalletAuthForSupabaseClaimSession, isSupabaseAuthClaimBridgeEnabled } from '@/utils/supabaseAuthClaimBridge';
+import { ensureSupabaseBridgeAccessToken, isSupabaseAuthClaimBridgeEnabled } from '@/utils/supabaseAuthClaimBridge';
 
 type DbProfileRow = {
   id: string;
@@ -133,7 +133,10 @@ export async function ensureRemoteProfileIdForWallet(address: string): Promise<s
   const request = (async (): Promise<string | null> => {
     if (isSupabaseAuthClaimBridgeEnabled()) {
       try {
-        await exchangeWalletAuthForSupabaseClaimSession(normalized);
+        await ensureSupabaseBridgeAccessToken({
+          walletAddress: normalized,
+          promptOnAuthMissing: false,
+        });
       } catch (error) {
         console.debug('[ProfileIdentity] Claim bridge exchange skipped:', error);
       }

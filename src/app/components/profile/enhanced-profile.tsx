@@ -54,6 +54,7 @@ import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { VerifiedUserIcon } from '@/app/components/verified-user-icon';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
+import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
 import { useUserOrders } from '@/hooks/useUserOrders';
 import {
   getWalletIdentity,
@@ -65,6 +66,7 @@ import {
   getTrustBarWidth
 } from '@/utils/walletIdentityStore';
 import type { WalletIdentity } from '@/types/wallet-identity';
+import type { Rating } from '@/types/reputation';
 import type {
   UserProfile,
   ProfileTab,
@@ -96,19 +98,14 @@ import {
   buildProfileMintedMarketplaceAssets,
   buildProfileTopProducts,
 } from '@/utils/profileOverview';
-
-// Mock data for reviews fallback only
-const mockReviews = [
-  { id: '1', avatar: '', reviewer: '0xAb3...f91', rating: 5, comment: 'Fast delivery, excellent communication throughout the deal.' },
-  { id: '2', avatar: '', reviewer: '0x7Fc...e22', rating: 4, comment: 'Great seller, asset was exactly as described.' },
-  { id: '3', avatar: '', reviewer: '0x1De...c45', rating: 5, comment: 'Highly recommended. Smooth transaction.' },
-];
+import { loadRatings, formatTimeAgo } from '@/utils/reputationUtils';
+import { REPUTATION_SYNC_EVENT, hydrateReputationFromSupabase } from '@/utils/profileReputationSync';
 
 const STORY_CHARACTER_LIMIT = 5000;
 const STORY_IMAGE_LIMIT = 5;
 const DEFAULT_STORY_SETTINGS: StorySettings = {
-  category: 'Institutional',
-  tags: 'rwa, logistics, yield',
+  category: '',
+  tags: '',
 };
 
 function countStoryCharacters(blocks: StoryBlock[]): number {
@@ -140,6 +137,39 @@ function createStoryDocument(
   };
 }
 
+function getProfileReviewDisplayName(rating: Rating): string {
+  const fromUsername = String(rating.fromUsername || '').trim();
+  if (fromUsername) return fromUsername;
+
+  const fromUserId = String(rating.fromUserId || '').trim();
+  if (!fromUserId) return 'Anonymous';
+  if (fromUserId.startsWith('0x') && fromUserId.length >= 10) {
+    return `${fromUserId.slice(0, 6)}...${fromUserId.slice(-4)}`;
+  }
+  return fromUserId;
+}
+
+function getProfileReviewInitials(rating: Rating): string {
+  const displayName = getProfileReviewDisplayName(rating);
+  const parts = displayName
+    .split(/[\s._-]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+  }
+  return displayName.slice(0, 2).toUpperCase() || 'RV';
+}
+
+function getProfileReviewRoleLabel(ratingType: Rating['ratingType']): string {
+  return ratingType === 'seller' ? 'Seller review' : 'Buyer review';
+}
+
+function formatProfileReviewTimestamp(timestamp?: number): string {
+  if (!timestamp || !Number.isFinite(timestamp)) return 'Unknown date';
+  return formatTimeAgo(timestamp);
+}
+
 interface EnhancedProfileProps {
   address?: string;
   onNavigateToAsset?: (assetId: string, fromPage?: string) => void;
@@ -152,6 +182,7 @@ export function EnhancedProfile({
   onNavigateToMessages,
 }: EnhancedProfileProps) {
   const { requireWalletActionAsync } = useRequireWalletAction();
+  const { assetAddress, chainId } = useProtocolDataNetwork();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -169,10 +200,16 @@ export function EnhancedProfile({
   const storyImageInputRef = useRef<HTMLInputElement>(null);
   const [storyDraftSettings, setStoryDraftSettings] = useState<StorySettings>(DEFAULT_STORY_SETTINGS);
   const [savedStoryDraftSettings, setSavedStoryDraftSettings] = useState<StorySettings>(DEFAULT_STORY_SETTINGS);
+  const [profileRatings, setProfileRatings] = useState<Rating[]>([]);
+  const [isReviewsLoading, setIsReviewsLoading] = useState(false);
   const { updateAvatar, updateBanner, updateUserData, userData } = useUser();
   const { address: connectedAddress } = useAccount();
   const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
   const [runtimeMintedRecords, setRuntimeMintedRecords] = useState<RuntimeMintedAssetRecord[]>([]);
+  const runtimeAssetScope = useMemo(() => ({
+    chainId,
+    assetContract: assetAddress,
+  }), [assetAddress, chainId]);
 
   // ✅ SIMPLIFIED: Use connectedAddress if no address prop provided
   const profileAddress = address || connectedAddress || userData?.address;
@@ -212,7 +249,9 @@ export function EnhancedProfile({
     if (!userProfile) {
       console.log('✨ [EnhancedProfile] Creating new profile for:', profileAddress);
       userProfile = createDefaultProfile(profileAddress);
-      saveUserProfile(userProfile);
+      if (isOwnProfile) {
+        saveUserProfile(userProfile);
+      }
     }
 
     setProfile(userProfile);
@@ -233,6 +272,7 @@ export function EnhancedProfile({
         address: profileAddress,
         displayName: userProfile.displayName,
         username: userProfile.username,
+        email: userProfile.email,
         avatarUrl: userProfile.avatar,
         bannerUrl: userProfile.banner,
         bio: userProfile.bio,
@@ -282,12 +322,12 @@ export function EnhancedProfile({
 
   useEffect(() => {
     const syncRuntimeMintedRecords = () => {
-      setRuntimeMintedRecords(loadRuntimeMintedAssets(profileAddress));
+      setRuntimeMintedRecords(loadRuntimeMintedAssets(profileAddress, runtimeAssetScope));
     };
 
     syncRuntimeMintedRecords();
     if (isOwnProfile && profileAddress) {
-      void hydrateRuntimeMintedAssetsFromSupabase(profileAddress).then(syncRuntimeMintedRecords);
+      void hydrateRuntimeMintedAssetsFromSupabase(profileAddress, runtimeAssetScope).then(syncRuntimeMintedRecords);
     }
 
     const unsubscribe = subscribeToRuntimeMintedAssets(syncRuntimeMintedRecords);
@@ -295,7 +335,7 @@ export function EnhancedProfile({
     return () => {
       unsubscribe();
     };
-  }, [isOwnProfile, profileAddress]);
+  }, [isOwnProfile, profileAddress, runtimeAssetScope]);
 
   useEffect(() => {
     if (!profileAddress) return;
@@ -321,6 +361,46 @@ export function EnhancedProfile({
     };
   }, [profileAddress, address, connectedAddress, isOwnProfile]);
 
+  useEffect(() => {
+    if (!profileAddress) {
+      setProfileRatings([]);
+      setIsReviewsLoading(false);
+      return;
+    }
+
+    let disposed = false;
+
+    const syncReputationState = () => {
+      if (disposed) return;
+      setWalletIdentity(getWalletIdentity(profileAddress));
+      setProfileRatings(loadRatings(profileAddress));
+    };
+
+    syncReputationState();
+    setIsReviewsLoading(true);
+
+    void hydrateReputationFromSupabase(profileAddress, { force: true })
+      .catch((error) => {
+        console.debug('[EnhancedProfile] Failed to hydrate profile reviews:', error);
+      })
+      .finally(() => {
+        if (disposed) return;
+        syncReputationState();
+        setIsReviewsLoading(false);
+      });
+
+    const handleReputationSync = () => {
+      syncReputationState();
+      setIsReviewsLoading(false);
+    };
+
+    window.addEventListener(REPUTATION_SYNC_EVENT, handleReputationSync as EventListener);
+    return () => {
+      disposed = true;
+      window.removeEventListener(REPUTATION_SYNC_EVENT, handleReputationSync as EventListener);
+    };
+  }, [profileAddress]);
+
   const storyHasUnsavedChanges =
     JSON.stringify(storyDraftBlocks) !== JSON.stringify(savedStoryDraftBlocks) ||
     JSON.stringify(storyDraftSettings) !== JSON.stringify(savedStoryDraftSettings);
@@ -337,9 +417,34 @@ export function EnhancedProfile({
     () => buildProfileTopProducts(profileAddress, canonicalOrders, marketplaceAssets),
     [canonicalOrders, marketplaceAssets, profileAddress],
   );
+  const sortedProfileRatings = useMemo(
+    () => [...profileRatings].sort((left, right) => right.timestamp - left.timestamp),
+    [profileRatings],
+  );
+  const totalProfileReviews = walletIdentity?.reputation.totalReviews ?? sortedProfileRatings.length;
+  const averageProfileRating = useMemo(() => {
+    if (sortedProfileRatings.length === 0) {
+      return walletIdentity?.reputation.averageRating || 0;
+    }
+    return sortedProfileRatings.reduce((sum, rating) => sum + rating.overallRating, 0) / sortedProfileRatings.length;
+  }, [sortedProfileRatings, walletIdentity]);
+  const verifiedProfileReviewCount = useMemo(
+    () => sortedProfileRatings.filter((rating) => rating.verified).length,
+    [sortedProfileRatings],
+  );
+  const sellerProfileReviewCount = useMemo(
+    () => sortedProfileRatings.filter((rating) => rating.ratingType === 'seller').length,
+    [sortedProfileRatings],
+  );
+  const buyerProfileReviewCount = useMemo(
+    () => sortedProfileRatings.filter((rating) => rating.ratingType === 'buyer').length,
+    [sortedProfileRatings],
+  );
   const mintedOverviewItems = isOwnProfile
     ? overviewMintedAssets.ownerCards
     : overviewMintedAssets.visitorCards;
+  const bannerIconButtonClassName =
+    'flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/15 bg-white/8 text-white backdrop-blur-[10px] transition-colors hover:bg-white/14 shadow-[0_4px_12px_rgba(0,0,0,0.18)]';
 
   useEffect(() => {
     if (!profile) return;
@@ -649,6 +754,7 @@ export function EnhancedProfile({
       address: profileAddress,
       displayName: updatedProfile.displayName,
       username: updatedProfile.username,
+      email: updatedProfile.email,
       avatarUrl: updatedProfile.avatarUrl || updatedProfile.avatar,
       bannerUrl: updatedProfile.bannerUrl || updatedProfile.banner,
       bio: updatedProfile.bio,
@@ -680,6 +786,7 @@ export function EnhancedProfile({
 
   const tabs = [
     { id: 'overview' as ProfileTab, label: 'Overview', icon: Grid3x3 },
+    { id: 'reviews' as ProfileTab, label: 'Reviews', icon: Star },
     { id: 'story' as ProfileTab, label: 'Story', icon: Gem },
     { id: 'activity' as ProfileTab, label: isOwnProfile ? 'My Collections' : 'Collections', icon: ActivityIcon },
   ];
@@ -726,7 +833,7 @@ export function EnhancedProfile({
           {isOwnProfile && (
             <button
               onClick={() => setIsEditModalOpen(true)}
-              className="absolute top-4 right-4 flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/10 bg-[rgba(255,255,255,0.02)] text-[#F1F5F9] backdrop-blur-md transition-colors hover:bg-[rgba(255,255,255,0.06)] shadow-lg"
+              className={`absolute top-4 right-4 ${bannerIconButtonClassName} shadow-lg`}
               title="Edit Profile"
             >
               <Pencil size={16} />
@@ -748,7 +855,7 @@ export function EnhancedProfile({
                       href={`https://twitter.com/${profile.socialLinks.twitter.replace('@', '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/10 bg-[rgba(255,255,255,0.02)] text-[#F1F5F9] backdrop-blur-md transition-colors hover:bg-[rgba(255,255,255,0.06)] shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
+                      className={bannerIconButtonClassName}
                       title="Twitter"
                     >
                       <Twitter size={18} />
@@ -759,7 +866,7 @@ export function EnhancedProfile({
                       href={profile.socialLinks.discord}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/10 bg-[rgba(255,255,255,0.02)] text-[#F1F5F9] backdrop-blur-md transition-colors hover:bg-[rgba(255,255,255,0.06)] shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
+                      className={bannerIconButtonClassName}
                       title="Discord"
                     >
                       <MessageCircle size={18} />
@@ -770,7 +877,7 @@ export function EnhancedProfile({
                       href={profile.socialLinks.telegram}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/10 bg-[rgba(255,255,255,0.02)] text-[#F1F5F9] backdrop-blur-md transition-colors hover:bg-[rgba(255,255,255,0.06)] shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
+                      className={bannerIconButtonClassName}
                       title="Telegram"
                     >
                       <Send size={18} />
@@ -781,7 +888,7 @@ export function EnhancedProfile({
                       href={profile.socialLinks.website}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/10 bg-[rgba(255,255,255,0.02)] text-[#F1F5F9] backdrop-blur-md transition-colors hover:bg-[rgba(255,255,255,0.06)] shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
+                      className={bannerIconButtonClassName}
                       title="Website"
                     >
                       <Globe size={18} />
@@ -799,7 +906,7 @@ export function EnhancedProfile({
             {isOwnProfile ? (
               <>
                 <button
-                  className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/10 bg-[rgba(255,255,255,0.02)] text-[#F1F5F9] backdrop-blur-md transition-colors hover:bg-[rgba(255,255,255,0.06)] shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
+                  className={bannerIconButtonClassName}
                   title="Share Profile"
                 >
                   <Share2 size={18} />
@@ -816,7 +923,7 @@ export function EnhancedProfile({
                 </ProfileFollowButton>
                 <button
                   onClick={handleOpenMessage}
-                  className="flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/10 bg-[rgba(255,255,255,0.02)] text-[#F1F5F9] backdrop-blur-md transition-colors hover:bg-[rgba(255,255,255,0.06)] shadow-[0_4px_12px_rgba(0,0,0,0.1)]"
+                  className={bannerIconButtonClassName}
                   title="Send Message"
                 >
                   <Mail size={18} />
@@ -854,7 +961,7 @@ export function EnhancedProfile({
                   >
                     <div className="flex flex-col items-center">
                       <Pencil size={24} className="text-primary" />
-                      <span className="text-white text-xs font-bold mt-1">Edit Profile</span>
+                      <span className="text-ui-primary text-xs font-bold mt-1">Edit Profile</span>
                     </div>
                   </button>
                 )}
@@ -911,6 +1018,20 @@ export function EnhancedProfile({
                       {profileAddress ? `${profileAddress.slice(0, 6)}...${profileAddress.slice(-4)}` : ''}
                     </span>
                   </div>
+
+                  {isOwnProfile && profile.email && (
+                    <div className="mt-2">
+                      <div
+                        className="inline-flex max-w-full items-center gap-2 rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-3 py-1.5 text-xs text-ui-secondary"
+                        title={profile.email}
+                      >
+                        <Mail size={14} className="shrink-0 text-ui-muted" />
+                        <span className="max-w-[280px] truncate font-medium text-ui-primary">
+                          {profile.email}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Bio - Moved below avatar with smaller font */}
                   <p className="text-ui-secondary text-sm mt-1 max-w-md">{profile.bio || 'No bio available'}</p>
@@ -1129,6 +1250,167 @@ export function EnhancedProfile({
             </div>
           )}
 
+          {activeTab === 'reviews' && (
+            <div className="mx-auto w-full max-w-5xl space-y-6">
+              <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] p-6 md:p-8">
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-ui-muted">
+                      Profile Reviews
+                    </p>
+                    <h3 className="text-2xl font-bold text-ui-primary">
+                      Community feedback for this profile
+                    </h3>
+                    <p className="max-w-2xl text-sm leading-6 text-ui-secondary">
+                      Reviews below are hydrated from the canonical profile reputation tables and reflect feedback tied to real marketplace interactions.
+                    </p>
+                  </div>
+
+                  <div className="rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-5)] px-5 py-4 text-left lg:min-w-[220px] lg:text-right">
+                    <div className="flex items-center gap-2 lg:justify-end">
+                      <Star size={18} className="fill-current text-primary" />
+                      <span className="text-2xl font-black text-ui-primary">
+                        {averageProfileRating > 0 ? averageProfileRating.toFixed(1) : '—'}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-ui-muted">
+                      {totalProfileReviews > 0 ? `${totalProfileReviews} total reviews` : 'No reviews yet'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {[
+                    {
+                      label: 'Average Rating',
+                      value: averageProfileRating > 0 ? `${averageProfileRating.toFixed(1)} / 5` : 'No rating yet',
+                      hint: totalProfileReviews > 0 ? `${totalProfileReviews} written ratings` : 'Waiting for first review',
+                    },
+                    {
+                      label: 'Verified Reviews',
+                      value: verifiedProfileReviewCount.toString(),
+                      hint: totalProfileReviews > 0 ? `${Math.round((verifiedProfileReviewCount / totalProfileReviews) * 100)}% verified` : 'No verified reviews yet',
+                    },
+                    {
+                      label: 'Seller Reviews',
+                      value: sellerProfileReviewCount.toString(),
+                      hint: 'Feedback received in seller role',
+                    },
+                    {
+                      label: 'Buyer Reviews',
+                      value: buyerProfileReviewCount.toString(),
+                      hint: 'Feedback received in buyer role',
+                    },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ui-muted">{item.label}</p>
+                      <p className="mt-3 text-xl font-black text-ui-primary">{item.value}</p>
+                      <p className="mt-2 text-xs leading-5 text-ui-secondary">{item.hint}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {isReviewsLoading && sortedProfileRatings.length === 0 ? (
+                <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-6 py-12 text-center">
+                  <p className="text-lg font-bold text-ui-primary">Loading reviews</p>
+                  <p className="mt-2 text-sm text-ui-secondary">
+                    Syncing the latest profile feedback from Supabase.
+                  </p>
+                </div>
+              ) : sortedProfileRatings.length === 0 ? (
+                <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-6 py-12 text-center">
+                  <p className="text-xl font-bold text-ui-primary">No reviews yet</p>
+                  <p className="mt-2 text-sm text-ui-secondary">
+                    This profile has not received any reviews yet.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {sortedProfileRatings.map((rating) => (
+                    <article
+                      key={rating.id}
+                      className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] p-6"
+                    >
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="flex items-start gap-4">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-sm font-black text-ui-primary">
+                            {getProfileReviewInitials(rating)}
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-bold text-ui-primary">
+                                {getProfileReviewDisplayName(rating)}
+                              </p>
+                              <span className="rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-ui-secondary">
+                                {getProfileReviewRoleLabel(rating.ratingType)}
+                              </span>
+                              {rating.verified && (
+                                <span className="rounded-full border border-[#2CC295]/30 bg-[#2CC295]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#2CC295]">
+                                  Verified
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ui-secondary">
+                              <span>{formatProfileReviewTimestamp(rating.timestamp)}</span>
+                              <span>{rating.assetName}</span>
+                              {rating.helpful > 0 && <span>{rating.helpful} found helpful</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 lg:min-w-[180px] lg:text-right">
+                          <div className="flex items-center gap-1 lg:justify-end">
+                            {Array.from({ length: 5 }).map((_, index) => (
+                              <Star
+                                key={`${rating.id}-star-${index}`}
+                                size={15}
+                                className={index < Math.round(rating.overallRating) ? 'fill-current text-primary' : 'text-ui-muted'}
+                              />
+                            ))}
+                          </div>
+                          <p className="text-sm font-black text-ui-primary">{rating.overallRating.toFixed(1)} / 5</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        {[
+                          { label: 'Communication', value: rating.communicationRating },
+                          { label: 'Delivery', value: rating.deliveryRating },
+                          { label: 'Accuracy', value: rating.accuracyRating },
+                        ].map((metric) => (
+                          <div key={metric.label} className="rounded-[18px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ui-muted">{metric.label}</p>
+                            <p className="mt-2 text-lg font-black text-ui-primary">{metric.value.toFixed(1)}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-5 rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ui-muted">Written Feedback</p>
+                        <p className="mt-3 text-sm leading-6 text-ui-secondary">
+                          {rating.review?.trim() || 'No written feedback provided for this review.'}
+                        </p>
+                      </div>
+
+                      {rating.response && (
+                        <div className="mt-4 rounded-[20px] border border-[#2CC295]/20 bg-[rgba(44,194,149,0.06)] p-4">
+                          <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-[#2CC295]">
+                            <span>Profile Response</span>
+                            {rating.responseDate && (
+                              <span className="text-ui-secondary">{formatProfileReviewTimestamp(rating.responseDate)}</span>
+                            )}
+                          </div>
+                          <p className="mt-3 text-sm leading-6 text-ui-secondary">{rating.response}</p>
+                        </div>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Story Tab */}
           {activeTab === 'story' && (
             <div className="mx-auto w-full max-w-4xl">
@@ -1316,6 +1598,7 @@ export function EnhancedProfile({
                       }
                       className="w-full h-[42px] appearance-none rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-2)] px-4 pr-9 text-sm text-ui-primary focus:outline-none focus:border-primary focus:ring-primary/35"
                     >
+                      <option value="">Select category</option>
                       <option value="Institutional">Institutional</option>
                       <option value="Retail">Retail</option>
                       <option value="Mixed">Mixed</option>
@@ -1390,7 +1673,7 @@ export function EnhancedProfile({
               <p className="text-[11px] leading-5 text-ui-secondary">
                 Optimize this story for professional investors with our GPT-4 powered summary tool.
               </p>
-              <button className="w-full h-9 rounded-full bg-ui-input border border-ui-border text-[10px] font-bold uppercase tracking-[0.05em] text-ui-primary hover:bg-[var(--t-surface-hover)] transition-colors">
+              <button className="w-full h-9 rounded-full border border-ui-border-subtle bg-[var(--color-button-secondary-bg)] text-[10px] font-bold uppercase tracking-[0.05em] text-ui-primary transition-colors hover:bg-[var(--color-button-secondary-bg-hover)]">
                 Optimize Story
               </button>
             </div>
@@ -1500,31 +1783,14 @@ export function EnhancedProfile({
                   </div>
                 ))
               ) : (
-                mockReviews.map((review) => (
-                  <div
-                    key={review.id}
-                    className="p-4 bg-[var(--t-surface-5)] rounded-xl space-y-3"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-[var(--t-surface-10)] flex items-center justify-center text-[10px] font-bold text-ui-secondary">
-                          {review.reviewer.slice(0, 2).toUpperCase()}
-                        </div>
-                        <span className="text-xs font-bold text-ui-primary">{review.reviewer}</span>
-                      </div>
-                      <div className="flex text-primary">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star
-                            key={i}
-                            size={12}
-                            className={i < review.rating ? 'fill-current' : 'text-ui-muted'}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <p className="text-xs text-ui-secondary italic">"{review.comment}"</p>
-                  </div>
-                ))
+                <div className="rounded-xl border border-ui-border-subtle bg-[var(--t-surface-5)] p-4 text-center">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-ui-muted">
+                    No reviews yet
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-ui-secondary">
+                    This profile has not received any reviews yet.
+                  </p>
+                </div>
               )}
             </div>
           </div>
@@ -1603,7 +1869,7 @@ export function EnhancedProfile({
 
         {/* Footer */}
         <div className="mt-auto border-t border-ui-border-subtle p-5 bg-[var(--t-surface-2)] backdrop-blur-md">
-          <button className="w-full py-3 bg-ui-input border border-ui-border-subtle rounded-xl text-xs font-bold text-ui-primary hover:border-[var(--color-primary-custom)]/50 hover:bg-[var(--t-surface-hover)] transition-all flex items-center justify-center gap-2">
+          <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-ui-border-subtle bg-[var(--color-button-secondary-bg)] py-3 text-xs font-bold text-ui-primary transition-all hover:border-[var(--color-primary-custom)]/50 hover:bg-[var(--color-button-secondary-bg-hover)]">
             <Shield size={16} />
             View Verification Audit
           </button>

@@ -28,7 +28,6 @@ export function MainContent() {
     lifecycleBreakdown,
     recentEvents,
     upcomingActions,
-    isLoading,
     orderCount,
   } = useProtocolAnalytics(marketTimeRange);
 
@@ -65,9 +64,8 @@ export function MainContent() {
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
             {metrics.map((metric) => (
               <article key={metric.label} className="bg-ui-card rounded-[24px] p-6 min-h-[146px] flex flex-col justify-between">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
                   <span className="text-[12px] uppercase tracking-[0.12em] font-bold text-ui-muted">{metric.label}</span>
-                  <span className="text-[10px] font-bold uppercase text-primary">{isLoading ? 'Syncing' : 'Live'}</span>
                 </div>
                 <div>
                   <p className="text-[30px] leading-[36px] font-black text-ui-primary">{metric.value}</p>

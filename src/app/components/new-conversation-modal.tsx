@@ -8,7 +8,10 @@ import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 interface NewConversationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateConversation: (walletAddress: string, displayName?: string) => Promise<void> | void;
+  onCreateConversation: (
+    walletAddress: string,
+    displayName?: string
+  ) => Promise<'created' | 'pending'> | 'created' | 'pending';
 }
 
 export function NewConversationModal({ 
@@ -26,6 +29,9 @@ export function NewConversationModal({
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
+      setWalletAddress('');
+      setDisplayName('');
+      setIsValidating(false);
     }
     return () => {
       document.body.style.overflow = 'unset';
@@ -63,15 +69,17 @@ export function NewConversationModal({
     setIsValidating(true);
     
     try {
-      await onCreateConversation(
+      const result = await onCreateConversation(
         trimmedAddress, 
         displayName.trim() || undefined
       );
       
-      handleClose();
+      if (result === 'created') {
+        handleClose();
+      }
     } catch (error) {
       console.error('Error creating conversation:', error);
-      toast.error('Failed to create conversation');
+      toast.error(error instanceof Error ? error.message : 'Failed to create conversation');
     } finally {
       setIsValidating(false);
     }

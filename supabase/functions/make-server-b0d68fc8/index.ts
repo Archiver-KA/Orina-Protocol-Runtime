@@ -1,6 +1,6 @@
 import app from '../server/index.tsx';
 
-// Re-export the fully-configured Hono app from server/index.tsx.
-// This ensures all routes (AI, auth, IPFS, messages, API) are mounted
-// without duplicating routing logic in this entry-point file.
+// Re-export the shared Hono app used by the active runtime surface.
+// This entrypoint keeps AI, auth-claim bridge, and IPFS routes under
+// the make-server-b0d68fc8 function slug without duplicating routing.
 Deno.serve(app.fetch);

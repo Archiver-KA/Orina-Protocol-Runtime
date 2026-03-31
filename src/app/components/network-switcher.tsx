@@ -1,13 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Wallet } from 'lucide-react';
-import { useAccount, useChainId, useSwitchChain } from 'wagmi';
-import { ACTIVE_CHAIN_ID } from '@/config/contracts';
+import { Wallet } from 'lucide-react';
 import { useWalletModalContext } from '@/contexts/WalletModalContext';
+import { useProtocolNetworkRouter } from '@/contexts/ProtocolNetworkContext';
 import {
-  LIVE_PROTOCOL_NETWORK,
   PROTOCOL_NETWORK_OPTIONS,
-  resolveProtocolNetwork,
   type ProtocolNetworkIcon,
 } from '@/utils/protocolNetwork';
 
@@ -34,8 +31,8 @@ const NETWORK_LOGO_SOURCES: Record<ProtocolNetworkIcon, string> = {
 
 function GenericLogo({ className = '' }: { className?: string }) {
   return (
-    <div className={`flex items-center justify-center rounded-[14px] bg-[rgba(255,255,255,0.06)] ${className}`}>
-      <Wallet size={13} className="text-[rgba(226,232,240,0.92)]" />
+    <div className={`flex items-center justify-center rounded-[14px] bg-[var(--t-surface-5)] ${className}`}>
+      <Wallet size={13} className="text-ui-secondary" />
     </div>
   );
 }
@@ -75,13 +72,13 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
   const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const { isConnected } = useAccount();
-  const chainId = useChainId();
   const { openConnectModal } = useWalletModalContext();
-  const { switchChain, switchChainAsync, isPending } = useSwitchChain();
-
-  const resolvedChainId = isConnected && chainId ? chainId : ACTIVE_CHAIN_ID;
-  const activeNetwork = resolveProtocolNetwork(resolvedChainId);
+  const {
+    isConnected,
+    isSwitching,
+    selectedNetwork: activeNetwork,
+    selectNetwork,
+  } = useProtocolNetworkRouter();
 
   useEffect(() => {
     if (!statusMessage) return;
@@ -136,31 +133,42 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
     };
   }, [isOpen, sidebarCollapsed]);
 
-  const handleLiveNetworkSelect = async () => {
-    if (!isConnected) {
-      setStatusMessage('Connect wallet to switch');
+  const handleNetworkSelect = async (networkKey: string) => {
+    const targetNetwork = PROTOCOL_NETWORK_OPTIONS.find((network) => network.key === networkKey);
+    if (!targetNetwork) return;
+
+    if (!isConnected && targetNetwork.status === 'live') {
       openConnectModal();
-      return;
     }
 
-    if (chainId === LIVE_PROTOCOL_NETWORK.chainId) {
-      setStatusMessage('BNB Chain Testnet already selected');
-      return;
-    }
+    const changed = await selectNetwork(networkKey);
 
-    try {
-      if (switchChainAsync) {
-        await switchChainAsync({ chainId: LIVE_PROTOCOL_NETWORK.chainId as number });
-      } else {
-        switchChain({ chainId: LIVE_PROTOCOL_NETWORK.chainId as number });
+    if (changed) {
+      setStatusMessage(
+        targetNetwork.status === 'live'
+          ? (
+            isConnected
+              ? `Switched to ${targetNetwork.shortLabel}`
+              : `Selected ${targetNetwork.shortLabel}`
+          )
+          : `${targetNetwork.shortLabel} is coming soon`,
+      );
+      if (targetNetwork.status === 'live') {
+        setIsOpen(false);
       }
-
-      setStatusMessage('Switched to BNB Chain Testnet');
-      setIsOpen(false);
-    } catch (error) {
-      console.debug('[NetworkSwitcher] switch chain error', error);
-      setStatusMessage('Approve the switch in your wallet');
+      return;
     }
+
+    if (targetNetwork.status !== 'live') {
+      setStatusMessage(`${targetNetwork.shortLabel} is coming soon`);
+      return;
+    }
+
+    setStatusMessage(
+      isConnected
+        ? 'Approve the switch in your wallet'
+        : `Connect wallet to switch to ${targetNetwork.shortLabel}`,
+    );
   };
 
   const panel =
@@ -168,7 +176,7 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
       ? createPortal(
           <div
             ref={panelRef}
-            className="dropdown-panel fixed z-[120] overflow-hidden rounded-[24px] border border-white/10 bg-[rgba(18,18,18,1)] shadow-[0_30px_80px_rgba(0,0,0,0.45)]"
+            className="dropdown-panel fixed z-[120] overflow-hidden rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-dropdown-glass-bg)] shadow-[0_30px_80px_rgba(0,0,0,0.45)] text-ui-primary"
             style={{
               left: panelPosition?.left ?? -9999,
               top: panelPosition?.top ?? -9999,
@@ -187,19 +195,21 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
                   <button
                     key={network.key}
                     type="button"
-                    onClick={isLive ? handleLiveNetworkSelect : undefined}
-                    disabled={!isLive || isPending}
+                    onClick={() => {
+                      void handleNetworkSelect(network.key);
+                    }}
+                    disabled={isSwitching}
                     className={`flex w-full items-center justify-between gap-2.5 rounded-[18px] border px-3 py-2.5 text-left transition-all ${
                       isSelected
                         ? 'border-[#2CC295]/28 bg-[rgba(44,194,149,0.08)]'
-                        : 'border-white/8 bg-[rgba(255,255,255,0.02)]'
-                    } ${isLive && !isSelected ? 'hover:border-[#2CC295]/18 hover:bg-[rgba(255,255,255,0.04)]' : ''} ${
-                      !isLive ? 'cursor-default' : ''
+                        : 'border-[var(--t-border-subtle)] bg-[var(--t-surface-2)]'
+                    } ${!isSelected ? 'hover:border-[#2CC295]/18 hover:bg-[var(--t-surface-hover)]' : ''} ${
+                      !isLive ? 'opacity-80' : ''
                     }`}
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
                       <NetworkBrandLogo icon={network.icon} className="h-[28px] w-[28px] shrink-0" />
-                      <span className="truncate text-[13px] font-semibold text-white">{network.shortLabel}</span>
+                      <span className="truncate text-[13px] font-semibold text-ui-primary">{network.shortLabel}</span>
                     </div>
 
                     <span
@@ -207,8 +217,8 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
                         isSelected
                           ? 'bg-[#2CC295]/14 text-[#78E5BF]'
                           : isLive
-                            ? 'bg-white/[0.06] text-[rgba(226,232,240,0.92)]'
-                            : 'bg-white/[0.04] text-[rgba(148,163,184,0.92)]'
+                            ? 'bg-[var(--t-surface-5)] text-ui-secondary'
+                            : 'bg-[var(--t-surface-2)] text-ui-muted'
                       }`}
                     >
                       {badgeLabel}
@@ -218,7 +228,7 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
               })}
 
               {statusMessage && (
-                <div className="px-1 pt-0.5 text-[10px] text-[rgba(148,163,184,0.92)]">{statusMessage}</div>
+                <div className="px-1 pt-0.5 text-[10px] text-ui-muted">{statusMessage}</div>
               )}
             </div>
           </div>,
@@ -234,8 +244,8 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
         onClick={() => setIsOpen((value) => !value)}
         className={`sidebar-btn group relative flex items-center rounded-[16px] border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35 ${
           sidebarCollapsed
-            ? 'mx-auto h-11 w-11 justify-center border-white/8 bg-white/[0.03] text-ui-secondary hover:border-white/14 hover:bg-white/[0.06] hover:text-ui-primary'
-            : 'w-full justify-between gap-3 border-white/8 bg-white/[0.03] px-3 py-3 text-ui-secondary hover:border-white/14 hover:bg-white/[0.05] hover:text-ui-primary'
+            ? 'mx-auto h-11 w-11 justify-center border-[var(--t-border-subtle)] bg-[var(--t-surface-2)] text-ui-secondary hover:border-[var(--t-border-medium)] hover:bg-[var(--t-surface-hover)] hover:text-ui-primary'
+            : 'w-full justify-between gap-3 border-[var(--t-border-subtle)] bg-[var(--t-surface-2)] px-3 py-3 text-ui-secondary hover:border-[var(--t-border-medium)] hover:bg-[var(--t-surface-hover)] hover:text-ui-primary'
         }`}
         title={sidebarCollapsed ? activeNetwork.shortLabel : undefined}
       >
@@ -247,7 +257,6 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
               <NetworkBrandLogo icon={activeNetwork.icon} className="h-[28px] w-[28px] shrink-0" />
               <span className="truncate text-[13px] font-semibold text-ui-primary">{activeNetwork.shortLabel}</span>
             </div>
-            <ChevronDown size={16} className={`shrink-0 text-[rgba(148,163,184,0.92)] transition-transform ${isOpen ? 'rotate-180 text-white' : ''}`} />
           </>
         )}
 

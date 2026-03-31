@@ -14,6 +14,30 @@ interface WalletAuthSession {
   message?: string;
 }
 
+function normalizeWalletAuthMessage(message?: string): string {
+  return typeof message === 'string' ? message.replace(/\r\n/g, '\n').trim() : '';
+}
+
+export function hasCompatibleWalletAuthMessage(
+  message?: string,
+  address?: string | null,
+): boolean {
+  const normalizedMessage = normalizeWalletAuthMessage(message);
+  if (!normalizedMessage.startsWith('Orina Wallet Session Authentication\n')) {
+    return false;
+  }
+
+  if (!/^Time:\s+.+$/m.test(normalizedMessage)) {
+    return false;
+  }
+
+  if (address) {
+    return normalizedMessage.includes(`Address: ${normalizeAddress(address)}`);
+  }
+
+  return true;
+}
+
 export function getWalletAuthSession(): WalletAuthSession | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -36,18 +60,23 @@ export function hasWalletAuthSession(address?: string | null): boolean {
   if (!address) return false;
   const session = getWalletAuthSession();
   if (!session) return false;
+  if (!hasCompatibleWalletAuthMessage(session.message, address)) return false;
   return session.address === normalizeAddress(address);
 }
 
 export function setWalletAuthSession(
   address: string,
   signature: string,
-  opts?: { message?: string }
+  opts?: { message?: string; signedAt?: number }
 ) {
   if (typeof window === 'undefined') return;
+  const signedAt =
+    typeof opts?.signedAt === 'number' && Number.isFinite(opts.signedAt) && opts.signedAt > 0
+      ? Math.floor(opts.signedAt)
+      : Date.now();
   const payload: WalletAuthSession = {
     address: normalizeAddress(address),
-    signedAt: Date.now(),
+    signedAt,
     signature,
     message: opts?.message,
   };
@@ -61,8 +90,8 @@ export function clearWalletAuthSession() {
   window.dispatchEvent(new Event('orina:wallet-auth-change'));
 }
 
-export function buildWalletAuthMessage(address: string) {
-  const ts = new Date().toISOString();
+export function buildWalletAuthMessage(address: string, signedAt: number = Date.now()) {
+  const ts = new Date(signedAt).toISOString();
   return [
     'Orina Wallet Session Authentication',
     '',

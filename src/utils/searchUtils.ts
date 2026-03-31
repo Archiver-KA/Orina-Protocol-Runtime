@@ -8,6 +8,7 @@ import {
   normalizeTaxonomySearchKey,
 } from '@/utils/taxonomy';
 
+/** @deprecated Session-only. Server-side search_history table available for wallet-scoped persistence. */
 const SEARCH_HISTORY_KEY = 'studio_search_history';
 const MAX_HISTORY_ITEMS = 10;
 
@@ -210,7 +211,7 @@ export function hasActiveFilters(filters: SearchFilters): boolean {
  */
 export function loadSearchHistory(): SearchHistoryItem[] {
   try {
-    const stored = localStorage.getItem(SEARCH_HISTORY_KEY);
+    const stored = sessionStorage.getItem(SEARCH_HISTORY_KEY);
     if (!stored) return [];
     return JSON.parse(stored);
   } catch (error) {
@@ -244,7 +245,7 @@ export function saveSearchToHistory(query: string, filters?: Partial<SearchFilte
     // Keep only latest items
     const trimmed = history.slice(0, MAX_HISTORY_ITEMS);
     
-    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(trimmed));
+    sessionStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(trimmed));
   } catch (error) {
     console.error('Failed to save search history:', error);
   }
@@ -255,7 +256,7 @@ export function saveSearchToHistory(query: string, filters?: Partial<SearchFilte
  */
 export function clearSearchHistory(): void {
   try {
-    localStorage.removeItem(SEARCH_HISTORY_KEY);
+    sessionStorage.removeItem(SEARCH_HISTORY_KEY);
   } catch (error) {
     console.error('Failed to clear search history:', error);
   }
@@ -268,7 +269,7 @@ export function deleteSearchHistoryItem(query: string): void {
   try {
     const history = loadSearchHistory();
     const filtered = history.filter((item) => item.query !== query);
-    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(filtered));
+    sessionStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(filtered));
   } catch (error) {
     console.error('Failed to delete search history item:', error);
   }

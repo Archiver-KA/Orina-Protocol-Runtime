@@ -2,16 +2,9 @@ import { useState, useEffect } from 'react';
 import { ReputationScore, Rating } from '@/types/reputation';
 import { ReputationDisplay } from './reputation-display';
 import { ReputationModal } from './reputation-modal';
-import {
-  calculateReputationScore,
-  loadReputationScore,
-  saveReputationScore,
-  loadRatings,
-  generateMockRatings,
-  saveRatings,
-} from '@/utils/reputationUtils';
-import { loadUserActivities } from '@/utils/profileUtils';
-import { loadUserProfile } from '@/utils/profileUtils';
+import { loadRatings } from '@/utils/reputationUtils';
+import { REPUTATION_SYNC_EVENT, hydrateReputationFromSupabase } from '@/utils/profileReputationSync';
+import { getWalletIdentity } from '@/utils/walletIdentityStore';
 
 interface ReputationSectionProps {
   userId: string;
@@ -32,39 +25,19 @@ export function ReputationSection({
     loadReputationData();
   }, [userId]);
 
+  useEffect(() => {
+    const handleSync = () => loadReputationData();
+    window.addEventListener(REPUTATION_SYNC_EVENT, handleSync as EventListener);
+    return () => {
+      window.removeEventListener(REPUTATION_SYNC_EVENT, handleSync as EventListener);
+    };
+  }, [userId]);
+
   const loadReputationData = () => {
-    // Load or calculate reputation score
-    let reputationScore = loadReputationScore(userId);
-    
-    if (!reputationScore) {
-      // Calculate new score
-      const activities = loadUserActivities(userId);
-      const profile = loadUserProfile(userId);
-      
-      let userRatings = loadRatings(userId);
-      if (userRatings.length === 0) {
-        // Generate mock ratings for demo
-        userRatings = generateMockRatings(userId, 10);
-        saveRatings(userId, userRatings);
-      }
-      
-      const accountAge = profile 
-        ? Math.floor((Date.now() - profile.stats.joinedDate) / (1000 * 60 * 60 * 24))
-        : 30;
-      
-      reputationScore = calculateReputationScore(
-        activities,
-        userRatings,
-        [], // disputes (empty for now)
-        accountAge,
-        profile?.verified || false
-      );
-      
-      saveReputationScore(reputationScore);
-    }
-    
-    setScore(reputationScore);
+    const identity = getWalletIdentity(userId);
+    setScore(identity.reputation.fullScore);
     setRatings(loadRatings(userId));
+    void hydrateReputationFromSupabase(userId);
   };
 
   const handleOpenModal = () => {

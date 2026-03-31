@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Upload, X, CheckCircle, AlertCircle, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { projectId } from '/utils/supabase/info';
+import { getSupabaseFunctionUrl } from '/utils/supabase/functions';
 import { getIpfsUploadAuthHeaders } from '@/utils/ipfsUploadAuth';
+import { isBridgeAuthRequiredError } from '@/utils/supabaseAuthClaimBridge';
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { StudioLoadingOverlay } from '@/app/components/ui/studio-loading-overlay';
 import { StudioTransientState } from '@/app/components/ui/studio-transient-state';
@@ -26,6 +27,7 @@ interface ImageUploadProps {
   label?: string;
   description?: string;
   showPreview?: boolean;
+  hidePlaceholderIcon?: boolean;
   /** Required for authenticated IPFS upload (H1 bridge). */
   walletAddress?: string | null;
 }
@@ -41,6 +43,7 @@ export function ImageUpload({
   label,
   description,
   showPreview = true,
+  hidePlaceholderIcon = false,
   walletAddress,
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
@@ -97,6 +100,10 @@ export function ImageUpload({
       formData.append('file', file);
 
       const authHeaders = await getIpfsUploadAuthHeaders(walletAddress);
+      const uploadUrl = getSupabaseFunctionUrl('ipfs/upload');
+      if (!uploadUrl) {
+        throw new Error('Supabase upload function is not configured.');
+      }
 
       // Simulate progress (since we don't have real progress tracking)
       const progressInterval = setInterval(() => {
@@ -104,7 +111,7 @@ export function ImageUpload({
       }, 300);
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ipfs/upload`,
+        uploadUrl,
         {
           method: 'POST',
           headers: authHeaders,
@@ -160,6 +167,11 @@ export function ImageUpload({
 
     } catch (error) {
       console.error('IPFS upload error:', error);
+      if (isBridgeAuthRequiredError(error)) {
+        setUploadStatus('idle');
+        setUploadProgress(0);
+        return;
+      }
       const errorMsg = error instanceof Error ? error.message : 'Upload failed';
       setErrorMessage(errorMsg);
       setUploadStatus('error');
@@ -170,7 +182,7 @@ export function ImageUpload({
     } finally {
       setIsUploading(false);
     }
-  }, [accept, maxSizeMB, currentImageUrl, onUploadSuccess, onUploadError, projectId, walletAddress]);
+  }, [accept, maxSizeMB, currentImageUrl, onUploadSuccess, onUploadError, walletAddress]);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -289,12 +301,18 @@ export function ImageUpload({
               
               {/* Overlay with Upload icon to replace */}
               <div className="absolute inset-0 bg-transparent group-hover:bg-ui-dropdown transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-12 h-12 bg-ui-input rounded-xl flex items-center justify-center">
-                    <Upload className="text-primary" size={24} />
+                {hidePlaceholderIcon ? (
+                  <div className="rounded-full bg-ui-input px-4 py-2 text-xs font-medium text-ui-primary">
+                    Change Image
                   </div>
-                  <p className="text-ui-primary text-xs font-medium">Change Image</p>
-                </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-12 h-12 bg-ui-input rounded-xl flex items-center justify-center">
+                      <Upload className="text-primary" size={24} />
+                    </div>
+                    <p className="text-ui-primary text-xs font-medium">Change Image</p>
+                  </div>
+                )}
               </div>
 
               {/* Error badge only - success badge removed to keep avatar/banner layout centered */}
@@ -328,16 +346,20 @@ export function ImageUpload({
                 <>
                   {variant === 'avatar' ? (
                     <>
-                      <div className="w-12 h-12 bg-ui-input rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                        <Upload className="text-primary" size={24} />
-                      </div>
+                      {!hidePlaceholderIcon && (
+                        <div className="w-12 h-12 bg-ui-input rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                          <Upload className="text-primary" size={24} />
+                        </div>
+                      )}
                       <p className="text-sm font-medium text-ui-primary">Upload Photo</p>
                     </>
                   ) : (
                     <>
-                      <div className="w-16 h-16 bg-ui-input rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                        <Upload className="text-primary" size={28} />
-                      </div>
+                      {!hidePlaceholderIcon && (
+                        <div className="w-16 h-16 bg-ui-input rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                          <Upload className="text-primary" size={28} />
+                        </div>
+                      )}
                       <p className="text-ui-primary font-medium mb-1">Drag and drop or click to upload</p>
                     </>
                   )}

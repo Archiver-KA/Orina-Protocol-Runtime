@@ -1,7 +1,7 @@
 import type { AssetDraft, MarketAnalysis, SellerMintingRequest } from '@/app/types/ai-agent';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { getSupabaseFunctionUrl } from '/utils/supabase/functions';
 import {
-  exchangeWalletAuthForSupabaseClaimSession,
+  ensureSupabaseBridgeAccessToken,
   getSupabaseBridgeAccessToken,
   isSupabaseAuthClaimBridgeEnabled,
 } from '@/utils/supabaseAuthClaimBridge';
@@ -12,7 +12,27 @@ export async function getSellerAIHeaders(walletAddress: string, json = false): P
   }
 
   if (isSupabaseAuthClaimBridgeEnabled()) {
-    await exchangeWalletAuthForSupabaseClaimSession(walletAddress);
+    const accessToken = await ensureSupabaseBridgeAccessToken({
+      walletAddress,
+      promptOnAuthMissing: true,
+      securityCheck: {
+        title: 'Unlock Seller AI',
+        description: 'Seller AI draft generation needs a one-time wallet security check before Orina can call the protected AI service.',
+        surfaceLabel: 'Seller AI draft generation',
+        confirmLabel: 'Unlock Seller AI',
+        helpText: 'This signature unlocks protected Seller AI calls in Orina. No gas fee, transaction, or token approval is involved.',
+        successMessage: 'Seller AI unlocked.',
+        successDescription: 'Retry the AI draft generation to continue.',
+      },
+    });
+    if (!accessToken) {
+      throw new Error('Wallet session authentication required');
+    }
+
+    return {
+      Authorization: `Bearer ${accessToken}`,
+      ...(json ? { 'Content-Type': 'application/json' } : {}),
+    };
   }
 
   const accessToken = getSupabaseBridgeAccessToken();
@@ -47,8 +67,13 @@ export async function generateAssetDraft(
     overrideDescription,
   };
 
+  const draftUrl = getSupabaseFunctionUrl('ai/seller/generate-draft');
+  if (!draftUrl) {
+    throw new Error('Supabase function configuration is missing in this environment.');
+  }
+
   const response = await fetch(
-    `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ai/seller/generate-draft`,
+    draftUrl,
     {
       method: 'POST',
       headers: await getSellerAIHeaders(sellerId, true),

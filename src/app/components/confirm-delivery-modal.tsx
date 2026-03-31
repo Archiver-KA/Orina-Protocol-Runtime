@@ -2,10 +2,12 @@ import { Check, AlertTriangle, Award, Coins, Star } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { createPortal } from 'react-dom';
+import { useAccount } from 'wagmi';
 import { AssetThumb } from '@/app/components/asset-thumb';
 import { ProtocolChainBanner } from '@/app/components/ui/protocol-chain-banner';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 import { useProtocolChain } from '@/hooks/useProtocolChain';
+import { submitProfileReview } from '@/utils/profileReputationSync';
 import type { OrderShippingAddressSnapshot } from '@/types/order';
 import {
   formatOrderGrossPrice,
@@ -33,12 +35,13 @@ interface ConfirmDeliveryModalProps {
 }
 
 export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeliveryModalProps) {
+  const { address } = useAccount();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [review, setReview] = useState('');
   const protocolChain = useProtocolChain();
-  const quantityLabel = formatOrderQuantity(order.amount, order.unitName);
+  const quantityLabel = formatOrderQuantity(order.amount, order.unitLabel, order.unitName);
   const grossPriceLabel = formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
   const shippingDetails = getOrderShippingDetails(order.shippingAddressSnapshot, order.shippingMethodLabel);
 
@@ -53,25 +56,22 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
   const handleConfirm = async () => {
     if (isSubmitting) return;
 
-    // Save rating & review to localStorage (or send to backend)
-    if (rating > 0) {
-      const reviewData = {
-        orderId: order.orderId.toString(),
-        rating,
-        review,
-        timestamp: Date.now(),
-      };
-      console.log('[Confirm Delivery] Review submitted:', reviewData);
-      
-      // Save to localStorage for demo
-      const existingReviews = JSON.parse(localStorage.getItem('orina_order_reviews') || '[]');
-      existingReviews.push(reviewData);
-      localStorage.setItem('orina_order_reviews', JSON.stringify(existingReviews));
-    }
-
     try {
       setIsSubmitting(true);
       await onConfirm();
+      if (rating > 0 && address) {
+        await submitProfileReview({
+          reviewerAddress: address,
+          reviewedAddress: order.seller,
+          orderUid: order.orderId.toString(),
+          assetId: order.orderId.toString(),
+          assetName: order.assetName,
+          rating,
+          review,
+          ratingType: 'seller',
+          source: 'confirm_delivery_modal',
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }

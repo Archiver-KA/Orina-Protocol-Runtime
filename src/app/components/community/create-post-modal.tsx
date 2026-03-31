@@ -3,6 +3,7 @@ import { useAccount } from 'wagmi';
 import { X, Image as ImageIcon, BarChart3, Type, MessageSquare, Megaphone, Trophy, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
+import { toast } from 'sonner';
 
 import { PostType, CreatePostData } from '@/types/community';
 import { MultiImageUpload } from '@/app/components/multi-image-upload';
@@ -13,12 +14,13 @@ import { CustomDropdown } from '@/app/components/custom-dropdown';
 interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: CreatePostData) => void;
+  onSubmit: (data: CreatePostData) => boolean | void | Promise<boolean | void>;
   userId: string;
   userName: string;
 }
 
 export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }: CreatePostModalProps) {
+  const { address } = useAccount();
   const [selectedType, setSelectedType] = useState<PostType>('discussion');
   const [content, setContent] = useState('');
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
@@ -28,6 +30,7 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [pollDuration, setPollDuration] = useState(7);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -47,11 +50,12 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
     { type: 'achievement', label: 'Achievement', icon: Trophy, description: 'Celebrate success' },
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     if (content.trim().length < 10) {
-      alert('Post content must be at least 10 characters');
+      toast.error('Post content must be at least 10 characters');
       return;
     }
 
@@ -71,11 +75,24 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
       };
     }
 
-    onSubmit(postData);
-    handleClose();
+    let shouldClose = false;
+    try {
+      setIsSubmitting(true);
+      const result = await onSubmit(postData);
+      shouldClose = result !== false;
+    } catch (error) {
+      console.error('[Community] Create post modal submit failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Unable to create post right now.');
+    } finally {
+      setIsSubmitting(false);
+      if (shouldClose) {
+        handleClose(true);
+      }
+    }
   };
 
-  const handleClose = () => {
+  const handleClose = (force = false) => {
+    if (isSubmitting && !force) return;
     setContent('');
     setUploadedImages([]);
     setTags([]);
@@ -458,16 +475,17 @@ export function CreatePostModal({ isOpen, onClose, onSubmit, userId, userName }:
                     <button
                       type="button"
                       onClick={handleClose}
+                      disabled={isSubmitting}
                       className="studio-portal-secondary w-full h-[45px] rounded-full bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] text-[#F1F5F9] transition-colors text-sm font-bold"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      disabled={content.trim().length < 10}
+                      disabled={isSubmitting || content.trim().length < 10}
                       className="w-full h-[45px] rounded-full bg-[#2CC295] hover:brightness-110 disabled:bg-zinc-800 disabled:text-zinc-600 text-black transition-all text-sm font-bold"
                     >
-                      Publish Post
+                      {isSubmitting ? 'Publishing...' : 'Publish Post'}
                     </button>
                   </div>
                 </aside>

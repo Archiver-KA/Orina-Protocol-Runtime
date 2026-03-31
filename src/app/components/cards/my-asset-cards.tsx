@@ -8,6 +8,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { StudioPanel } from "@/app/components/ui/studio-panel";
+import { getCategoryDisplayLabel } from "@/utils/taxonomy";
 
 export type MyAssetRwa = {
   id: string;
@@ -148,7 +149,7 @@ export function MyAssetRwaCard({
 
       <div className="my-asset-info-area flex flex-1 flex-col px-5 pb-5 pt-5">
         <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-ui-muted">
-          {asset.category}
+          {getCategoryDisplayLabel(asset.category)}
         </p>
         <h3 className="mb-4 line-clamp-2 text-[16px] leading-[1.35] font-bold text-ui-primary md:text-[18px] md:leading-[1.3]">
           {asset.name}
@@ -206,7 +207,7 @@ export function MyAssetReceiptCard({
 
       <div className="my-asset-info-area flex flex-1 flex-col px-5 pb-5 pt-5">
         <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-ui-muted">
-          {asset.category}
+          {getCategoryDisplayLabel(asset.category)}
         </p>
         <h3 className="mb-4 line-clamp-2 text-[16px] leading-[1.35] font-bold text-ui-primary md:text-[18px] md:leading-[1.3]">
           {asset.name}
@@ -263,7 +264,7 @@ export function MyAssetNftCard({
 
       <div className="my-asset-info-area flex flex-1 flex-col px-5 pb-5 pt-5">
         <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-ui-muted">
-          {asset.category}
+          {getCategoryDisplayLabel(asset.category)}
         </p>
         <h3 className="mb-4 line-clamp-2 text-[16px] leading-[1.35] font-bold text-ui-primary md:text-[18px] md:leading-[1.3]">
           {asset.name}

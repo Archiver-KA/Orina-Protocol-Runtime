@@ -14,6 +14,8 @@ create index if not exists idx_taxonomy_nodes_labels_gin on public.taxonomy_node
 
 create index if not exists idx_taxonomy_nodes_aliases_gin on public.taxonomy_nodes using gin(aliases);
 
+create or replace function update_updated_at_column() returns trigger language plpgsql as $fn$ begin new.updated_at = now(); return new; end; $fn$;
+
 drop trigger if exists update_taxonomy_attribute_templates_updated_at on public.taxonomy_attribute_templates;
 
 create trigger update_taxonomy_attribute_templates_updated_at before update on public.taxonomy_attribute_templates for each row execute function update_updated_at_column();

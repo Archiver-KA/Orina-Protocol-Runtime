@@ -1,18 +1,22 @@
-import { createContext, useContext, ReactNode, useState, useCallback } from 'react';
+import { createContext, useContext, ReactNode, useState, useCallback, useEffect } from 'react';
 import { useAccount, useSignMessage } from 'wagmi';
 import { toast } from 'sonner';
 import { buildWalletAuthMessage, setWalletAuthSession } from '@/utils/walletAuthSession';
 import { clearGuestModeForced } from '@/utils/guestMode';
-import { WalletModalState, SignatureRequestData, TransactionResult, WalletModalConfirmHandler } from '@/types/wallet';
+import { getWalletErrorMessage, isWalletRequestPendingError } from '@/utils/walletErrors';
+import { BRIDGE_SECURITY_CHECK_EVENT, type BridgeSecurityCheckRequest } from '@/utils/supabaseAuthClaimBridge';
+import { WalletModalState, SignatureRequestData, SecurityCheckRequestData, TransactionResult, WalletModalConfirmHandler } from '@/types/wallet';
 
 interface WalletModalContextValue {
   modalState: WalletModalState;
   openConnectModal: () => void;
+  openSecurityCheckModal: (data: SecurityCheckRequestData, onConfirm?: WalletModalConfirmHandler) => void;
   openSignatureModal: (data: SignatureRequestData, onConfirm?: WalletModalConfirmHandler) => void;
   showProcessing: () => void;
   showSuccess: (result: TransactionResult) => void;
   closeModal: () => void;
   handleWalletConnect: (connectorId: string) => void;
+  handleSecurityCheckConfirm: () => void;
   handleSignatureConfirm: () => void;
   handleSignatureCancel: () => void;
 }
@@ -25,6 +29,32 @@ export function WalletModalProvider({ children }: { children: ReactNode }) {
   });
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
+
+  const openSecurityCheckModal = useCallback((securityCheckData: SecurityCheckRequestData, onConfirm?: WalletModalConfirmHandler) => {
+    setModalState({
+      step: 'security_check',
+      source: 'auth',
+      isBusy: false,
+      securityCheckData,
+      onConfirm,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleBridgeSecurityRequest = (event: Event) => {
+      const customEvent = event as CustomEvent<{ request?: BridgeSecurityCheckRequest }>;
+      const request = customEvent.detail?.request;
+      if (!request) return;
+      openSecurityCheckModal(request);
+    };
+
+    window.addEventListener(BRIDGE_SECURITY_CHECK_EVENT, handleBridgeSecurityRequest as EventListener);
+    return () => {
+      window.removeEventListener(BRIDGE_SECURITY_CHECK_EVENT, handleBridgeSecurityRequest as EventListener);
+    };
+  }, [openSecurityCheckModal]);
 
   const openSignatureModal = useCallback((signatureData: SignatureRequestData, onConfirm?: WalletModalConfirmHandler) => {
     setModalState({
@@ -66,48 +96,59 @@ export function WalletModalProvider({ children }: { children: ReactNode }) {
 
   const handleWalletConnect = useCallback(
     (_connectorId: string) => {
-      // Permission-level connect completed successfully.
-      // Immediate signature flow override: trigger auth signature right after connect.
-      setModalState({
-        step: 'signature',
-        source: 'auth',
-        isBusy: false,
-        signatureData: {
-          action: 'Authenticate Session',
-          origin: window.location.hostname || 'MarketplaceATP',
-          message: {
-            item: 'Orina Session',
-            timestamp: Date.now(),
-          },
-          details: [
-            { label: 'Message', value: 'Please sign this message to securely authenticate your session with the protocol.' }
-          ]
-        }
+      // Connect-only login UX: entering the app should not immediately trigger a signature request.
+      clearGuestModeForced();
+      closeModal();
+      toast.success('Wallet connected.', {
+        description: 'No signature or gas is required at login. Protected actions will ask only when needed.',
       });
     },
-    []
+    [closeModal]
   );
 
-  const handleSignatureConfirm = useCallback(async () => {
+  const handleSecurityCheckConfirm = useCallback(async () => {
     try {
-      if (modalState.signatureData?.action === 'Authenticate Session') {
-        if (!address) {
-          toast.error('Wallet address unavailable. Please reconnect.');
-          closeModal();
-          return;
-        }
-        setModalState((prev) => ({ ...prev, isBusy: true }));
-        const authMessage = buildWalletAuthMessage(address);
-        const signature = await signMessageAsync({ message: authMessage });
-        setWalletAuthSession(address, signature, { message: authMessage });
-        clearGuestModeForced();
-        toast.success('Wallet session authenticated.');
+      if (!address) {
+        toast.error('Wallet address unavailable. Please reconnect.');
         closeModal();
         return;
       }
 
       setModalState((prev) => ({ ...prev, isBusy: true }));
-      if (modalState.onConfirm) {
+      const signedAt = Date.now();
+      const authMessage = buildWalletAuthMessage(address, signedAt);
+      const signature = await signMessageAsync({ message: authMessage });
+
+      setWalletAuthSession(address, signature, { message: authMessage, signedAt });
+      clearGuestModeForced();
+
+      if (typeof modalState.onConfirm === 'function') {
+        await modalState.onConfirm();
+      }
+
+      toast.success(
+        modalState.securityCheckData?.successMessage || 'Security check complete.',
+        modalState.securityCheckData?.successDescription
+          ? { description: modalState.securityCheckData.successDescription }
+          : undefined,
+      );
+      closeModal();
+    } catch (error) {
+      console.error('[Wallet Security Check] Signature rejected/failed:', error);
+      const message = getWalletErrorMessage(error, 'Signature required to continue.');
+      if (isWalletRequestPendingError(error)) {
+        toast.info(message);
+      } else {
+        toast.error(message);
+      }
+      setModalState((prev) => ({ ...prev, step: 'security_check', source: 'auth', isBusy: false }));
+    }
+  }, [address, closeModal, modalState, signMessageAsync]);
+
+  const handleSignatureConfirm = useCallback(async () => {
+    try {
+      setModalState((prev) => ({ ...prev, isBusy: true }));
+      if (typeof modalState.onConfirm === 'function') {
         const result = await modalState.onConfirm();
         if (result) {
           showSuccess(result);
@@ -116,11 +157,10 @@ export function WalletModalProvider({ children }: { children: ReactNode }) {
       }
       closeModal();
     } catch (error) {
-      console.error('[Wallet Auth] Signature rejected/failed:', error);
-      // Do not stack a toast over the auth modal; keep the user in the same modal and let them retry.
-      setModalState((prev) => ({ ...prev, step: 'signature', source: prev.source || 'auth', isBusy: false }));
+      console.error('[Wallet Modal] Signature rejected/failed:', error);
+      setModalState((prev) => ({ ...prev, step: 'signature', source: prev.source || 'tx', isBusy: false }));
     }
-  }, [modalState, showSuccess, signMessageAsync, address, closeModal]);
+  }, [modalState, showSuccess, closeModal]);
 
   const handleSignatureCancel = useCallback(() => {
     closeModal();
@@ -129,11 +169,13 @@ export function WalletModalProvider({ children }: { children: ReactNode }) {
   const value: WalletModalContextValue = {
     modalState,
     openConnectModal,
+    openSecurityCheckModal,
     openSignatureModal,
     showProcessing,
     showSuccess,
     closeModal,
     handleWalletConnect,
+    handleSecurityCheckConfirm,
     handleSignatureConfirm,
     handleSignatureCancel,
   };

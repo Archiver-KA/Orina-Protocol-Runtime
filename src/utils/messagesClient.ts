@@ -5,8 +5,9 @@
 
 import { projectId, publicAnonKey, supabaseUrl } from '/utils/supabase/info';
 import {
-  exchangeWalletAuthForSupabaseClaimSession,
+  ensureSupabaseBridgeAccessToken,
   getSupabaseBridgeAccessToken,
+  isBridgeAuthRequiredError,
   isSupabaseAuthClaimBridgeEnabled,
 } from '@/utils/supabaseAuthClaimBridge';
 
@@ -14,37 +15,59 @@ const FN_NAME = 'orina-chat-v1';
 const SUPABASE_BASE = supabaseUrl.replace(/\/+$/, '');
 const FN_BASE = `${SUPABASE_BASE}/functions/v1/${FN_NAME}`;
 const MESSAGES_BASE = `${FN_BASE}/messages`;
-const LEGACY_FN_NAME = 'make-server-b0d68fc8';
-const LEGACY_FN_BASE = `${SUPABASE_BASE}/functions/v1/${LEGACY_FN_NAME}`;
-const MESSAGES_BASE_LEGACY = `${LEGACY_FN_BASE}/messages`;
-const MESSAGES_BASE_LEGACY_DUP = `${LEGACY_FN_BASE}/${LEGACY_FN_NAME}/messages`;
 
 export const CHAT_CONVERSATIONS_CHANGED_EVENT = 'orina:chat-conversations-changed';
 export const CHAT_MESSAGES_CHANGED_EVENT = 'orina:chat-messages-changed';
 export const CHAT_READ_STATE_CHANGED_EVENT = 'orina:chat-read-state-changed';
+
+const CHAT_BRIDGE_SECURITY_CHECK = {
+  title: 'Unlock Secure Messages',
+  description: 'Messages and conversations need a one-time wallet security check before Orina can sync your chat session.',
+  surfaceLabel: 'Messages & conversations',
+  confirmLabel: 'Unlock Messages',
+  helpText: 'After you sign once, Orina can load and send secure messages without asking for gas or token approvals.',
+  successMessage: 'Secure messages unlocked.',
+  successDescription: 'Retry the chat action to continue.',
+} as const;
 
 function dispatchChatEvent(name: string): void {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new Event(name));
 }
 
-async function buildWalletAuthHeaders(walletAddress: string, jsonBody: boolean): Promise<Record<string, string>> {
+
+async function buildWalletAuthHeaders(
+  walletAddress: string,
+  jsonBody: boolean,
+  opts?: { promptOnAuthMissing?: boolean },
+): Promise<Record<string, string>> {
   const w = String(walletAddress || '').trim();
   if (!w) {
     throw new Error('Wallet address is required for messaging.');
   }
 
   if (isSupabaseAuthClaimBridgeEnabled()) {
-    await exchangeWalletAuthForSupabaseClaimSession(w);
+    const token = await ensureSupabaseBridgeAccessToken({
+      walletAddress: w,
+      promptOnAuthMissing: opts?.promptOnAuthMissing,
+      securityCheck: CHAT_BRIDGE_SECURITY_CHECK,
+    });
+    if (token) {
+      return {
+        Authorization: `Bearer ${token}`,
+        apikey: publicAnonKey,
+        ...(jsonBody ? { 'Content-Type': 'application/json' } : {}),
+      };
+    }
   }
 
-  const token = getSupabaseBridgeAccessToken();
-  if (!token) {
+  const existingToken = getSupabaseBridgeAccessToken();
+  if (!existingToken) {
     throw new Error('Wallet session required. Sign the Orina wallet auth message, then retry.');
   }
 
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
+    Authorization: `Bearer ${existingToken}`,
     apikey: publicAnonKey,
   };
   if (jsonBody) {
@@ -56,72 +79,41 @@ async function buildWalletAuthHeaders(walletAddress: string, jsonBody: boolean):
 async function fetchJsonWithFallback<T>(
   path: string,
   walletAddress: string,
-  init?: RequestInit
+  init?: RequestInit,
+  opts?: { promptOnAuthMissing?: boolean },
 ): Promise<T> {
   const jsonBody = Boolean(
     init?.body && typeof init.body === 'string' && init.method && init.method !== 'GET'
   );
-  const authHeaders = await buildWalletAuthHeaders(walletAddress, jsonBody);
+  const authHeaders = await buildWalletAuthHeaders(walletAddress, jsonBody, opts);
 
-  const urlPrimary = `${MESSAGES_BASE}${path}`;
-  const urlLegacy = `${MESSAGES_BASE_LEGACY}${path}`;
-  const urlLegacyDup = `${MESSAGES_BASE_LEGACY_DUP}${path}`;
+  const url = `${MESSAGES_BASE}${path}`;
 
-  const doFetch = async (url: string) => {
-    const res = await fetch(url, {
-      ...init,
-      headers: {
-        ...authHeaders,
-        ...(init?.headers || {}),
-      },
-    });
-    const text = await res.text();
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      ...authHeaders,
+      ...(init?.headers || {}),
+    },
+  });
+  const text = await res.text();
 
-    let json: any = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      // keep raw text for error reporting
-    }
-
-    return { res, text, json };
-  };
-
-  const primary = await doFetch(urlPrimary);
-  if (primary.res.status === 404) {
-    const legacy = await doFetch(urlLegacy);
-    if (legacy.res.status === 404) {
-      const legacyDup = await doFetch(urlLegacyDup);
-      if (!legacyDup.res.ok) {
-        const msg =
-          legacyDup.json?.error ||
-          legacyDup.json?.message ||
-          `HTTP ${legacyDup.res.status} (legacy): ${legacyDup.text?.slice(0, 200) || 'Request failed'}`;
-        throw new Error(msg);
-      }
-      return legacyDup.json as T;
-    }
-
-    if (!legacy.res.ok) {
-      const msg =
-        legacy.json?.error ||
-        legacy.json?.message ||
-        `HTTP ${legacy.res.status} (legacy): ${legacy.text?.slice(0, 200) || 'Request failed'}`;
-      throw new Error(msg);
-    }
-
-    return legacy.json as T;
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    // keep raw text for error reporting
   }
 
-  if (!primary.res.ok) {
+  if (!res.ok) {
     const msg =
-      primary.json?.error ||
-      primary.json?.message ||
-      `HTTP ${primary.res.status}: ${primary.text?.slice(0, 200) || 'Request failed'}`;
+      json?.error ||
+      json?.message ||
+      `HTTP ${res.status}: ${text?.slice(0, 200) || 'Request failed'}`;
     throw new Error(msg);
   }
 
-  return primary.json as T;
+  return json as T;
 }
 
 export interface Message {
@@ -164,7 +156,7 @@ export async function sendMessage(
     const data = await fetchJsonWithFallback<any>('/send', sender, {
       method: 'POST',
       body: JSON.stringify({ sender, receiver, text, image }),
-    });
+    }, { promptOnAuthMissing: true });
     dispatchChatEvent(CHAT_MESSAGES_CHANGED_EVENT);
     dispatchChatEvent(CHAT_CONVERSATIONS_CHANGED_EVENT);
     return { message: data.message, conversation: data.conversation };
@@ -241,7 +233,8 @@ export async function deleteConversation(
     await fetchJsonWithFallback<any>(
       `/${conversationId}?userAddress=${encodeURIComponent(userAddress)}`,
       userAddress,
-      { method: 'DELETE' }
+      { method: 'DELETE' },
+      { promptOnAuthMissing: true }
     );
     dispatchChatEvent(CHAT_MESSAGES_CHANGED_EVENT);
     dispatchChatEvent(CHAT_CONVERSATIONS_CHANGED_EVENT);
@@ -256,16 +249,10 @@ export async function createConversation(
   receiver: string,
   displayName?: string
 ): Promise<Conversation> {
-  try {
-    const data = await fetchJsonWithFallback<any>('/conversation', sender, {
-      method: 'POST',
-      body: JSON.stringify({ sender, receiver, displayName }),
-    });
-    dispatchChatEvent(CHAT_CONVERSATIONS_CHANGED_EVENT);
-    return data.conversation as Conversation;
-  } catch (error) {
-    console.debug('[MessagesClient] createConversation fallback -> sendMessage:', error);
-    const result = await sendMessage(sender, receiver, 'Conversation started', undefined);
-    return result.conversation;
-  }
+  const data = await fetchJsonWithFallback<any>('/conversation', sender, {
+    method: 'POST',
+    body: JSON.stringify({ sender, receiver, displayName }),
+  }, { promptOnAuthMissing: true });
+  dispatchChatEvent(CHAT_CONVERSATIONS_CHANGED_EVENT);
+  return data.conversation as Conversation;
 }

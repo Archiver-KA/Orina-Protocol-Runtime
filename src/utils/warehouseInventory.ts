@@ -1,6 +1,7 @@
 import type { MarketplaceAsset } from '@/app/types/asset';
 import type { MyAssetRwa } from '@/app/components/cards/my-asset-cards';
 import type { RuntimeMintedAssetRecord } from '@/utils/runtimeMintedAssets';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
 export type WarehouseInventoryHealth = 'available' | 'low_stock' | 'sold_out' | 'inactive';
 
@@ -161,7 +162,7 @@ export function buildWarehouseInventory({
       id: asset.id,
       asset,
       name: asset.name,
-      category: asset.category,
+      category: getCategoryDisplayLabel(asset.category),
       image: asset.image,
       status: asset.status,
       totalAmount,

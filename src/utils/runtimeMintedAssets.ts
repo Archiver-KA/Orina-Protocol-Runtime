@@ -1,3 +1,9 @@
+/**
+ * @deprecated Phase 4 - Hybrid wallet data: Runtime minted assets.
+ * localStorage persistence should migrate to remote-first via the
+ * protocol_runtime_minted_assets (000005) server table.
+ * See spec: 15-local-api-audit-and-server-migration-plan.md
+ */
 import { CONTRACTS, ACTIVE_CHAIN_ID } from "@/config/contracts";
 import {
   dispatchSyncEvent,
@@ -11,6 +17,7 @@ import {
   getProtocolNetworkOptionByKey,
   PROTOCOL_NETWORK_STORAGE_KEY,
 } from "@/utils/protocolNetwork";
+import { normalizeCategoryFilterValue } from "@/utils/taxonomy";
 
 export const RUNTIME_MINTED_ASSETS_CHANGED_EVENT = "orina:runtime-minted-assets-changed";
 const DEFAULT_ASSET_IMAGE =
@@ -192,7 +199,7 @@ function buildGenericDetails(
       ) ?? tokenId,
     name,
     description: coalesceString(metadata.description, fallback?.description) ?? `On-chain ${unitName} asset #${tokenId}`,
-    category: coalesceString(metadata.category, fallback?.category) ?? unitName,
+    category: normalizeCategoryFilterValue(coalesceString(metadata.category, fallback?.category) ?? unitName),
     blockchain:
       resolvedScope.chainId === 56 || resolvedScope.chainId === 97
         ? "BSC"
@@ -447,7 +454,7 @@ function fromProtocolAssetRow(row: ProtocolAssetRow, scope?: RuntimeMintedAssetS
         id: tokenId,
         name: details.name,
         type: "NFT",
-        category: details.category,
+        category: normalizeCategoryFilterValue(details.category),
         image: details.image,
         currentPrice:
           runtimeFallback?.assetType === "NFT" ? runtimeFallback.myAsset.currentPrice : details.currentPrice,
@@ -475,7 +482,7 @@ function fromProtocolAssetRow(row: ProtocolAssetRow, scope?: RuntimeMintedAssetS
       id: tokenId,
       name: details.name,
       type: "RWA",
-      category: details.category,
+      category: normalizeCategoryFilterValue(details.category),
       image: details.image,
       status: normalizeAssetStatusLabel(row.status ?? fallbackRwaAsset?.status),
       availableAmount,

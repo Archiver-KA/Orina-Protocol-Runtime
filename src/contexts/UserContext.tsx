@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { getAvatarTypeForAddress, getDefaultUsername } from '@/utils/avatarUtils';
 import type { AvatarType } from '@/utils/avatarUtils';
-import { loadUserProfile, isDefaultWalletDisplayName, shortenUserDisplayName } from '@/utils/profileUtils';
+import { loadUserProfile, isDefaultWalletDisplayName, PROFILE_SYNC_EVENT, shortenUserDisplayName } from '@/utils/profileUtils';
 
 declare global {
   interface Window {
@@ -15,6 +15,7 @@ interface UserData {
   avatarType?: AvatarType;
   username?: string;
   displayName?: string;
+  email?: string;
   bio?: string;
   bannerUrl?: string;
   twitter?: string;
@@ -37,6 +38,9 @@ function normalizeUserDataShape(raw: any): UserData {
   const address = typeof raw.address === 'string' && raw.address ? raw.address : undefined;
   const avatarUrl = raw.avatarUrl || raw.avatar;
   const bannerUrl = raw.bannerUrl || raw.banner;
+  const email = typeof raw.email === 'string' && raw.email.trim()
+    ? raw.email.trim().toLowerCase()
+    : undefined;
   const username = typeof raw.username === 'string' && raw.username.trim()
     ? raw.username
     : (address ? getDefaultUsername(address) : undefined);
@@ -52,31 +56,15 @@ function normalizeUserDataShape(raw: any): UserData {
     address,
     avatarUrl,
     bannerUrl,
+    email,
     username,
     displayName,
   };
 }
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [userData, setUserData] = useState<UserData>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('orina_user_data');
-      if (stored) {
-        try {
-          return normalizeUserDataShape(JSON.parse(stored));
-        } catch (e) {
-          console.error('Failed to parse user data:', e);
-        }
-      }
-    }
-    return {};
-  });
+  const [userData, setUserData] = useState<UserData>({});
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('orina_user_data', JSON.stringify(normalizeUserDataShape(userData)));
-    }
-  }, [userData]);
 
   useEffect(() => {
     if (!userData.address) return;
@@ -93,6 +81,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           address: profile.address,
           username: profile.username || prev.username,
           displayName: profile.displayName || prev.displayName,
+          email: profile.email,
           bio: profile.bio ?? prev.bio,
           avatarUrl: profile.avatarUrl || profile.avatar || prev.avatarUrl,
           bannerUrl: profile.bannerUrl || profile.banner || prev.bannerUrl,
@@ -104,10 +93,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
     };
 
     syncFromProfile();
-    window.addEventListener('orina:profile-changed', syncFromProfile as EventListener);
+    window.addEventListener(PROFILE_SYNC_EVENT, syncFromProfile as EventListener);
     window.addEventListener('storage', syncFromProfile as EventListener);
     return () => {
-      window.removeEventListener('orina:profile-changed', syncFromProfile as EventListener);
+      window.removeEventListener(PROFILE_SYNC_EVENT, syncFromProfile as EventListener);
       window.removeEventListener('storage', syncFromProfile as EventListener);
     };
   }, [userData.address]);
@@ -135,9 +124,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const clearUserSession = useCallback(() => {
     setUserData({});
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('orina_user_data');
-    }
   }, []);
 
   return (

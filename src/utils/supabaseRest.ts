@@ -1,6 +1,6 @@
 import { publicAnonKey, supabaseUrl } from '/utils/supabase/info';
 import {
-  exchangeWalletAuthForSupabaseClaimSession,
+  ensureSupabaseBridgeAccessToken,
   getSupabaseBridgeAccessToken,
   isSupabaseAuthClaimBridgeEnabled,
 } from '@/utils/supabaseAuthClaimBridge';
@@ -53,7 +53,7 @@ async function requestJson<T = any>(path: string, init: RequestInit = {}): Promi
 
   if (isSupabaseAuthClaimBridgeEnabled() && !getSupabaseBridgeAccessToken()) {
     try {
-      await exchangeWalletAuthForSupabaseClaimSession();
+      await ensureSupabaseBridgeAccessToken({ promptOnAuthMissing: false });
     } catch (error) {
       // Fall back to anon key path until bridge is fully deployed/available.
       console.debug('[SupabaseRest] Claim bridge exchange skipped:', error);

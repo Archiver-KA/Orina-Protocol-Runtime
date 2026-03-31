@@ -33,6 +33,8 @@ import {
   loadRuntimeMyAssets,
   subscribeToRuntimeMintedAssets,
 } from '@/utils/runtimeMintedAssets';
+import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
 function resolveCategoryIcon(categoryName: string) {
   const normalized = categoryName.trim().toLowerCase();
@@ -63,21 +65,26 @@ function TypeBadge({ type }: { type: string }) {
 
 export function AssetsRightSidebar() {
   const { address, isConnected } = useAccount();
-  const [runtimeOwnedAssets, setRuntimeOwnedAssets] = useState(() => loadRuntimeMyAssets(address));
+  const { assetAddress, chainId } = useProtocolDataNetwork();
+  const runtimeAssetScope = useMemo(() => ({
+    chainId,
+    assetContract: assetAddress,
+  }), [assetAddress, chainId]);
+  const [runtimeOwnedAssets, setRuntimeOwnedAssets] = useState(() => loadRuntimeMyAssets(address, runtimeAssetScope));
 
   useEffect(() => {
     const refreshRuntimeAssets = () => {
-      setRuntimeOwnedAssets(loadRuntimeMyAssets(address));
+      setRuntimeOwnedAssets(loadRuntimeMyAssets(address, runtimeAssetScope));
     };
 
     refreshRuntimeAssets();
     if (address) {
-      void hydrateRuntimeMintedAssetsFromSupabase(address).then(refreshRuntimeAssets);
+      void hydrateRuntimeMintedAssetsFromSupabase(address, runtimeAssetScope).then(refreshRuntimeAssets);
       void ensureAssetMetadataSeedForWalletFixtures(address);
     }
 
     return subscribeToRuntimeMintedAssets(refreshRuntimeAssets);
-  }, [address]);
+  }, [address, runtimeAssetScope]);
 
   const portfolio = useMemo(
     () => buildCanonicalOwnedPortfolio(address, runtimeOwnedAssets),
@@ -172,7 +179,7 @@ export function AssetsRightSidebar() {
                         <p className="text-[11px] font-bold text-ui-primary truncate">{asset.name}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <TypeBadge type={asset.type} />
-                          <span className="text-[9px] text-ui-muted">{asset.category}</span>
+                          <span className="text-[9px] text-ui-muted">{getCategoryDisplayLabel(asset.category)}</span>
                         </div>
                       </div>
                     }

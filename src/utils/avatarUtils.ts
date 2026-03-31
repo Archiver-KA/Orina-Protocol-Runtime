@@ -51,7 +51,7 @@ export function getAvatarTypeForAddress(address: string): AvatarType {
   
   // Check if there's a random seed for this address (from profile reset)
   const seedKey = `orina_avatar_seed_${address.toLowerCase()}`;
-  const storedSeed = localStorage.getItem(seedKey);
+  const storedSeed = sessionStorage.getItem(seedKey);
   
   if (storedSeed) {
     // Use the stored random seed
@@ -77,7 +77,7 @@ export function getAvatarTypeForAddress(address: string): AvatarType {
 export function generateRandomAvatarSeed(address: string): void {
   const seedKey = `orina_avatar_seed_${address.toLowerCase()}`;
   const randomSeed = Math.floor(Math.random() * 1000000);
-  localStorage.setItem(seedKey, randomSeed.toString());
+  sessionStorage.setItem(seedKey, randomSeed.toString());
   console.log(`[Avatar] Generated random seed ${randomSeed} for ${address}`);
 }
 

@@ -20,6 +20,8 @@ It replaces the previous mixed collection of audits, plans, migration notes, and
 12. [AI M2M Supabase Deploy And Runtime Verification](./spec/12-ai-m2m-supabase-deploy-runtime-checklist.md)
 13. [ATP Protocol Runtime Spec](./spec/13-atp-protocol-runtime-spec.md)
 14. [Production Env Flip Runbook](./spec/14-production-env-flip-runbook.md)
+15. [Local API Audit And Server Migration Plan](./spec/15-local-api-audit-and-server-migration-plan.md)
+16. [Service Boundary Separation](./spec/16-service-boundary-separation.md)
 
 ## How To Read This Set
 
@@ -33,6 +35,8 @@ It replaces the previous mixed collection of audits, plans, migration notes, and
 - Read `11` and `12` before changing AI/M2M runtime or Supabase bridge flows.
 - Read `13` before changing on-chain protocol assumptions, addresses, or role topology.
 - Read `14` before flipping frontend/backend runtime to a new deployment.
+- Read `15` before planning server-truth migration, local-state removal, or separation between Messages and AI.
+- Read `16` before adding any integration between the Chat service, AI workspace, or seller auto-reply automation.
 
 ## Out Of Scope
 

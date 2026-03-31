@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { publicAnonKey } from '/utils/supabase/info';
+import { getSupabaseFunctionUrl } from '/utils/supabase/functions';
 import { getIpfsUploadAuthHeaders } from '@/utils/ipfsUploadAuth';
+import { isBridgeAuthRequiredError } from '@/utils/supabaseAuthClaimBridge';
 
 export interface UploadedFile {
   ipfsHash: string;
@@ -44,6 +46,11 @@ export function useIPFSUpload() {
 
       const formData = new FormData();
       formData.append('file', file);
+      const uploadUrl = getSupabaseFunctionUrl('ipfs/upload');
+      if (!uploadUrl) {
+        throw new Error('Supabase upload function is not configured.');
+      }
+      const authHeaders = await getIpfsUploadAuthHeaders(walletAddress);
 
       // Simulate progress
       const progressInterval = setInterval(() => {
@@ -51,12 +58,10 @@ export function useIPFSUpload() {
       }, 300);
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ipfs/upload`,
+        uploadUrl,
         {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-          },
+          headers: authHeaders,
           body: formData,
         }
       );
@@ -103,6 +108,12 @@ export function useIPFSUpload() {
       };
 
     } catch (err) {
+      if (isBridgeAuthRequiredError(err)) {
+        setError(null);
+        return {
+          success: false,
+        };
+      }
       const errorMessage = err instanceof Error ? err.message : 'Upload failed';
       setError(errorMessage);
       console.error('IPFS upload error:', err);
@@ -133,6 +144,10 @@ export function useIPFSUpload() {
       });
 
       const authHeaders = await getIpfsUploadAuthHeaders(walletAddress);
+      const uploadUrl = getSupabaseFunctionUrl('ipfs/upload-multiple');
+      if (!uploadUrl) {
+        throw new Error('Supabase upload function is not configured.');
+      }
 
       // Simulate progress
       const progressInterval = setInterval(() => {
@@ -140,7 +155,7 @@ export function useIPFSUpload() {
       }, 300);
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ipfs/upload-multiple`,
+        uploadUrl,
         {
           method: 'POST',
           headers: authHeaders,
@@ -194,8 +209,13 @@ export function useIPFSUpload() {
 
   const getIPFSInfo = useCallback(async (ipfsHash: string) => {
     try {
+      const infoUrl = getSupabaseFunctionUrl(`ipfs/info/${ipfsHash}`);
+      if (!infoUrl || !publicAnonKey) {
+        throw new Error('Supabase IPFS info function is not configured.');
+      }
+
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8/ipfs/info/${ipfsHash}`,
+        infoUrl,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`,

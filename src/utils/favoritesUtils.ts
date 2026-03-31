@@ -1,3 +1,9 @@
+/**
+ * @deprecated Phase 3 - Hybrid wallet data: Favorites.
+ * localStorage persistence should migrate to remote-first via the
+ * favorites table server table.
+ * See spec: 15-local-api-audit-and-server-migration-plan.md
+ */
 import type { FavoriteAsset } from '@/types/favorites';
 import { getTestWalletMyAssets } from '@/utils/testWalletAssetFixtures';
 import { ensureAssetMetadataSeedForIds } from '@/utils/assetMetadataSync';
@@ -22,7 +28,6 @@ const FAVORITES_SYNC_EVENT = 'orina:favorites-changed';
 const FAVORITES_MIGRATION_BACKUP_SUFFIX = '_backup_legacy_ids';
 
 const favoritesHydrateInFlight = new Set<string>();
-const favoritesSyncTimers = new Map<string, number>();
 
 type DbAssetRow = {
   id: string;
@@ -73,16 +78,7 @@ function readLocalArraySafe<T>(key: string): T[] {
   }
 }
 
-function queueSync(map: Map<string, number>, key: string, job: () => void): void {
-  if (typeof window === 'undefined') return;
-  const prev = map.get(key);
-  if (prev) window.clearTimeout(prev);
-  const timer = window.setTimeout(() => {
-    map.delete(key);
-    job();
-  }, 250);
-  map.set(key, timer);
-}
+
 
 function seedDeterministicFavoritesForTestWallet(walletAddress: string): FavoriteAsset[] | null {
   const fixture = getTestWalletMyAssets(walletAddress);
@@ -350,7 +346,7 @@ async function syncFavoritesToSupabase(walletAddress: string, favorites: Favorit
   }
 }
 
-function saveFavorites(walletAddress: string, favorites: FavoriteAsset[]): void {
+async function saveFavorites(walletAddress: string, favorites: FavoriteAsset[]): Promise<void> {
   try {
     if (shouldBlockGuestWrite('saveFavorites')) return;
 
@@ -358,9 +354,8 @@ function saveFavorites(walletAddress: string, favorites: FavoriteAsset[]): void 
     localStorage.setItem(key, JSON.stringify(favorites));
     dispatchSyncEvent(FAVORITES_SYNC_EVENT);
 
-    queueSync(favoritesSyncTimers, walletKey(walletAddress), () => {
-      void syncFavoritesToSupabase(walletKey(walletAddress), favorites);
-    });
+    // Server-first: persist to Supabase immediately
+    await syncFavoritesToSupabase(walletKey(walletAddress), favorites);
   } catch (error) {
     console.error('[Favorites] Failed to save:', error);
   }
@@ -394,7 +389,7 @@ export function loadFavorites(walletAddress: string): FavoriteAsset[] {
   }
 }
 
-export function addFavorite(walletAddress: string, assetId: string): void {
+export async function addFavorite(walletAddress: string, assetId: string): Promise<void> {
   try {
     if (shouldBlockGuestWrite('addFavorite')) return;
 
@@ -406,20 +401,20 @@ export function addFavorite(walletAddress: string, assetId: string): void {
       assetId: canonicalAssetId,
       addedAt: Date.now(),
     });
-    saveFavorites(walletAddress, favorites);
+    await saveFavorites(walletAddress, favorites);
   } catch (error) {
     console.error('[Favorites] Failed to add:', error);
   }
 }
 
-export function removeFavorite(walletAddress: string, assetId: string): void {
+export async function removeFavorite(walletAddress: string, assetId: string): Promise<void> {
   try {
     if (shouldBlockGuestWrite('removeFavorite')) return;
 
     const canonicalAssetId = toCanonicalFavoriteAssetId(assetId);
     const favorites = loadFavorites(walletAddress);
     const filtered = favorites.filter((favorite) => favorite.assetId !== canonicalAssetId);
-    saveFavorites(walletAddress, filtered);
+    await saveFavorites(walletAddress, filtered);
   } catch (error) {
     console.error('[Favorites] Failed to remove:', error);
   }
@@ -430,13 +425,13 @@ export function isFavorite(walletAddress: string, assetId: string): boolean {
   return loadFavorites(walletAddress).some((favorite) => favorite.assetId === canonicalAssetId);
 }
 
-export function toggleFavorite(walletAddress: string, assetId: string): boolean {
+export async function toggleFavorite(walletAddress: string, assetId: string): Promise<boolean> {
   if (isFavorite(walletAddress, assetId)) {
-    removeFavorite(walletAddress, assetId);
+    await removeFavorite(walletAddress, assetId);
     return false;
   }
 
-  addFavorite(walletAddress, assetId);
+  await addFavorite(walletAddress, assetId);
   return true;
 }
 

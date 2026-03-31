@@ -23,6 +23,7 @@ import { createRuntimeOrderFromRwaIntent } from '@/utils/runtimeOrders';
 import { StudioTxStatePanel } from '@/app/components/ui/studio-tx-state-panel';
 import { getWalletErrorMessage } from '@/utils/walletErrors';
 import { parseOnchainBigIntLike } from '@/utils/onchainNormalization';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 import type { DeliveryAddressRecord } from '@/types/address';
 import type { OrderShippingAddressSnapshot } from '@/types/order';
 import {
@@ -510,7 +511,7 @@ export function RwaBuyOrderSignModal({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-white">{asset.name}</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">{asset.category}</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">{getCategoryDisplayLabel(asset.category)}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-zinc-500">Qty</p>

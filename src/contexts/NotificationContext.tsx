@@ -17,7 +17,7 @@ import {
   markAllNotificationsReadRemote,
   hydrateNotificationsFromSupabase,
 } from '@/utils/notifications';
-import { exchangeWalletAuthForSupabaseClaimSession } from '@/utils/supabaseAuthClaimBridge';
+import { ensureSupabaseBridgeAccessToken, getSupabaseBridgeSessionEventName } from '@/utils/supabaseAuthClaimBridge';
 import { hydrateUserAppSettingsFromSupabase } from '@/utils/userSettingsUtils';
 
 interface NotificationContextType {
@@ -113,9 +113,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const refreshPreferences = () => {
       setPreferences(loadPreferences(address));
     };
+    const hydrateRemoteState = () => {
+      void hydratePreferences();
+      void hydrateNotifications();
+    };
     let cancelled = false;
     const hydrateNotifications = async () => {
-      await exchangeWalletAuthForSupabaseClaimSession(address).catch(() => {
+      await ensureSupabaseBridgeAccessToken({
+        walletAddress: address,
+        promptOnAuthMissing: false,
+      }).catch(() => {
         // H3 bridge may be disabled/unavailable; remote hydrate will gracefully fall back.
       });
       await hydrateNotificationsFromSupabase(address).catch(() => {
@@ -138,12 +145,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     window.addEventListener('storage', refreshNotifications);
     window.addEventListener('orina:notifications-changed', refreshNotifications as EventListener);
     window.addEventListener('orina:notification-preferences-changed', refreshPreferences as EventListener);
+    window.addEventListener('orina:wallet-auth-change', hydrateRemoteState as EventListener);
+    window.addEventListener(getSupabaseBridgeSessionEventName(), hydrateRemoteState as EventListener);
     return () => {
       cancelled = true;
       window.removeEventListener('focus', refreshNotifications);
       window.removeEventListener('storage', refreshNotifications);
       window.removeEventListener('orina:notifications-changed', refreshNotifications as EventListener);
       window.removeEventListener('orina:notification-preferences-changed', refreshPreferences as EventListener);
+      window.removeEventListener('orina:wallet-auth-change', hydrateRemoteState as EventListener);
+      window.removeEventListener(getSupabaseBridgeSessionEventName(), hydrateRemoteState as EventListener);
     };
   }, [address]);
 

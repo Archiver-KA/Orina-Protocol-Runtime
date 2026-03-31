@@ -13,6 +13,7 @@ import { useProtocolChain } from '@/hooks/useProtocolChain';
 import { CONTRACTS, PAYMENT_TOKENS, type PaymentTokenSymbol } from '@/config/contracts';
 import { parseOnchainBigIntLike } from '@/utils/onchainNormalization';
 import { getWalletErrorMessage } from '@/utils/walletErrors';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
 interface NftBuyDirectSignModalProps {
   asset: MarketplaceAsset;
@@ -210,7 +211,7 @@ export function NftBuyDirectSignModal({
                       </span>
                     </div>
                     <h4 className="text-lg font-bold text-white mt-2 line-clamp-2">{asset.name}</h4>
-                    <p className="text-xs text-zinc-500 mt-1">{asset.category}</p>
+                    <p className="text-xs text-zinc-500 mt-1">{getCategoryDisplayLabel(asset.category)}</p>
                     <p className="text-xs text-zinc-400 mt-2">
                       Seller: {asset.seller.ensName || `${asset.seller.address.slice(0, 6)}...${asset.seller.address.slice(-4)}`}
                     </p>

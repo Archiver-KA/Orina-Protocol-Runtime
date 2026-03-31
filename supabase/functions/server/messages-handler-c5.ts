@@ -16,6 +16,7 @@ import {
   normalizeWalletAddress,
   requireAuthenticatedWallet,
 } from './request-auth.ts';
+import { checkRateLimit, rateLimitExceededResponse } from './rate-limiter.ts';
 
 // Types (compatible with existing frontend MessagesClient)
 export interface Message {
@@ -54,7 +55,7 @@ type DbConversationRow = {
   id: string;
   type: string;
   title: string | null;
-  metadata: Record<string, any> | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };
@@ -73,8 +74,8 @@ type DbMessageRow = {
   sender_user_id: string;
   client_message_id: string;
   body: string | null;
-  attachments: any;
-  metadata: Record<string, any> | null;
+  attachments: unknown;
+  metadata: Record<string, unknown> | null;
   created_at: string;
   edited_at: string | null;
   deleted_at: string | null;
@@ -102,8 +103,10 @@ function getServiceSupabaseClient() {
   return createClient(url, serviceRoleKey);
 }
 
+type ServiceSupabaseClient = ReturnType<typeof getServiceSupabaseClient>;
+
 async function resolveOrCreateProfile(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceSupabaseClient,
   walletAddress: string
 ): Promise<DbProfileRow> {
   const normalized = normalizeAddress(walletAddress);
@@ -131,7 +134,7 @@ async function resolveOrCreateProfile(
     .limit(1);
 
   if (insertError) {
-    const duplicate = `${(insertError as any).code || ''}` === '23505';
+    const duplicate = `${(insertError as { code?: string }).code || ''}` === '23505';
     if (!duplicate) throw new Error(`profiles create failed: ${insertError.message}`);
 
     const { data: raced, error: racedError } = await supabase
@@ -151,7 +154,7 @@ async function resolveOrCreateProfile(
 }
 
 async function loadProfilesByIds(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceSupabaseClient,
   profileIds: string[]
 ): Promise<Map<string, DbProfileRow>> {
   if (!profileIds.length) return new Map();
@@ -165,7 +168,7 @@ async function loadProfilesByIds(
 }
 
 async function ensureParticipantRows(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceSupabaseClient,
   conversationId: string,
   profileIds: string[]
 ): Promise<void> {
@@ -186,7 +189,7 @@ async function createOrGetConversation(
   address2: string,
   displayName?: string
 ): Promise<{
-  supabase: ReturnType<typeof createClient>;
+  supabase: ServiceSupabaseClient;
   conversation: Conversation;
   conversationRow: DbConversationRow;
   participants: DbParticipantRow[];
@@ -287,7 +290,7 @@ function extractImageFromAttachments(attachments: any): { url: string; ipfsHash?
 }
 
 async function loadConversationParticipants(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceSupabaseClient,
   conversationIds: string[]
 ): Promise<DbParticipantRow[]> {
   if (!conversationIds.length) return [];
@@ -300,7 +303,7 @@ async function loadConversationParticipants(
 }
 
 async function loadVisibleMessagesForConversations(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceSupabaseClient,
   conversationIds: string[]
 ): Promise<DbMessageRow[]> {
   if (!conversationIds.length) return [];
@@ -315,7 +318,7 @@ async function loadVisibleMessagesForConversations(
 }
 
 async function buildConversationResponse(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ServiceSupabaseClient,
   conversationRow: DbConversationRow,
   participantRows: DbParticipantRow[],
   profilesByIdInput?: Map<string, DbProfileRow>
@@ -330,7 +333,7 @@ async function buildConversationResponse(
     .map((p) => profilesById.get(p.user_id)?.wallet_address || '')
     .filter(Boolean);
 
-  const unreadCount = {};
+  const unreadCount: Record<string, number> = {};
   for (const p of participantRows) {
     const profile = profilesById.get(p.user_id);
     if (!profile?.wallet_address) continue;
@@ -675,12 +678,21 @@ async function deleteConversationImpl(
 
 export async function handleCreateConversation(c: Context) {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
     const body = await c.req.json();
     const { sender, receiver, displayName } = body;
 
     if (!sender || !receiver) {
       return c.json({ error: 'Missing sender or receiver' }, 400);
     }
+
+    const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, sender, 'sender');
+    if (mismatch) return mismatch;
+
+    const rateCheck = await checkRateLimit('chat_create', auth.identity.walletAddress);
+    if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
 
     const { conversation } = await createOrGetConversation(sender, receiver, displayName);
     return c.json({ success: true, conversation });
@@ -708,6 +720,9 @@ export async function handleSendMessage(c: Context) {
     const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, sender, 'sender');
     if (mismatch) return mismatch;
 
+    const rateCheck = await checkRateLimit('chat_send', auth.identity.walletAddress);
+    if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
+
     const result = await sendMessageImpl(sender, receiver, text || '', image);
     return c.json({ success: true, message: result.message, conversation: result.conversation });
   } catch (error) {
@@ -728,6 +743,9 @@ export async function handleGetConversations(c: Context) {
 
     const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, address, 'address');
     if (mismatch) return mismatch;
+
+    const rateCheck = await checkRateLimit('chat_read', auth.identity.walletAddress);
+    if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
 
     const result = await getUserConversationsImpl(address);
     return c.json({ success: true, conversations: result.conversations, metadata: result.metadata });
@@ -753,6 +771,9 @@ export async function handleGetMessages(c: Context) {
 
     const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, userAddress, 'userAddress');
     if (mismatch) return mismatch;
+
+    const rateCheck = await checkRateLimit('chat_read', auth.identity.walletAddress);
+    if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
 
     const result = await getConversationMessagesImpl(conversationId, userAddress);
     return c.json({ success: true, messages: result.messages, conversation: result.conversation });
@@ -803,5 +824,47 @@ export async function handleDeleteConversation(c: Context) {
   } catch (error) {
     console.error('[Messages C5] Delete conversation error:', error);
     return c.json({ error: 'Failed to delete conversation', details: error instanceof Error ? error.message : String(error) }, 500);
+  }
+}
+
+export async function handleReportMessage(c: Context) {
+  try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
+    const body = await c.req.json();
+    const { targetWallet, targetName, reason, conversationId, details } = body;
+
+    if (!targetWallet || !reason) {
+      return c.json({ error: 'Missing targetWallet or reason' }, 400);
+    }
+
+    const rateCheck = await checkRateLimit('moderation_report', auth.identity.walletAddress);
+    if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
+
+    const { error } = await supabase.from('message_reports').insert({
+      reporter_wallet: auth.identity.walletAddress,
+      target_wallet: targetWallet,
+      target_name: targetName || null,
+      reason,
+      details: details || null,
+      conversation_id: conversationId || null,
+      status: 'pending',
+    });
+
+    if (error) {
+      console.error('[Messages C5] Report insert error:', error);
+      return c.json({ error: 'Failed to submit report' }, 500);
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error('[Messages C5] Report error:', error);
+    return c.json({ error: 'Failed to submit report', details: error instanceof Error ? error.message : String(error) }, 500);
   }
 }

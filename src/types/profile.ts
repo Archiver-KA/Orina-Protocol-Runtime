@@ -25,6 +25,7 @@ export interface UserProfile {
   address: string;
   username: string;
   displayName?: string;
+  email?: string;
   bio?: string;
   avatar?: string;
   banner?: string;
@@ -111,7 +112,7 @@ export interface Badge {
 
 export type ActivityFilter = 'all' | 'mint' | 'purchase' | 'sale' | 'transfer' | 'list' | 'offer';
 
-export type ProfileTab = 'overview' | 'story' | 'activity' | 'collected' | 'created' | 'settings';
+export type ProfileTab = 'overview' | 'reviews' | 'story' | 'activity' | 'collected' | 'created' | 'settings';
 
 export interface ProfileStats {
   portfolioValue: number;

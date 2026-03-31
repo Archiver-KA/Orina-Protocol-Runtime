@@ -1,12 +1,12 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
-import { Star } from 'lucide-react';
+import { Star, Trophy } from 'lucide-react';
 import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
 import { VerifiedUserIcon } from '@/app/components/verified-user-icon';
 import { getAvatarByUserId } from '@/app/components/user-avatars';
 import { ProfileFollowButton } from '@/app/components/profile/profile-follow-button';
-import type { SellerProfileCardData } from '@/utils/mockSellerProfiles';
+import type { SellerProfileCardData } from '@/utils/sellerDirectory';
 import { followUser, unfollowUser, isFollowing, formatUserDisplayName } from '@/utils/profileUtils';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 
@@ -22,6 +22,7 @@ export function ProfileSearchCard({ profile, viewMode: _viewMode, onViewProfile,
   const [following, setFollowing] = useState(false);
   const { requireWalletAction } = useRequireWalletAction();
   const displayLabel = formatUserDisplayName(profile.displayName, profile.address);
+  const isTopSeller = profile.directoryRank > 0 && profile.directoryRank <= 10;
 
   useEffect(() => {
     if (!connectedAddress) {
@@ -68,9 +69,9 @@ export function ProfileSearchCard({ profile, viewMode: _viewMode, onViewProfile,
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={handleCardKeyDown}
-      className="profile-search-card-shell group w-full rounded-2xl overflow-hidden border-0 bg-[rgba(255,255,255,0.02)] backdrop-blur-[6px] hover:bg-[#1a1a1d] transition-all cursor-pointer"
+      className="profile-search-card-shell group w-full rounded-2xl overflow-hidden border-0 bg-[var(--t-card-bg)] backdrop-blur-[6px] hover:bg-[var(--t-surface-hover)] transition-all cursor-pointer"
     >
-      <div className="relative h-32 w-full">
+      <div className="relative h-[160px] w-full">
         {profile.bannerUrl ? (
           <ImageWithFallback
             src={profile.bannerUrl}
@@ -82,8 +83,12 @@ export function ProfileSearchCard({ profile, viewMode: _viewMode, onViewProfile,
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-[#06080d]/80 via-[#06080d]/25 to-transparent" />
         <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.02)_45%,rgba(255,255,255,0)_80%)]" />
-        {!isOwnCard && (
-          <div className="absolute bottom-3 right-3 z-20">
+        <div className="absolute bottom-4 right-4 z-20">
+          {isOwnCard ? (
+            <span className="inline-flex h-[38px] min-w-[84px] items-center justify-center rounded-full border border-white/75 bg-white/95 px-4 text-[12px] font-bold leading-none text-[#0b0d12] backdrop-blur-md shadow-[0_12px_24px_-18px_rgba(0,0,0,0.85)]">
+              Edit profile
+            </span>
+          ) : (
             <ProfileFollowButton
               following={following}
               onClick={(e) => {
@@ -94,28 +99,34 @@ export function ProfileSearchCard({ profile, viewMode: _viewMode, onViewProfile,
             >
               {following ? 'Following' : 'Follow'}
             </ProfileFollowButton>
+          )}
+        </div>
+        <div className="absolute inset-x-0 top-3 grid grid-cols-3 px-3">
+          <div className="px-2 text-center border-r border-[var(--t-border-subtle)]">
+            <p className="text-[10px] text-zinc-300/85 uppercase font-bold tracking-wider leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">Sales</p>
+            <p className="mt-1.5 text-[12px] font-bold text-white uppercase leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">{profile.totalSalesEth}</p>
           </div>
-        )}
-        <div className="absolute inset-x-0 top-2 grid grid-cols-3 px-2">
-          <div className="px-1 text-center border-r border-white/10">
-            <p className="text-[8px] text-zinc-300/85 uppercase font-bold tracking-wider leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">Sales</p>
-            <p className="text-[10px] font-bold text-white uppercase mt-1 leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">{profile.totalSalesEth}</p>
+          <div className="px-2 text-center border-r border-[var(--t-border-subtle)]">
+            <p className="text-[10px] text-zinc-300/85 uppercase font-bold tracking-wider leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">Followers</p>
+            <p className="mt-1.5 text-[12px] font-bold text-white leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">{profile.followers}</p>
           </div>
-          <div className="px-1 text-center border-r border-white/10">
-            <p className="text-[8px] text-zinc-300/85 uppercase font-bold tracking-wider leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">Followers</p>
-            <p className="text-[10px] font-bold text-white mt-1 leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">{profile.followers}</p>
-          </div>
-          <div className="px-1 text-center">
-            <p className="text-[8px] text-zinc-300/85 uppercase font-bold tracking-wider leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">Rating</p>
-            <div className="flex items-center justify-center gap-0.5 mt-1">
-              <span className="text-[10px] font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">{profile.rating}</span>
-              <Star size={10} className="text-yellow-500 fill-yellow-500" />
+          <div className="px-2 text-center">
+            <p className="text-[10px] text-zinc-300/85 uppercase font-bold tracking-wider leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">Rating</p>
+            <div className="mt-1.5 flex items-center justify-center gap-1">
+              <span
+                className={`${profile.hasReviews ? 'text-[12px] text-white' : 'text-[10px] text-zinc-300/80'} font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]`}
+              >
+                {profile.rating}
+              </span>
+              {profile.hasReviews && (
+                <Star size={12} className="text-yellow-500 fill-yellow-500" />
+              )}
             </div>
           </div>
         </div>
-        <div className="absolute bottom-3 left-3 z-10">
+        <div className="absolute bottom-4 left-4 z-10">
           <div className="relative">
-            <div className="w-12 h-12 rounded-full border-[3px] border-[#0b0d12]/70 bg-zinc-800/70 backdrop-blur-md overflow-hidden">
+            <div className="h-14 w-14 rounded-full border-[3px] border-[#0b0d12]/70 bg-zinc-800/70 backdrop-blur-md overflow-hidden">
               {profile.avatarUrl ? (
                 <ImageWithFallback src={profile.avatarUrl} alt={profile.displayName} className="w-full h-full object-cover" />
               ) : (() => {
@@ -124,47 +135,29 @@ export function ProfileSearchCard({ profile, viewMode: _viewMode, onViewProfile,
               })()}
             </div>
             {profile.verified && (
-              <div className="absolute bottom-0 right-0 w-4 h-4 flex items-center justify-center">
-                <VerifiedUserIcon size={10} className="drop-shadow-[0_1px_4px_rgba(0,0,0,0.75)]" />
+              <div className="absolute bottom-0 right-0 flex h-[18px] w-[18px] items-center justify-center">
+                <VerifiedUserIcon size={11} className="drop-shadow-[0_1px_4px_rgba(0,0,0,0.75)]" />
               </div>
             )}
           </div>
         </div>
-        <div className={`absolute bottom-4 left-[4.35rem] ${!isOwnCard ? 'right-[7.5rem]' : 'right-3'} z-10 pointer-events-none`}>
-          <h2 className="text-[13px] font-bold text-white tracking-tight truncate group-hover:text-[color:color-mix(in_srgb,var(--color-primary-custom)_12%,white)] transition-colors drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+        <div className={`pointer-events-none absolute bottom-5 left-[5.25rem] ${!isOwnCard ? 'right-[7.75rem]' : 'right-4'} z-10`}>
+          {isTopSeller ? (
+            <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border border-[#f5c96b]/35 bg-[rgba(245,201,107,0.16)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#f5d996] shadow-[0_8px_20px_-16px_rgba(245,201,107,0.95)]">
+              <Trophy size={11} className="text-[#f5c96b]" />
+              <span>Top Seller</span>
+              <span className="text-[#fff1c7]">#{profile.directoryRank}</span>
+            </div>
+          ) : null}
+          <h2 className="text-[14px] font-bold text-white tracking-tight truncate group-hover:text-[color:color-mix(in_srgb,var(--color-primary-custom)_12%,white)] transition-colors drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
             {displayLabel}
           </h2>
-          <p className="text-[10px] text-zinc-300/80 truncate drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+          <p className="mt-0.5 text-[12px] text-zinc-300/80 truncate drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
             {profile.username}
           </p>
         </div>
       </div>
 
-      <div className="hidden grid grid-cols-3 border-t border-[var(--color-panel-border)] bg-black/10">
-        <div className="py-2 px-1 text-center border-r border-[var(--color-panel-border)]">
-          <p className="text-[8px] text-zinc-500 uppercase font-bold tracking-wider mb-0.5">Sales</p>
-          <p className="text-[10px] font-bold text-white uppercase">{profile.totalSalesEth}</p>
-        </div>
-        <div className="py-2 px-1 text-center border-r border-[var(--color-panel-border)]">
-          <p className="text-[8px] text-zinc-500 uppercase font-bold tracking-wider mb-0.5">Followers</p>
-          <p className="text-[10px] font-bold text-white">{profile.followers}</p>
-        </div>
-        <div className="py-2 px-1 text-center">
-          <p className="text-[8px] text-zinc-500 uppercase font-bold tracking-wider mb-0.5">Rating</p>
-          <div className="flex items-center justify-center gap-0.5">
-            <span className="text-[10px] font-bold text-white">{profile.rating}</span>
-            <Star size={10} className="text-yellow-500 fill-yellow-500" />
-          </div>
-        </div>
-      </div>
-
-      {isOwnCard && (
-        <div className="p-2 border-t border-white/10 bg-transparent">
-          <div className="w-full py-2 rounded-full text-[9px] font-black tracking-[0.14em] uppercase border border-white/10 bg-white/[0.02] text-zinc-500 text-center backdrop-blur-md">
-            Your Profile
-          </div>
-        </div>
-      )}
     </div>
   );
 }

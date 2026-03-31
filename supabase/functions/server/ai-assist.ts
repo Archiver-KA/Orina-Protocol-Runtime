@@ -3,30 +3,9 @@ import { ORINAEngine } from './orina-ai-engine-v2.tsx';
 import { callNvidiaNIMVision, parseJSONFromLLM } from './nvidia-nim-client.ts';
 import { assertAuthenticatedWalletMatch, requireAuthenticatedWallet } from './request-auth.ts';
 import type { AIAssistContext, AIAssistRequest, AIDisputeContext } from './types.ts';
-import * as kv from './kv_store.tsx';
+// kv_store import removed — ownership checks now via ORINAEngine.hasConversationAccess
+import { checkRateLimit, rateLimitExceededResponse } from './rate-limiter.ts';
 
-// ─── Rate Limiter (in-memory, per Edge Function instance) ───────────────────
-// 30 requests / 60s per walletAddress. Resets automatically after window.
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 30;
-const RATE_WINDOW_MS = 60_000;
-
-function checkRateLimit(walletAddress: string): { allowed: boolean; retryAfterMs: number } {
-  const now = Date.now();
-  const entry = rateLimitMap.get(walletAddress);
-
-  if (!entry || now >= entry.resetAt) {
-    rateLimitMap.set(walletAddress, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return { allowed: true, retryAfterMs: 0 };
-  }
-
-  if (entry.count >= RATE_LIMIT) {
-    return { allowed: false, retryAfterMs: entry.resetAt - now };
-  }
-
-  entry.count++;
-  return { allowed: true, retryAfterMs: 0 };
-}
 
 // ─── Image size guard ────────────────────────────────────────────────────────
 const MAX_IMAGE_BASE64_BYTES = 4 * 1024 * 1024; // 3 MB raw ≈ 4 MB base64
@@ -77,18 +56,16 @@ aiAssist.post('/assist', async (c) => {
 
     // ── Rate limit ───────────────────────────────────────────────────────────
     const resolvedWalletAddress = auth.identity.walletAddress;
-    const rateCheck = checkRateLimit(resolvedWalletAddress);
-    if (!rateCheck.allowed) {
-      const retryAfterSec = Math.ceil(rateCheck.retryAfterMs / 1000);
-      return c.json(
-        { error: `Rate limit exceeded. Please wait ${retryAfterSec}s before sending another message.` },
-        429,
-      );
-    }
+    const rateCheck = await checkRateLimit('ai_assist', resolvedWalletAddress);
+    if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
 
     // ── Image size guard ─────────────────────────────────────────────────────
     const imgs = Array.isArray(imageUrls) ? imageUrls : [];
     if (imgs.length > 0) {
+      // Additional rate limit for image requests
+      const imgRateCheck = await checkRateLimit('ai_assist_image', resolvedWalletAddress);
+      if (!imgRateCheck.allowed) return rateLimitExceededResponse(c, imgRateCheck);
+
       const imgCheck = validateImageUrls(imgs);
       if (!imgCheck.valid) {
         return c.json({ error: imgCheck.error }, 413);
@@ -197,11 +174,9 @@ aiAssist.delete('/conversation/:conversationId', async (c) => {
       if (walletMismatch) return walletMismatch;
     }
 
-    // ── Ownership check ──────────────────────────────────────────────────────
-    const metaKey = `conversation:${auth.identity.walletAddress}:${conversationId}`;
-    const meta = await kv.get(metaKey);
-    if (!meta) {
-      // Meta doesn't exist under this wallet → not the owner (or already deleted)
+    // ── Ownership check (relational) ────────────────────────────────────────
+    const hasAccess = await ORINAEngine.hasConversationAccess(auth.identity.walletAddress, conversationId);
+    if (!hasAccess) {
       return c.json({ error: 'Conversation not found or access denied' }, 403);
     }
 

@@ -1,7 +1,16 @@
+/**
+ * @deprecated Phase 2 — Legacy localStorage-based review utils.
+ * Review storage and retrieval should migrate to the server-side
+ * profile_reviews table (see migration 000045). Pure-computation
+ * helpers (calculateReviewStats, filterReviews, sortReviews,
+ * getRatingColor, etc.) remain safe to use.
+ * See spec: 15-local-api-audit-and-server-migration-plan.md § F6
+ */
 import { Review, ReviewStats, ReviewSortOption, ReviewFilterOption, UserReviewAction } from '@/types/review';
 
-const REVIEWS_STORAGE_KEY = 'studio_reviews';
-const USER_ACTIONS_KEY = 'studio_review_actions';
+// REMOVED: localStorage keys — data now lives in profile_reviews (000045)
+// const REVIEWS_STORAGE_KEY = 'studio_reviews';
+// const USER_ACTIONS_KEY = 'studio_review_actions';
 
 /**
  * Calculate review statistics
@@ -139,17 +148,12 @@ export function validateReviewForm(data: Partial<Review>): { valid: boolean; err
 }
 
 /**
- * Load all reviews from localStorage
+ * @deprecated Use server-side profile_reviews table via API.
+ * Returns empty — localStorage persistence removed.
  */
 export function loadAllReviews(): Review[] {
-  try {
-    const stored = localStorage.getItem(REVIEWS_STORAGE_KEY);
-    if (!stored) return [];
-    return JSON.parse(stored);
-  } catch (error) {
-    console.error('Failed to load reviews:', error);
-    return [];
-  }
+  console.warn('[reviewUtils] loadAllReviews() is deprecated — use server API');
+  return [];
 }
 
 /**
@@ -163,50 +167,32 @@ export function loadReviewsForAsset(assetId: string): Review[] {
 /**
  * Save review
  */
-export function saveReview(review: Review): void {
-  try {
-    const allReviews = loadAllReviews();
-    const existingIndex = allReviews.findIndex((r) => r.id === review.id);
-
-    if (existingIndex !== -1) {
-      // Update existing
-      allReviews[existingIndex] = { ...review, updatedAt: Date.now() };
-    } else {
-      // Add new
-      allReviews.push(review);
-    }
-
-    localStorage.setItem(REVIEWS_STORAGE_KEY, JSON.stringify(allReviews));
-  } catch (error) {
-    console.error('Failed to save review:', error);
-  }
+/**
+ * @deprecated Use server-side profile_reviews table via API.
+ */
+export function saveReview(_review: Review): void {
+  console.warn('[reviewUtils] saveReview() is deprecated — use server API');
 }
 
 /**
  * Delete review
  */
-export function deleteReview(reviewId: string): void {
-  try {
-    const allReviews = loadAllReviews();
-    const filtered = allReviews.filter((r) => r.id !== reviewId);
-    localStorage.setItem(REVIEWS_STORAGE_KEY, JSON.stringify(filtered));
-  } catch (error) {
-    console.error('Failed to delete review:', error);
-  }
+/**
+ * @deprecated Use server-side profile_reviews table via API.
+ */
+export function deleteReview(_reviewId: string): void {
+  console.warn('[reviewUtils] deleteReview() is deprecated — use server API');
 }
 
 /**
  * Load user review actions (helpful votes)
  */
+/**
+ * @deprecated Use server-side profile_reviews table via API.
+ */
 export function loadUserActions(): UserReviewAction[] {
-  try {
-    const stored = localStorage.getItem(USER_ACTIONS_KEY);
-    if (!stored) return [];
-    return JSON.parse(stored);
-  } catch (error) {
-    console.error('Failed to load user actions:', error);
-    return [];
-  }
+  console.warn('[reviewUtils] loadUserActions() is deprecated — use server API');
+  return [];
 }
 
 /**
@@ -220,38 +206,12 @@ export function isMarkedHelpful(reviewId: string): boolean {
 /**
  * Toggle helpful vote
  */
-export function toggleHelpful(reviewId: string): boolean {
-  try {
-    const actions = loadUserActions();
-    const existingIndex = actions.findIndex((a) => a.reviewId === reviewId);
-
-    let isHelpful = false;
-
-    if (existingIndex !== -1) {
-      // Toggle existing
-      actions[existingIndex].helpful = !actions[existingIndex].helpful;
-      isHelpful = actions[existingIndex].helpful;
-    } else {
-      // Add new
-      actions.push({ reviewId, helpful: true });
-      isHelpful = true;
-    }
-
-    localStorage.setItem(USER_ACTIONS_KEY, JSON.stringify(actions));
-
-    // Update review helpful count
-    const allReviews = loadAllReviews();
-    const reviewIndex = allReviews.findIndex((r) => r.id === reviewId);
-    if (reviewIndex !== -1) {
-      allReviews[reviewIndex].helpfulCount += isHelpful ? 1 : -1;
-      localStorage.setItem(REVIEWS_STORAGE_KEY, JSON.stringify(allReviews));
-    }
-
-    return isHelpful;
-  } catch (error) {
-    console.error('Failed to toggle helpful:', error);
-    return false;
-  }
+/**
+ * @deprecated Use server-side profile_reviews table via API.
+ */
+export function toggleHelpful(_reviewId: string): boolean {
+  console.warn('[reviewUtils] toggleHelpful() is deprecated — use server API');
+  return false;
 }
 
 /**

@@ -53,17 +53,24 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
   }, []);
 
   const grossPriceNum = getOrderGrossPriceNumber(order.grossPrice, order.paymentTokenDecimals);
-  const platformFee = (grossPriceNum * Number(order.platformFeeBpsSnapshot)) / 10000;
-  const daoFee = (grossPriceNum * Number(order.daoFeeBpsSnapshot)) / 10000;
-  const burnFee = (grossPriceNum * Number(order.burnFeeBpsSnapshot)) / 10000;
-  const sellerReceives = grossPriceNum - platformFee - daoFee - burnFee;
+  const safeGrossPriceNum = Number.isFinite(grossPriceNum) ? grossPriceNum : 0;
+  const platformFeeBps = Number.isFinite(Number(order.platformFeeBpsSnapshot)) ? Number(order.platformFeeBpsSnapshot) : 0;
+  const daoFeeBps = Number.isFinite(Number(order.daoFeeBpsSnapshot)) ? Number(order.daoFeeBpsSnapshot) : 0;
+  const burnFeeBps = Number.isFinite(Number(order.burnFeeBpsSnapshot)) ? Number(order.burnFeeBpsSnapshot) : 0;
+  const platformFee = (safeGrossPriceNum * platformFeeBps) / 10000;
+  const daoFee = (safeGrossPriceNum * daoFeeBps) / 10000;
+  const burnFee = (safeGrossPriceNum * burnFeeBps) / 10000;
+  const sellerReceives = Math.max(safeGrossPriceNum - platformFee - daoFee - burnFee, 0);
   const status = ORDER_STATES[order.state] ?? 'UNKNOWN';
   const paymentSymbol = getOrderPaymentSymbol(order.paymentTokenSymbol);
   const grossPriceLabel = formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
-  const quantityLabel = formatOrderQuantity(order.amount, order.unitName);
+  const quantityLabel = formatOrderQuantity(order.amount, order.unitLabel, order.unitName);
   const shippingDetails = getOrderShippingDetails(order.shippingAddressSnapshot, order.shippingMethodLabel);
   const explorerBaseUrl = EXPLORER_URLS[ACTIVE_CHAIN_ID] ?? EXPLORER_URLS[97];
-  const formatPaymentValue = (value: number) => `${value.toFixed(value >= 1 ? 4 : 6)} ${paymentSymbol}`;
+  const formatPaymentValue = (value: number) => {
+    const safeValue = Number.isFinite(value) ? value : 0;
+    return `${safeValue.toFixed(safeValue >= 1 ? 4 : 6)} ${paymentSymbol}`;
+  };
 
   if (typeof document === 'undefined') return null;
 
@@ -248,16 +255,16 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
                       <div className="h-px bg-[rgba(255,255,255,0.08)]" />
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] text-zinc-500">
-                          Platform Fee ({Number(order.platformFeeBpsSnapshot) / 100}%)
+                          Platform Fee ({platformFeeBps / 100}%)
                         </span>
                         <span className="text-xs font-mono text-zinc-400">{formatPaymentValue(platformFee)}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-zinc-500">DAO Fee ({Number(order.daoFeeBpsSnapshot) / 100}%)</span>
+                        <span className="text-[10px] text-zinc-500">DAO Fee ({daoFeeBps / 100}%)</span>
                         <span className="text-xs font-mono text-zinc-400">{formatPaymentValue(daoFee)}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-zinc-500">Burn Fee ({Number(order.burnFeeBpsSnapshot) / 100}%)</span>
+                        <span className="text-[10px] text-zinc-500">Burn Fee ({burnFeeBps / 100}%)</span>
                         <span className="text-xs font-mono text-zinc-400">{formatPaymentValue(burnFee)}</span>
                       </div>
                       <div className="h-px bg-[rgba(255,255,255,0.08)]" />

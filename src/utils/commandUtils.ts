@@ -99,7 +99,7 @@ export function saveRecentCommand(commandId: string, label: string): void {
       ...filtered,
     ].slice(0, MAX_RECENT_COMMANDS);
     
-    localStorage.setItem(RECENT_COMMANDS_KEY, JSON.stringify(updated));
+    sessionStorage.setItem(RECENT_COMMANDS_KEY, JSON.stringify(updated));
   } catch (error) {
     console.error('Failed to save recent command:', error);
   }
@@ -110,7 +110,7 @@ export function saveRecentCommand(commandId: string, label: string): void {
  */
 export function loadRecentCommands(): RecentCommand[] {
   try {
-    const stored = localStorage.getItem(RECENT_COMMANDS_KEY);
+    const stored = sessionStorage.getItem(RECENT_COMMANDS_KEY);
     if (!stored) return [];
     return JSON.parse(stored);
   } catch (error) {
@@ -124,7 +124,7 @@ export function loadRecentCommands(): RecentCommand[] {
  */
 export function clearRecentCommands(): void {
   try {
-    localStorage.removeItem(RECENT_COMMANDS_KEY);
+    sessionStorage.removeItem(RECENT_COMMANDS_KEY);
   } catch (error) {
     console.error('Failed to clear recent commands:', error);
   }

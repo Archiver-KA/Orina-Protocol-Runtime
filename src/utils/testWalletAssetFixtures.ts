@@ -1,5 +1,6 @@
 import type { MyAssetNft, MyAssetReceipt, MyAssetRwa } from '@/app/components/cards/my-asset-cards';
 import type { AssetDetails } from '@/types/asset';
+import { runtimeFlags } from '/utils/runtimeConfig';
 
 export const TEST_WALLET_A = '0xB43F3f31fae56C4e8C0be36EC6f84dD5B1571c14';
 export const TEST_WALLET_B = '0x282Be18838D7079C215F49749a9606d77e00888b';
@@ -14,6 +15,7 @@ function short(address: string): string {
 }
 
 export function isDeterministicTestWallet(address?: string | null): boolean {
+  if (!runtimeFlags.enableTestWalletFixtures) return false;
   const n = normalize(address);
   return n === normalize(TEST_WALLET_A) || n === normalize(TEST_WALLET_B);
 }
@@ -130,6 +132,7 @@ function cloneFixture<T>(value: T): T {
 }
 
 export function getTestWalletMyAssets(walletAddress?: string | null): TestWalletMyAssetsFixture | null {
+  if (!runtimeFlags.enableTestWalletFixtures) return null;
   const n = normalize(walletAddress);
   if (n === normalize(TEST_WALLET_A)) return cloneFixture(WALLET_A_FIXTURE);
   if (n === normalize(TEST_WALLET_B)) return cloneFixture(WALLET_B_FIXTURE);
@@ -239,6 +242,7 @@ const OWNED_ASSET_DETAILS_FIXTURES: Record<string, AssetDetails> = {
 };
 
 export function getDeterministicOwnedAssetDetailsById(id: string): AssetDetails | null {
+  if (!runtimeFlags.enableTestWalletFixtures) return null;
   const match = OWNED_ASSET_DETAILS_FIXTURES[id];
   return match ? cloneFixture(match) : null;
 }

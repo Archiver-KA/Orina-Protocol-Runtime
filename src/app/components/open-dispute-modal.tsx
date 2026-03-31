@@ -54,7 +54,7 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
   const [uploadedEvidence, setUploadedEvidence] = useState<UploadedImage[]>([]);
   const { requireWalletActionAsync } = useRequireWalletAction();
   const protocolChain = useProtocolChain();
-  const quantityLabel = formatOrderQuantity(order.amount, order.unitName);
+  const quantityLabel = formatOrderQuantity(order.amount, order.unitLabel, order.unitName);
   const grossPriceLabel = formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
   const shippingDetails = getOrderShippingDetails(order.shippingAddressSnapshot, order.shippingMethodLabel);
 

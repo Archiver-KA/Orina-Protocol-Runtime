@@ -7,8 +7,8 @@
  * - CORS-friendly (avoid preflight surprises).
  *
  * NOTE:
- * - This function uses the existing kv_store_b0d68fc8 table via kv_store.tsx.
- * - That module uses SERVICE_ROLE on the server side (safe for Edge Function only).
+ * - This function uses the canonical C5 messaging handler.
+ * - Chat persistence now comes from the real conversation/message tables.
  */
 
 import { Hono } from "npm:hono";
@@ -45,5 +45,6 @@ app.get(`${PREFIX}/messages/conversations/:address`, messagesHandler.handleGetCo
 app.get(`${PREFIX}/messages/:conversationId`, messagesHandler.handleGetMessages);
 app.post(`${PREFIX}/messages/read`, messagesHandler.handleMarkAsRead);
 app.delete(`${PREFIX}/messages/:conversationId`, messagesHandler.handleDeleteConversation);
+app.post(`${PREFIX}/messages/report`, messagesHandler.handleReportMessage);
 
 Deno.serve(app.fetch);

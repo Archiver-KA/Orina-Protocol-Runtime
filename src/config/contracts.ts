@@ -6,6 +6,8 @@
  * Namespace: orina-atp-v3.4.1-m2m-bsc-testnet-20260329-r6
  */
 
+import { runtimeConfig } from '/utils/runtimeConfig';
+
 // ── Contract Addresses (v3.4 improved direct core deploy — BSC Testnet) ─
 export const CONTRACTS = {
   // Core
@@ -69,14 +71,14 @@ export const CHAIN_CONFIG = {
   DEV_CHAIN_ID: 11155111,    // Sepolia
 } as const;
 
-// Current active chain (toggle for dev vs prod)
-export const ACTIVE_CHAIN_ID = CHAIN_CONFIG.TESTNET_CHAIN_ID;
-
 export const SUPPORTED_CHAINS = [
   CHAIN_CONFIG.PRIMARY_CHAIN_ID,
   CHAIN_CONFIG.TESTNET_CHAIN_ID,
   CHAIN_CONFIG.DEV_CHAIN_ID,
 ] as const;
+
+// Current active chain (toggle for dev vs prod)
+export const ACTIVE_CHAIN_ID = CHAIN_CONFIG.TESTNET_CHAIN_ID;
 
 // ── Protocol Constants ────────────────────────────────────────
 export const PROTOCOL = {
@@ -163,7 +165,7 @@ export enum ShippingType {
 export const RPC_URLS = {
   [56]: 'https://bsc-dataseed.binance.org/',
   [97]: 'https://data-seed-prebsc-1-s1.bnbchain.org:8545/',
-  [11155111]: 'https://eth-sepolia.g.alchemy.com/v2/demo',
+  [11155111]: runtimeConfig.sepoliaRpcUrl || 'https://eth-sepolia.g.alchemy.com/v2/demo',
 } as const;
 
 // ── Block Explorer URLs ───────────────────────────────────────

@@ -4,6 +4,7 @@ import type { MyAssetRwa } from '@/app/components/cards/my-asset-cards';
 import type { MarketplaceAsset } from '@/app/types/asset';
 import type { OrderUiRecord } from '@/types/order';
 import type { RuntimeMintedAssetRecord } from '@/utils/runtimeMintedAssets';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
 export interface ProfileTopProduct {
   key: string;
@@ -109,7 +110,7 @@ function toOwnerMintedCard(
     id: asset.id,
     name: asset.name,
     type: 'RWA',
-    category: asset.category,
+    category: getCategoryDisplayLabel(asset.category),
     image: asset.image,
     status:
       runtimeCard?.status ??
@@ -148,6 +149,7 @@ export function buildProfileTopProducts(
       paymentTokenDecimals?: number;
       lastPurchasedAt: number;
       unitName?: string;
+      unitLabel?: string;
     }
   >();
 
@@ -165,7 +167,7 @@ export function buildProfileTopProducts(
       grouped.set(key, {
         assetName: order.assetName || matchedAsset?.name || `Asset #${key}`,
         assetImage: order.assetImage || matchedAsset?.image || '',
-        category: matchedAsset?.category || 'Marketplace',
+        category: matchedAsset?.category ? getCategoryDisplayLabel(matchedAsset.category) : 'Marketplace',
         assetRouteId: matchedAsset?.id,
         finalizedOrderCount: 1,
         unitsSold: order.amount,
@@ -174,6 +176,7 @@ export function buildProfileTopProducts(
         paymentTokenDecimals: order.paymentTokenDecimals,
         lastPurchasedAt,
         unitName: order.unitName,
+        unitLabel: order.unitLabel,
       });
       continue;
     }
@@ -184,7 +187,9 @@ export function buildProfileTopProducts(
     current.lastPurchasedAt = Math.max(current.lastPurchasedAt, lastPurchasedAt);
     if (!current.assetRouteId && matchedAsset?.id) current.assetRouteId = matchedAsset.id;
     if (!current.assetImage && matchedAsset?.image) current.assetImage = matchedAsset.image;
-    if (!current.category && matchedAsset?.category) current.category = matchedAsset.category;
+    if (!current.category && matchedAsset?.category) current.category = getCategoryDisplayLabel(matchedAsset.category);
+    if (!current.unitLabel && order.unitLabel) current.unitLabel = order.unitLabel;
+    if (!current.unitName && order.unitName) current.unitName = order.unitName;
   }
 
   return Array.from(grouped.entries())
@@ -196,8 +201,8 @@ export function buildProfileTopProducts(
       assetRouteId: value.assetRouteId,
       finalizedOrderCount: value.finalizedOrderCount,
       unitsSold: value.unitsSold,
-      unitsSoldLabel: value.unitName
-        ? `${value.unitsSold.toString()} ${value.unitName}`
+      unitsSoldLabel: value.unitLabel || value.unitName
+        ? `${value.unitsSold.toString()} ${value.unitLabel || value.unitName}`
         : `${value.unitsSold.toString()} unit${value.unitsSold === 1n ? '' : 's'}`,
       grossVolume: value.grossVolume,
       grossVolumeLabel: formatOrderGrossPrice(

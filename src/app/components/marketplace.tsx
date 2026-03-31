@@ -19,7 +19,12 @@ import { RealisticWorldMap } from './marketplace/realistic-world-map';
 import { useAccount } from 'wagmi';
 import { loadFavorites, toggleFavorite } from '@/utils/favoritesUtils';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
-import { getMockSellerProfiles } from '@/utils/mockSellerProfiles';
+import { REPUTATION_SYNC_EVENT } from '@/utils/profileReputationSync';
+import { PROFILE_SYNC_EVENT } from '@/utils/profileUtils';
+import {
+  hydrateSellerDirectoryFromSupabase,
+  loadSellerDirectorySync,
+} from '@/utils/sellerDirectory';
 import {
   COLLECTIONS_SYNC_EVENT,
   loadCollectionFavorites,
@@ -41,9 +46,12 @@ import { PROTOCOL_NETWORK_OPTIONS } from '@/utils/protocolNetwork';
 import {
   getCategoryDisplayLabel,
   getCategoryOptionsFromValues,
+  getTaxonomyCategoryOptions,
   getTaxonomySearchText,
+  hydrateTaxonomyFromSupabase,
   normalizeCategoryFilterValue,
   normalizeTaxonomySearchKey,
+  TAXONOMY_SYNC_EVENT,
 } from '@/utils/taxonomy';
 
 interface MarketplaceProps {
@@ -135,21 +143,33 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
-  const [sellerProfiles, setSellerProfiles] = useState(() => getMockSellerProfiles());
-  const [runtimeCollections, setRuntimeCollections] = useState<CollectionSummary[]>(() => loadRuntimeCollections());
   const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
+  const [sellerProfiles, setSellerProfiles] = useState(() => loadSellerDirectorySync({ marketplaceAssets: loadMarketplaceCatalogSync() }));
+  const [runtimeCollections, setRuntimeCollections] = useState<CollectionSummary[]>(() => loadRuntimeCollections());
+  const [taxonomyVersion, setTaxonomyVersion] = useState(0);
   const { address } = useAccount();
   const { requireWalletAction } = useRequireWalletAction(onNavigateToPage);
 
   const stats = useMemo(() => getMarketplaceCatalogStatistics(marketplaceAssets), [marketplaceAssets]);
-  const categories = useMemo(() => getMarketplaceCatalogCategories(marketplaceAssets), [marketplaceAssets]);
   const assetCategoryOptions = useMemo(
-    () => categories.map((category) => ({ value: category, label: getCategoryDisplayLabel(category) })),
-    [categories]
+    () => {
+      const liveValues = new Set(getMarketplaceCatalogCategories(marketplaceAssets));
+      const taxonomyOptions = getTaxonomyCategoryOptions();
+      if (!liveValues.size) return taxonomyOptions;
+
+      const orderedLiveOptions = taxonomyOptions.filter((option) => liveValues.has(option.value));
+      const knownValues = new Set(orderedLiveOptions.map((option) => option.value));
+      const fallbackOptions = Array.from(liveValues)
+        .filter((value) => !knownValues.has(value))
+        .map((value) => ({ value, label: getCategoryDisplayLabel(value) }));
+
+      return [...orderedLiveOptions, ...fallbackOptions];
+    },
+    [marketplaceAssets, taxonomyVersion]
   );
   const collectionCategoryOptions = useMemo(
     () => getCategoryOptionsFromValues(runtimeCollections.map((collection) => collection.category)),
-    [runtimeCollections]
+    [runtimeCollections, taxonomyVersion]
   );
   const blockchains = useMemo(() => getMarketplaceCatalogBlockchains(marketplaceAssets), [marketplaceAssets]);
   const blockchainOptions = useMemo(() => {
@@ -170,15 +190,28 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
   }, [blockchains]);
   const visibleCategoryOptions = contentMode === 'collections' ? collectionCategoryOptions : assetCategoryOptions;
   useEffect(() => {
-    // Keep profile cards in sync with profile edits (displayName/avatar/follow counts).
-    const refresh = () => setSellerProfiles(getMockSellerProfiles());
+    const refresh = () => {
+      const syncProfiles = loadSellerDirectorySync({ marketplaceAssets });
+      setSellerProfiles((prev) => (syncProfiles.length > 0 || prev.length === 0 ? syncProfiles : prev));
+      void hydrateSellerDirectoryFromSupabase({ marketplaceAssets })
+        .then((nextProfiles) => {
+          setSellerProfiles(nextProfiles);
+        })
+        .catch(() => undefined);
+    };
+
+    refresh();
     window.addEventListener('focus', refresh);
     window.addEventListener('storage', refresh);
+    window.addEventListener(PROFILE_SYNC_EVENT, refresh as EventListener);
+    window.addEventListener(REPUTATION_SYNC_EVENT, refresh as EventListener);
     return () => {
       window.removeEventListener('focus', refresh);
       window.removeEventListener('storage', refresh);
+      window.removeEventListener(PROFILE_SYNC_EVENT, refresh as EventListener);
+      window.removeEventListener(REPUTATION_SYNC_EVENT, refresh as EventListener);
     };
-  }, []);
+  }, [marketplaceAssets]);
 
   useEffect(() => {
     const syncCatalog = () => {
@@ -190,6 +223,18 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
     window.addEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
     return () => {
       window.removeEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncTaxonomy = () => {
+      setTaxonomyVersion((value) => value + 1);
+    };
+
+    void hydrateTaxonomyFromSupabase().catch(() => undefined);
+    window.addEventListener(TAXONOMY_SYNC_EVENT, syncTaxonomy as EventListener);
+    return () => {
+      window.removeEventListener(TAXONOMY_SYNC_EVENT, syncTaxonomy as EventListener);
     };
   }, []);
 
@@ -278,7 +323,7 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
     }
 
     return filtered;
-  }, [marketplaceAssets, searchQuery, selectedCategory, selectedBlockchain, verifiedOnly]);
+  }, [marketplaceAssets, searchQuery, selectedCategory, selectedBlockchain, taxonomyVersion, verifiedOnly]);
 
   const filteredCollections = useMemo(() => {
     let filtered = [...runtimeCollections];
@@ -304,7 +349,7 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
     }
 
     return filtered;
-  }, [runtimeCollections, searchQuery, selectedCategory, verifiedOnly]);
+  }, [runtimeCollections, searchQuery, selectedCategory, taxonomyVersion, verifiedOnly]);
 
   const filteredProfiles = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -348,15 +393,15 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
           },
         ];
       }),
-    [filteredAssets]
+    [filteredAssets, taxonomyVersion]
   );
 
-  const handleLike = (assetId: string) => {
+  const handleLike = async (assetId: string) => {
     if (!address) {
       if (!requireWalletAction({ capability: 'favorite_write', actionLabel: 'use favorites', fallbackPage: 'marketplace' })) return;
       return;
     }
-    const isFav = toggleFavorite(address, assetId);
+    const isFav = await toggleFavorite(address, assetId);
     setLikedAssets(prev => {
       const next = new Set(prev);
       if (isFav) next.add(assetId);
@@ -393,8 +438,13 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
   };
 
   const handleProfileFollowChange = () => {
-    // Follow state is derived from storage; refresh list so counts/verified merge stays consistent.
-    setSellerProfiles(getMockSellerProfiles());
+    const syncProfiles = loadSellerDirectorySync({ marketplaceAssets });
+    setSellerProfiles((prev) => (syncProfiles.length > 0 || prev.length === 0 ? syncProfiles : prev));
+    void hydrateSellerDirectoryFromSupabase({ marketplaceAssets })
+      .then((nextProfiles) => {
+        setSellerProfiles(nextProfiles);
+      })
+      .catch(() => undefined);
   };
 
   const handleCollectionClick = (collectionId: string) => {

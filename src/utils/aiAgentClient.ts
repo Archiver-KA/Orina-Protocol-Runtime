@@ -8,27 +8,56 @@ import {
   AIProductResult,
   AIStructuredResponse,
 } from '@/app/types/ai-agent';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { publicAnonKey } from '/utils/supabase/info';
+import { getSupabaseFunctionsBaseUrl } from '/utils/supabase/functions';
 import {
-  exchangeWalletAuthForSupabaseClaimSession,
+  ensureSupabaseBridgeAccessToken,
   getSupabaseBridgeAccessToken,
+  isBridgeAuthRequiredError,
   isSupabaseAuthClaimBridgeEnabled,
 } from '@/utils/supabaseAuthClaimBridge';
 
-const BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8`;
+const BASE_URL = getSupabaseFunctionsBaseUrl();
+const AI_AGENT_CONFIG_CACHE = new Map<string, AIAgentConfig>();
 
-const publicHeaders = {
-  Authorization: `Bearer ${publicAnonKey}`,
-};
+const publicHeaders = publicAnonKey ? { Authorization: `Bearer ${publicAnonKey}` } : {};
 const publicJsonHeaders = { ...publicHeaders, 'Content-Type': 'application/json' };
 
-async function getProtectedHeaders(walletAddress: string): Promise<Record<string, string>> {
+function buildAISecurityCheck(surfaceLabel: string, confirmLabel = 'Unlock AI') {
+  return {
+    title: 'Unlock AI Workspace',
+    description: 'AI assistants and AI settings need a one-time wallet security check before Orina can load protected AI data.',
+    surfaceLabel,
+    confirmLabel,
+    helpText: 'This signature only unlocks your protected AI workspace in Orina. No gas fee, transaction, or token approval is involved.',
+    successMessage: 'AI workspace unlocked.',
+    successDescription: 'Retry the AI action to continue.',
+  } as const;
+}
+
+async function getProtectedHeaders(
+  walletAddress: string,
+  opts?: { promptOnAuthMissing?: boolean; securityCheckLabel?: string; confirmLabel?: string },
+): Promise<Record<string, string>> {
   if (!walletAddress) {
     throw new Error('Wallet address is required');
   }
 
   if (isSupabaseAuthClaimBridgeEnabled()) {
-    await exchangeWalletAuthForSupabaseClaimSession(walletAddress);
+    const accessToken = await ensureSupabaseBridgeAccessToken({
+      walletAddress,
+      promptOnAuthMissing: opts?.promptOnAuthMissing,
+      securityCheck: buildAISecurityCheck(
+        opts?.securityCheckLabel || 'AI workspace',
+        opts?.confirmLabel || 'Unlock AI',
+      ),
+    });
+    if (!accessToken) {
+      throw new Error('Wallet session authentication required');
+    }
+    return {
+      Authorization: `Bearer ${accessToken}`,
+    };
   }
 
   const accessToken = getSupabaseBridgeAccessToken();
@@ -41,14 +70,21 @@ async function getProtectedHeaders(walletAddress: string): Promise<Record<string
   };
 }
 
-async function getProtectedJsonHeaders(walletAddress: string): Promise<Record<string, string>> {
+async function getProtectedJsonHeaders(
+  walletAddress: string,
+  opts?: { promptOnAuthMissing?: boolean; securityCheckLabel?: string; confirmLabel?: string },
+): Promise<Record<string, string>> {
   return {
-    ...(await getProtectedHeaders(walletAddress)),
+    ...(await getProtectedHeaders(walletAddress, opts)),
     'Content-Type': 'application/json',
   };
 }
 
 export class AIAgentClient {
+  static peekConfig(walletAddress: string): AIAgentConfig | null {
+    return AI_AGENT_CONFIG_CACHE.get(walletAddress.toLowerCase()) || null;
+  }
+
   // ─── V2 — ORINA AI Assist ───────────────────────────────────────────────────
 
   /**
@@ -70,6 +106,7 @@ export class AIAgentClient {
 
     /** Inner fetch with HTTP status validation */
     const attempt = async (headers: Record<string, string>): Promise<AIStructuredResponse | null> => {
+      if (!BASE_URL) return null;
       const response = await fetch(`${BASE_URL}/ai/assist`, {
         method: 'POST',
         headers,
@@ -94,7 +131,11 @@ export class AIAgentClient {
     };
 
     try {
-      const headers = await getProtectedJsonHeaders(params.walletAddress);
+      const headers = await getProtectedJsonHeaders(params.walletAddress, {
+        promptOnAuthMissing: true,
+        securityCheckLabel: 'AI assistant',
+        confirmLabel: 'Unlock AI',
+      });
 
       // First attempt
       const result = await attempt(headers);
@@ -113,6 +154,12 @@ export class AIAgentClient {
       // Both attempts failed — return descriptive error instead of null
       return { action: 'error_fallback', text: 'The AI service is temporarily unavailable. Please try again in a moment.' };
     } catch (err: any) {
+      if (isBridgeAuthRequiredError(err)) {
+        return {
+          action: 'error_fallback',
+          text: 'Confirm the wallet security check in Orina, then send your AI request again.',
+        };
+      }
       if (err.message === 'Wallet session authentication required') {
         return {
           action: 'error_fallback',
@@ -134,6 +181,7 @@ export class AIAgentClient {
    */
   static async getConversations(walletAddress: string): Promise<AIConversationMeta[]> {
     try {
+      if (!BASE_URL) return [];
       const headers = await getProtectedHeaders(walletAddress);
       const response = await fetch(`${BASE_URL}/ai/conversations/${walletAddress}`, {
         headers,
@@ -150,6 +198,7 @@ export class AIAgentClient {
    */
   static async getConversationMessages(walletAddress: string, conversationId: string): Promise<AIConversationMessage[]> {
     try {
+      if (!BASE_URL) return [];
       const headers = await getProtectedHeaders(walletAddress);
       const response = await fetch(`${BASE_URL}/ai/conversation/${conversationId}`, {
         headers,
@@ -166,7 +215,12 @@ export class AIAgentClient {
    */
   static async deleteConversation(walletAddress: string, conversationId: string): Promise<boolean> {
     try {
-      const headers = await getProtectedHeaders(walletAddress);
+      if (!BASE_URL) return false;
+      const headers = await getProtectedHeaders(walletAddress, {
+        promptOnAuthMissing: true,
+        securityCheckLabel: 'AI conversations',
+        confirmLabel: 'Unlock AI',
+      });
       const response = await fetch(
         `${BASE_URL}/ai/conversation/${conversationId}?walletAddress=${walletAddress}`,
         { method: 'DELETE', headers },
@@ -187,6 +241,7 @@ export class AIAgentClient {
     options?: { category?: string; limit?: number; lang?: string; imageBase64?: string },
   ): Promise<{ results: AIProductResult[]; isVectorSearch: boolean; chatResponse?: string; extractedQuery?: string } | null> {
     try {
+      if (!BASE_URL || !publicAnonKey) return null;
       const response = await fetch(`${BASE_URL}/ai/search`, {
         method: 'POST',
         headers: publicJsonHeaders,
@@ -214,7 +269,12 @@ export class AIAgentClient {
     conversationId: string,
     ): Promise<AIConversationMessage | null> {
     try {
-      const headers = await getProtectedJsonHeaders(sellerAddress);
+      if (!BASE_URL) return null;
+      const headers = await getProtectedJsonHeaders(sellerAddress, {
+        promptOnAuthMissing: true,
+        securityCheckLabel: 'AI chat',
+        confirmLabel: 'Unlock AI',
+      });
       const response = await fetch(`${BASE_URL}/ai/chat`, {
         method: 'POST',
         headers,
@@ -229,10 +289,13 @@ export class AIAgentClient {
 
   static async getConfig(walletAddress: string): Promise<AIAgentConfig | null> {
     try {
+      if (!BASE_URL) return null;
       const headers = await getProtectedHeaders(walletAddress);
       const response = await fetch(`${BASE_URL}/ai/config/${walletAddress}`, { headers });
       const data = await response.json();
-      return data.success ? data.config : null;
+      if (!data.success || !data.config) return null;
+      AI_AGENT_CONFIG_CACHE.set(walletAddress.toLowerCase(), data.config as AIAgentConfig);
+      return data.config as AIAgentConfig;
     } catch {
       return null;
     }
@@ -240,7 +303,12 @@ export class AIAgentClient {
 
   static async saveConfig(config: Partial<AIAgentConfig> & { walletAddress: string }): Promise<boolean> {
     try {
-      const headers = await getProtectedJsonHeaders(config.walletAddress);
+      if (!BASE_URL) return false;
+      const headers = await getProtectedJsonHeaders(config.walletAddress, {
+        promptOnAuthMissing: true,
+        securityCheckLabel: 'AI settings',
+        confirmLabel: 'Unlock AI',
+      });
       const response = await fetch(`${BASE_URL}/ai/config`, {
         method: 'POST',
         headers,

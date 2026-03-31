@@ -16,7 +16,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { AssetDetailsModal } from '@/app/components/asset-details-modal';
 import { loadFavorites, toggleFavorite } from '@/utils/favoritesUtils';
-import { getMockSellerProfiles } from '@/utils/mockSellerProfiles';
+import { REPUTATION_SYNC_EVENT } from '@/utils/profileReputationSync';
 import { StudioPanel } from '@/app/components/ui/studio-panel';
 import { EmptyStateCard } from '@/app/components/ui/empty-state-card';
 import { StudioPageHeader } from '@/app/components/ui/studio-page-header';
@@ -25,6 +25,12 @@ import { StudioSidebarShell, StudioSidebarHeader, StudioSidebarScroll } from '@/
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { COLLECTIONS_SYNC_EVENT, loadCollectionFavorites, loadRuntimeCollections, toggleCollectionFavorite } from '@/utils/collectionsUtils';
 import type { CollectionSummary } from '@/types/collection';
+import { runtimeFlags } from '/utils/runtimeConfig';
+import { PROFILE_SYNC_EVENT } from '@/utils/profileUtils';
+import {
+  hydrateSellerDirectoryFromSupabase,
+  loadSellerDirectorySync,
+} from '@/utils/sellerDirectory';
 import {
   getMarketplaceCatalogAssetById,
   getMarketplaceCatalogBlockchains,
@@ -37,8 +43,10 @@ import {
   getCategoryDisplayLabel,
   getCategoryOptionsFromValues,
   getTaxonomySearchText,
+  hydrateTaxonomyFromSupabase,
   normalizeCategoryFilterValue,
   normalizeTaxonomySearchKey,
+  TAXONOMY_SYNC_EVENT,
 } from '@/utils/taxonomy';
 
 interface SearchPageProps {
@@ -62,19 +70,34 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
   const { address } = useAccount();
-  const [sellerProfiles, setSellerProfiles] = useState(() => getMockSellerProfiles());
-  const [runtimeCollections, setRuntimeCollections] = useState<CollectionSummary[]>(() => loadRuntimeCollections());
   const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
+  const [sellerProfiles, setSellerProfiles] = useState(() => loadSellerDirectorySync({ marketplaceAssets: loadMarketplaceCatalogSync() }));
+  const [runtimeCollections, setRuntimeCollections] = useState<CollectionSummary[]>(() => loadRuntimeCollections());
+  const [taxonomyVersion, setTaxonomyVersion] = useState(0);
 
   useEffect(() => {
-    const refresh = () => setSellerProfiles(getMockSellerProfiles());
+    const refresh = () => {
+      const syncProfiles = loadSellerDirectorySync({ marketplaceAssets });
+      setSellerProfiles((prev) => (syncProfiles.length > 0 || prev.length === 0 ? syncProfiles : prev));
+      void hydrateSellerDirectoryFromSupabase({ marketplaceAssets })
+        .then((nextProfiles) => {
+          setSellerProfiles(nextProfiles);
+        })
+        .catch(() => undefined);
+    };
+
+    refresh();
     window.addEventListener('focus', refresh);
     window.addEventListener('storage', refresh);
+    window.addEventListener(PROFILE_SYNC_EVENT, refresh as EventListener);
+    window.addEventListener(REPUTATION_SYNC_EVENT, refresh as EventListener);
     return () => {
       window.removeEventListener('focus', refresh);
       window.removeEventListener('storage', refresh);
+      window.removeEventListener(PROFILE_SYNC_EVENT, refresh as EventListener);
+      window.removeEventListener(REPUTATION_SYNC_EVENT, refresh as EventListener);
     };
-  }, []);
+  }, [marketplaceAssets]);
 
   // Update query when initialQuery changes
   useEffect(() => {
@@ -86,11 +109,11 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
   const marketplaceCategories = useMemo(() => getMarketplaceCatalogCategories(marketplaceAssets), [marketplaceAssets]);
   const marketplaceCategoryOptions = useMemo(
     () => marketplaceCategories.map((category) => ({ value: category, label: getCategoryDisplayLabel(category) })),
-    [marketplaceCategories]
+    [marketplaceCategories, taxonomyVersion]
   );
   const collectionCategoryOptions = useMemo(
     () => getCategoryOptionsFromValues(runtimeCollections.map((collection) => collection.category)),
-    [runtimeCollections]
+    [runtimeCollections, taxonomyVersion]
   );
   const marketplaceBlockchains = useMemo(() => getMarketplaceCatalogBlockchains(marketplaceAssets), [marketplaceAssets]);
   const marketplacePriceRange = useMemo(() => getMarketplacePriceRange(marketplaceAssets), [marketplaceAssets]);
@@ -109,10 +132,22 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
     };
   }, []);
 
+  useEffect(() => {
+    const syncTaxonomy = () => {
+      setTaxonomyVersion((value) => value + 1);
+    };
+
+    void hydrateTaxonomyFromSupabase().catch(() => undefined);
+    window.addEventListener(TAXONOMY_SYNC_EVENT, syncTaxonomy as EventListener);
+    return () => {
+      window.removeEventListener(TAXONOMY_SYNC_EVENT, syncTaxonomy as EventListener);
+    };
+  }, []);
+
   // Filter results
   const filteredAssets = useMemo(() => {
     return filterMarketplaceResults(marketplaceAssets, filters);
-  }, [marketplaceAssets, filters]);
+  }, [marketplaceAssets, filters, taxonomyVersion]);
 
   const filteredCollections = useMemo(() => {
     let filtered = [...runtimeCollections];
@@ -138,7 +173,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
     }
 
     return filtered;
-  }, [filters.categories, filters.query, filters.verifiedOnly, runtimeCollections]);
+  }, [filters.categories, filters.query, filters.verifiedOnly, runtimeCollections, taxonomyVersion]);
 
   const filteredProfiles = useMemo(() => {
     const q = filters.query.trim().toLowerCase();
@@ -262,12 +297,12 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
 
   const activeFilterCount = countActiveFilters(filters);
 
-  const handleLike = (assetId: string) => {
+  const handleLike = async (assetId: string) => {
     if (!address) {
       toast.error('Please connect wallet to use favorites');
       return;
     }
-    const isFav = toggleFavorite(address, assetId);
+    const isFav = await toggleFavorite(address, assetId);
     setLikedAssets(prev => {
       const next = new Set(prev);
       if (isFav) next.add(assetId);
@@ -305,7 +340,13 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
   };
 
   const handleProfileFollowChange = () => {
-    setSellerProfiles(getMockSellerProfiles());
+    const syncProfiles = loadSellerDirectorySync({ marketplaceAssets });
+    setSellerProfiles((prev) => (syncProfiles.length > 0 || prev.length === 0 ? syncProfiles : prev));
+    void hydrateSellerDirectoryFromSupabase({ marketplaceAssets })
+      .then((nextProfiles) => {
+        setSellerProfiles(nextProfiles);
+      })
+      .catch(() => undefined);
   };
 
   const resultCount =
@@ -598,7 +639,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                     onChange={(checked) => setFilters({ ...filters, verifiedOnly: checked })}
                   />
                 </label>
-                {contentMode === 'assets' && (
+                {contentMode === 'assets' && runtimeFlags.enableSearchDemoPanels && (
                   <>
                     <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-[var(--t-surface-hover)] transition-colors">
                       <span className="text-sm text-ui-secondary group-hover:text-ui-primary transition-colors">
@@ -655,38 +696,38 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
             )}
           </div>
 
-          {/* Market Trends */}
-          <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-[11px] uppercase font-bold text-ui-muted">Market Trends</h2>
-              <span className="text-[10px] text-[#2CC295] bg-[#2CC295]/10 px-2 py-0.5 rounded font-bold uppercase">
-                Live
-              </span>
+          {runtimeFlags.enableSearchDemoPanels ? (
+            <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-[11px] uppercase font-bold text-ui-muted">Market Trends</h2>
+                <span className="text-[10px] text-[#2CC295] bg-[#2CC295]/10 px-2 py-0.5 rounded font-bold uppercase">
+                  Live
+                </span>
+              </div>
+              <div className="space-y-4">
+                <StudioPanel className="p-4 rounded-xl bg-[var(--t-surface-5)]">
+                  <p className="text-[10px] font-bold text-ui-muted uppercase mb-1">Floor Price Trend</p>
+                  <div className="flex items-end justify-between">
+                    <span className="text-xl font-bold text-ui-primary">1.12 ETH</span>
+                    <span className="text-xs text-[#2CC295] font-bold flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                      +12.4%
+                    </span>
+                  </div>
+                  <div className="mt-4 flex items-end gap-1 h-12">
+                    <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '40%' }}></div>
+                    <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '60%' }}></div>
+                    <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '50%' }}></div>
+                    <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '80%' }}></div>
+                    <div className="flex-1 bg-[#2CC295] rounded-t-sm" style={{ height: '95%' }}></div>
+                    <div className="flex-1 bg-[#2CC295] rounded-t-sm" style={{ height: '100%' }}></div>
+                  </div>
+                </StudioPanel>
+              </div>
             </div>
-            <div className="space-y-4">
-              <StudioPanel className="p-4 rounded-xl bg-[var(--t-surface-5)]">
-                <p className="text-[10px] font-bold text-ui-muted uppercase mb-1">Floor Price Trend</p>
-                <div className="flex items-end justify-between">
-                  <span className="text-xl font-bold text-ui-primary">1.12 ETH</span>
-                  <span className="text-xs text-[#2CC295] font-bold flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                    </svg>
-                    +12.4%
-                  </span>
-                </div>
-                {/* Mini Chart */}
-                <div className="mt-4 flex items-end gap-1 h-12">
-                  <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '40%' }}></div>
-                  <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '60%' }}></div>
-                  <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '50%' }}></div>
-                  <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '80%' }}></div>
-                  <div className="flex-1 bg-[#2CC295] rounded-t-sm" style={{ height: '95%' }}></div>
-                  <div className="flex-1 bg-[#2CC295] rounded-t-sm" style={{ height: '100%' }}></div>
-                </div>
-              </StudioPanel>
-            </div>
-          </div>
+          ) : null}
         </StudioSidebarScroll>
         </div>
       </StudioSidebarShell>

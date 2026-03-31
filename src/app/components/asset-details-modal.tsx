@@ -10,6 +10,7 @@ import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { useAccount } from 'wagmi';
 import { RwaBuyOrderSignModal } from '@/app/components/rwa-buy-order-sign-modal';
 import { NftBuyDirectSignModal } from '@/app/components/nft-buy-direct-sign-modal';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
 interface AssetDetailsModalProps {
   asset: MarketplaceAsset;
@@ -223,7 +224,7 @@ export function AssetDetailsModal({
                         <div className="grid grid-cols-2 gap-3">
                           <div className="studio-glass-surface p-4 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-2xl">
                             <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Category</p>
-                            <p className="text-xs text-white font-medium">{asset.category}</p>
+                            <p className="text-xs text-white font-medium">{getCategoryDisplayLabel(asset.category)}</p>
                           </div>
                           <div className="studio-glass-surface p-4 bg-zinc-900/50 border border-[var(--color-panel-border)] rounded-2xl">
                             <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Blockchain</p>
@@ -320,7 +321,7 @@ export function AssetDetailsModal({
                     <div>
                       <h2 className="text-2xl font-bold text-white mb-1">{asset.name}</h2>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <p className="text-sm text-zinc-500">{asset.category}</p>
+                        <p className="text-sm text-zinc-500">{getCategoryDisplayLabel(asset.category)}</p>
                         {asset.listingDuration && (
                           <div className="flex items-center gap-1.5 text-xs">
                             <Clock size={12} className="text-orange-400" />
@@ -550,7 +551,7 @@ export function AssetDetailsModal({
             asset={asset}
             quantity={quantity}
             selectedAttributes={selectedAttributeSnapshots}
-            unitLabel="slot"
+            unitLabel={asset.unitLabel ?? asset.unitName ?? 'unit'}
             transparentBackdrop
             onClose={() => setIsBuyModalOpen(false)}
           />

@@ -4,23 +4,37 @@ import { AIAgentConfig, AIAgentBehavior } from '@/app/types/ai-agent';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { Checkbox } from '@/app/components/ui/checkbox';
 import { AIAgentClient } from '@/utils/aiAgentClient';
+import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
+import { StudioNoticePanel } from '@/app/components/ui/studio-notice-panel';
 
 interface AIAgentSettingsProps {
   walletAddress: string;
 }
 
 export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
-  const [config, setConfig] = useState<AIAgentConfig | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cachedConfig = AIAgentClient.peekConfig(walletAddress);
+  const [config, setConfig] = useState<AIAgentConfig | null>(cachedConfig);
+  const [loading, setLoading] = useState(() => !cachedConfig);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [enabled, setEnabled] = useState(false);
-  const [agentName, setAgentName] = useState('');
-  const [behavior, setBehavior] = useState<AIAgentBehavior>('moderate');
-  const [autoReply, setAutoReply] = useState(true);
-  const [greetingMessage, setGreetingMessage] = useState('');
+  const [enabled, setEnabled] = useState(cachedConfig?.enabled ?? false);
+  const [agentName, setAgentName] = useState(cachedConfig?.name ?? '');
+  const [behavior, setBehavior] = useState<AIAgentBehavior>(cachedConfig?.behavior ?? 'moderate');
+  const [autoReply, setAutoReply] = useState(cachedConfig?.autoReplyEnabled ?? true);
+  const [greetingMessage, setGreetingMessage] = useState(cachedConfig?.greetingMessage ?? '');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [runtimeError, setRuntimeError] = useState('');
   const hasRemoteConfig = useMemo(() => Boolean(projectId && publicAnonKey), []);
+
+  const hydrateConfig = (nextConfig: AIAgentConfig | null) => {
+    if (!nextConfig) return;
+    setConfig(nextConfig);
+    setEnabled(nextConfig.enabled);
+    setAgentName(nextConfig.name);
+    setBehavior(nextConfig.behavior);
+    setAutoReply(nextConfig.autoReplyEnabled);
+    setGreetingMessage(nextConfig.greetingMessage || '');
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -34,7 +48,13 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
         return;
       }
 
-      await loadConfig(cancelled);
+      const cached = AIAgentClient.peekConfig(walletAddress);
+      if (cached && !cancelled) {
+        hydrateConfig(cached);
+        setLoading(false);
+      }
+
+      await loadConfig(cancelled, Boolean(cached));
     };
 
     void run();
@@ -42,23 +62,20 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
     return () => {
       cancelled = true;
     };
-  }, [walletAddress]);
+  }, [walletAddress, hasRemoteConfig]);
 
-  const loadConfig = async (cancelled = false) => {
+  const loadConfig = async (cancelled = false, background = false) => {
     try {
-      setLoading(true);
+      if (background) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setRuntimeError('');
       const remoteConfig = await AIAgentClient.getConfig(walletAddress);
       if (cancelled) return;
 
-      if (remoteConfig) {
-        setConfig(remoteConfig);
-        setEnabled(remoteConfig.enabled);
-        setAgentName(remoteConfig.name);
-        setBehavior(remoteConfig.behavior);
-        setAutoReply(remoteConfig.autoReplyEnabled);
-        setGreetingMessage(remoteConfig.greetingMessage || '');
-      }
+      hydrateConfig(remoteConfig);
     } catch (error) {
       if (cancelled) return;
       console.error('Error loading AI Agent config:', error);
@@ -66,6 +83,7 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
     } finally {
       if (!cancelled) {
         setLoading(false);
+        setRefreshing(false);
       }
     }
   };
@@ -108,14 +126,6 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2CC295]"></div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -130,6 +140,15 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
           </p>
         </div>
       </div>
+
+      {(loading || refreshing) ? (
+        <StudioNoticePanel variant="neutral" title={loading ? 'Loading AI agent settings' : 'Refreshing AI agent settings'} compact>
+          <div className="flex items-center gap-2">
+            <StudioLoadingIndicator size={14} tone="muted" />
+            <span>Fetching protected AI configuration from Orina.</span>
+          </div>
+        </StudioNoticePanel>
+      ) : null}
 
       {runtimeError ? (
         <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-xs text-red-200">
@@ -155,9 +174,10 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
           </div>
           <button
             onClick={() => setEnabled(!enabled)}
+            disabled={loading || refreshing}
             className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors flex-shrink-0 ${
               enabled ? 'bg-[#2CC295]' : 'bg-ui-border'
-            }`}
+            } ${loading || refreshing ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             <span
               className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
@@ -274,7 +294,7 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
       <div className="flex items-center gap-3 pt-2">
         <button
           onClick={handleSave}
-          disabled={saving || !enabled || !agentName.trim() || !hasRemoteConfig}
+          disabled={loading || refreshing || saving || !enabled || !agentName.trim() || !hasRemoteConfig}
           className="flex-1 px-4 py-2.5 bg-[#2CC295] text-black rounded-full text-sm font-bold hover:bg-[#25a67d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {saving ? (

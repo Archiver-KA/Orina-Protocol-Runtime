@@ -7,24 +7,19 @@ import { copyWithToast } from '@/utils/clipboard';
 import type { Post, Comment, FeedFilter, FeedSort, CreatePostData, TrendingTopic } from '@/types/community';
 import type { AppNotification } from '@/types/notifications';
 import {
-  loadAllPosts,
-  savePost,
-  saveAllPosts,
-  deletePost as deletePostFromStore,
-  loadComments,
-  saveComment,
-  deleteComment,
-  saveUserAction,
+  loadCommunityFeedFromServer,
+  loadCommunityCommentsFromServer,
+  persistCommunityPostToServer,
+  persistCommunityCommentToServer,
+  deleteCommunityPostFromServer,
+  deleteCommunityCommentFromServer,
+  toggleCommunityReactionOnServer,
   hasUserAction,
   filterPosts,
   sortPosts,
   searchPosts,
-  extractTrendingTopics,
   validatePost,
   formatCount,
-  incrementPostCount,
-  decrementPostCount,
-  ensureMockData,
   isPostOwner,
   getUserPollVote,
   calculatePollPercentages,
@@ -71,12 +66,23 @@ import { getAvatarByUserId } from '@/app/components/user-avatars';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import ReactDOM from 'react-dom';
 import { EmptyStateCard } from '@/app/components/ui/empty-state-card';
+import { RuntimeErrorBoundary } from '@/app/components/ui/runtime-error-boundary';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
-import { createDefaultProfile, formatUserDisplayName, loadUserProfile, saveUserProfile } from '@/utils/profileUtils';
+import { createDefaultProfile, formatUserDisplayName, loadUserProfile, saveUserProfileSnapshot } from '@/utils/profileUtils';
 import { sendCommunityNotificationViaBridge } from '@/utils/supabaseAuthClaimBridge';
 
 const COMMENT_MAX_LENGTH = 280;
+
+function formatRelativeTimeSafe(value: unknown, fallback: string = 'just now'): string {
+  const date = value instanceof Date ? value : new Date(value as string | number);
+  if (Number.isNaN(date.getTime())) return fallback;
+  try {
+    return formatDistanceToNow(date, { addSuffix: true }).replace('about ', '');
+  } catch {
+    return fallback;
+  }
+}
 
 // ─── Sub-components ───────────────────────────────────────────
 
@@ -293,11 +299,13 @@ function PollSection({
   userId,
   isConnected,
   onVote,
+  votingEnabled = true,
 }: {
   post: Post;
   userId: string;
   isConnected: boolean;
   onVote: (postId: string, optionId: string) => void;
+  votingEnabled?: boolean;
 }) {
   if (!post.poll) return null;
   const { poll } = post;
@@ -319,12 +327,12 @@ function PollSection({
           return (
             <button
               key={option.id}
-              disabled={!!userVote || ended || !isConnected}
+              disabled={!!userVote || ended || !isConnected || !votingEnabled}
               onClick={() => onVote(post.id, option.id)}
               className={`w-full relative rounded-lg overflow-hidden text-left transition-all ${isVoted
                   ? 'border border-[var(--color-primary-custom)]/40'
                   : 'border border-ui-border-subtle hover:border-ui-border'
-                } ${!isConnected && !showResults ? 'opacity-60 cursor-not-allowed' : ''}`}
+                } ${(!isConnected || !votingEnabled) && !showResults ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
               {showResults && (
                 <div
@@ -347,8 +355,13 @@ function PollSection({
       </div>
       <div className="flex items-center justify-between text-[10px] text-ui-muted uppercase tracking-widest">
         <span>{poll.totalVotes} votes</span>
-        <span>{ended ? 'Poll ended' : `Ends ${formatDistanceToNow(new Date(poll.endsAt), { addSuffix: true })}`}</span>
+        <span>{ended ? 'Poll ended' : `Ends ${formatRelativeTimeSafe(poll.endsAt, 'soon')}`}</span>
       </div>
+      {!ended && !showResults && !votingEnabled && (
+        <p className="text-[10px] text-ui-muted uppercase tracking-widest">
+          Voting will unlock when server-side poll persistence is available
+        </p>
+      )}
     </div>
   );
 }
@@ -491,7 +504,7 @@ function NotificationPanel({
                   <p className="text-xs font-bold text-white truncate">{notif.title}</p>
                   <p className="text-[11px] text-zinc-400 mt-0.5 line-clamp-2">{notif.message}</p>
                   <p className="text-[10px] text-zinc-600 mt-1">
-                    {formatDistanceToNow(new Date(notif.timestamp), { addSuffix: true }).replace('about ', '')}
+                    {formatRelativeTimeSafe(notif.timestamp)}
                   </p>
                 </div>
               </div>
@@ -564,7 +577,7 @@ function CommentThread({
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-bold text-ui-primary">{commentName}</span>
               <span className="text-[10px] text-ui-muted">
-                {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true }).replace('about ', '')}
+                {formatRelativeTimeSafe(comment.createdAt)}
               </span>
             </div>
             {comment.parentId && depth === 0 && (
@@ -666,12 +679,10 @@ export function EnhancedCommunity({
   currentUserName = 'Current User',
   onNavigateToUserProfile,
 }: EnhancedCommunityProps) {
-  const getLikedCommentsStorageKey = useCallback((walletAddress: string) => {
-    return `orina_community_liked_comments_${walletAddress.toLowerCase()}`;
-  }, []);
-
   // ── State ──
   const [posts, setPosts] = useState<Post[]>([]);
+  const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
+  const [followingPostIds, setFollowingPostIds] = useState<Set<string>>(new Set());
   const [selectedFilter, setSelectedFilter] = useState<FeedFilter>('all');
   const [selectedSort, setSelectedSort] = useState<FeedSort>('recent');
   const [searchQuery, setSearchQuery] = useState('');
@@ -704,15 +715,7 @@ export function EnhancedCommunity({
   const actualUserId = userData?.address || address || currentUserId;
   const actualUserNameRaw = displayName || userData?.displayName || userData?.username || currentUserName;
   const actualUserName = formatUserDisplayName(actualUserNameRaw, address);
-
-  const persistLikedComments = useCallback((next: Set<string>) => {
-    if (!address || typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(getLikedCommentsStorageKey(address), JSON.stringify(Array.from(next)));
-    } catch (error) {
-      console.debug('[Community] Persist likedComments skipped:', error);
-    }
-  }, [address, getLikedCommentsStorageKey]);
+  const viewerWallet = address || (actualUserId?.startsWith('0x') ? actualUserId : undefined);
 
   const seedProfileSnapshot = useCallback((walletAddress?: string, snapshot?: { displayName?: string; avatarUrl?: string }) => {
     if (!walletAddress || !walletAddress.startsWith('0x')) return;
@@ -742,7 +745,7 @@ export function EnhancedCommunity({
       }
 
       if (changed) {
-        saveUserProfile(updated);
+        saveUserProfileSnapshot(updated);
       }
     } catch (error) {
       console.debug('[Community] Profile snapshot seed skipped:', error);
@@ -773,34 +776,12 @@ export function EnhancedCommunity({
     [isConnected, address, requireWalletAction]
   );
 
-  // ── Load posts on mount (idempotent) ──
-  useEffect(() => {
-    ensureMockData();
-    setPosts(loadAllPosts());
-  }, []);
-
   // ── Load notifications ──
   useEffect(() => {
     if (address) {
       setNotifications(loadNotifications(address));
     }
   }, [address]);
-
-  // ── Load persisted comment likes for current wallet ──
-  useEffect(() => {
-    if (!address || typeof window === 'undefined') {
-      setLikedComments(new Set());
-      return;
-    }
-    try {
-      const raw = window.localStorage.getItem(getLikedCommentsStorageKey(address));
-      const parsed = raw ? JSON.parse(raw) : [];
-      setLikedComments(new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : []));
-    } catch (error) {
-      console.debug('[Community] Load likedComments skipped:', error);
-      setLikedComments(new Set());
-    }
-  }, [address, getLikedCommentsStorageKey]);
 
   // ── Notification helper ──
   const addNotification = useCallback(
@@ -845,31 +826,47 @@ export function EnhancedCommunity({
     [address, actualUserName]
   );
 
+  const refreshCommentsForPost = useCallback(
+    async (postId: string) => {
+      const snapshot = await loadCommunityCommentsFromServer(postId, viewerWallet);
+      const previousIds = comments[postId]?.map((comment) => comment.id) || [];
+      setComments((prev) => ({ ...prev, [postId]: snapshot.comments }));
+      setLikedComments((prev) => {
+        const next = new Set(prev);
+        previousIds.forEach((id) => next.delete(id));
+        snapshot.likedCommentIds.forEach((id) => next.add(id));
+        return next;
+      });
+      return snapshot.comments;
+    },
+    [comments, viewerWallet]
+  );
+
+  const refreshCommunityFeed = useCallback(
+    async () => {
+      const snapshot = await loadCommunityFeedFromServer(viewerWallet);
+      setPosts(snapshot.posts);
+      setTrendingTopics(snapshot.trendingTopics);
+      setFollowingPostIds(new Set(snapshot.followingPostIds));
+    },
+    [viewerWallet]
+  );
+
   // ── Processed posts (filter -> search -> sort) ──
   const processedPosts = useMemo(() => {
-    let result = filterPosts(posts, selectedFilter, address);
+    let result = selectedFilter === 'following'
+      ? posts.filter((post) => followingPostIds.has(post.id))
+      : filterPosts(posts, selectedFilter, viewerWallet);
     result = searchPosts(result, searchQuery);
     result = sortPosts(result, selectedSort, address);
     return result;
-  }, [posts, selectedFilter, selectedSort, searchQuery, address]);
-
-  const trendingTopics = useMemo(() => extractTrendingTopics(posts), [posts]);
+  }, [posts, selectedFilter, selectedSort, searchQuery, address, viewerWallet, followingPostIds]);
 
   // ── Handlers ──
 
-  const refreshPosts = () => setPosts(loadAllPosts());
-
   useEffect(() => {
     const refreshCommunity = () => {
-      refreshPosts();
-      setComments((prev) => {
-        if (expandedComments.size === 0) return prev;
-        const next = { ...prev };
-        expandedComments.forEach((postId) => {
-          next[postId] = loadComments(postId);
-        });
-        return next;
-      });
+      void refreshCommunityFeed();
       if (address) {
         setNotifications(loadNotifications(address));
       }
@@ -883,55 +880,79 @@ export function EnhancedCommunity({
       window.removeEventListener('storage', refreshCommunity as EventListener);
       window.removeEventListener('orina:notifications-changed', refreshCommunity as EventListener);
     };
-  }, [address, expandedComments, refreshPosts]);
+  }, [address, refreshCommunityFeed]);
 
-  const handleCreatePost = (data: CreatePostData) => {
+  useEffect(() => {
+    void refreshCommunityFeed();
+  }, [refreshCommunityFeed]);
+
+  const handleCreatePost = useCallback(async (data: CreatePostData): Promise<boolean> => {
+    if (!address) {
+      toast.error('Connect your wallet to create a post');
+      return false;
+    }
+
+    if (!validatePost(data.content)) {
+      toast.error('Post must be between 10 and 5000 characters');
+      return false;
+    }
+
     seedProfileSnapshot(address, {
       displayName: actualUserNameRaw,
       avatarUrl: userData?.avatarUrl || userData?.avatar || undefined,
     });
 
-    const newPost: Post = {
-      id: `post_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      type: data.type,
-      userId: actualUserId,
-      userName: actualUserNameRaw,
-      userAvatar: userData?.avatarUrl || userData?.avatar || undefined,
-      userRole: null,
-      walletAddress: address,
-      content: data.content,
-      images: data.images,
-      poll: data.poll
-        ? {
-          id: `poll_${Date.now()}`,
-          question: data.poll.question,
-          options: data.poll.options.map((text, i) => ({
-            id: `option_${i}`,
-            text,
-            votes: 0,
-            percentage: 0,
-          })),
-          totalVotes: 0,
-          endsAt: data.poll.endsAt,
-          multipleChoice: data.poll.multipleChoice,
-        }
-        : undefined,
-      tags: data.tags,
-      likeCount: 0,
-      commentCount: 0,
-      shareCount: 0,
-      bookmarkCount: 0,
-      viewCount: 0,
-      isPinned: false,
-      isEdited: false,
-      isMock: false,
-      createdAt: Date.now(),
-    };
+    try {
+      const createdAt = Date.now();
+      const newPost: Post = {
+        id: `post_${createdAt}_${Math.random().toString(36).slice(2, 7)}`,
+        type: data.type,
+        userId: actualUserId,
+        userName: actualUserNameRaw || actualUserName || 'Community Member',
+        userAvatar: userData?.avatarUrl || userData?.avatar || undefined,
+        userRole: null,
+        walletAddress: address,
+        content: data.content.trim(),
+        images: Array.isArray(data.images) ? data.images.filter((image) => typeof image === 'string' && image.trim()) : undefined,
+        poll: data.poll
+          ? {
+            id: `poll_${createdAt}`,
+            question: data.poll.question.trim(),
+            options: data.poll.options
+              .map((text, i) => ({
+                id: `option_${i}`,
+                text: text.trim(),
+                votes: 0,
+                percentage: 0,
+              }))
+              .filter((option) => option.text),
+            totalVotes: 0,
+            endsAt: data.poll.endsAt,
+            multipleChoice: data.poll.multipleChoice,
+          }
+          : undefined,
+        tags: Array.isArray(data.tags) ? data.tags.filter((tag) => typeof tag === 'string' && tag.trim()) : undefined,
+        likeCount: 0,
+        commentCount: 0,
+        shareCount: 0,
+        bookmarkCount: 0,
+        viewCount: 0,
+        isPinned: false,
+        isEdited: false,
+        isMock: false,
+        createdAt,
+      };
 
-    savePost(newPost);
-    refreshPosts();
-    toast.success('Post created successfully!');
-  };
+      await persistCommunityPostToServer(newPost);
+      await refreshCommunityFeed();
+      toast.success('Post created successfully!');
+      return true;
+    } catch (error) {
+      console.error('[Community] Failed to create post:', error);
+      toast.error('Unable to create post right now.');
+      return false;
+    }
+  }, [address, actualUserId, actualUserNameRaw, refreshCommunityFeed, seedProfileSnapshot, userData?.avatar, userData?.avatarUrl]);
 
   const handleEditPost = (postId: string) => {
     const post = posts.find((p) => p.id === postId);
@@ -940,53 +961,63 @@ export function EnhancedCommunity({
     setEditContent(post.content);
   };
 
-  const handleSaveEdit = (postId: string) => {
+  const handleSaveEdit = async (postId: string) => {
     if (!validatePost(editContent)) {
       toast.error('Post must be between 10 and 5000 characters');
       return;
     }
-    const allPosts = loadAllPosts();
-    const post = allPosts.find((p) => p.id === postId);
+    const post = posts.find((p) => p.id === postId);
     if (post) {
-      post.content = editContent.trim();
-      post.isEdited = true;
-      post.updatedAt = Date.now();
-      saveAllPosts(allPosts);
-      refreshPosts();
+      await persistCommunityPostToServer({
+        ...post,
+        content: editContent.trim(),
+        isEdited: true,
+        updatedAt: Date.now(),
+      });
+      await refreshCommunityFeed();
       toast.success('Post updated');
     }
     setEditingPostId(null);
     setEditContent('');
   };
 
-  const handleDeletePost = (postId: string) => {
-    deletePostFromStore(postId);
-    refreshPosts();
+  const handleDeletePost = async (postId: string) => {
+    await deleteCommunityPostFromServer(postId);
+    setComments((prev) => {
+      const next = { ...prev };
+      delete next[postId];
+      return next;
+    });
+    await refreshCommunityFeed();
     setDeleteConfirmId(null);
     toast.success('Post deleted');
   };
 
-  const handleTogglePin = (postId: string) => {
-    const allPosts = loadAllPosts();
-    const post = allPosts.find((p) => p.id === postId);
+  const handleTogglePin = async (postId: string) => {
+    const post = posts.find((p) => p.id === postId);
     if (post) {
-      post.isPinned = !post.isPinned;
-      post.updatedAt = Date.now();
-      saveAllPosts(allPosts);
-      refreshPosts();
-      toast.success(post.isPinned ? 'Post pinned' : 'Post unpinned');
+      const nextPinned = !post.isPinned;
+      await persistCommunityPostToServer({
+        ...post,
+        isPinned: nextPinned,
+        updatedAt: Date.now(),
+      });
+      await refreshCommunityFeed();
+      toast.success(nextPinned ? 'Post pinned' : 'Post unpinned');
     }
   };
 
-  const handleLike = (postId: string) => {
-    if (!requireWallet('like')) return;
-    const wasLiked = hasUserAction(actualUserId, postId, 'like');
-    saveUserAction({ userId: actualUserId, postId, action: 'like', timestamp: Date.now() });
-    if (wasLiked) {
-      decrementPostCount(postId, 'likeCount');
-    } else {
-      incrementPostCount(postId, 'likeCount');
-      // Notify post owner
+  const handleLike = async (postId: string) => {
+    if (!requireWallet('like') || !viewerWallet) return;
+    const wasLiked = hasUserAction(viewerWallet, postId, 'like');
+    await toggleCommunityReactionOnServer({
+      walletAddress: viewerWallet,
+      targetType: 'post',
+      clientTargetId: postId,
+      reactionType: 'like',
+      active: !wasLiked,
+    });
+    if (!wasLiked) {
       const post = posts.find((p) => p.id === postId);
       if (post?.walletAddress) {
         addNotification(
@@ -1002,17 +1033,20 @@ export function EnhancedCommunity({
         );
       }
     }
-    refreshPosts();
+    await refreshCommunityFeed();
   };
 
-  const handleBookmark = (postId: string) => {
-    if (!requireWallet('bookmark')) return;
-    const was = hasUserAction(actualUserId, postId, 'bookmark');
-    saveUserAction({ userId: actualUserId, postId, action: 'bookmark', timestamp: Date.now() });
-    if (was) {
-      decrementPostCount(postId, 'bookmarkCount');
-    } else {
-      incrementPostCount(postId, 'bookmarkCount');
+  const handleBookmark = async (postId: string) => {
+    if (!requireWallet('bookmark') || !viewerWallet) return;
+    const was = hasUserAction(viewerWallet, postId, 'bookmark');
+    await toggleCommunityReactionOnServer({
+      walletAddress: viewerWallet,
+      targetType: 'post',
+      clientTargetId: postId,
+      reactionType: 'bookmark',
+      active: !was,
+    });
+    if (!was) {
       const post = posts.find((p) => p.id === postId);
       if (post?.walletAddress) {
         addNotification(
@@ -1028,34 +1062,27 @@ export function EnhancedCommunity({
         );
       }
     }
-    refreshPosts();
+    await refreshCommunityFeed();
   };
 
   const handleShare = async (postId: string) => {
     const shareUrl = `${window.location.origin}/community/post/${postId}`;
-    const success = await copyWithToast(shareUrl, toast, 'Post link copied!', 'Failed to copy link.');
-    if (success) {
-      incrementPostCount(postId, 'shareCount');
-      refreshPosts();
-    }
+    await copyWithToast(shareUrl, toast, 'Post link copied!', 'Failed to copy link.');
   };
 
-  const handleToggleComments = (postId: string) => {
+  const handleToggleComments = async (postId: string) => {
     const next = new Set(expandedComments);
     if (next.has(postId)) {
       next.delete(postId);
     } else {
       next.add(postId);
-      if (!comments[postId]) {
-        const loaded = loadComments(postId);
-        setComments((prev) => ({ ...prev, [postId]: loaded }));
-      }
+      await refreshCommentsForPost(postId);
     }
     setExpandedComments(next);
   };
 
-  const handleAddComment = (postId: string) => {
-    if (!requireWallet('comment')) return;
+  const handleAddComment = async (postId: string) => {
+    if (!requireWallet('comment') || !viewerWallet) return;
     const content = commentInputs[postId]?.trim();
     if (!content) return;
     if (content.length > COMMENT_MAX_LENGTH) {
@@ -1084,23 +1111,11 @@ export function EnhancedCommunity({
       createdAt: Date.now(),
     };
 
-    saveComment(newComment);
-
-    // Update parent's replyCount
-    if (replyTarget) {
-      const allPostComments = comments[postId] || [];
-      const parent = allPostComments.find((c) => c.id === replyTarget.id);
-      if (parent) {
-        parent.replyCount = (parent.replyCount || 0) + 1;
-        saveComment(parent);
-      }
-    }
-
-    setComments((prev) => ({ ...prev, [postId]: [...(prev[postId] || []), newComment] }));
+    await persistCommunityCommentToServer(newComment);
+    await refreshCommentsForPost(postId);
+    await refreshCommunityFeed();
     setCommentInputs((prev) => ({ ...prev, [postId]: '' }));
     setReplyingTo((prev) => ({ ...prev, [postId]: null }));
-    incrementPostCount(postId, 'commentCount');
-    refreshPosts();
 
     const post = posts.find((p) => p.id === postId);
     const postOwnerAddress = resolveWalletNotificationTarget(post);
@@ -1155,54 +1170,29 @@ export function EnhancedCommunity({
     setReplyingTo((prev) => ({ ...prev, [postId]: null }));
   };
 
-  const handleDeleteComment = (postId: string, commentId: string) => {
-    deleteComment(commentId);
-    setComments((prev) => ({
-      ...prev,
-      [postId]: prev[postId]?.filter((c) => c.id !== commentId && c.parentId !== commentId) || [],
-    }));
-    decrementPostCount(postId, 'commentCount');
-    refreshPosts();
+  const handleDeleteComment = async (postId: string, commentId: string) => {
+    await deleteCommunityCommentFromServer(commentId);
+    await refreshCommentsForPost(postId);
+    await refreshCommunityFeed();
     setDeleteCommentConfirmId(null);
     setDeleteCommentPostId(null);
     toast.success('Comment deleted');
   };
 
-  const handleLikeComment = (commentId: string) => {
-    if (!requireWallet('like a comment')) return;
+  const handleLikeComment = async (commentId: string) => {
+    if (!requireWallet('like a comment') || !viewerWallet) return;
     const alreadyLiked = likedComments.has(commentId);
     const allComments = Object.values(comments).flat();
     const targetComment = allComments.find((c) => c.id === commentId);
-    // Toggle liked state
-    setLikedComments((prev) => {
-      const next = new Set(prev);
-      if (alreadyLiked) {
-        next.delete(commentId);
-      } else {
-        next.add(commentId);
-      }
-      persistLikedComments(next);
-      return next;
+    if (!targetComment) return;
+    await toggleCommunityReactionOnServer({
+      walletAddress: viewerWallet,
+      targetType: 'comment',
+      clientTargetId: commentId,
+      reactionType: 'like',
+      active: !alreadyLiked,
     });
-    if (targetComment) {
-      const persisted = {
-        ...targetComment,
-        likeCount: Math.max(0, targetComment.likeCount + (alreadyLiked ? -1 : 1)),
-      };
-      saveComment(persisted);
-    }
-    // Update comment like count
-    setComments((prev) => {
-      const updated = { ...prev };
-      for (const pid of Object.keys(updated)) {
-        updated[pid] = updated[pid].map((c) =>
-          c.id === commentId
-            ? { ...c, likeCount: Math.max(0, c.likeCount + (alreadyLiked ? -1 : 1)) }
-            : c
-        );
-      }
-      return updated;
-    });
+    await refreshCommentsForPost(targetComment.postId);
 
     if (!alreadyLiked && targetComment) {
       const targetAddress = resolveWalletNotificationTarget(targetComment);
@@ -1227,29 +1217,9 @@ export function EnhancedCommunity({
     }
   };
 
-  const handlePollVote = (postId: string, optionId: string) => {
+  const handlePollVote = (_postId: string, _optionId: string) => {
     if (!requireWallet('vote')) return;
-    const allPosts = loadAllPosts();
-    const post = allPosts.find((p) => p.id === postId);
-    if (!post?.poll) return;
-
-    const existingVote = getUserPollVote(actualUserId, postId);
-    if (existingVote) return;
-
-    saveUserAction({ userId: actualUserId, postId, action: 'vote', timestamp: Date.now(), pollOptionId: optionId });
-
-    const opt = post.poll.options.find((o) => o.id === optionId);
-    if (opt) opt.votes++;
-    post.poll.totalVotes++;
-
-    const total = post.poll.totalVotes;
-    post.poll.options.forEach((o) => {
-      o.percentage = total > 0 ? Math.round((o.votes / total) * 100) : 0;
-    });
-
-    saveAllPosts(allPosts);
-    refreshPosts();
-    toast.success('Vote recorded!');
+    toast.info('Poll voting is read-only until server-side vote persistence is added.');
   };
 
   const handleNavigateProfile = (post: Post) => {
@@ -1431,8 +1401,8 @@ export function EnhancedCommunity({
           ) : (
             <div className="space-y-6">
               {processedPosts.map((post) => {
-                const isLiked = hasUserAction(actualUserId, post.id, 'like');
-                const isBookmarked = hasUserAction(actualUserId, post.id, 'bookmark');
+                const isLiked = hasUserAction(viewerWallet || actualUserId, post.id, 'like');
+                const isBookmarked = hasUserAction(viewerWallet || actualUserId, post.id, 'bookmark');
                 const isCommentsOpen = expandedComments.has(post.id);
                 const postComments = comments[post.id] || [];
                 const PostAvatar = getAvatarByUserId(post.userId);
@@ -1505,7 +1475,7 @@ export function EnhancedCommunity({
                             </div>
                             <span className="text-[11px] text-ui-muted uppercase tracking-wide font-mono">
                               {post.userRole || 'Community Member'} &middot;{' '}
-                              {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
+                              {formatRelativeTimeSafe(post.createdAt)}
                             </span>
                           </div>
                         </div>
@@ -1589,6 +1559,7 @@ export function EnhancedCommunity({
                         userId={actualUserId}
                         isConnected={isConnected}
                         onVote={handlePollVote}
+                        votingEnabled={false}
                       />
 
                       {/* ─ Actions Bar ─ */}
@@ -1743,13 +1714,20 @@ export function EnhancedCommunity({
       </div>
 
       {/* ─── Create Post Modal ─── */}
-      <CreatePostModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSubmit={handleCreatePost}
-        userId={actualUserId}
-        userName={actualUserName}
-      />
+      <RuntimeErrorBoundary
+        title="Create Post encountered an unexpected error"
+        description="The modal was isolated before it could take down the Community feed."
+        resetKey={isCreateModalOpen ? 'create-post-open' : 'create-post-closed'}
+        compact
+      >
+        <CreatePostModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onSubmit={handleCreatePost}
+          userId={actualUserId}
+          userName={actualUserName}
+        />
+      </RuntimeErrorBoundary>
 
       {/* ─── Delete Post Confirmation ─── */}
       <DeleteDialog

@@ -1,5 +1,4 @@
-import { TransactionResult, MOCK_REVIEWS } from '@/types/wallet';
-import { useState } from 'react';
+import { TransactionResult } from '@/types/wallet';
 
 interface TransactionSuccessModalProps {
   result: TransactionResult;
@@ -7,13 +6,14 @@ interface TransactionSuccessModalProps {
 }
 
 export function TransactionSuccessModal({ result, onClose }: TransactionSuccessModalProps) {
-  const [showReviews, setShowReviews] = useState(false);
-  const averageRating = 4.9;
-  const totalReviews = 150;
-
   const formatHash = (hash: string) => {
     if (hash.length <= 10) return hash;
     return `${hash.slice(0, 5)}...${hash.slice(-4)}`;
+  };
+
+  const formatTimestamp = (timestamp: number) => {
+    if (!Number.isFinite(timestamp)) return 'Just now';
+    return new Date(timestamp).toLocaleString();
   };
 
   return (
@@ -65,71 +65,14 @@ export function TransactionSuccessModal({ result, onClose }: TransactionSuccessM
               <span className="text-white font-bold text-sm">{result.networkFee}</span>
             </div>
 
-            {/* Rating Section */}
+            {/* Confirmation Section */}
             <div className="pt-4 border-t border-[#27272a]/30">
-              <div className="flex items-center justify-center gap-1 mb-1">
-                <span
-                  className="material-symbols-outlined text-yellow-500 text-sm"
-                  style={{ fontVariationSettings: '"FILL" 1' }}
-                >
-                  star
-                </span>
-                <span className="text-white font-bold text-base tracking-tight">{averageRating}</span>
-              </div>
-              <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest text-center mb-2">Rating</p>
-
-              {/* Toggle Reviews */}
-              <div className="flex flex-col items-center">
-                <button
-                  onClick={() => setShowReviews(!showReviews)}
-                  className="cursor-pointer group/label flex items-center gap-1"
-                >
-                  <span className="text-[10px] text-[#2CC295] font-bold uppercase tracking-tighter transition-colors group-hover/label:text-[#2CC295]/80">
-                    {showReviews ? 'Hide' : `Read all (${totalReviews})`} reviews
-                  </span>
-                  <span
-                    className="material-symbols-outlined text-[12px] text-[#2CC295] transition-transform duration-300"
-                    style={{ transform: showReviews ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                  >
-                    expand_more
-                  </span>
-                </button>
-
-                {/* Reviews Container */}
-                <div
-                  className="overflow-hidden transition-all duration-300 ease-in-out w-full text-left"
-                  style={{
-                    maxHeight: showReviews ? '220px' : '0',
-                    marginTop: showReviews ? '1.5rem' : '0',
-                    opacity: showReviews ? 1 : 0,
-                  }}
-                >
-                  <div className="bg-black/40 border border-white/5 rounded-2xl p-4 custom-scrollbar overflow-y-auto max-h-[180px]">
-                    <div className="space-y-4">
-                      {MOCK_REVIEWS.slice(3).map((review, index) => (
-                        <div key={index} className="pb-3 border-b border-white/5 last:border-0 last:pb-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[11px] font-bold text-white">{review.username}</span>
-                            <div className="flex gap-0.5">
-                              {Array.from({ length: 5 }).map((_, i) => (
-                                <span
-                                  key={i}
-                                  className={`material-symbols-outlined text-[10px] ${
-                                    i < review.rating ? 'text-yellow-500' : 'text-zinc-600'
-                                  }`}
-                                  style={{ fontVariationSettings: '"FILL" 1' }}
-                                >
-                                  star
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                          <p className="text-[11px] text-zinc-400 leading-relaxed">{review.comment}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+              <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest text-center mb-2">Confirmed At</p>
+              <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-3 text-center">
+                <p className="text-sm font-bold text-white">{formatTimestamp(result.timestamp)}</p>
+                <p className="mt-1 text-[10px] uppercase tracking-widest text-zinc-500">
+                  Canonical transaction confirmation
+                </p>
               </div>
             </div>
           </div>

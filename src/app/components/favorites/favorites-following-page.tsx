@@ -23,8 +23,9 @@ import {
   loadFavoriteMarketplaceAssets,
   sortFavoriteMarketplaceAssets,
 } from '@/utils/favoriteMarketplaceUtils';
-import { getMockSellerProfiles, SellerProfileCardData } from '@/utils/mockSellerProfiles';
-import { createDefaultProfile, loadUserProfile, shortenUserDisplayName } from '@/utils/profileUtils';
+import { MARKETPLACE_CATALOG_SYNC_EVENT } from '@/utils/marketplaceCatalog';
+import { REPUTATION_SYNC_EVENT } from '@/utils/profileReputationSync';
+import { PROFILE_SYNC_EVENT, createDefaultProfile, loadUserProfile } from '@/utils/profileUtils';
 import { ASSET_METADATA_CHANGED_EVENT } from '@/utils/assetMetadataSync';
 import { toast } from 'sonner';
 import { StudioPanel } from '@/app/components/ui/studio-panel';
@@ -32,6 +33,12 @@ import { EmptyStateCard } from '@/app/components/ui/empty-state-card';
 import { StudioPillGroup, StudioPillButton } from '@/app/components/ui/studio-pill-group';
 import { StudioPageHeader } from '@/app/components/ui/studio-page-header';
 import { StudioStatsCard } from '@/app/components/ui/studio-stats-card';
+import { runtimeConfig } from '/utils/runtimeConfig';
+import {
+  hydrateSellerDirectoryFromSupabase,
+  loadSellerDirectorySync,
+  type SellerProfileCardData,
+} from '@/utils/sellerDirectory';
 
 interface FavoritesFollowingPageProps {
   currentUserId?: string;
@@ -45,7 +52,7 @@ type FavoritesViewMode = 'assets' | 'collections';
 type FollowingViewMode = 'profiles' | 'collections';
 
 export function FavoritesFollowingPage({
-  currentUserId = 'user_current',
+  currentUserId = '',
   initialTab = 'favorites',
   onNavigateToAsset,
   onNavigateToUserProfile,
@@ -83,24 +90,36 @@ export function FavoritesFollowingPage({
       loadFavoriteCollectionsData();
     };
     window.addEventListener('focus', refresh);
-    window.addEventListener('orina:profile-changed', refresh as EventListener);
+    window.addEventListener(PROFILE_SYNC_EVENT, refresh as EventListener);
+    window.addEventListener(REPUTATION_SYNC_EVENT, refresh as EventListener);
     window.addEventListener(ASSET_METADATA_CHANGED_EVENT, refresh as EventListener);
+    window.addEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, refresh as EventListener);
     window.addEventListener(COLLECTIONS_SYNC_EVENT, refresh as EventListener);
     window.addEventListener('storage', refresh);
     return () => {
       window.removeEventListener('focus', refresh);
-      window.removeEventListener('orina:profile-changed', refresh as EventListener);
+      window.removeEventListener(PROFILE_SYNC_EVENT, refresh as EventListener);
+      window.removeEventListener(REPUTATION_SYNC_EVENT, refresh as EventListener);
       window.removeEventListener(ASSET_METADATA_CHANGED_EVENT, refresh as EventListener);
+      window.removeEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, refresh as EventListener);
       window.removeEventListener(COLLECTIONS_SYNC_EVENT, refresh as EventListener);
       window.removeEventListener('storage', refresh);
     };
   }, [storageUserId]);
 
   const loadFavoritesData = () => {
+    if (!storageUserId) {
+      setFavoriteAssets([]);
+      return;
+    }
     setFavoriteAssets(loadFavoriteMarketplaceAssets(storageUserId));
   };
 
   const loadFavoriteCollectionsData = () => {
+    if (!storageUserId) {
+      setFavoriteCollections([]);
+      return;
+    }
     setFavoriteCollections(loadFavoriteCollectionSummaries(storageUserId));
   };
 
@@ -117,53 +136,46 @@ export function FavoritesFollowingPage({
       return;
     }
 
-    const profileMap = new Map(
-      getMockSellerProfiles().map((profile) => [profile.address.toLowerCase(), profile])
-    );
-
-    const normalizedProfiles = followingAddresses.map((address) => {
-      const existing = profileMap.get(address);
-      if (existing) return existing;
-
-      const saved = loadUserProfile(address);
-      const displayName = saved?.displayName || shortenUserDisplayName(address);
-      return {
-        address,
-        displayName,
-        username: saved?.username || `@${address.slice(2, 10)}`,
-        bio: saved?.bio || 'Community profile',
-        avatarUrl: saved?.avatarUrl || saved?.avatar,
-        bannerUrl: saved?.bannerUrl || saved?.banner,
-        totalSalesEth: saved?.stats?.totalSales ? `${saved.stats.totalSales.toFixed(2)} ETH` : '0 ETH',
-        followers: `${saved?.followers?.length ?? 0}`,
-        rating: '4.5',
-        floorPriceEth: '0 ETH',
-        itemsListed: `${saved?.stats?.assetsOwned ?? 0}`,
-        verified: !!saved?.verified,
-      } as SellerProfileCardData;
-    });
-
-    setFollowingProfiles(normalizedProfiles);
+    const syncProfiles = loadSellerDirectorySync({ addresses: followingAddresses });
+    setFollowingProfiles((prev) => (syncProfiles.length > 0 || prev.length === 0 ? syncProfiles : prev));
+    void hydrateSellerDirectoryFromSupabase({ addresses: followingAddresses })
+      .then((nextProfiles) => {
+        setFollowingProfiles(nextProfiles);
+      })
+      .catch(() => undefined);
   };
 
   const loadFollowingCollectionsData = () => {
+    if (!storageUserId) {
+      setFollowingCollections([]);
+      return;
+    }
     setFollowingCollections(loadFollowedCollectionSummaries(storageUserId));
   };
 
   const sortedAssets = useMemo(() => {
+    if (!storageUserId) return [];
     const favorites = loadFavorites(storageUserId);
     return sortFavoriteMarketplaceAssets(favoriteAssets, sortBy, favorites);
   }, [favoriteAssets, sortBy, storageUserId]);
 
   const favoritesStats = useMemo(() => calculateMarketplaceFavoritesStats(favoriteAssets), [favoriteAssets]);
 
-  const handleToggleFavorite = (assetId: string) => {
-    const isFav = toggleFavorite(storageUserId, assetId);
+  const handleToggleFavorite = async (assetId: string) => {
+    if (!storageUserId) {
+      toast.error('Connect wallet to manage favorites');
+      return;
+    }
+    const isFav = await toggleFavorite(storageUserId, assetId);
     loadFavoritesData();
     toast.success(isFav ? 'Added to favorites' : 'Removed from favorites');
   };
 
   const handleToggleCollectionFavorite = (collectionId: string) => {
+    if (!storageUserId) {
+      toast.error('Connect wallet to manage favorites');
+      return;
+    }
     const isFav = toggleCollectionFavorite(storageUserId, collectionId);
     loadFavoriteCollectionsData();
     toast.success(isFav ? 'Added collection to favorites' : 'Removed collection from favorites');
@@ -224,7 +236,13 @@ export function FavoritesFollowingPage({
               label="Total Value"
               value={`${favoritesStats.totalValue.toFixed(2)} ETH`}
               icon={<DollarSign size={20} className="text-[#2CC295]" />}
-              meta={<span className="text-zinc-500">~${(favoritesStats.totalValue * 2800).toFixed(2)} USD</span>}
+              meta={
+                <span className="text-zinc-500">
+                  {runtimeConfig.approximateEthUsdRate > 0
+                    ? `~$${(favoritesStats.totalValue * runtimeConfig.approximateEthUsdRate).toFixed(2)} USD`
+                    : 'Approx USD unavailable'}
+                </span>
+              }
             />
 
             <StudioStatsCard

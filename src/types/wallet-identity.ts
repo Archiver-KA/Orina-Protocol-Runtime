@@ -8,10 +8,10 @@
  * Data Sources:
  * - Profile: user_profile_${address} (profileUtils)
  * - Activities: studio_user_activities_${address} (profileUtils)
- * - Reputation: studio_reputation_${address} (reputationUtils)
- * - Ratings: studio_ratings_${address} (reputationUtils)
+ * - Reputation cache: studio_reputation_${address} (reputationUtils)
+ * - Ratings cache: studio_ratings_${address} (reputationUtils)
+ * - Reputation canonical source: profile_reputation_summaries + profile_reviews (Supabase)
  * - Favorites: orina_favorites_${address} (favoritesUtils)
- * - Reviews: studio_reviews (reviewUtils - global, filtered by userId)
  */
 
 import type { UserProfile } from './profile';

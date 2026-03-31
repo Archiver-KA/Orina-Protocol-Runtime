@@ -20,18 +20,8 @@ import {
 } from '@/app/components/ui/studio-modal';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import type { CollectionDraft, CollectionSummary } from '@/types/collection';
-
-const COLLECTION_CATEGORY_OPTIONS = [
-  'Generative Art',
-  'Digital Art',
-  'Real Estate',
-  'Collectibles',
-  'Luxury',
-  'Luxury Vehicle',
-  'Gaming',
-  'Curated',
-  'Institutional',
-];
+import { encodeEq, restSelect, toQuery } from '@/utils/supabaseRest';
+import { getCategoryDisplayLabel, normalizeCategoryFilterValue } from '@/utils/taxonomy';
 
 interface CollectionEditorModalProps {
   isOpen: boolean;
@@ -50,8 +40,10 @@ export function CollectionEditorModal({
   onClose,
   onSubmit,
 }: CollectionEditorModalProps) {
+  const { address } = useAccount();
   const [name, setName] = useState('');
-  const [category, setCategory] = useState(COLLECTION_CATEGORY_OPTIONS[0]);
+  const [category, setCategory] = useState('');
+  const [serverCategoryValues, setServerCategoryValues] = useState([] as string[]);
   const [bio, setBio] = useState('');
   const [tagsInput, setTagsInput] = useState('');
   const [uploadedCover, setUploadedCover] = useState<UploadedImage | null>(null);
@@ -60,20 +52,56 @@ export function CollectionEditorModal({
   const effectiveItemIds = collection?.itemIds || initialItemIds;
 
   const categoryOptions = useMemo(() => {
-    const values = new Set(COLLECTION_CATEGORY_OPTIONS);
-    if (collection?.category) values.add(collection.category);
-    return Array.from(values).map((value) => ({ value, label: value }));
-  }, [collection?.category]);
+    const values = new Set(serverCategoryValues);
+    if (collection?.category) values.add(normalizeCategoryFilterValue(collection.category));
+    return Array.from(values).map((value) => ({ value, label: getCategoryDisplayLabel(value) }));
+  }, [collection?.category, serverCategoryValues]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+    void restSelect('taxonomy_nodes', toQuery({
+      select: 'slug,sort_order',
+      node_type: encodeEq('category'),
+      is_active: encodeEq(true),
+      supports_current_protocol: encodeEq(true),
+      order: 'sort_order.asc',
+    })).then((rows) => {
+      if (cancelled) return;
+      setServerCategoryValues(
+        rows
+          .map((row) => String(row?.slug ?? '').trim())
+          .filter(Boolean)
+      );
+    }).catch((error) => {
+      if (cancelled) return;
+      console.debug('[CollectionEditorModal] taxonomy hydrate skipped:', error);
+      setServerCategoryValues([]);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     setName(collection?.name || '');
-    setCategory(collection?.category || COLLECTION_CATEGORY_OPTIONS[0]);
+    setCategory(normalizeCategoryFilterValue(String(collection?.category ?? serverCategoryValues[0] ?? '')));
     setBio(collection?.bio || '');
     setTagsInput(collection?.tags.join(', ') || '');
     setUploadedCover(null);
-  }, [collection, isOpen]);
+  }, [collection, isOpen, serverCategoryValues]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (collection?.category) return;
+    if (category.trim()) return;
+    if (serverCategoryValues.length === 0) return;
+    setCategory(serverCategoryValues[0]);
+  }, [category, collection?.category, isOpen, serverCategoryValues]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -94,7 +122,7 @@ export function CollectionEditorModal({
 
     onSubmit({
       name: normalizedName,
-      category: category.trim() || COLLECTION_CATEGORY_OPTIONS[0],
+      category: String(category ?? '').trim() !== '' ? String(category ?? '').trim() : 'uncategorized',
       bio: bio.trim(),
       tags: tagsInput
         .split(',')

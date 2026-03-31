@@ -6,6 +6,7 @@ import type {
 } from '@/app/components/cards/my-asset-cards';
 import { getTestWalletMyAssets } from '@/utils/testWalletAssetFixtures';
 import type { RuntimeMintedAssetRecord } from '@/utils/runtimeMintedAssets';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
 export type AnyOwnedAsset = MyAssetRwa | MyAssetReceipt | MyAssetNft;
 
@@ -96,7 +97,7 @@ function getTopAssets(assets: AnyOwnedAsset[]): TopValuedOwnedAsset[] {
       id: asset.id,
       name: asset.name,
       type: asset.type,
-      category: asset.category,
+      category: getCategoryDisplayLabel(asset.category),
       valueEth: getAssetValueEth(asset),
       valueLabel:
         asset.type === 'RWA'
@@ -112,7 +113,7 @@ function getTopAssets(assets: AnyOwnedAsset[]): TopValuedOwnedAsset[] {
 function getCategoryBreakdown(assets: AnyOwnedAsset[]): AssetCategoryBreakdown[] {
   const counts = new Map<string, number>();
   for (const asset of assets) {
-    const category = String(asset.category || 'Uncategorized').trim() || 'Uncategorized';
+    const category = getCategoryDisplayLabel(asset.category || 'uncategorized');
     counts.set(category, (counts.get(category) || 0) + 1);
   }
 

@@ -40,7 +40,7 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
   const [txStatus, setTxStatus] = useState<'idle' | 'preparing' | 'pending' | 'confirming' | 'success' | 'error'>('idle');
   const [cancelReason, setCancelReason] = useState('');
   const paymentValueLabel = formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
-  const quantityLabel = formatOrderQuantity(order.amount, order.unitName);
+  const quantityLabel = formatOrderQuantity(order.amount, order.unitLabel, order.unitName);
   const explorerBaseUrl = EXPLORER_URLS[ACTIVE_CHAIN_ID] ?? EXPLORER_URLS[97];
 
   // Reset status when modal opens

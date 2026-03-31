@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Star, ChevronDown, Filter, Edit } from 'lucide-react';
 import { Review, ReviewSortOption, ReviewFilterOption } from '@/types/review';
 import { RatingBreakdown } from './rating-breakdown';
-// CARD DELETED - import { ReviewCard } from './review-card';
+import { ReviewCard } from './review-card';
 import { WriteReviewModal } from './write-review-modal';
 import {
   calculateReviewStats,
@@ -16,7 +16,6 @@ import {
   getSortOptionLabel,
   getFilterOptionLabel,
 } from '@/utils/reviewUtils';
-import { generateMockReviews } from '@/utils/mockReviewData';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 
@@ -42,16 +41,7 @@ export function ReviewsSection({
 
   // Load reviews on mount
   useEffect(() => {
-    let loadedReviews = loadReviewsForAsset(assetId);
-    
-    // If no reviews in localStorage, use mock data
-    if (loadedReviews.length === 0) {
-      loadedReviews = generateMockReviews(assetId);
-      // Save mock data to localStorage
-      loadedReviews.forEach((review) => saveReview(review));
-    }
-    
-    setReviews(loadedReviews);
+    setReviews(loadReviewsForAsset(assetId));
   }, [assetId]);
 
   // Calculate stats

@@ -41,13 +41,18 @@ export interface RwaSelectedAttribute {
 
 export interface MarketplaceAsset {
   // === CORE IDENTIFIERS ===
-  id: string;                      // Unique asset ID trong hệ thống
-  tokenId: string;                 // Token ID trên blockchain
+  id: string;                      // UI/catalog route ID trong hệ thống
+  assetUid?: string;               // Explicit off-chain catalog/projection identity
+  tokenId: string;                 // Legacy on-chain token ID snapshot (string form)
+  onchainAssetId?: string;         // Canonical uint256 assetId trên OrinaRWA (string form)
   contractAddress: string;         // Smart contract address
+  unitId?: string;                 // Canonical uint256 unitId (string form)
+  unitName?: string;               // Canonical unit short name from UnitRegistry
+  unitLabel?: string;              // Canonical display label derived from UnitRegistry
   
   // === BASIC INFO ===
   name: string;                    // Tên asset: "Beach Villa #123"
-  category: string;                // Category: "Real Estate", "Luxury Watch", "Art", etc.
+  category: string;                // Canonical taxonomy slug, render via getCategoryDisplayLabel(...)
   description?: string;            // Mô tả chi tiết
   image: string;                   // Main image URL hoặc IPFS hash
   images?: string[];               // Gallery images (optional)
@@ -105,8 +110,13 @@ export interface MarketplaceAsset {
 export interface RWAMintedAsset {
   // === CORE IDENTIFIERS ===
   id: string;
+  assetUid?: string;
   tokenId: string;
+  onchainAssetId?: string;
   contractAddress: string;
+  unitId?: string;
+  unitName?: string;
+  unitLabel?: string;
   
   // === BASIC INFO ===
   name: string;
@@ -161,6 +171,7 @@ export interface ReceiptNFT {
   receiptId: string;               // Unique receipt ID
   orderId: string;                 // Order ID: "ORD-1001"
   tokenId: string;                 // Original RWA token ID
+  onchainAssetId?: string;         // Canonical uint256 assetId (string form)
   contractAddress: string;         // Original RWA contract
   
   // === ASSET INFO ===
@@ -206,7 +217,9 @@ export interface ReceiptNFT {
 export interface DigitalNFT {
   // === CORE IDENTIFIERS ===
   id: string;
+  assetUid?: string;
   tokenId: string;
+  onchainAssetId?: string;
   contractAddress: string;
   
   // === BASIC INFO ===
@@ -272,7 +285,7 @@ export interface AssetStats {
 
 export interface SearchFilters {
   // === CATEGORY ===
-  categories?: string[];           // ["Real Estate", "Luxury Watch"]
+  categories?: string[];           // Canonical taxonomy slugs
   
   // === PRICE RANGE ===
   minPrice?: string;

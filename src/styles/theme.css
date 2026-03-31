@@ -70,6 +70,9 @@
   --color-panel-surface: rgba(14, 14, 16, 0.72);
   --color-sidebar-shell: rgba(18, 18, 18, 0.74);
   --color-sidebar-footer: rgba(10, 10, 10, 0.88);
+  --color-ai-sidebar-shell: rgba(10, 10, 10, 0.96);
+  --color-ai-sidebar-panel: rgba(14, 14, 16, 0.93);
+  --color-ai-sidebar-input: rgba(255, 255, 255, 0.06);
   --color-pill-active-bg: #2cc295;
   --color-pill-active-fg: #0a0a0a;
   --color-pill-inactive-fg: #94a3b8;
@@ -137,6 +140,9 @@
   --t-border-strong: rgba(0, 0, 0, 0.18);
   --t-sidebar-border: rgba(0, 0, 0, 0.06);
   --color-sidebar-shell: rgba(255, 255, 255, 0.8);
+  --color-ai-sidebar-shell: rgba(252, 253, 255, 0.98);
+  --color-ai-sidebar-panel: rgba(255, 255, 255, 0.96);
+  --color-ai-sidebar-input: rgba(255, 255, 255, 0.94);
 
   --t-notice-info-bg: rgba(219, 234, 254, 0.72);
   --t-notice-info-border: rgba(96, 165, 250, 0.34);

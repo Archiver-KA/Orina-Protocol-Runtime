@@ -38,6 +38,7 @@ import type { MarketplaceAsset } from '@/app/types/asset';
 import { getRuntimeMintedAssetDetailsById } from '@/utils/runtimeMintedAssets';
 import { getDeterministicOwnedAssetDetailsById } from '@/utils/testWalletAssetFixtures';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
 interface CollectionDetailsModalProps {
   isOpen: boolean;
@@ -340,7 +341,7 @@ export function CollectionDetailsModal({
                   <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.38)_0%,rgba(0,0,0,0.08)_38%,rgba(0,0,0,0.15)_58%,rgba(0,0,0,0.88)_100%)]" />
 
                   <div className="absolute left-5 top-5 inline-flex items-center rounded-full border border-white/18 bg-black/50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white backdrop-blur-md">
-                    {collection.category}
+                    {getCategoryDisplayLabel(collection.category)}
                   </div>
 
                   <button
@@ -437,7 +438,7 @@ export function CollectionDetailsModal({
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="text-[10px] font-bold uppercase tracking-widest text-ui-muted">
-                                    {asset.category}
+                                    {getCategoryDisplayLabel(asset.category)}
                                   </p>
                                   <h4 className="mt-1 line-clamp-2 text-base font-bold text-ui-primary">
                                     {asset.name}

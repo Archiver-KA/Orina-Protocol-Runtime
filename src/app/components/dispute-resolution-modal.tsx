@@ -113,7 +113,7 @@ export function DisputeResolutionModal({
     || resolveAgreementTx.isConfirming
     || resolveDisputeTx.isPending
     || resolveDisputeTx.isConfirming;
-  const quantityLabel = formatOrderQuantity(order.amount, order.unitName);
+  const quantityLabel = formatOrderQuantity(order.amount, order.unitLabel, order.unitName);
   const grossPriceLabel = formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
   const shippingDetails = getOrderShippingDetails(order.shippingAddressSnapshot, order.shippingMethodLabel);
 

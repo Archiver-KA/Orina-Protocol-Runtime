@@ -1,24 +1,3 @@
-// API Key Types
-export type APIKeyPermission = 'read' | 'write' | 'mint' | 'delete';
-
-export interface APIKey {
-  id: string;
-  key: string;
-  name: string;
-  walletAddress: string;
-  permissions: APIKeyPermission[];
-  createdAt: string;
-  lastUsedAt: string | null;
-  expiresAt: string | null;
-  isActive: boolean;
-  usageStats: {
-    totalRequests: number;
-    successRate: number;
-    lastDayRequests: number;
-  };
-}
-
-// AI Agent Types
 export type AIAgentBehavior = 'conservative' | 'moderate' | 'aggressive';
 
 export interface AIAgentConfig {

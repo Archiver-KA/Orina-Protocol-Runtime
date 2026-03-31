@@ -43,6 +43,7 @@ import {
 import { buildWarehouseInventory, sortWarehouseInventory } from '@/utils/warehouseInventory';
 import type { CollectionSummary } from '@/types/collection';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
+import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
 import {
   addAssetToCollection,
   COLLECTIONS_SYNC_EVENT,
@@ -102,6 +103,7 @@ function sortAssets<T extends AnyAsset>(items: T[], sortBy: string): T[] {
 
 export function Assets() {
   const { address, isConnected } = useAccount();
+  const { assetAddress, chainId } = useProtocolDataNetwork();
   const { requireWalletActionAsync } = useRequireWalletAction();
   const [activeTab, setActiveTab] = useState<AssetTab>('All Assets');
   const [selectedAsset, setSelectedAsset] = useState<AnyAsset | null>(null);
@@ -117,8 +119,12 @@ export function Assets() {
   const [isAddAssetModalOpen, setIsAddAssetModalOpen] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
-  const [runtimeOwnedAssets, setRuntimeOwnedAssets] = useState(() => loadRuntimeMyAssets(address));
-  const [runtimeMintedRecords, setRuntimeMintedRecords] = useState(() => loadRuntimeMintedAssets(address));
+  const runtimeAssetScope = useMemo(() => ({
+    chainId,
+    assetContract: assetAddress,
+  }), [assetAddress, chainId]);
+  const [runtimeOwnedAssets, setRuntimeOwnedAssets] = useState(() => loadRuntimeMyAssets(address, runtimeAssetScope));
+  const [runtimeMintedRecords, setRuntimeMintedRecords] = useState(() => loadRuntimeMintedAssets(address, runtimeAssetScope));
   const [marketplaceCatalog, setMarketplaceCatalog] = useState(() => loadMarketplaceCatalogSync());
   const portfolio = useMemo(
     () => buildCanonicalOwnedPortfolio(address, runtimeOwnedAssets),
@@ -127,20 +133,23 @@ export function Assets() {
   const rwaAssets = portfolio.rwaAssets;
   const receiptAssets = portfolio.receiptAssets;
   const nftAssets = portfolio.nftAssets;
-  const collectionAssetOptions = useMemo(() => loadCollectionAssetOptions(address), [address]);
+  const collectionAssetOptions = useMemo(
+    () => loadCollectionAssetOptions(address, runtimeAssetScope),
+    [address, runtimeAssetScope],
+  );
 
   useEffect(() => {
     const refreshRuntimeAssets = () => {
-      setRuntimeOwnedAssets(loadRuntimeMyAssets(address));
-      setRuntimeMintedRecords(loadRuntimeMintedAssets(address));
+      setRuntimeOwnedAssets(loadRuntimeMyAssets(address, runtimeAssetScope));
+      setRuntimeMintedRecords(loadRuntimeMintedAssets(address, runtimeAssetScope));
     };
 
     refreshRuntimeAssets();
     if (address) {
-      void hydrateRuntimeMintedAssetsFromSupabase(address).then(refreshRuntimeAssets);
+      void hydrateRuntimeMintedAssetsFromSupabase(address, runtimeAssetScope).then(refreshRuntimeAssets);
     }
     return subscribeToRuntimeMintedAssets(refreshRuntimeAssets);
-  }, [address]);
+  }, [address, runtimeAssetScope]);
 
   useEffect(() => {
     const refreshMarketplaceCatalog = () => {
@@ -225,6 +234,7 @@ export function Assets() {
   ]);
 
   const handleOpenCreateCollection = () => {
+    setIsAddAssetModalOpen(false);
     setCollectionEditorMode('create');
     setSelectedCollection(null);
     setIsCollectionEditorOpen(true);
@@ -375,10 +385,7 @@ export function Assets() {
         assetOptions={collectionAssetOptions}
         onClose={() => setIsAddAssetModalOpen(false)}
         onSubmit={handleAddAssetToCollection}
-        onCreateCollection={() => {
-          setIsAddAssetModalOpen(false);
-          handleOpenCreateCollection();
-        }}
+        onCreateCollection={handleOpenCreateCollection}
       />
 
       <CollectionDetailsModal
@@ -542,7 +549,13 @@ export function Assets() {
                 </StudioActionButton>
                 <StudioActionButton
                   type="button"
-                  onClick={() => setIsAddAssetModalOpen(true)}
+                  onClick={() => {
+                    if (ownedCollections.length === 0 || collectionAssetOptions.length === 0) {
+                      handleOpenCreateCollection();
+                      return;
+                    }
+                    setIsAddAssetModalOpen(true);
+                  }}
                   variant="primary"
                   size="lg"
                   className="text-sm font-bold tracking-tight shadow-lg shadow-[#2CC295]/20"

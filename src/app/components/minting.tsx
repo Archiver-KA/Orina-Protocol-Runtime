@@ -7,11 +7,11 @@ import { MultiImageUpload } from '@/app/components/multi-image-upload';
 import { MintingDeliverySection, type MintingDeliveryState } from '@/app/components/minting-delivery-section';
 import { MintingDraftsList } from '@/app/components/minting-drafts-list';
 import { useEffect, useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, usePublicClient } from 'wagmi';
 import { toast } from 'sonner';
 import { useMintAsset } from '@/hooks/useAssets';
 import { useAllUnits } from '@/hooks/useUnits';
-import { AssetType, CONTRACTS } from '@/config/contracts';
+import { AssetType } from '@/config/contracts';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { useTheme } from '@/app/contexts/ThemeContext';
 import { preventInvalidNumberKeyDown } from '@/utils/numericInput';
@@ -30,7 +30,13 @@ import {
   type MintingDraftMedia,
   type MintingDraftRecord,
 } from '@/utils/mintingDrafts';
-import { getCategoryDisplayLabel } from '@/utils/taxonomy';
+import { getCategoryDisplayLabel, normalizeCategoryFilterValue } from '@/utils/taxonomy';
+import { getUnitDisplayLabel } from '@/utils/onchainNormalization';
+import { ORINA_RWA_ABI } from '@/config/abis';
+import { decodeEventLog } from 'viem';
+import { useProtocolNetworkRouter } from '@/contexts/ProtocolNetworkContext';
+import { PROTOCOL_NETWORK_OPTIONS } from '@/utils/protocolNetwork';
+import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
 
 function createMintingAttributeId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -64,6 +70,8 @@ type PendingRuntimeMintDraft = {
   description: string;
   blockchain: string;
   unitId: string;
+  unitName?: string;
+  unitLabel?: string;
   totalAmount: string;
   price: string;
   priceCurrency: string;
@@ -74,7 +82,14 @@ type PendingRuntimeMintDraft = {
   requestedAt: number;
 };
 
+type ReceiptLogLike = {
+  address: `0x${string}`;
+  data: `0x${string}`;
+  topics: readonly `0x${string}`[];
+};
+
 type MintingWorkspaceMode = 'Create' | 'Drafts';
+const MINTING_WORKSPACE_TABS: MintingWorkspaceMode[] = ['Create', 'Drafts'];
 
 function cloneMintingAttributeOptions(options: RwaConfigurableAttributeGroup['options']) {
   return options.map((option) => ({ ...option }));
@@ -229,7 +244,9 @@ function buildMintDeliverySnapshot(state: MintingDeliveryState | null): AssetDel
 
 function buildRuntimeMintedAssetRecord(
   draft: PendingRuntimeMintDraft,
-  txHash: string
+  txHash: string,
+  mintedAssetId: bigint,
+  assetContract: `0x${string}`,
 ): RuntimeMintedAssetRecord {
   const now = Date.now();
   const image = draft.images[0] || 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=800';
@@ -238,18 +255,24 @@ function buildRuntimeMintedAssetRecord(
   const currentPrice = `${draft.price || '0'} ${draft.priceCurrency}`;
   const floorPrice = `${Math.max(priceNumber * 0.9, 0).toFixed(priceNumber >= 1 ? 2 : 4).replace(/\.?0+$/, '') || '0'} ${draft.priceCurrency}`;
   const baseId = `mint-${txHash.slice(2, 10)}-${draft.requestedAt.toString(36)}`;
-  const tokenId = `${draft.requestedAt}`;
+  const tokenId = mintedAssetId.toString();
   const totalAmountNumber = Math.max(1, Math.trunc(parsePositiveNumber(draft.totalAmount, 1)));
-  const categoryLabel = getCategoryDisplayLabel(
+  const categorySlug = normalizeCategoryFilterValue(
     draft.category || (draft.assetType === 'RWA' ? 'physical_goods' : 'digital_assets'),
     draft.subcategory
   );
+  const categoryLabel = getCategoryDisplayLabel(categorySlug, draft.subcategory);
   const details: AssetDetails = {
-    id: baseId,
+    id: tokenId,
+    assetUid: baseId,
     tokenId,
+    onchainAssetId: tokenId,
+    unitId: draft.unitId || undefined,
+    unitName: draft.unitName || (draft.unitId ? getUnitDisplayLabel(Number(draft.unitId)) : undefined),
+    unitLabel: draft.unitLabel || draft.unitName || (draft.unitId ? getUnitDisplayLabel(Number(draft.unitId)) : undefined),
     name: draft.name,
     description: draft.description || `${draft.name} minted on Orina.`,
-    category: categoryLabel,
+    category: categorySlug,
     blockchain: normalizedBlockchain,
     currentPrice,
     currentPriceUsd: formatRuntimeUsd(priceNumber, draft.priceCurrency),
@@ -293,7 +316,7 @@ function buildRuntimeMintedAssetRecord(
         eventType: 'mint',
       },
     ],
-    contractAddress: CONTRACTS.ORINA_RWA,
+    contractAddress: assetContract,
     tokenStandard: 'OrinaRWA Asset Record',
     mintDate: now,
     verified: false,
@@ -307,10 +330,10 @@ function buildRuntimeMintedAssetRecord(
   const myAsset: MyAssetRwa | MyAssetNft =
     draft.assetType === 'RWA'
       ? {
-          id: baseId,
+          id: tokenId,
           name: draft.name,
           type: 'RWA',
-          category: categoryLabel,
+          category: categorySlug,
           image,
           status: 'Paused',
           availableAmount: totalAmountNumber,
@@ -319,10 +342,10 @@ function buildRuntimeMintedAssetRecord(
           mintedDate: formatMintedDate(now),
         }
       : {
-          id: baseId,
+          id: tokenId,
           name: draft.name,
           type: 'NFT',
-          category: categoryLabel,
+          category: categorySlug,
           image,
           currentPrice,
           floorPrice,
@@ -331,7 +354,7 @@ function buildRuntimeMintedAssetRecord(
         };
 
   return {
-    id: baseId,
+    id: tokenId,
     walletAddress: draft.walletAddress.toLowerCase(),
     assetType: draft.assetType,
     createdAt: now,
@@ -341,13 +364,38 @@ function buildRuntimeMintedAssetRecord(
   };
 }
 
+function extractMintedAssetIdFromReceipt(
+  receipt: { logs: readonly ReceiptLogLike[] } | null | undefined,
+  assetContract: `0x${string}`,
+): bigint | null {
+  if (!receipt) return null;
+
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() !== assetContract.toLowerCase()) continue;
+
+    try {
+      const decoded = decodeEventLog({
+        abi: ORINA_RWA_ABI,
+        data: log.data,
+        topics: log.topics,
+      });
+
+      if (decoded.eventName !== 'AssetMinted') continue;
+      return typeof decoded.args.assetId === 'bigint' ? decoded.args.assetId : null;
+    } catch {
+      // ignore unrelated logs
+    }
+  }
+
+  return null;
+}
+
 export function Minting() {
   const [workspaceMode, setWorkspaceMode] = useState<MintingWorkspaceMode>('Create');
   const [assetType, setAssetType] = useState<'RWA' | 'NFT'>('RWA');
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [assetName, setAssetName] = useState('');
   const [description, setDescription] = useState('');
-  const [blockchain, setBlockchain] = useState('Ethereum Mainnet');
   const [unitId, setUnitId] = useState('0');
   const [totalAmount, setTotalAmount] = useState('1000');
   const [price, setPrice] = useState('');
@@ -375,12 +423,17 @@ export function Minting() {
 
 
   const { address, isConnected } = useAccount();
+  const { selectedNetwork, selectedNetworkKey, syncNetworkFromValue } = useProtocolNetworkRouter();
+  const { assetAddress, chainId } = useProtocolDataNetwork();
+  const blockchain = selectedNetwork.label;
+  const publicClient = usePublicClient({ chainId: chainId ?? undefined });
   const { theme } = useTheme();
   const { mintAsset, hash, isPending, isConfirming, isConfirmed, error, reset } = useMintAsset();
   const { requireWalletActionAsync } = useRequireWalletAction();
 
-  const syncMintingDrafts = () => {
-    setMintingDrafts(loadMintingDrafts(address));
+  const syncMintingDrafts = async () => {
+    const drafts = await loadMintingDrafts(address);
+    setMintingDrafts(drafts);
   };
 
   const resetMintingEditor = (nextAssetType: 'RWA' | 'NFT' = assetType) => {
@@ -388,7 +441,6 @@ export function Minting() {
     setEditingDraftId(null);
     setAssetName('');
     setDescription('');
-    setBlockchain('Ethereum Mainnet');
     setUnitId('0');
     setTotalAmount('1000');
     setPrice('');
@@ -482,7 +534,7 @@ export function Minting() {
     };
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     if (!address) {
       toast.error('Connect wallet to save a draft');
       return;
@@ -494,7 +546,7 @@ export function Minting() {
       return;
     }
 
-    upsertMintingDraft(draft);
+    await upsertMintingDraft(draft);
     setWorkspaceMode('Drafts');
     toast.success(editingDraftId ? 'Draft updated' : 'Draft saved');
     resetMintingEditor(draft.assetType);
@@ -512,7 +564,7 @@ export function Minting() {
     setAssetType(draft.assetType);
     setAssetName(draft.name);
     setDescription(draft.description);
-    setBlockchain(draft.blockchain);
+    void syncNetworkFromValue(draft.blockchain);
     setUnitId(draft.unitId || '0');
     setTotalAmount(draft.totalAmount || '1000');
     setPrice(draft.price || '');
@@ -535,7 +587,7 @@ export function Minting() {
     reset();
   };
 
-  const handleDeleteDraft = (draftId: string) => {
+  const handleDeleteDraft = async (draftId: string) => {
     if (!address) return;
 
     const draft = mintingDrafts.find((item) => item.id === draftId);
@@ -544,7 +596,7 @@ export function Minting() {
     const confirmed = window.confirm(`Delete draft "${draft.name || `${draft.assetType} draft`}"?`);
     if (!confirmed) return;
 
-    deleteMintingDraft(address, draftId);
+    await deleteMintingDraft(address, draftId);
     if (editingDraftId === draftId) {
       resetMintingEditor(draft.assetType);
     }
@@ -556,8 +608,8 @@ export function Minting() {
   };
 
   useEffect(() => {
-    syncMintingDrafts();
-    const unsubscribe = subscribeToMintingDrafts(syncMintingDrafts);
+    void syncMintingDrafts();
+    const unsubscribe = subscribeToMintingDrafts(() => void syncMintingDrafts());
     return () => unsubscribe();
   }, [address]);
 
@@ -578,16 +630,47 @@ export function Minting() {
   }, [currentImageIndex, uploadedImages]);
 
   useEffect(() => {
-    if (!isConfirmed || !hash || !pendingRuntimeMintDraft) return;
+    if (!isConfirmed || !hash || !pendingRuntimeMintDraft || !publicClient || !assetAddress) return;
 
-    upsertRuntimeMintedAsset(buildRuntimeMintedAssetRecord(pendingRuntimeMintDraft, hash));
-    if (pendingRuntimeMintDraft.sourceDraftId) {
-      deleteMintingDraft(pendingRuntimeMintDraft.walletAddress, pendingRuntimeMintDraft.sourceDraftId);
-    }
-    setPendingRuntimeMintDraft(null);
-    setEditingDraftId(null);
-    reset();
-  }, [hash, isConfirmed, pendingRuntimeMintDraft, reset]);
+    let cancelled = false;
+
+    const persistMintedRuntimeRecord = async () => {
+      try {
+        const receipt = await publicClient.getTransactionReceipt({ hash });
+        const mintedAssetId = extractMintedAssetIdFromReceipt(
+          receipt as { logs: readonly ReceiptLogLike[] },
+          assetAddress,
+        );
+        if (!mintedAssetId) {
+          throw new Error('Mint receipt did not expose AssetMinted(assetId)');
+        }
+        if (cancelled) return;
+
+        upsertRuntimeMintedAsset(
+          buildRuntimeMintedAssetRecord(pendingRuntimeMintDraft, hash, mintedAssetId, assetAddress),
+          {
+            chainId,
+            assetContract: assetAddress,
+          },
+        );
+        if (pendingRuntimeMintDraft.sourceDraftId) {
+          void deleteMintingDraft(pendingRuntimeMintDraft.walletAddress, pendingRuntimeMintDraft.sourceDraftId);
+        }
+        setPendingRuntimeMintDraft(null);
+        setEditingDraftId(null);
+        reset();
+      } catch (mintSyncError) {
+        console.error('[Minting] Failed to persist canonical minted asset runtime record', mintSyncError);
+        toast.error(mintSyncError instanceof Error ? mintSyncError.message : 'Unable to resolve minted asset ID from chain');
+      }
+    };
+
+    void persistMintedRuntimeRecord();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assetAddress, chainId, hash, isConfirmed, pendingRuntimeMintDraft, publicClient, reset]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -702,6 +785,8 @@ export function Minting() {
         description: description.trim(),
         blockchain,
         unitId: resolvedUnitId,
+        unitName: selectedUnit?.name,
+        unitLabel: selectedUnit?.label,
         totalAmount,
         price,
         priceCurrency,
@@ -922,12 +1007,27 @@ export function Minting() {
               </div>
 
               <div className="w-full space-y-3 lg:max-w-[460px]">
-                <PillSegmentedToggle
-                  options={['Create', 'Drafts']}
-                  value={workspaceMode}
-                  onChange={(value) => setWorkspaceMode(value as MintingWorkspaceMode)}
-                  className="w-full"
-                />
+                <div className="w-full border-b border-[var(--color-panel-border)]">
+                  <div className="flex gap-1">
+                    {MINTING_WORKSPACE_TABS.map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        onClick={() => setWorkspaceMode(tab)}
+                        className={`relative flex-1 px-6 py-3 text-sm font-bold transition-all ${
+                          workspaceMode === tab
+                            ? 'text-primary'
+                            : 'text-ui-secondary hover:text-ui-primary'
+                        }`}
+                      >
+                        {tab}
+                        {workspaceMode === tab && (
+                          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary-custom)] shadow-[0_0_12px_rgba(44,194,149,0.6)]" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 {workspaceMode === 'Create' && (
                   <div className="flex w-full justify-end">
                     <PillSegmentedToggle
@@ -1260,17 +1360,18 @@ export function Minting() {
                     <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Blockchain</label>
                     <CustomDropdown
                       variant="compact"
-                      defaultValue={blockchain}
-                      onChange={(value) => setBlockchain(value)}
+                      defaultValue={selectedNetworkKey}
+                      onChange={(value) => {
+                        void syncNetworkFromValue(value);
+                      }}
                       openOnHover
                       disableDefaultTriggerTone
                       triggerStyle={mintingNeutralTriggerStyle}
-                      options={[
-                        { value: 'Ethereum Mainnet', label: 'Ethereum Mainnet' },
-                        { value: 'Polygon', label: 'Polygon' },
-                        { value: 'Arbitrum One', label: 'Arbitrum One' },
-                        { value: 'Solana', label: 'Solana' },
-                      ]}
+                      options={PROTOCOL_NETWORK_OPTIONS.map((network) => ({
+                        value: network.key,
+                        label: network.label,
+                        tag: network.status === 'live' ? 'Live' : 'Coming',
+                      }))}
                       className="w-full"
                       triggerClassName={mintingSelectTriggerClass}
                     />

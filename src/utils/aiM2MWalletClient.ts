@@ -6,14 +6,17 @@ import type {
   AIM2MDelegateRecord,
   AIM2MWalletConfig,
 } from '@/app/types/ai-m2m-wallet';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { publicAnonKey } from '/utils/supabase/info';
+import { getSupabaseFunctionsBaseUrl } from '/utils/supabase/functions';
 import {
-  exchangeWalletAuthForSupabaseClaimSession,
+  ensureSupabaseBridgeAccessToken,
+  isBridgeAuthRequiredError,
   getSupabaseBridgeAccessToken,
   isSupabaseAuthClaimBridgeEnabled,
 } from '@/utils/supabaseAuthClaimBridge';
 
-const BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-b0d68fc8`;
+const BASE_URL = getSupabaseFunctionsBaseUrl();
+const AI_M2M_CONFIG_CACHE = new Map<string, AIM2MConfigResponse>();
 
 interface AIM2MDelegateResponse {
   success: boolean;
@@ -93,11 +96,30 @@ function classifyHttpError(status: number): AIM2MClientError['code'] {
 }
 
 async function getProtectedJsonHeaders(walletAddress: string): Promise<Record<string, string>> {
+  return getProtectedJsonHeadersWithMode(walletAddress, false);
+}
+
+function buildAIM2MSecurityCheck(surfaceLabel: string, confirmLabel = 'Unlock AI Wallet') {
+  return {
+    title: 'Unlock AI Wallet Settings',
+    description: 'AI wallet configuration needs a one-time wallet security check before Orina can load or update delegated wallet settings.',
+    surfaceLabel,
+    confirmLabel,
+    helpText: 'This signature unlocks protected AI wallet controls in Orina. No gas fee, transaction, or token approval is involved.',
+    successMessage: 'AI wallet settings unlocked.',
+    successDescription: 'Retry the AI wallet action to continue.',
+  } as const;
+}
+
+async function getProtectedJsonHeadersWithMode(
+  walletAddress: string,
+  promptOnAuthMissing: boolean,
+): Promise<Record<string, string>> {
   if (!walletAddress) {
     throw makeClientError('invalid_request', 'Wallet address is required');
   }
 
-  if (!projectId || !publicAnonKey) {
+  if (!BASE_URL || !publicAnonKey) {
     throw makeClientError(
       'service_not_configured',
       'Supabase function configuration is missing in this environment.',
@@ -115,8 +137,25 @@ async function getProtectedJsonHeaders(walletAddress: string): Promise<Record<st
     }
   } else {
     try {
-      await exchangeWalletAuthForSupabaseClaimSession(walletAddress);
+      const accessToken = await ensureSupabaseBridgeAccessToken({
+        walletAddress,
+        promptOnAuthMissing,
+        securityCheck: buildAIM2MSecurityCheck('AI wallet settings'),
+      });
+      if (accessToken) {
+        return {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        };
+      }
     } catch (error) {
+      if (isBridgeAuthRequiredError(error)) {
+        throw makeClientError(
+          'wallet_session_required',
+          'Confirm the wallet security check in Orina, then retry the delegated AI wallet action.',
+          { details: error.request },
+        );
+      }
       throw coerceClientError(
         error,
         'bridge_exchange_failed',
@@ -140,18 +179,19 @@ async function getProtectedJsonHeaders(walletAddress: string): Promise<Record<st
 }
 
 async function getProtectedHeaders(walletAddress: string): Promise<Record<string, string>> {
-  const headers = await getProtectedJsonHeaders(walletAddress);
+  const headers = await getProtectedJsonHeadersWithMode(walletAddress, false);
   return { Authorization: headers.Authorization };
 }
 
 async function requestWithWalletAuth<T>(
   walletAddress: string,
   requestPath: string,
+  promptOnAuthMissing: boolean,
   init?: RequestInit,
 ): Promise<AIM2MClientResult<T>> {
   try {
     const headers = init?.method && init.method !== 'GET'
-      ? await getProtectedJsonHeaders(walletAddress)
+      ? await getProtectedJsonHeadersWithMode(walletAddress, promptOnAuthMissing)
       : await getProtectedHeaders(walletAddress);
 
     const response = await fetch(`${BASE_URL}${requestPath}`, {
@@ -213,39 +253,52 @@ async function requestWithWalletAuth<T>(
 
 export class AIM2MWalletClient {
   static isConfigured(): boolean {
-    return Boolean(projectId && publicAnonKey);
+    return Boolean(BASE_URL && publicAnonKey);
+  }
+
+  static peekConfig(walletAddress: string): AIM2MConfigResponse | null {
+    return AI_M2M_CONFIG_CACHE.get(walletAddress.toLowerCase()) || null;
   }
 
   static async getConfig(walletAddress: string): Promise<AIM2MClientResult<AIM2MConfigResponse>> {
-    return requestWithWalletAuth<AIM2MConfigResponse>(
+    const result = await requestWithWalletAuth<AIM2MConfigResponse>(
       walletAddress,
       `/ai/m2m/config/${walletAddress}`,
+      false,
     );
+    if (result.ok) {
+      AI_M2M_CONFIG_CACHE.set(walletAddress.toLowerCase(), result.data);
+    }
+    return result;
   }
 
   static async saveConfig(config: Partial<AIM2MWalletConfig> & { walletAddress: string }): Promise<AIM2MClientResult<AIM2MConfigResponse>> {
-    return requestWithWalletAuth<AIM2MConfigResponse>(config.walletAddress, '/ai/m2m/config', {
+    const result = await requestWithWalletAuth<AIM2MConfigResponse>(config.walletAddress, '/ai/m2m/config', true, {
       method: 'POST',
       body: JSON.stringify(config),
     });
+    if (result.ok) {
+      AI_M2M_CONFIG_CACHE.set(config.walletAddress.toLowerCase(), result.data);
+    }
+    return result;
   }
 
   static async generateDelegate(walletAddress: string): Promise<AIM2MClientResult<AIM2MDelegateResponse>> {
-    return requestWithWalletAuth<AIM2MDelegateResponse>(walletAddress, '/ai/m2m/delegates/generate', {
+    return requestWithWalletAuth<AIM2MDelegateResponse>(walletAddress, '/ai/m2m/delegates/generate', true, {
       method: 'POST',
       body: JSON.stringify({ walletAddress }),
     });
   }
 
   static async createDelegateInvite(walletAddress: string): Promise<AIM2MClientResult<AIM2MInviteResponse>> {
-    return requestWithWalletAuth<AIM2MInviteResponse>(walletAddress, '/ai/m2m/delegates/invite', {
+    return requestWithWalletAuth<AIM2MInviteResponse>(walletAddress, '/ai/m2m/delegates/invite', true, {
       method: 'POST',
       body: JSON.stringify({ walletAddress }),
     });
   }
 
   static async acceptDelegateInvite(walletAddress: string, inviteId: string): Promise<AIM2MClientResult<AIM2MDelegateResponse>> {
-    return requestWithWalletAuth<AIM2MDelegateResponse>(walletAddress, '/ai/m2m/delegates/accept-invite', {
+    return requestWithWalletAuth<AIM2MDelegateResponse>(walletAddress, '/ai/m2m/delegates/accept-invite', true, {
       method: 'POST',
       body: JSON.stringify({ inviteId }),
     });

@@ -1,8 +1,15 @@
-import { Post, Comment, UserAction, FeedFilter, FeedSort, PostType, TrendingTopic } from '@/types/community';
+/**
+ * @deprecated Phase 3 - Hybrid wallet data: Community.
+ * localStorage persistence should migrate to remote-first via the
+ * community_posts, community_comments (000004) server table.
+ * See spec: 15-local-api-audit-and-server-migration-plan.md
+ */
+import { Post, Comment, UserAction, FeedFilter, FeedSort, PostType, TrendingTopic, CommunityStats } from '@/types/community';
 import { isGuestModeForced } from '@/utils/guestMode';
 import {
   dispatchSyncEvent,
   encodeEq,
+  encodeIn,
   getLocalSupabaseId,
   isSupabaseRestEnabled,
   restDelete,
@@ -14,24 +21,209 @@ import {
 } from '@/utils/supabaseRest';
 import { ensureRemoteProfileIdForWallet, getCachedRemoteProfileId } from '@/utils/profileUtils';
 import {
-  exchangeWalletAuthForSupabaseClaimSession,
+  ensureSupabaseBridgeAccessToken,
   isSupabaseAuthClaimBridgeEnabled,
 } from '@/utils/supabaseAuthClaimBridge';
+
 
 // ─── Storage Keys ───────────────────────────────────────────
 const POSTS_KEY = 'studio_community_posts';
 const COMMENTS_KEY = 'studio_community_comments';
 const USER_ACTIONS_KEY = 'studio_user_actions';
-const INIT_FLAG_KEY = 'studio_community_initialized_v2';
 const COMMUNITY_SYNC_EVENT = 'orina:community-changed';
 const COMMUNITY_POSTS_HYDRATE_IN_FLIGHT = new Set<string>();
 const COMMUNITY_COMMENTS_HYDRATE_IN_FLIGHT = new Set<string>();
-const COMMUNITY_POST_SYNC_TIMERS = new Map<string, number>();
-const COMMUNITY_COMMENT_SYNC_TIMERS = new Map<string, number>();
+
+function toFiniteNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function normalizeOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function normalizePostType(value: unknown): PostType {
+  switch (value) {
+    case 'discussion':
+    case 'question':
+    case 'announcement':
+    case 'achievement':
+      return value;
+    default:
+      return 'discussion';
+  }
+}
+
+function normalizeStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const normalized = value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean);
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizePoll(raw: unknown, fallbackCreatedAt: number): Post['poll'] {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const poll = raw as Record<string, unknown>;
+  const rawOptions = Array.isArray(poll.options) ? poll.options : [];
+  const options = rawOptions
+    .map((option, index) => {
+      if (typeof option === 'string') {
+        const text = option.trim();
+        if (!text) return null;
+        return {
+          id: `option_${index}`,
+          text,
+          votes: 0,
+          percentage: 0,
+        };
+      }
+
+      if (!option || typeof option !== 'object') return null;
+      const parsedOption = option as Record<string, unknown>;
+      const text = typeof parsedOption.text === 'string' ? parsedOption.text.trim() : '';
+      if (!text) return null;
+      return {
+        id:
+          typeof parsedOption.id === 'string' && parsedOption.id.trim()
+            ? parsedOption.id
+            : `option_${index}`,
+        text,
+        votes: toFiniteNumber(parsedOption.votes, 0),
+        percentage: toFiniteNumber(parsedOption.percentage, 0),
+      };
+    })
+    .filter((option): option is NonNullable<typeof option> => !!option);
+
+  if (options.length === 0) return undefined;
+
+  const question = typeof poll.question === 'string' ? poll.question.trim() : '';
+  return {
+    id:
+      typeof poll.id === 'string' && poll.id.trim()
+        ? poll.id
+        : `poll_${fallbackCreatedAt}`,
+    question: question || 'Community Poll',
+    options,
+    totalVotes: toFiniteNumber(poll.totalVotes, options.reduce((sum, option) => sum + option.votes, 0)),
+    endsAt: toFiniteNumber(poll.endsAt, fallbackCreatedAt),
+    multipleChoice: !!poll.multipleChoice,
+  };
+}
+
+function normalizePostRecord(raw: unknown): Post | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const parsed = raw as Record<string, unknown>;
+  const id = typeof parsed.id === 'string' ? parsed.id.trim() : '';
+  if (!id) return null;
+
+  const createdAt = toFiniteNumber(parsed.createdAt, Date.now());
+  const walletAddress =
+    typeof parsed.walletAddress === 'string' && parsed.walletAddress.trim().startsWith('0x')
+      ? parsed.walletAddress.trim()
+      : undefined;
+  const userId =
+    typeof parsed.userId === 'string' && parsed.userId.trim()
+      ? parsed.userId.trim()
+      : walletAddress || 'community_user';
+  const userName =
+    typeof parsed.userName === 'string' && parsed.userName.trim()
+      ? parsed.userName.trim()
+      : 'Community Member';
+  const content = typeof parsed.content === 'string' ? parsed.content : '';
+
+  return {
+    id,
+    type: normalizePostType(parsed.type),
+    userId,
+    userName,
+    userAvatar:
+      typeof parsed.userAvatar === 'string' && parsed.userAvatar.trim()
+        ? parsed.userAvatar.trim()
+        : undefined,
+    userRole:
+      typeof parsed.userRole === 'string' && parsed.userRole.trim()
+        ? parsed.userRole.trim()
+        : null,
+    walletAddress,
+    content,
+    images: normalizeStringArray(parsed.images),
+    poll: normalizePoll(parsed.poll, createdAt),
+    tags: normalizeStringArray(parsed.tags),
+    likeCount: Math.max(0, toFiniteNumber(parsed.likeCount, 0)),
+    commentCount: Math.max(0, toFiniteNumber(parsed.commentCount, 0)),
+    shareCount: Math.max(0, toFiniteNumber(parsed.shareCount, 0)),
+    bookmarkCount: Math.max(0, toFiniteNumber(parsed.bookmarkCount, 0)),
+    viewCount: Math.max(0, toFiniteNumber(parsed.viewCount, 0)),
+    isPinned: !!parsed.isPinned,
+    isEdited: !!parsed.isEdited,
+    isMock: !!parsed.isMock,
+    createdAt,
+    updatedAt:
+      typeof parsed.updatedAt === 'number' && Number.isFinite(parsed.updatedAt)
+        ? parsed.updatedAt
+        : undefined,
+  };
+}
+
+function normalizeCommentRecord(raw: unknown): Comment | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const parsed = raw as Record<string, unknown>;
+  const id = normalizeOptionalString(parsed.id);
+  const postId = normalizeOptionalString(parsed.postId);
+  if (!id || !postId || id.startsWith('mock_comment_')) return null;
+
+  const createdAt = toFiniteNumber(parsed.createdAt, Date.now());
+  const walletAddress =
+    typeof parsed.walletAddress === 'string' && parsed.walletAddress.trim().startsWith('0x')
+      ? parsed.walletAddress.trim()
+      : undefined;
+  const userId = normalizeOptionalString(parsed.userId) || walletAddress || 'community_user';
+  const userName = normalizeOptionalString(parsed.userName) || 'Community Member';
+
+  return {
+    id,
+    postId,
+    userId,
+    userName,
+    userAvatar: normalizeOptionalString(parsed.userAvatar),
+    walletAddress,
+    content: typeof parsed.content === 'string' ? parsed.content : '',
+    likeCount: Math.max(0, toFiniteNumber(parsed.likeCount, 0)),
+    replyCount: Math.max(0, toFiniteNumber(parsed.replyCount, 0)),
+    parentId: normalizeOptionalString(parsed.parentId),
+    createdAt,
+    updatedAt:
+      typeof parsed.updatedAt === 'number' && Number.isFinite(parsed.updatedAt)
+        ? parsed.updatedAt
+        : undefined,
+  };
+}
+
+function normalizeUserActionRecord(raw: unknown): UserAction | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const parsed = raw as Record<string, unknown>;
+  const userId = normalizeAddress(normalizeOptionalString(parsed.userId));
+  const postId = normalizeOptionalString(parsed.postId);
+  const action = parsed.action;
+  const pollOptionId = normalizeOptionalString(parsed.pollOptionId);
+
+  if (!userId || !postId) return null;
+  if (action !== 'like' && action !== 'bookmark' && action !== 'vote') return null;
+  if (action === 'vote' && !pollOptionId) return null;
+
+  return {
+    userId,
+    postId,
+    action,
+    timestamp: toFiniteNumber(parsed.timestamp, Date.now()),
+    pollOptionId,
+  };
+}
 
 // ─── Address Normalization ──────────────────────────────────
-function normalizeAddress(address: string): string {
-  return address.toLowerCase();
+function normalizeAddress(address?: string | null): string {
+  return typeof address === 'string' ? address.toLowerCase() : '';
 }
 
 function isLikelyWalletAddress(value?: string | null): boolean {
@@ -69,16 +261,38 @@ type DbCommunityCommentRow = {
   deleted_at: string | null;
 };
 
-function queueCommunitySync(map: Map<string, number>, key: string, job: () => void): void {
-  if (typeof window === 'undefined') return;
-  const prev = map.get(key);
-  if (prev) window.clearTimeout(prev);
-  const timer = window.setTimeout(() => {
-    map.delete(key);
-    job();
-  }, 250);
-  map.set(key, timer);
+type DbCommunityReactionRow = {
+  user_id: string;
+  target_type: 'post' | 'comment';
+  target_id: string;
+  reaction_type: string;
+  created_at: string;
+};
+
+type DbUserFollowRow = {
+  following_user_id: string;
+};
+
+export interface CommunityFeedServerSnapshot {
+  posts: Post[];
+  trendingTopics: TrendingTopic[];
+  stats: CommunityStats;
+  likedPostIds: string[];
+  bookmarkedPostIds: string[];
+  followingPostIds: string[];
 }
+
+export interface CommunityCommentsServerSnapshot {
+  comments: Comment[];
+  likedCommentIds: string[];
+}
+
+export interface CommunityHubServerSnapshot {
+  stats: CommunityStats;
+  trendingTopics: TrendingTopic[];
+}
+
+
 
 function postMapKey(clientPostId: string): string {
   return `post_${clientPostId}`;
@@ -91,7 +305,7 @@ function commentMapKey(clientCommentId: string): string {
 function mapDbPostToLocal(row: DbCommunityPostRow): Post {
   const metadata = row.metadata || {};
   const clientId = metadata.clientId || row.id;
-  return {
+  const normalized = normalizePostRecord({
     id: clientId,
     type: (metadata.type as PostType) || 'discussion',
     userId: metadata.userId || metadata.walletAddress || row.author_user_id,
@@ -113,12 +327,29 @@ function mapDbPostToLocal(row: DbCommunityPostRow): Post {
     isMock: !!metadata.isMock,
     createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
     updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : undefined,
+  });
+
+  return normalized || {
+    id: String(clientId || row.id),
+    type: 'discussion',
+    userId: String(row.author_user_id || row.id),
+    userName: 'Community Member',
+    content: row.content || '',
+    likeCount: 0,
+    commentCount: 0,
+    shareCount: 0,
+    bookmarkCount: 0,
+    viewCount: 0,
+    isPinned: false,
+    isEdited: false,
+    isMock: false,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
   };
 }
 
 function mapDbCommentToLocal(row: DbCommunityCommentRow, postClientId: string): Comment {
   const metadata = row.metadata || {};
-  return {
+  const normalized = normalizeCommentRecord({
     id: metadata.clientId || row.id,
     postId: postClientId,
     userId: metadata.userId || metadata.walletAddress || row.author_user_id,
@@ -131,6 +362,17 @@ function mapDbCommentToLocal(row: DbCommunityCommentRow, postClientId: string): 
     parentId: metadata.parentClientId || undefined,
     createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
     updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : undefined,
+  });
+
+  return normalized || {
+    id: String(metadata.clientId || row.id),
+    postId: String(postClientId || row.post_id || row.id),
+    userId: String(metadata.userId || metadata.walletAddress || row.author_user_id || row.id),
+    userName: 'Community Member',
+    content: row.content || '',
+    likeCount: 0,
+    replyCount: 0,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
   };
 }
 
@@ -167,6 +409,181 @@ function commentMetadataFromLocal(comment: Comment) {
     likeCount: comment.likeCount || 0,
     replyCount: comment.replyCount || 0,
   };
+}
+
+const EMPTY_COMMUNITY_STATS: CommunityStats = {
+  totalPosts: 0,
+  totalUsers: 0,
+  activeToday: 0,
+  totalComments: 0,
+};
+
+const EMPTY_COMMUNITY_FEED_SNAPSHOT: CommunityFeedServerSnapshot = {
+  posts: [],
+  trendingTopics: [],
+  stats: EMPTY_COMMUNITY_STATS,
+  likedPostIds: [],
+  bookmarkedPostIds: [],
+  followingPostIds: [],
+};
+
+const EMPTY_COMMUNITY_COMMENTS_SNAPSHOT: CommunityCommentsServerSnapshot = {
+  comments: [],
+  likedCommentIds: [],
+};
+
+async function resolveCommunityProfileId(walletAddress?: string | null): Promise<string | null> {
+  const normalized = normalizeAddress(walletAddress);
+  if (!isLikelyWalletAddress(normalized)) return null;
+  try {
+    return (await ensureRemoteProfileIdForWallet(normalized)) || getCachedRemoteProfileId(normalized);
+  } catch (error) {
+    console.debug('[Community] Remote profile resolution skipped:', error);
+    return getCachedRemoteProfileId(normalized);
+  }
+}
+
+function communityStatsFromRows(postRows: DbCommunityPostRow[], commentRows: DbCommunityCommentRow[]): CommunityStats {
+  const participantIds = new Set<string>();
+  const activeTodayIds = new Set<string>();
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfTodayTs = startOfToday.getTime();
+
+  postRows.forEach((row) => {
+    participantIds.add(row.author_user_id);
+    if (Date.parse(row.created_at) >= startOfTodayTs) {
+      activeTodayIds.add(row.author_user_id);
+    }
+  });
+
+  commentRows.forEach((row) => {
+    participantIds.add(row.author_user_id);
+    if (Date.parse(row.created_at) >= startOfTodayTs) {
+      activeTodayIds.add(row.author_user_id);
+    }
+  });
+
+  return {
+    totalPosts: postRows.length,
+    totalUsers: participantIds.size,
+    activeToday: activeTodayIds.size,
+    totalComments: commentRows.length,
+  };
+}
+
+function writeServerPostsToLocal(posts: Post[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+  } catch (error) {
+    console.debug('[Community] Write server posts cache skipped:', error);
+  }
+}
+
+function writeServerCommentsToLocal(postId: string, comments: Comment[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const existing = loadAllComments().filter((comment) => comment.postId !== postId);
+    window.localStorage.setItem(COMMENTS_KEY, JSON.stringify([...existing, ...comments]));
+  } catch (error) {
+    console.debug('[Community] Write server comments cache skipped:', error);
+  }
+}
+
+function replaceServerScopedUserActions(
+  userId: string,
+  scopedPostIds: string[],
+  likedPostIds: string[],
+  bookmarkedPostIds: string[]
+): void {
+  if (typeof window === 'undefined') return;
+  const normalizedUserId = normalizeAddress(userId);
+  if (!normalizedUserId) return;
+
+  const scopedIds = new Set(scopedPostIds);
+  const preserved = allActions().filter((action) => {
+    if (normalizeAddress(action.userId) !== normalizedUserId) return true;
+    if (!scopedIds.has(action.postId)) return true;
+    return false;
+  });
+  const timestamp = Date.now();
+  const hydrated: UserAction[] = [
+    ...likedPostIds.map((postId) => ({
+      userId: normalizedUserId,
+      postId,
+      action: 'like' as const,
+      timestamp,
+    })),
+    ...bookmarkedPostIds.map((postId) => ({
+      userId: normalizedUserId,
+      postId,
+      action: 'bookmark' as const,
+      timestamp,
+    })),
+  ];
+
+  try {
+    window.localStorage.setItem(USER_ACTIONS_KEY, JSON.stringify([...preserved, ...hydrated]));
+  } catch (error) {
+    console.debug('[Community] Write server user actions skipped:', error);
+  }
+}
+
+async function syncReactionRecordToSupabase(
+  walletAddress: string,
+  targetType: 'post' | 'comment',
+  clientTargetId: string,
+  reactionType: 'like' | 'bookmark',
+  added: boolean
+): Promise<void> {
+  if (!isSupabaseRestEnabled()) return;
+  const normalizedWallet = normalizeAddress(walletAddress);
+  if (!isLikelyWalletAddress(normalizedWallet)) return;
+
+  if (isSupabaseAuthClaimBridgeEnabled()) {
+    try {
+      await ensureSupabaseBridgeAccessToken({
+        walletAddress: normalizedWallet,
+        promptOnAuthMissing: false,
+      });
+    } catch (error) {
+      console.debug('[Community] Claim bridge exchange skipped before reaction sync:', error);
+    }
+  }
+
+  const userId = getCachedRemoteProfileId(normalizedWallet) || await ensureRemoteProfileIdForWallet(normalizedWallet);
+  const targetDbId = targetType === 'post'
+    ? getLocalSupabaseId('community_post', postMapKey(clientTargetId))
+    : getLocalSupabaseId('community_comment', commentMapKey(clientTargetId));
+  if (!userId || !targetDbId) return;
+
+  try {
+    if (added) {
+      await restUpsert(
+        'community_reactions',
+        [{
+          user_id: userId,
+          target_type: targetType,
+          target_id: targetDbId,
+          reaction_type: reactionType,
+        }],
+        { onConflict: 'user_id,target_type,target_id,reaction_type' }
+      );
+    } else {
+      await restDelete(
+        'community_reactions',
+        toQuery({
+          user_id: encodeEq(userId),
+          target_type: encodeEq(targetType),
+          target_id: encodeEq(targetDbId),
+          reaction_type: encodeEq(reactionType),
+        })
+      );
+    }
+  } catch (error) {
+    console.debug('[Community] Supabase reaction sync skipped:', error);
+  }
 }
 
 async function hydratePostsFromSupabase(): Promise<void> {
@@ -257,7 +674,10 @@ async function syncPostToSupabase(post: Post): Promise<void> {
   const wallet = post.walletAddress || post.userId;
   if (wallet && isLikelyWalletAddress(wallet) && isSupabaseAuthClaimBridgeEnabled()) {
     try {
-      await exchangeWalletAuthForSupabaseClaimSession(wallet);
+      await ensureSupabaseBridgeAccessToken({
+        walletAddress: wallet,
+        promptOnAuthMissing: false,
+      });
     } catch (error) {
       console.debug('[Community] Claim bridge exchange skipped before post sync:', error);
     }
@@ -304,7 +724,10 @@ async function syncCommentToSupabase(comment: Comment): Promise<void> {
   const wallet = comment.walletAddress || comment.userId;
   if (wallet && isLikelyWalletAddress(wallet) && isSupabaseAuthClaimBridgeEnabled()) {
     try {
-      await exchangeWalletAuthForSupabaseClaimSession(wallet);
+      await ensureSupabaseBridgeAccessToken({
+        walletAddress: wallet,
+        promptOnAuthMissing: false,
+      });
     } catch (error) {
       console.debug('[Community] Claim bridge exchange skipped before comment sync:', error);
     }
@@ -361,45 +784,261 @@ async function syncDeleteCommentToSupabase(commentId: string): Promise<void> {
 }
 
 async function syncReactionToSupabase(action: UserAction, added: boolean): Promise<void> {
-  if (!isSupabaseRestEnabled()) return;
   if (!['like', 'bookmark'].includes(action.action)) return;
-  if (isLikelyWalletAddress(action.userId) && isSupabaseAuthClaimBridgeEnabled()) {
-    try {
-      await exchangeWalletAuthForSupabaseClaimSession(action.userId);
-    } catch (error) {
-      console.debug('[Community] Claim bridge exchange skipped before reaction sync:', error);
-    }
-  }
-  const userId = getCachedRemoteProfileId(action.userId) || await ensureRemoteProfileIdForWallet(action.userId);
-  const targetDbId = getLocalSupabaseId('community_post', postMapKey(action.postId));
-  if (!userId || !targetDbId) return;
-  const reactionType = action.action;
+  await syncReactionRecordToSupabase(action.userId, 'post', action.postId, action.action, added);
+}
+
+export async function loadCommunityFeedFromServer(currentWalletAddress?: string): Promise<CommunityFeedServerSnapshot> {
+  if (!isSupabaseRestEnabled()) return EMPTY_COMMUNITY_FEED_SNAPSHOT;
+
   try {
-    if (added) {
-      await restUpsert(
-        'community_reactions',
-        [{
-          user_id: userId,
-          target_type: 'post',
-          target_id: targetDbId,
-          reaction_type: reactionType,
-        }],
-        { onConflict: 'user_id,target_type,target_id,reaction_type' }
-      );
-    } else {
-      await restDelete(
+    const currentProfileId = await resolveCommunityProfileId(currentWalletAddress);
+    const [postRows, followRows] = await Promise.all([
+      restSelect<DbCommunityPostRow>(
+        'community_posts',
+        toQuery({
+          select: 'id,author_user_id,content,media,poll,visibility,metadata,created_at,updated_at,deleted_at',
+          deleted_at: 'is.null',
+          order: 'created_at.desc',
+          limit: '200',
+        })
+      ),
+      currentProfileId
+        ? restSelect<DbUserFollowRow>(
+            'user_follows',
+            toQuery({
+              select: 'following_user_id',
+              follower_user_id: encodeEq(currentProfileId),
+              limit: '500',
+            })
+          )
+        : Promise.resolve([] as DbUserFollowRow[]),
+    ]);
+
+    const mappedPosts = postRows.map((row) => {
+      const localPost = mapDbPostToLocal(row);
+      setLocalSupabaseId('community_post', postMapKey(localPost.id), row.id);
+      return localPost;
+    });
+
+    if (postRows.length === 0) {
+      writeServerPostsToLocal([]);
+      if (currentWalletAddress) {
+        replaceServerScopedUserActions(currentWalletAddress, [], [], []);
+      }
+      return EMPTY_COMMUNITY_FEED_SNAPSHOT;
+    }
+
+    const dbPostIds = postRows.map((row) => row.id);
+    const [commentRows, reactionRows] = await Promise.all([
+      restSelect<DbCommunityCommentRow>(
+        'community_comments',
+        toQuery({
+          select: 'id,post_id,author_user_id,parent_comment_id,content,metadata,created_at,updated_at,deleted_at',
+          post_id: encodeIn(dbPostIds),
+          deleted_at: 'is.null',
+          order: 'created_at.asc',
+          limit: '2000',
+        })
+      ),
+      restSelect<DbCommunityReactionRow>(
         'community_reactions',
         toQuery({
-          user_id: encodeEq(userId),
+          select: 'user_id,target_type,target_id,reaction_type,created_at',
           target_type: encodeEq('post'),
-          target_id: encodeEq(targetDbId),
-          reaction_type: encodeEq(reactionType),
+          target_id: encodeIn(dbPostIds),
+          limit: '4000',
         })
-      );
+      ),
+    ]);
+
+    const commentCountByPostId = new Map<string, number>();
+    commentRows.forEach((row) => {
+      commentCountByPostId.set(row.post_id, (commentCountByPostId.get(row.post_id) || 0) + 1);
+    });
+
+    const likeCountByPostId = new Map<string, number>();
+    const bookmarkCountByPostId = new Map<string, number>();
+    reactionRows.forEach((row) => {
+      if (row.reaction_type === 'like') {
+        likeCountByPostId.set(row.target_id, (likeCountByPostId.get(row.target_id) || 0) + 1);
+      }
+      if (row.reaction_type === 'bookmark') {
+        bookmarkCountByPostId.set(row.target_id, (bookmarkCountByPostId.get(row.target_id) || 0) + 1);
+      }
+    });
+
+    const likedPostIds: string[] = [];
+    const bookmarkedPostIds: string[] = [];
+    const followedProfileIds = new Set(followRows.map((row) => row.following_user_id));
+
+    const posts = mappedPosts.map((post, index) => {
+      const dbPostId = postRows[index].id;
+      if (currentProfileId) {
+        reactionRows.forEach((row) => {
+          if (row.user_id !== currentProfileId || row.target_id !== dbPostId) return;
+          if (row.reaction_type === 'like') likedPostIds.push(post.id);
+          if (row.reaction_type === 'bookmark') bookmarkedPostIds.push(post.id);
+        });
+      }
+
+      return {
+        ...post,
+        likeCount: likeCountByPostId.get(dbPostId) || 0,
+        commentCount: commentCountByPostId.get(dbPostId) || 0,
+        bookmarkCount: bookmarkCountByPostId.get(dbPostId) || 0,
+        shareCount: 0,
+        viewCount: 0,
+      };
+    });
+
+    const followingPostIds = posts
+      .filter((_, index) => followedProfileIds.has(postRows[index].author_user_id))
+      .map((post) => post.id);
+
+    const stats = communityStatsFromRows(postRows, commentRows);
+    const trendingTopics = extractTrendingTopics(posts);
+
+    writeServerPostsToLocal(posts);
+    if (currentWalletAddress) {
+      replaceServerScopedUserActions(currentWalletAddress, posts.map((post) => post.id), likedPostIds, bookmarkedPostIds);
     }
+
+    return {
+      posts,
+      trendingTopics,
+      stats,
+      likedPostIds,
+      bookmarkedPostIds,
+      followingPostIds,
+    };
   } catch (error) {
-    console.debug('[Community] Supabase reaction sync skipped:', error);
+    console.debug('[Community] Server feed load skipped:', error);
+    return EMPTY_COMMUNITY_FEED_SNAPSHOT;
   }
+}
+
+export async function loadCommunityCommentsFromServer(
+  postId: string,
+  currentWalletAddress?: string
+): Promise<CommunityCommentsServerSnapshot> {
+  if (!isSupabaseRestEnabled()) return EMPTY_COMMUNITY_COMMENTS_SNAPSHOT;
+  const dbPostId = getLocalSupabaseId('community_post', postMapKey(postId));
+  if (!dbPostId) return EMPTY_COMMUNITY_COMMENTS_SNAPSHOT;
+
+  try {
+    const [currentProfileId, commentRows] = await Promise.all([
+      resolveCommunityProfileId(currentWalletAddress),
+      restSelect<DbCommunityCommentRow>(
+        'community_comments',
+        toQuery({
+          select: 'id,post_id,author_user_id,parent_comment_id,content,metadata,created_at,updated_at,deleted_at',
+          post_id: encodeEq(dbPostId),
+          deleted_at: 'is.null',
+          order: 'created_at.asc',
+          limit: '1000',
+        })
+      ),
+    ]);
+
+    if (commentRows.length === 0) {
+      writeServerCommentsToLocal(postId, []);
+      return EMPTY_COMMUNITY_COMMENTS_SNAPSHOT;
+    }
+
+    const mappedComments = commentRows.map((row) => {
+      const localComment = mapDbCommentToLocal(row, postId);
+      setLocalSupabaseId('community_comment', commentMapKey(localComment.id), row.id);
+      return localComment;
+    });
+
+    const commentDbIds = commentRows.map((row) => row.id);
+    const reactionRows = await restSelect<DbCommunityReactionRow>(
+      'community_reactions',
+      toQuery({
+        select: 'user_id,target_type,target_id,reaction_type,created_at',
+        target_type: encodeEq('comment'),
+        target_id: encodeIn(commentDbIds),
+        reaction_type: encodeEq('like'),
+        limit: '4000',
+      })
+    );
+
+    const likeCountByCommentId = new Map<string, number>();
+    reactionRows.forEach((row) => {
+      likeCountByCommentId.set(row.target_id, (likeCountByCommentId.get(row.target_id) || 0) + 1);
+    });
+
+    const replyCountByParentId = new Map<string, number>();
+    mappedComments.forEach((comment) => {
+      if (!comment.parentId) return;
+      replyCountByParentId.set(comment.parentId, (replyCountByParentId.get(comment.parentId) || 0) + 1);
+    });
+
+    const likedCommentIds: string[] = [];
+    const comments = mappedComments.map((comment, index) => {
+      const dbCommentId = commentRows[index].id;
+      if (currentProfileId && reactionRows.some((row) => row.user_id === currentProfileId && row.target_id === dbCommentId)) {
+        likedCommentIds.push(comment.id);
+      }
+      return {
+        ...comment,
+        likeCount: likeCountByCommentId.get(dbCommentId) || 0,
+        replyCount: replyCountByParentId.get(comment.id) || 0,
+      };
+    });
+
+    writeServerCommentsToLocal(postId, comments);
+    return {
+      comments,
+      likedCommentIds,
+    };
+  } catch (error) {
+    console.debug('[Community] Server comments load skipped:', error);
+    return EMPTY_COMMUNITY_COMMENTS_SNAPSHOT;
+  }
+}
+
+export async function loadCommunityHubFromServer(currentWalletAddress?: string): Promise<CommunityHubServerSnapshot> {
+  const snapshot = await loadCommunityFeedFromServer(currentWalletAddress);
+  return {
+    stats: snapshot.stats,
+    trendingTopics: snapshot.trendingTopics,
+  };
+}
+
+export async function persistCommunityPostToServer(post: Post): Promise<void> {
+  await syncPostToSupabase(post);
+}
+
+export async function deleteCommunityPostFromServer(postId: string): Promise<void> {
+  await syncDeletePostToSupabase(postId);
+}
+
+export async function persistCommunityCommentToServer(comment: Comment): Promise<void> {
+  await syncCommentToSupabase(comment);
+}
+
+export async function deleteCommunityCommentFromServer(commentId: string): Promise<void> {
+  await syncDeleteCommentToSupabase(commentId);
+}
+
+export async function toggleCommunityReactionOnServer(input: {
+  walletAddress?: string | null;
+  targetType: 'post' | 'comment';
+  clientTargetId: string;
+  reactionType: 'like' | 'bookmark';
+  active: boolean;
+}): Promise<void> {
+  const normalizedWallet = normalizeAddress(input.walletAddress);
+  if (!isLikelyWalletAddress(normalizedWallet)) return;
+  await syncReactionRecordToSupabase(
+    normalizedWallet,
+    input.targetType,
+    input.clientTargetId,
+    input.reactionType,
+    input.active
+  );
 }
 
 /**
@@ -413,7 +1052,8 @@ export function isPostOwner(post: Post, walletAddress?: string): boolean {
 // ─── Posts CRUD ─────────────────────────────────────────────
 
 /**
- * Load all posts from localStorage — NEVER returns undefined
+ * Load all posts from localStorage cache — NEVER returns undefined.
+ * Mock posts are excluded; only real server-synced data is returned.
  */
 export function loadAllPosts(): Post[] {
   try {
@@ -424,8 +1064,15 @@ export function loadAllPosts(): Post[] {
     }
     const parsed = JSON.parse(stored);
     if (!Array.isArray(parsed)) return [];
+    const sanitized = parsed
+      .map(normalizePostRecord)
+      .filter((post): post is Post => !!post && !post.isMock);
+    const normalizedJson = JSON.stringify(sanitized);
+    if (normalizedJson !== stored) {
+      localStorage.setItem(POSTS_KEY, normalizedJson);
+    }
     void hydratePostsFromSupabase();
-    return parsed;
+    return sanitized;
   } catch (error) {
     console.error('[Community] Failed to load posts:', error);
     return [];
@@ -433,57 +1080,59 @@ export function loadAllPosts(): Post[] {
 }
 
 /**
- * Save a single post (insert or update)
+ * Save a single post (insert or update) — server-first.
  */
-export function savePost(post: Post): void {
+export async function savePost(post: Post): Promise<void> {
   try {
     if (shouldBlockGuestCommunityWrite('savePost')) return;
-    const posts = loadAllPosts();
-    const existingIndex = posts.findIndex((p) => p.id === post.id);
-
-    if (existingIndex !== -1) {
-      posts[existingIndex] = post;
-    } else {
-      posts.unshift(post);
+    const normalizedPost = normalizePostRecord(post);
+    if (!normalizedPost) {
+      console.error('[Community] Refused to save invalid post payload:', post);
+      return;
     }
-
+    await syncPostToSupabase(normalizedPost);
+    const posts = loadAllPosts();
+    const existingIndex = posts.findIndex((p) => p.id === normalizedPost.id);
+    if (existingIndex !== -1) {
+      posts[existingIndex] = normalizedPost;
+    } else {
+      posts.unshift(normalizedPost);
+    }
     localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
     dispatchSyncEvent(COMMUNITY_SYNC_EVENT);
-    queueCommunitySync(COMMUNITY_POST_SYNC_TIMERS, post.id, () => { void syncPostToSupabase(post); });
   } catch (error) {
     console.error('[Community] Failed to save post:', error);
   }
 }
 
 /**
- * Bulk save posts (overwrite entire storage)
+ * Bulk save posts (overwrite entire storage) — server-first.
  */
-export function saveAllPosts(posts: Post[]): void {
+export async function saveAllPosts(posts: Post[]): Promise<void> {
   try {
-    localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+    const sanitized = posts
+      .map(normalizePostRecord)
+      .filter((post): post is Post => !!post);
+    await Promise.allSettled(sanitized.map((post) => syncPostToSupabase(post)));
+    localStorage.setItem(POSTS_KEY, JSON.stringify(sanitized));
     dispatchSyncEvent(COMMUNITY_SYNC_EVENT);
-    posts.filter((p) => !p.isMock).forEach((post) => {
-      queueCommunitySync(COMMUNITY_POST_SYNC_TIMERS, post.id, () => { void syncPostToSupabase(post); });
-    });
   } catch (error) {
     console.error('[Community] Failed to save all posts:', error);
   }
 }
 
 /**
- * Delete a post and its associated comments
+ * Delete a post and its associated comments — server-first.
  */
-export function deletePost(postId: string): void {
+export async function deletePost(postId: string): Promise<void> {
   try {
     if (shouldBlockGuestCommunityWrite('deletePost')) return;
+    await syncDeletePostToSupabase(postId);
     const posts = loadAllPosts();
     const filtered = posts.filter((p) => p.id !== postId);
     localStorage.setItem(POSTS_KEY, JSON.stringify(filtered));
-    
-    // Delete associated comments
     deleteCommentsByPost(postId);
     dispatchSyncEvent(COMMUNITY_SYNC_EVENT);
-    void syncDeletePostToSupabase(postId);
   } catch (error) {
     console.error('[Community] Failed to delete post:', error);
   }
@@ -497,11 +1146,12 @@ function loadAllComments(): Comment[] {
     if (!stored) return [];
     const parsed = JSON.parse(stored);
     if (!Array.isArray(parsed)) return [];
-    const sanitized = parsed.filter(
-      (c) => c && typeof c === 'object' && !String((c as { id?: string }).id || '').startsWith('mock_comment_')
-    );
-    if (sanitized.length !== parsed.length) {
-      localStorage.setItem(COMMENTS_KEY, JSON.stringify(sanitized));
+    const sanitized = parsed
+      .map(normalizeCommentRecord)
+      .filter((comment): comment is Comment => !!comment);
+    const serialized = JSON.stringify(sanitized);
+    if (serialized !== stored) {
+      localStorage.setItem(COMMENTS_KEY, serialized);
     }
     return sanitized;
   } catch {
@@ -538,31 +1188,34 @@ export function buildCommentTree(postId: string): Comment[] {
   return all;
 }
 
-export function saveComment(comment: Comment): void {
+export async function saveComment(comment: Comment): Promise<void> {
   try {
     if (shouldBlockGuestCommunityWrite('saveComment')) return;
+    const sanitizedComment = normalizeCommentRecord(comment);
+    if (!sanitizedComment) {
+      console.warn('[Community] Ignored invalid comment payload.');
+      return;
+    }
+    await syncCommentToSupabase(sanitizedComment);
     const comments = loadAllComments();
-    const existingIndex = comments.findIndex((c) => c.id === comment.id);
+    const existingIndex = comments.findIndex((c) => c.id === sanitizedComment.id);
     if (existingIndex !== -1) {
-      comments[existingIndex] = comment;
+      comments[existingIndex] = sanitizedComment;
     } else {
-      comments.push(comment);
+      comments.push(sanitizedComment);
     }
     localStorage.setItem(COMMENTS_KEY, JSON.stringify(comments));
     dispatchSyncEvent(COMMUNITY_SYNC_EVENT);
-    queueCommunitySync(COMMUNITY_COMMENT_SYNC_TIMERS, comment.id, () => { void syncCommentToSupabase(comment); });
   } catch (error) {
     console.error('[Community] Failed to save comment:', error);
   }
 }
 
-export function deleteComment(commentId: string): void {
+export async function deleteComment(commentId: string): Promise<void> {
   try {
     if (shouldBlockGuestCommunityWrite('deleteComment')) return;
     const comments = loadAllComments();
-    // Also delete all child replies of this comment
     const idsToDelete = new Set<string>([commentId]);
-    // Recursively find all descendants
     let changed = true;
     while (changed) {
       changed = false;
@@ -573,10 +1226,10 @@ export function deleteComment(commentId: string): void {
         }
       }
     }
+    await Promise.allSettled(Array.from(idsToDelete).map((id) => syncDeleteCommentToSupabase(id)));
     const filtered = comments.filter((c) => !idsToDelete.has(c.id));
     localStorage.setItem(COMMENTS_KEY, JSON.stringify(filtered));
     dispatchSyncEvent(COMMUNITY_SYNC_EVENT);
-    idsToDelete.forEach((id) => { void syncDeleteCommentToSupabase(id); });
   } catch (error) {
     console.error('[Community] Failed to delete comment:', error);
   }
@@ -600,7 +1253,15 @@ function allActions(): UserAction[] {
     const stored = localStorage.getItem(USER_ACTIONS_KEY);
     if (!stored) return [];
     const parsed = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    const sanitized = parsed
+      .map(normalizeUserActionRecord)
+      .filter((action): action is UserAction => !!action);
+    const serialized = JSON.stringify(sanitized);
+    if (serialized !== stored) {
+      localStorage.setItem(USER_ACTIONS_KEY, serialized);
+    }
+    return sanitized;
   } catch {
     return [];
   }
@@ -614,33 +1275,38 @@ export function loadUserActions(userId: string): UserAction[] {
 /**
  * Toggle-save a user action. Returns true if action was ADDED, false if REMOVED.
  */
-export function saveUserAction(action: UserAction): boolean {
+export async function saveUserAction(action: UserAction): Promise<boolean> {
   try {
     if (shouldBlockGuestCommunityWrite('saveUserAction')) return false;
     const actions = allActions();
-    const normUserId = normalizeAddress(action.userId);
+    const normalizedAction = normalizeUserActionRecord(action);
+    if (!normalizedAction) {
+      console.warn('[Community] Ignored invalid user action payload.');
+      return false;
+    }
+    const normUserId = normalizedAction.userId;
 
     const existingIndex = actions.findIndex(
       (a) =>
         normalizeAddress(a.userId) === normUserId &&
-        a.postId === action.postId &&
-        a.action === action.action &&
-        a.pollOptionId === action.pollOptionId
+        a.postId === normalizedAction.postId &&
+        a.action === normalizedAction.action &&
+        a.pollOptionId === normalizedAction.pollOptionId
     );
 
     if (existingIndex !== -1) {
+      if (!isGuestModeForced()) {
+        await syncReactionToSupabase(normalizedAction, false);
+      }
       actions.splice(existingIndex, 1);
       localStorage.setItem(USER_ACTIONS_KEY, JSON.stringify(actions));
-      if (!isGuestModeForced()) {
-        void syncReactionToSupabase(action, false);
-      }
       return false; // removed
     } else {
-      actions.push({ ...action, userId: normUserId });
-      localStorage.setItem(USER_ACTIONS_KEY, JSON.stringify(actions));
       if (!isGuestModeForced()) {
-        void syncReactionToSupabase({ ...action, userId: normUserId }, true);
+        await syncReactionToSupabase(normalizedAction, true);
       }
+      actions.push(normalizedAction);
+      localStorage.setItem(USER_ACTIONS_KEY, JSON.stringify(actions));
       return true; // added
     }
   } catch (error) {
@@ -666,23 +1332,23 @@ export function getUserPollVote(userId: string, postId: string): string | null {
 
 // ─── Post Count Helpers ─────────────────────────────────────
 
-export function incrementPostCount(postId: string, field: 'likeCount' | 'commentCount' | 'shareCount' | 'bookmarkCount' | 'viewCount'): void {
+export async function incrementPostCount(postId: string, field: 'likeCount' | 'commentCount' | 'shareCount' | 'bookmarkCount' | 'viewCount'): Promise<void> {
   if (shouldBlockGuestCommunityWrite('incrementPostCount')) return;
   const posts = loadAllPosts();
   const post = posts.find((p) => p.id === postId);
   if (post) {
     post[field]++;
-    saveAllPosts(posts);
+    await saveAllPosts(posts);
   }
 }
 
-export function decrementPostCount(postId: string, field: 'likeCount' | 'commentCount' | 'shareCount' | 'bookmarkCount'): void {
+export async function decrementPostCount(postId: string, field: 'likeCount' | 'commentCount' | 'shareCount' | 'bookmarkCount'): Promise<void> {
   if (shouldBlockGuestCommunityWrite('decrementPostCount')) return;
   const posts = loadAllPosts();
   const post = posts.find((p) => p.id === postId);
   if (post && post[field] > 0) {
     post[field]--;
-    saveAllPosts(posts);
+    await saveAllPosts(posts);
   }
 }
 
@@ -830,183 +1496,3 @@ export function isPollEnded(endsAt: number): boolean {
   return Date.now() > endsAt;
 }
 
-// ─── Initialization ─────────────────────────────────────────
-
-/**
- * Idempotently seed mock data. Returns true if seeding happened.
- * Only seeds if the init flag is missing AND no user-created posts exist.
- */
-export function ensureMockData(): boolean {
-  const alreadyInit = localStorage.getItem(INIT_FLAG_KEY);
-  if (alreadyInit) return false;
-
-  const existing = loadAllPosts();
-  // If there are already user-created posts, mark as initialized and skip
-  const hasUserPosts = existing.some((p) => !p.isMock);
-  if (hasUserPosts && existing.length > 0) {
-    localStorage.setItem(INIT_FLAG_KEY, 'true');
-    return false;
-  }
-
-  // Remove any leftover mock posts and re-seed cleanly
-  const userPosts = existing.filter((p) => !p.isMock);
-  const freshMock = generateMockPosts();
-  saveAllPosts([...freshMock, ...userPosts]);
-  localStorage.setItem(INIT_FLAG_KEY, 'true');
-  console.log('[Community] Mock data seeded');
-  return true;
-}
-
-// ─── Mock Data ──────────────────────────────────────────────
-
-export function generateMockPosts(): Post[] {
-  const now = Date.now();
-  const oneHour = 1000 * 60 * 60;
-  const oneDay = oneHour * 24;
-
-  const mockUsers = [
-    { id: 'user_alice', name: 'Alice Johnson', role: 'Verified Creator', wallet: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0' },
-    { id: 'user_bob', name: 'Bob Smith', role: 'Community Moderator', wallet: '0x8B7F0977Bb4f0fE84b7f0aC0e7a4e1b7c5e6d8f9' },
-    { id: 'user_carol', name: 'Carol Williams', role: 'Top Contributor', wallet: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b' },
-    { id: 'user_dave', name: 'Dave Brown', role: 'Early Adopter', wallet: '0x9f8e7d6c5b4a3c2d1e0f9a8b7c6d5e4f3a2b1c0d' },
-    { id: 'user_eve', name: 'Eve Davis', role: 'Community Member', wallet: '0xa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0' },
-  ];
-
-  return [
-    {
-      id: 'mock_post_1',
-      type: 'announcement',
-      userId: mockUsers[1].id,
-      userName: mockUsers[1].name,
-      userRole: mockUsers[1].role,
-      walletAddress: mockUsers[1].wallet,
-      content: 'Exciting news! Orina v2.0 is now live with enhanced IPFS integration, improved analytics dashboard, and brand new community features. Check out the changelog for all the details!',
-      tags: ['announcement', 'update', 'v2'],
-      likeCount: 142,
-      commentCount: 28,
-      shareCount: 45,
-      bookmarkCount: 67,
-      viewCount: 3420,
-      isPinned: true,
-      isEdited: false,
-      isMock: true,
-      createdAt: now - oneHour * 2,
-    },
-    {
-      id: 'mock_post_2',
-      type: 'discussion',
-      userId: mockUsers[0].id,
-      userName: mockUsers[0].name,
-      userRole: mockUsers[0].role,
-      walletAddress: mockUsers[0].wallet,
-      content: "What are your thoughts on the future of RWA tokenization? I believe we're just scratching the surface of what's possible with real-world assets on blockchain. The potential for democratizing access to traditionally illiquid assets is incredible.",
-      tags: ['rwa', 'tokenization', 'discussion'],
-      likeCount: 89,
-      commentCount: 34,
-      shareCount: 12,
-      bookmarkCount: 23,
-      viewCount: 1890,
-      isPinned: false,
-      isEdited: false,
-      isMock: true,
-      createdAt: now - oneHour * 5,
-    },
-    {
-      id: 'mock_post_3',
-      type: 'question',
-      userId: mockUsers[2].id,
-      userName: mockUsers[2].name,
-      userRole: mockUsers[2].role,
-      walletAddress: mockUsers[2].wallet,
-      content: "How do I upload large files (>100MB) to IPFS using the Orina platform? I've been trying to upload my 3D model collection but keep running into timeout issues. Any suggestions?",
-      tags: ['help', 'ipfs', 'upload'],
-      likeCount: 45,
-      commentCount: 15,
-      shareCount: 3,
-      bookmarkCount: 12,
-      viewCount: 876,
-      isPinned: false,
-      isEdited: false,
-      isMock: true,
-      createdAt: now - oneHour * 8,
-    },
-    {
-      id: 'mock_post_4',
-      type: 'achievement',
-      userId: mockUsers[3].id,
-      userName: mockUsers[3].name,
-      userRole: mockUsers[3].role,
-      walletAddress: mockUsers[3].wallet,
-      content: "Just hit 10,000 sales on my digital art collection! Thank you to everyone in this amazing community for the support. Couldn't have done it without you all!",
-      tags: ['milestone', 'achievement', 'digitalart'],
-      likeCount: 256,
-      commentCount: 78,
-      shareCount: 34,
-      bookmarkCount: 45,
-      viewCount: 5240,
-      isPinned: false,
-      isEdited: false,
-      isMock: true,
-      createdAt: now - oneDay * 1,
-    },
-    {
-      id: 'mock_post_5',
-      type: 'discussion',
-      userId: mockUsers[4].id,
-      userName: mockUsers[4].name,
-      userRole: mockUsers[4].role,
-      walletAddress: mockUsers[4].wallet,
-      content: "Looking for feedback on my new NFT collection before launch. Would love to hear what the community thinks about the concept and pricing strategy. Drop your thoughts below!",
-      tags: ['feedback', 'nft', 'community'],
-      likeCount: 67,
-      commentCount: 42,
-      shareCount: 8,
-      bookmarkCount: 19,
-      viewCount: 1450,
-      isPinned: false,
-      isEdited: true,
-      isMock: true,
-      createdAt: now - oneDay * 2,
-    },
-  ];
-}
-
-export function generateMockComments(postId: string, count: number = 3): Comment[] {
-  const now = Date.now();
-  const oneHour = 1000 * 60 * 60;
-
-  const mockUsers = [
-    { id: 'user_frank', name: 'Frank Wilson' },
-    { id: 'user_grace', name: 'Grace Martinez' },
-    { id: 'user_henry', name: 'Henry Taylor' },
-    { id: 'user_iris', name: 'Iris Anderson' },
-    { id: 'user_jack', name: 'Jack Thompson' },
-  ];
-
-  const texts = [
-    'Great post! This is exactly what I was looking for. Thanks for sharing!',
-    "Really insightful perspective. I hadn't thought about it that way before.",
-    "Could you elaborate more on this? I'd love to learn more details.",
-    'Amazing work! Keep it up!',
-    'I have a different opinion on this, but I respect your viewpoint.',
-    'This helped me solve my problem. Much appreciated!',
-    'Totally agree with you on this one. Well said!',
-    'Interesting take. Would love to discuss this further.',
-  ];
-
-  const comments: Comment[] = [];
-  for (let i = 0; i < count; i++) {
-    const user = mockUsers[i % mockUsers.length];
-    comments.push({
-      id: `mock_comment_${postId}_${i}`,
-      postId,
-      userId: user.id,
-      userName: user.name,
-      content: texts[i % texts.length],
-      likeCount: Math.floor(Math.random() * 20),
-      replyCount: Math.floor(Math.random() * 5),
-      createdAt: now - oneHour * (i + 1),
-    });
-  }
-  return comments;
-}

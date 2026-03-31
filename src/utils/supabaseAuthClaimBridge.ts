@@ -3,20 +3,27 @@
  * same-origin XSS like the wallet session; do not add VITE_* or client-side secrets for signing JWTs.
  */
 import { supabaseUrl, publicAnonKey } from '/utils/supabase/info';
-import { getWalletAuthSession } from '@/utils/walletAuthSession';
+import { runtimeConfig } from '/utils/runtimeConfig';
+import { clearWalletAuthSession, getWalletAuthSession, hasCompatibleWalletAuthMessage } from '@/utils/walletAuthSession';
 import { normalizeAddress } from '@/utils/storageScope';
+import type { SecurityCheckRequestData } from '@/types/wallet';
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
 
 const BRIDGE_ENABLED =
   (env.VITE_SUPABASE_AUTH_BRIDGE_ENABLED || '').toLowerCase() === 'true';
-const BRIDGE_FN_NAME = env.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME || 'make-server-b0d68fc8';
+const BRIDGE_FN_NAME =
+  env.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME ||
+  runtimeConfig.supabaseFunctionsNamespace ||
+  '';
 const BRIDGE_PATH_PREFIX =
   env.VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX || '/auth/supabase-claim-bridge';
 
 const STORAGE_KEY = 'orina_supabase_auth_claim_bridge_session';
 const SESSION_EVENT = 'orina:supabase-auth-claim-bridge';
+export const BRIDGE_SECURITY_CHECK_EVENT = 'orina:bridge-security-check-request';
 let lastExchangeFailureAt = 0;
+let lastExchangeFailureMessage = '';
 const EXCHANGE_FAILURE_COOLDOWN_MS = 30_000;
 
 export interface SupabaseAuthClaimBridgeSession {
@@ -67,6 +74,42 @@ interface AssetMetadataSeedBridgeResponse {
   rows?: Array<{ assetUid: string; assetId: string }>;
 }
 
+export interface BridgeWalletSessionSummary {
+  id: string;
+  walletAddress: string;
+  createdAt: string;
+  lastSeenAt: string | null;
+  expiresAt: string;
+  revokedAt: string | null;
+  deviceLabel: string | null;
+  status: 'active' | 'expired' | 'revoked';
+  isCurrent: boolean;
+}
+
+interface BridgeWalletSessionsResponse {
+  ok: boolean;
+  currentSessionId?: string | null;
+  sessions?: Array<{
+    id?: string;
+    walletAddress?: string;
+    createdAt?: string;
+    lastSeenAt?: string | null;
+    expiresAt?: string;
+    revokedAt?: string | null;
+    deviceLabel?: string | null;
+    status?: 'active' | 'expired' | 'revoked';
+    isCurrent?: boolean;
+  }>;
+}
+
+interface BridgeLogoutResponse {
+  ok: boolean;
+  status?: string;
+  revokedCount?: number;
+  currentSessionId?: string | null;
+  revokedAt?: string;
+}
+
 type BridgeWalletAuthLikeSession = {
   address: string;
   signedAt: number;
@@ -74,11 +117,37 @@ type BridgeWalletAuthLikeSession = {
   message?: string;
 };
 
+export interface BridgeSecurityCheckRequest extends SecurityCheckRequestData {
+  walletAddress?: string | null;
+}
+
+interface BridgeSecurityCheckEventDetail {
+  request: BridgeSecurityCheckRequest;
+}
+
+interface EnsureBridgeAccessTokenOptions {
+  walletAddress?: string | null;
+  promptOnAuthMissing?: boolean;
+  securityCheck?: Partial<BridgeSecurityCheckRequest>;
+}
+
+export class BridgeAuthRequiredError extends Error {
+  code = 'wallet_security_check_required' as const;
+  request: BridgeSecurityCheckRequest;
+
+  constructor(request: BridgeSecurityCheckRequest, message?: string) {
+    super(message || 'Wallet security check required');
+    this.name = 'BridgeAuthRequiredError';
+    this.request = request;
+  }
+}
+
 function isBrowser(): boolean {
   return typeof window !== 'undefined' && typeof fetch === 'function';
 }
 
 function getBridgeBaseUrl(): string {
+  if (!supabaseUrl || !BRIDGE_FN_NAME) return '';
   return `${supabaseUrl.replace(/\/+$/, '')}/functions/v1/${BRIDGE_FN_NAME}${BRIDGE_PATH_PREFIX}`;
 }
 
@@ -146,14 +215,62 @@ function isExpired(session: SupabaseAuthClaimBridgeSession, skewMs = 15_000): bo
   return session.expiresAt <= Date.now() + skewMs;
 }
 
+function isBridgeReauthRequiredMessage(message?: string | null): boolean {
+  const normalized = String(message || '').toLowerCase();
+  return (
+    normalized.includes('locked after inactivity') ||
+    normalized.includes('requires a fresh wallet signature') ||
+    normalized.includes('sign the orina wallet auth message again')
+  );
+}
+
 function isWalletSessionAligned(session: SupabaseAuthClaimBridgeSession): boolean {
   const walletSession = getWalletAuthSession();
   if (!walletSession) return false;
   return normalizeAddress(walletSession.address) === normalizeAddress(session.walletAddress);
 }
 
+function normalizeBridgeSecurityCheckRequest(
+  request?: Partial<BridgeSecurityCheckRequest>,
+  walletAddress?: string | null,
+): BridgeSecurityCheckRequest {
+  return {
+    title: request?.title || 'Security Check Required',
+    description:
+      request?.description ||
+      'Confirm a one-time wallet signature to unlock this protected feature in Orina.',
+    surfaceLabel: request?.surfaceLabel || 'Protected feature',
+    confirmLabel: request?.confirmLabel || 'Continue to MetaMask',
+    helpText:
+      request?.helpText ||
+      'This signature only verifies your wallet session in Orina. No gas fee, transaction, or token approval is involved.',
+    successMessage: request?.successMessage || 'Security check complete.',
+    successDescription: request?.successDescription,
+    walletAddress: request?.walletAddress || walletAddress || null,
+  };
+}
+
+export function isBridgeAuthRequiredError(error: unknown): error is BridgeAuthRequiredError {
+  return error instanceof BridgeAuthRequiredError;
+}
+
+export function dispatchBridgeSecurityCheckRequest(
+  request?: Partial<BridgeSecurityCheckRequest>,
+  walletAddress?: string | null,
+): BridgeSecurityCheckRequest {
+  const normalizedRequest = normalizeBridgeSecurityCheckRequest(request, walletAddress);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<BridgeSecurityCheckEventDetail>(BRIDGE_SECURITY_CHECK_EVENT, {
+        detail: { request: normalizedRequest },
+      }),
+    );
+  }
+  return normalizedRequest;
+}
+
 export function isSupabaseAuthClaimBridgeEnabled(): boolean {
-  return BRIDGE_ENABLED && isBrowser() && !!supabaseUrl && !!publicAnonKey;
+  return BRIDGE_ENABLED && isBrowser() && !!supabaseUrl && !!publicAnonKey && !!BRIDGE_FN_NAME;
 }
 
 export function clearSupabaseBridgeSession(): void {
@@ -172,6 +289,67 @@ export function getSupabaseBridgeSession(): SupabaseAuthClaimBridgeSession | nul
 
 export function getSupabaseBridgeAccessToken(): string | null {
   return getSupabaseBridgeSession()?.accessToken ?? null;
+}
+
+export async function ensureSupabaseBridgeAccessToken(
+  options: EnsureBridgeAccessTokenOptions = {},
+): Promise<string | null> {
+  if (!isSupabaseAuthClaimBridgeEnabled()) {
+    return null;
+  }
+
+  const requestedWallet = options.walletAddress ? normalizeAddress(options.walletAddress) : '';
+  const existingToken = getSupabaseBridgeAccessToken();
+  if (existingToken) {
+    return existingToken;
+  }
+
+  const walletSession: BridgeWalletAuthLikeSession | null = getWalletAuthSession();
+  const sessionWallet = walletSession?.address ? normalizeAddress(walletSession.address) : '';
+  const targetWallet = requestedWallet || sessionWallet || null;
+  const hasWalletSessionMessage = hasCompatibleWalletAuthMessage(
+    walletSession?.message,
+    targetWallet,
+  );
+  const isWalletAligned =
+    !!targetWallet &&
+    !!sessionWallet &&
+    normalizeAddress(targetWallet) === normalizeAddress(sessionWallet);
+
+  if (!hasWalletSessionMessage || !isWalletAligned) {
+    if (options.promptOnAuthMissing && targetWallet) {
+      const request = dispatchBridgeSecurityCheckRequest(options.securityCheck, targetWallet);
+      throw new BridgeAuthRequiredError(request);
+    }
+    return null;
+  }
+
+  let session: SupabaseAuthClaimBridgeSession | null = null;
+  try {
+    session = await exchangeWalletAuthForSupabaseClaimSession(targetWallet);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to establish a secure Orina session.';
+    if (isBridgeReauthRequiredMessage(message)) {
+      clearSupabaseBridgeSession();
+      clearWalletAuthSession();
+      if (options.promptOnAuthMissing && targetWallet) {
+        const request = dispatchBridgeSecurityCheckRequest(options.securityCheck, targetWallet);
+        throw new BridgeAuthRequiredError(request, message);
+      }
+      return null;
+    }
+    throw error;
+  }
+  const accessToken = session?.accessToken || getSupabaseBridgeAccessToken();
+  if (accessToken) {
+    return accessToken;
+  }
+
+  if (hasWalletSessionMessage && isWalletAligned) {
+    throw new Error('Unable to establish a secure Orina session. Please retry in a moment.');
+  }
+
+  return null;
 }
 
 export async function exchangeWalletAuthForSupabaseClaimSession(
@@ -196,27 +374,37 @@ export async function exchangeWalletAuthForSupabaseClaimSession(
   }
 
   if (lastExchangeFailureAt && Date.now() - lastExchangeFailureAt < EXCHANGE_FAILURE_COOLDOWN_MS) {
-    return null;
+    throw new Error(lastExchangeFailureMessage || 'Bridge exchange temporarily unavailable. Please retry in a moment.');
   }
 
-  const res = await fetch(`${getBridgeBaseUrl()}/exchange`, {
-    method: 'POST',
-    headers: bridgeHeaders(),
-    body: JSON.stringify({
-      walletAddress: normalizedWallet,
-      walletAuthSession: {
-        address: walletSession.address,
-        signedAt: walletSession.signedAt,
-        signature: walletSession.signature,
-        message: walletSession.message || undefined,
-      },
-      client: {
-        app: 'ATP2',
-        phase: 'H1-scaffold',
-        requestedAt: new Date().toISOString(),
-      },
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${getBridgeBaseUrl()}/exchange`, {
+      method: 'POST',
+      headers: bridgeHeaders(),
+      body: JSON.stringify({
+        walletAddress: normalizedWallet,
+        walletAuthSession: {
+          address: walletSession.address,
+          signedAt: walletSession.signedAt,
+          signature: walletSession.signature,
+          message: walletSession.message || undefined,
+        },
+        client: {
+          app: 'ATP2',
+          phase: 'H1-scaffold',
+          requestedAt: new Date().toISOString(),
+        },
+      }),
+    });
+  } catch (error) {
+    lastExchangeFailureAt = Date.now();
+    lastExchangeFailureMessage =
+      error instanceof Error ? error.message : 'Bridge exchange network error';
+    throw error instanceof Error
+      ? error
+      : new Error('Bridge exchange network error');
+  }
 
   const text = await res.text();
   let payload: any = null;
@@ -227,11 +415,17 @@ export async function exchangeWalletAuthForSupabaseClaimSession(
   }
 
   if (!res.ok) {
-    lastExchangeFailureAt = Date.now();
     const message =
       payload?.error ||
       payload?.message ||
       `Bridge exchange failed (${res.status})`;
+    if (res.status >= 500 || res.status === 429) {
+      lastExchangeFailureAt = Date.now();
+      lastExchangeFailureMessage = message;
+    } else {
+      lastExchangeFailureAt = 0;
+      lastExchangeFailureMessage = '';
+    }
     throw new Error(message);
   }
 
@@ -253,12 +447,117 @@ export async function exchangeWalletAuthForSupabaseClaimSession(
   };
 
   lastExchangeFailureAt = 0;
+  lastExchangeFailureMessage = '';
   writeStoredSession(session);
   return session;
 }
 
 export function getSupabaseBridgeSessionEventName(): string {
   return SESSION_EVENT;
+}
+
+export async function listSupabaseBridgeWalletSessions(
+  options: EnsureBridgeAccessTokenOptions = {},
+): Promise<BridgeWalletSessionSummary[] | null> {
+  if (!isSupabaseAuthClaimBridgeEnabled()) {
+    return null;
+  }
+
+  const accessToken = await ensureSupabaseBridgeAccessToken({
+    ...options,
+    promptOnAuthMissing: false,
+  });
+  if (!accessToken) {
+    return null;
+  }
+
+  const res = await fetch(`${getBridgeBaseUrl()}/sessions`, {
+    method: 'GET',
+    headers: bridgeAuthHeaders(),
+  });
+
+  const text = await res.text().catch(() => '');
+  let payload: BridgeWalletSessionsResponse | { error?: string; message?: string } | null = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = { error: text || 'Unable to read session history response' };
+  }
+
+  if (!res.ok) {
+    throw new Error(
+      payload && typeof payload === 'object'
+        ? String((payload as { error?: string; message?: string }).error || (payload as { error?: string; message?: string }).message || `Failed to load recent sessions (${res.status})`)
+        : `Failed to load recent sessions (${res.status})`,
+    );
+  }
+
+  const sessions = Array.isArray((payload as BridgeWalletSessionsResponse | null)?.sessions)
+    ? (payload as BridgeWalletSessionsResponse).sessions || []
+    : [];
+
+  return sessions
+    .filter((session): session is NonNullable<BridgeWalletSessionsResponse['sessions']>[number] => {
+      return Boolean(session?.id && session.walletAddress && session.createdAt && session.expiresAt);
+    })
+    .map((session) => ({
+      id: String(session.id),
+      walletAddress: normalizeAddress(String(session.walletAddress)),
+      createdAt: String(session.createdAt),
+      lastSeenAt: session.lastSeenAt ? String(session.lastSeenAt) : null,
+      expiresAt: String(session.expiresAt),
+      revokedAt: session.revokedAt ? String(session.revokedAt) : null,
+      deviceLabel: session.deviceLabel ? String(session.deviceLabel) : null,
+      status:
+        session.status === 'expired' || session.status === 'revoked'
+          ? session.status
+          : 'active',
+      isCurrent: Boolean(session.isCurrent),
+    }));
+}
+
+export async function revokeAllSupabaseBridgeWalletSessions(
+  options: EnsureBridgeAccessTokenOptions = {},
+): Promise<{ revokedCount: number; revokedAt?: string }> {
+  if (!isSupabaseAuthClaimBridgeEnabled()) {
+    return { revokedCount: 0 };
+  }
+
+  const accessToken = await ensureSupabaseBridgeAccessToken({
+    ...options,
+    promptOnAuthMissing: false,
+  });
+  if (!accessToken) {
+    throw new Error('A secure Orina session is required before revoking sessions.');
+  }
+
+  const res = await fetch(`${getBridgeBaseUrl()}/logout`, {
+    method: 'POST',
+    headers: bridgeAuthHeaders(),
+  });
+
+  const text = await res.text().catch(() => '');
+  let payload: BridgeLogoutResponse | { error?: string; message?: string } | null = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = { error: text || 'Unable to read logout response' };
+  }
+
+  if (!res.ok) {
+    throw new Error(
+      payload && typeof payload === 'object'
+        ? String((payload as { error?: string; message?: string }).error || (payload as { error?: string; message?: string }).message || `Failed to revoke sessions (${res.status})`)
+        : `Failed to revoke sessions (${res.status})`,
+    );
+  }
+
+  clearSupabaseBridgeSession();
+
+  return {
+    revokedCount: Math.max(0, Number((payload as BridgeLogoutResponse | null)?.revokedCount || 0)),
+    revokedAt: (payload as BridgeLogoutResponse | null)?.revokedAt,
+  };
 }
 
 export async function sendCommunityNotificationViaBridge(params: {
@@ -270,11 +569,14 @@ export async function sendCommunityNotificationViaBridge(params: {
   actorWalletAddress?: string | null;
   actorName?: string | null;
 }): Promise<boolean> {
-  if (!isBrowser() || !supabaseUrl || !publicAnonKey) return false;
+  if (!isBrowser() || !supabaseUrl || !publicAnonKey || !getBridgeBaseUrl()) return false;
 
   try {
     if (isSupabaseAuthClaimBridgeEnabled() && !getSupabaseBridgeAccessToken() && params.actorWalletAddress) {
-      await exchangeWalletAuthForSupabaseClaimSession(params.actorWalletAddress);
+      await ensureSupabaseBridgeAccessToken({
+        walletAddress: params.actorWalletAddress,
+        promptOnAuthMissing: false,
+      });
     }
   } catch (error) {
     console.debug('[H1 Bridge] Community notify token exchange skipped:', error);
@@ -315,13 +617,16 @@ export async function sendAssetMetadataSeedViaBridge(
   assetItems: AssetMetadataSeedBridgeItem[],
   walletAddress?: string | null
 ): Promise<AssetMetadataSeedBridgeResponse | null> {
-  if (!isBrowser() || !supabaseUrl || !publicAnonKey) return null;
+  if (!isBrowser() || !supabaseUrl || !publicAnonKey || !getBridgeBaseUrl()) return null;
   if (!assetItems?.length) return { ok: true, rows: [] };
 
   try {
     if (isSupabaseAuthClaimBridgeEnabled() && !getSupabaseBridgeAccessToken()) {
       if (!walletAddress) return null;
-      await exchangeWalletAuthForSupabaseClaimSession(walletAddress);
+      await ensureSupabaseBridgeAccessToken({
+        walletAddress,
+        promptOnAuthMissing: false,
+      });
     }
   } catch (error) {
     console.debug('[H1 Bridge] asset-metadata-seed token exchange skipped:', error);

@@ -1,6 +1,6 @@
 import { publicAnonKey, publishableKey, supabaseUrl } from '/utils/supabase/info';
 import {
-  exchangeWalletAuthForSupabaseClaimSession,
+  ensureSupabaseBridgeAccessToken,
   getSupabaseBridgeAccessToken,
   isSupabaseAuthClaimBridgeEnabled,
 } from '@/utils/supabaseAuthClaimBridge';
@@ -237,7 +237,10 @@ function createRealtimeSubscription(params: {
 
     try {
       if (params.ensureBridgeTokenForAddress && isSupabaseAuthClaimBridgeEnabled()) {
-        await exchangeWalletAuthForSupabaseClaimSession(params.ensureBridgeTokenForAddress);
+        await ensureSupabaseBridgeAccessToken({
+          walletAddress: params.ensureBridgeTokenForAddress,
+          promptOnAuthMissing: false,
+        });
       }
     } catch (error) {
       console.debug(`[C6.3.3.1 realtime:${params.debugTag}] bridge token exchange skipped`, error);

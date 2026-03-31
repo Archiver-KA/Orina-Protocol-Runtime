@@ -31,5 +31,6 @@ export interface UserAppSettings {
 }
 
 export interface StoredUserAppSettingsRecord extends UserAppSettings {
+  profileEmail?: string;
   updatedAt: number;
 }

@@ -191,6 +191,7 @@ export function CustomDropdown({
       >
         {/* Dropdown Button - Compact Style */}
         <button
+          type="button"
           onClick={() => setIsOpen(openOnHover ? true : !isOpen)}
           className={`relative overflow-hidden w-full h-[43px] flex items-center justify-between gap-2 px-4 rounded-full text-sm text-ui-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35 ${compactToneClass} ${triggerClassName || ''}`}
           style={triggerStyle}
@@ -226,6 +227,7 @@ export function CustomDropdown({
               
               return (
                 <button
+                  type="button"
                   key={`${value}-${index}`}
                   onClick={() => handleSelect(option)}
                   className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors text-left ${
@@ -267,6 +269,7 @@ export function CustomDropdown({
     >
       {/* Dropdown Button */}
       <button
+        type="button"
         onClick={() => setIsOpen(openOnHover ? true : !isOpen)}
         className={`relative overflow-hidden w-full h-[43px] flex items-center justify-between gap-2 px-4 bg-[rgba(255,255,255,0.03)] rounded-full text-sm text-ui-secondary hover:text-ui-primary hover:bg-[rgba(255,255,255,0.05)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35 ${triggerClassName || ''}`}
         style={triggerStyle}
@@ -303,6 +306,7 @@ export function CustomDropdown({
             
             return (
               <button
+                type="button"
                 key={`${value}-${index}`}
                 onClick={() => handleSelect(option)}
                 className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors text-left ${

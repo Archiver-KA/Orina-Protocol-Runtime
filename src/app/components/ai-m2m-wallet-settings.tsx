@@ -4,6 +4,7 @@ import { useReadContract } from 'wagmi';
 import { WalletCards } from 'lucide-react';
 import { Checkbox } from '@/app/components/ui/checkbox';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
+import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { StudioNoticePanel } from '@/app/components/ui/studio-notice-panel';
 import type {
   AIM2MAction,
@@ -26,18 +27,20 @@ import {
   M2M_PROTOCOL_GUARDRAILS,
 } from '@/config/m2m';
 import {
+  useAIM2MWalletLifecycleState,
   useAIM2MWalletOfSession,
-  useAIM2MWalletState,
   useCloseExpiredAIM2MWallet,
+  useDelegationCyclePreview,
   useDelegationSession,
-  useDelegationSessionPreview,
   useDelegationSessionStatus,
   useDeployAIM2MWallet,
-  useM2MReadiness,
+  useM2MOnchainReady,
   usePredictAIM2MWallet,
   useRevokeAIM2MWallet,
 } from '@/hooks/useAIM2M';
+import { useAccessMode } from '@/hooks/useAccessMode';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { dispatchBridgeSecurityCheckRequest } from '@/utils/supabaseAuthClaimBridge';
 
 interface AIM2MWalletSettingsProps {
   walletAddress: string;
@@ -162,42 +165,47 @@ function buildSteps(configured: boolean, walletReady: boolean, cycleCanRestart: 
 }
 
 export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWalletSettingsProps) {
-  const [config, setConfig] = useState<AIM2MWalletConfig | null>(null);
-  const [overview, setOverview] = useState<AIM2MWalletOverview | null>(null);
-  const [delegates, setDelegates] = useState<AIM2MDelegateRecord[]>([]);
-  const [pendingInvites, setPendingInvites] = useState<AIM2MDelegateInvite[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedConfigResponse = AIM2MWalletClient.peekConfig(walletAddress);
+  const [config, setConfig] = useState<AIM2MWalletConfig | null>(cachedConfigResponse?.config ?? null);
+  const [overview, setOverview] = useState<AIM2MWalletOverview | null>(cachedConfigResponse?.overview ?? null);
+  const [delegates, setDelegates] = useState<AIM2MDelegateRecord[]>(cachedConfigResponse?.delegates ?? []);
+  const [pendingInvites, setPendingInvites] = useState<AIM2MDelegateInvite[]>(cachedConfigResponse?.pendingInvites ?? []);
+  const [loading, setLoading] = useState(() => !cachedConfigResponse);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busyAction, setBusyAction] = useState<'generate' | null>(null);
   const [runtimeError, setRuntimeError] = useState('');
+  const [requiresSecurityCheck, setRequiresSecurityCheck] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
-  const [enabled, setEnabled] = useState(false);
-  const [selectedDelegateId, setSelectedDelegateId] = useState<string | null>(null);
-  const [paymentToken, setPaymentToken] = useState<string>(M2M_DEFAULT_PAYMENT_TOKEN);
-  const [allowedActions, setAllowedActions] = useState<AIM2MAction[]>(['buy']);
-  const [maxPerOrder, setMaxPerOrder] = useState('');
-  const [maxTotal, setMaxTotal] = useState('');
-  const [expiryDays, setExpiryDays] = useState('7');
-  const [counterpartyText, setCounterpartyText] = useState('');
-  const [notes, setNotes] = useState('');
+  const [enabled, setEnabled] = useState(cachedConfigResponse?.config.enabled ?? false);
+  const [selectedDelegateId, setSelectedDelegateId] = useState<string | null>(cachedConfigResponse?.config.selectedDelegateId ?? null);
+  const [paymentToken, setPaymentToken] = useState<string>(cachedConfigResponse?.config.paymentToken || M2M_DEFAULT_PAYMENT_TOKEN);
+  const [allowedActions, setAllowedActions] = useState<AIM2MAction[]>(cachedConfigResponse?.config.allowedActions.length ? cachedConfigResponse.config.allowedActions : ['buy']);
+  const [maxPerOrder, setMaxPerOrder] = useState(cachedConfigResponse?.config.maxPerOrder ?? '');
+  const [maxTotal, setMaxTotal] = useState(cachedConfigResponse?.config.maxTotal ?? '');
+  const [expiryDays, setExpiryDays] = useState(String(cachedConfigResponse?.config.expiryDays || 7));
+  const [counterpartyText, setCounterpartyText] = useState(cachedConfigResponse?.config.counterpartyAllowlist.join('\n') ?? '');
+  const [notes, setNotes] = useState(cachedConfigResponse?.config.notes || '');
   const [inviteCode, setInviteCode] = useState('');
   const [submittedSessionNonce, setSubmittedSessionNonce] = useState<bigint | undefined>(undefined);
   const [pendingMirrorDelegateId, setPendingMirrorDelegateId] = useState<string | null>(null);
+  const { isAuthPending } = useAccessMode();
   const hasRemoteConfig = useMemo(() => Boolean(projectId && publicAnonKey), []);
-  const m2mReadiness = useM2MReadiness();
+  const m2mOnchainReady = useM2MOnchainReady();
   const normalizedActions = useMemo(() => normalizeActions(allowedActions), [allowedActions]);
   const normalizedAllowlist = useMemo(() => normalizeLineList(counterpartyText), [counterpartyText]);
   const requiresFundingVault = normalizedActions.includes('buy');
   const actionMask = useMemo(() => buildActionMask(normalizedActions), [normalizedActions]);
   const paymentTokenAddress = isAddressLike(paymentToken) ? paymentToken : undefined;
+  const onchainRootAddress = !loading ? (walletAddress as Address | undefined) : undefined;
   const storedDelegate = useMemo(
     () => delegates.find((item) => item.id === selectedDelegateId) || null,
     [delegates, selectedDelegateId],
   );
-  const sessionPreview = useDelegationSessionPreview(walletAddress as Address | undefined);
+  const sessionPreview = useDelegationCyclePreview(onchainRootAddress);
   const activeSessionNonce = sessionPreview.hasActiveCycle ? sessionPreview.activeSessionNonce : undefined;
-  const activeSessionRead = useDelegationSession(walletAddress as Address | undefined, activeSessionNonce);
-  const activeSessionStatusRead = useDelegationSessionStatus(walletAddress as Address | undefined, activeSessionNonce);
+  const activeSessionRead = useDelegationSession(onchainRootAddress, activeSessionNonce);
+  const activeSessionStatusRead = useDelegationSessionStatus(onchainRootAddress, activeSessionNonce);
   const activeSession = activeSessionRead.data as DelegationSessionView | undefined;
   const flowSessionNonce = activeSessionNonce ?? submittedSessionNonce;
   const flowSession = activeSessionNonce !== undefined ? activeSession : undefined;
@@ -208,26 +216,26 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
   }, [expiryDays]);
   const walletExpiry = flowSession?.validUntil ?? predictedExpiry;
   const predictedWallet = usePredictAIM2MWallet({
-    root: walletAddress as Address | undefined,
+    root: onchainRootAddress,
     sessionNonce: flowSessionNonce ?? sessionPreview.nextSessionNonce,
   });
   const predictedWalletAddress = normalizeContractAddress(predictedWallet.data);
-  const walletOfSession = useAIM2MWalletOfSession(walletAddress as Address | undefined, flowSessionNonce);
+  const walletOfSession = useAIM2MWalletOfSession(onchainRootAddress, flowSessionNonce);
   const deployedWalletAddress = normalizeContractAddress(walletOfSession.data);
   const runtimeWalletAddress = deployedWalletAddress ?? predictedWalletAddress;
-  const walletState = useAIM2MWalletState(deployedWalletAddress ?? undefined);
+  const walletState = useAIM2MWalletLifecycleState(deployedWalletAddress ?? undefined);
   const tokenDecimalsRead = useReadContract({
     address: paymentTokenAddress,
     abi: ERC20_ABI,
     functionName: 'decimals',
-    query: { enabled: Boolean(paymentTokenAddress) },
+    query: { enabled: Boolean(!loading && paymentTokenAddress) },
   });
   const tokenBalanceRead = useReadContract({
     address: paymentTokenAddress,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: runtimeWalletAddress ? [runtimeWalletAddress] : undefined,
-    query: { enabled: Boolean(paymentTokenAddress && runtimeWalletAddress) },
+    query: { enabled: Boolean(!loading && paymentTokenAddress && runtimeWalletAddress) },
   });
   const tokenDecimals = tokenDecimalsRead.data !== undefined ? Number(tokenDecimalsRead.data) : undefined;
   const tokenBalanceRaw = tokenBalanceRead.data !== undefined ? (tokenBalanceRead.data as bigint) : undefined;
@@ -399,25 +407,44 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
       if (!hasRemoteConfig || !walletAddress) {
         if (!cancelled) {
           setLoading(false);
+          setRefreshing(false);
           setRuntimeError(hasRemoteConfig ? '' : 'AI M2M settings service is not configured in this environment.');
         }
         return;
       }
+      const cached = AIM2MWalletClient.peekConfig(walletAddress);
+      if (cached && !cancelled) {
+        hydrateForm(cached.config, cached.overview, cached.delegates, cached.pendingInvites);
+        setRequiresSecurityCheck(false);
+        setRuntimeError('');
+        setLoading(false);
+        setRefreshing(true);
+      } else if (!cancelled) {
+        setLoading(true);
+      }
       const response = await AIM2MWalletClient.getConfig(walletAddress);
       if (cancelled) return;
       if (!response.ok) {
-        setRuntimeError(formatClientError(response.error, 'load'));
+        if (response.error.code === 'wallet_session_required') {
+          setRequiresSecurityCheck(true);
+          setRuntimeError('');
+        } else {
+          setRequiresSecurityCheck(false);
+          setRuntimeError(formatClientError(response.error, 'load'));
+        }
       } else {
+        setRequiresSecurityCheck(false);
         setRuntimeError('');
         hydrateForm(response.data.config, response.data.overview, response.data.delegates, response.data.pendingInvites);
       }
       setLoading(false);
+      setRefreshing(false);
     };
     void run();
     return () => {
       cancelled = true;
     };
-  }, [hasRemoteConfig, walletAddress]);
+  }, [hasRemoteConfig, walletAddress, isAuthPending]);
 
   useEffect(() => {
     if (!deployWalletMutation.error) return;
@@ -654,14 +681,6 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
     await handleCreateOnchainSession();
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2CC295]" />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -674,11 +693,47 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
         </p>
       </div>
 
-      {!m2mReadiness.foundationReady ? (
+      {(loading || refreshing) ? (
+        <StudioNoticePanel variant="neutral" title={loading ? 'Loading AI wallet settings' : 'Refreshing AI wallet settings'} compact>
+          <div className="flex items-center gap-2">
+            <StudioLoadingIndicator size={14} tone="muted" />
+            <span>Fetching protected AI wallet configuration and runtime snapshot.</span>
+          </div>
+        </StudioNoticePanel>
+      ) : null}
+
+      {!m2mOnchainReady ? (
         <StudioNoticePanel variant="warning" title="On-chain M2M deployment is not configured in this environment">
           <div className="space-y-1">
             <p>`DelegationManager`: {M2M_CONTRACTS.DELEGATION_MANAGER ?? 'not configured'}</p>
             <p>`AIWalletFactoryV2`: {M2M_CONTRACTS.AI_WALLET_FACTORY_V2 ?? 'not configured'}</p>
+          </div>
+        </StudioNoticePanel>
+      ) : null}
+
+      {requiresSecurityCheck ? (
+        <StudioNoticePanel variant="warning" title="Security Check Required">
+          <div className="space-y-3">
+            <p>
+              AI wallet settings are protected. Confirm a one-time wallet signature before Orina can load or update this workspace.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                dispatchBridgeSecurityCheckRequest({
+                  title: 'Unlock AI Wallet Settings',
+                  description: 'AI wallet configuration needs a one-time wallet security check before Orina can load or update delegated wallet settings.',
+                  surfaceLabel: 'AI wallet settings',
+                  confirmLabel: 'Unlock AI Wallet',
+                  helpText: 'This signature unlocks protected AI wallet controls in Orina. No gas fee, transaction, or token approval is involved.',
+                  successMessage: 'AI wallet settings unlocked.',
+                  successDescription: 'Retry the AI wallet action to continue.',
+                }, walletAddress);
+              }}
+              className="rounded-full bg-[#2CC295] px-4 py-2 text-sm font-bold text-black"
+            >
+              Unlock AI Wallet
+            </button>
           </div>
         </StudioNoticePanel>
       ) : null}
@@ -707,10 +762,10 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
           </div>
           <button
             onClick={() => {
-              if (policyLocked) return;
+              if (policyLocked || loading || refreshing) return;
               setEnabled((value) => !value);
             }}
-            disabled={policyLocked}
+            disabled={policyLocked || loading || refreshing}
             className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors flex-shrink-0 ${enabled ? 'bg-[#2CC295]' : 'bg-ui-border'} disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-[1.125rem]' : 'translate-x-0.5'}`} />
@@ -790,7 +845,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
               <p>Duration: {expiryDays} day{Number(expiryDays) === 1 ? '' : 's'}</p>
               <p>AI wallet: {cycleWalletAddress || 'n/a'}</p>
             </div>
-            <button onClick={handleDeployWallet} disabled={!configReady || !m2mReadiness.foundationReady || saving || busyAction !== null || deployWalletMutation.isPending || deployWalletMutation.isConfirming || Boolean(deployedWalletAddress)} className="w-full px-4 py-2.5 rounded-full bg-[#2CC295] text-black text-sm font-bold disabled:opacity-50">
+            <button onClick={handleDeployWallet} disabled={!configReady || !m2mOnchainReady || saving || busyAction !== null || deployWalletMutation.isPending || deployWalletMutation.isConfirming || Boolean(deployedWalletAddress)} className="w-full px-4 py-2.5 rounded-full bg-[#2CC295] text-black text-sm font-bold disabled:opacity-50">
               {busyAction === 'generate' || saving ? 'Preparing...' : deployWalletMutation.isPending || deployWalletMutation.isConfirming ? 'Deploying...' : deployedWalletAddress ? 'Wallet Deployed' : 'Deploy AI Wallet'}
             </button>
             {(deployWalletMutation.hash || flowSessionNonce !== undefined || cycleWalletAddress) ? <div className="text-xs text-ui-muted space-y-1">{flowSessionNonce !== undefined ? <p>Cycle nonce: {flowSessionNonce.toString()} · Status: {sessionStatus}</p> : null}{cycleWalletAddress ? <p>Wallet: {cycleWalletAddress}</p> : null}{deployWalletMutation.hash ? <p>Tx: {formatHash(deployWalletMutation.hash)}</p> : null}</div> : null}

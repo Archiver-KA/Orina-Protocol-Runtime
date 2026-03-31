@@ -1,15 +1,17 @@
-import { Search, Smile, Paperclip, Send, Copy, Diamond, Coins, Zap, Flag, ArrowRight, Bot, Star, Plus, AlertTriangle, X, ArrowUp } from 'lucide-react';
+import { Search, Smile, Paperclip, Send, Copy, Diamond, Coins, Zap, Flag, ArrowRight, Bot, Star, Plus, AlertTriangle, X, ArrowUp, ShieldCheck, LockKeyhole } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { getAvatarByUserId } from '@/app/components/user-avatars';
 import { formatUserDisplayName, shortenUserDisplayName } from '@/utils/profileUtils';
 import { useUser } from '@/contexts/UserContext';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { useAccessMode } from '@/hooks/useAccessMode';
+import { useWalletSecurityPrompt } from '@/hooks/useWalletSecurityPrompt';
 import { NewConversationModal } from '@/app/components/new-conversation-modal';
 import * as MessagesClient from '@/utils/messagesClient';
 import { toast } from 'sonner';
-import { loadReputationScore, loadRatings, calculateReputationScore, generateMockRatings, saveRatings } from '@/utils/reputationUtils';
-import { loadUserActivities } from '@/utils/profileUtils';
+import { REPUTATION_SYNC_EVENT, hydrateReputationFromSupabase } from '@/utils/profileReputationSync';
+import { getWalletIdentity } from '@/utils/walletIdentityStore';
 import { buildNotificationSourceId } from '@/utils/notifications';
 import {
   StudioSidebarShell,
@@ -23,6 +25,8 @@ import {
   subscribeChatConversationList,
   subscribeChatConversationThread,
 } from '@/utils/chatRealtimeAdapter';
+import { isBridgeAuthRequiredError } from '@/utils/supabaseAuthClaimBridge';
+import { hasWalletAuthSession } from '@/utils/walletAuthSession';
 import { BorderlessTextarea } from '@/app/components/ai/borderless-textarea';
 
 // ✅ FIX: Local image attachment type (different from UploadedImage which requires IPFS fields)
@@ -68,9 +72,13 @@ interface MessagesProps {
   initialConversationId?: string | null;
 }
 
+type CreateConversationResult = 'created' | 'pending';
+
 export function Messages({ onNavigateToUserProfile, initialConversationId }: MessagesProps) {
   // ✅ Get wallet address for backend communication
   const { address } = useAccount();
+  const { isAuthPending } = useAccessMode();
+  const { promptChatSecurityCheck } = useWalletSecurityPrompt();
   
   // Get user data from context
   const { userData } = useUser();
@@ -114,6 +122,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
   const messagesPollBackoffUntilRef = useRef<number>(0);
   const chatNotificationBaselineReadyRef = useRef<boolean>(false);
   const chatUnreadSnapshotRef = useRef<Record<string, number>>({});
+  const pendingConversationDraftRef = useRef<{ walletAddress: string; displayName?: string } | null>(null);
   
   // ✅ FIX: Cooldown after sending to prevent immediate poll overwrite for backend conversations
   const sendCooldownRef = useRef<number>(0);
@@ -127,11 +136,17 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportTarget, setReportTarget] = useState<{ name: string; address: string } | null>(null);
+  const [reputationRevision, setReputationRevision] = useState(0);
   const activeConversationKey = activeConversation ? String(activeConversation) : null;
   const conversationMessages = activeConversationKey ? (messagesByConversation[activeConversationKey] || EMPTY_MESSAGES) : EMPTY_MESSAGES;
   const activeConversationRecord = activeConversation
     ? conversations.find((conversation) => conversation.id === activeConversation) || null
     : null;
+  const requiresChatSecurityCheck = Boolean(address && isAuthPending);
+  const hasLiveChatSecuritySession = () => {
+    const currentAddress = addressRef.current;
+    return Boolean(currentAddress && hasWalletAuthSession(currentAddress));
+  };
 
   const setConversationMessagesFor = useCallback(
     (conversationId: string | number, updater: any[] | ((prev: any[]) => any[])) => {
@@ -156,37 +171,36 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
     chatNotificationBaselineReadyRef.current = false;
     chatUnreadSnapshotRef.current = {};
   }, [address]);
+
+  useEffect(() => {
+    const handleReputationSync = () => setReputationRevision((value) => value + 1);
+    window.addEventListener(REPUTATION_SYNC_EVENT, handleReputationSync as EventListener);
+    return () => {
+      window.removeEventListener(REPUTATION_SYNC_EVENT, handleReputationSync as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activeConversationRecord?.address) return;
+    void hydrateReputationFromSupabase(activeConversationRecord.address);
+  }, [activeConversationRecord?.address]);
   
   // ✅ Get reputation score for active conversation partner
-  const getPartnerReputation = useCallback((walletAddress: string | null): { score: number; reviewCount: number } => {
-    if (!walletAddress) return { score: 4.9, reviewCount: 150 };
+  const getPartnerReputation = useCallback((walletAddress: string | null): { score: number | null; reviewCount: number } => {
+    if (!walletAddress) return { score: null, reviewCount: 0 };
     try {
-      const repScore = loadReputationScore(walletAddress);
-      if (repScore) {
-        const ratings = loadRatings(walletAddress);
-        const scoreValue = repScore.overallScore ?? 0; // ✅ FIX: Use correct property name `overallScore` (not `overall`)
-        return { 
-          score: Math.round((scoreValue / 20) * 10) / 10, // Convert 0-100 to 0-5 scale
-          reviewCount: ratings.length || Math.floor(scoreValue * 1.5)
-        };
+      const identity = getWalletIdentity(walletAddress);
+      if (identity.reputation.totalReviews === 0) {
+        return { score: null, reviewCount: 0 };
       }
-      // Try to calculate
-      const activities = loadUserActivities(walletAddress);
-      let ratings = loadRatings(walletAddress);
-      if (ratings.length === 0) {
-        ratings = generateMockRatings(walletAddress, 10);
-        saveRatings(walletAddress, ratings);
-      }
-      const calculated = calculateReputationScore(activities, ratings, [], 30, false);
-      const avgRating = ratings.reduce((sum, r) => sum + (r.overallRating ?? 0), 0) / (ratings.length || 1); // ✅ FIX: Use correct property name `overallRating` (not `score`)
-      return { 
-        score: Math.round(avgRating * 10) / 10, 
-        reviewCount: ratings.length 
+      return {
+        score: Math.round(identity.reputation.averageRating * 10) / 10,
+        reviewCount: identity.reputation.totalReviews,
       };
     } catch {
-      return { score: 4.9, reviewCount: 150 };
+      return { score: null, reviewCount: 0 };
     }
-  }, []);
+  }, [reputationRevision]);
   
   // Helper function to render stars
   const renderStars = (count: number) => {
@@ -248,6 +262,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
   const loadBackendConversations = async (silent: boolean = false, force: boolean = false) => {
     const currentAddress = addressRef.current;
     if (!currentAddress) return;
+    if (!hasLiveChatSecuritySession()) return;
     if (silent && conversationsLoadInFlightRef.current) return;
     if (silent && !force && conversationsPollBackoffUntilRef.current > Date.now()) return;
     
@@ -380,6 +395,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
   // Load messages for active conversation (silent=true for polling to suppress toasts)
   const loadBackendMessages = async (conversationId: string, silent: boolean = false, force: boolean = false) => {
     const conversationKey = String(conversationId);
+    if (!hasLiveChatSecuritySession()) return;
 
     // Prevent overlapping silent polls for the same conversation.
     // Without this, polling every 900ms can continuously invalidate in-flight responses
@@ -554,6 +570,15 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
   
   // Load conversations on mount and when address changes
   useEffect(() => {
+    if (!address || requiresChatSecurityCheck) {
+      setConversations([]);
+      setActiveConversation(null);
+      setMessagesByConversation({});
+      messagesByConversationRef.current = {};
+      setLoading(false);
+      return;
+    }
+
     loadBackendConversations();
     
     // Poll conversation list (C6.3.2.1 visibility-aware: keep slower background cadence)
@@ -593,11 +618,13 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
       clearInterval(conversationsInterval);
       clearInterval(messagesInterval);
     };
-  }, [address]);
+  }, [address, requiresChatSecurityCheck]);
 
   // C6.3.1: chat invalidation events (no-payload bus). Coalesce rapid emits (send/create/read)
   // to avoid duplicate polling requests and keep sidebar/thread in sync across chat entry points.
   useEffect(() => {
+    if (requiresChatSecurityCheck) return;
+
     const scheduleChatRefresh = () => {
       if (typeof window === 'undefined') return;
       if (chatEventRefreshTimerRef.current) {
@@ -631,12 +658,12 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
         chatEventRefreshTimerRef.current = null;
       }
     };
-  }, [activeConversation]);
+  }, [activeConversation, requiresChatSecurityCheck]);
 
   // C6.3.2.3: realtime/presence adapter boundary (polling fallback-safe)
   // Default adapter is no-op; future realtime implementation can invalidate via callbacks.
   useEffect(() => {
-    if (!address) return;
+    if (!address || requiresChatSecurityCheck) return;
 
     const unsubscribe = subscribeChatConversationList(address, () => {
       if (typeof window === 'undefined') return;
@@ -644,10 +671,10 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
     });
 
     return () => unsubscribe();
-  }, [address]);
+  }, [address, requiresChatSecurityCheck]);
 
   useEffect(() => {
-    if (!activeConversation) {
+    if (!activeConversation || requiresChatSecurityCheck) {
       return;
     }
 
@@ -658,18 +685,18 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
     });
 
     return () => unsubscribe();
-  }, [activeConversation]);
+  }, [activeConversation, requiresChatSecurityCheck]);
   
   // Load messages when active conversation changes
   useEffect(() => {
-    if (activeConversation) {
+    if (activeConversation && !requiresChatSecurityCheck) {
       // Force jump to latest message when switching conversation tab
       forceScrollOnNextRenderRef.current = true;
       shouldAutoScrollRef.current = true;
       setShowEmojiPicker(false);
       loadBackendMessages(activeConversation); // NOT silent - user-initiated
     }
-  }, [activeConversation, address]);
+  }, [activeConversation, address, requiresChatSecurityCheck]);
 
   // Allow external navigation (e.g. notification click) to switch the active thread after mount.
   useEffect(() => {
@@ -695,6 +722,10 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
     // Must have either text or image
     if ((!userInput.trim() && !attachedImage) || sendingMessage || !address) return;
     if (!activeConversation) return;
+    if (requiresChatSecurityCheck) {
+      promptChatSecurityCheck();
+      return;
+    }
 
     const messageText = userInput.trim();
     
@@ -827,6 +858,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
   // Also scroll on visibility change (tab becomes visible)
   useEffect(() => {
     const handleVisibilityChange = () => {
+      if (requiresChatSecurityCheck) return;
       if (document.visibilityState === 'visible') {
         // C6.3.2.1: force foreground refresh before next polling ticks
         // so sidebar/thread catch up immediately after tab resumes.
@@ -844,36 +876,160 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
+  }, [requiresChatSecurityCheck]);
 
-  // Handle create new conversation
-  const handleCreateConversation = async (walletAddress: string, displayName?: string) => {
-    if (!address) {
-      toast.error('Please connect your wallet first');
-      return;
-    }
+  const finalizeConversationCreation = useCallback(
+    async (
+      walletAddress: string,
+      displayName?: string,
+      options?: { fromSecurityCheck?: boolean },
+    ): Promise<CreateConversationResult> => {
+      const currentAddress = addressRef.current;
+      if (!currentAddress) {
+        throw new Error('Please connect your wallet first');
+      }
 
-    try {
-      // Create (or get) direct conversation and use the real backend UUID.
-      // Do not synthesize `conv_<a>_<b>` IDs because C5/C6 storage is UUID-based.
       const conversation = await MessagesClient.createConversation(
-        address,
+        currentAddress,
         walletAddress,
         displayName
       );
 
-      // Reload conversations to show the new one
-      await loadBackendConversations();
+      pendingConversationDraftRef.current = null;
       setActiveConversation(conversation.id);
       setConversationMessagesFor(conversation.id, []);
-      await loadBackendMessages(conversation.id, true);
+
+      if (options?.fromSecurityCheck) {
+        await loadBackendConversations(true, true);
+        await loadBackendMessages(conversation.id, true, true);
+        setIsNewConversationModalOpen(false);
+      } else {
+        await loadBackendConversations();
+        await loadBackendMessages(conversation.id, true);
+      }
 
       toast.success('Conversation created!');
+      return 'created';
+    },
+    [loadBackendConversations, loadBackendMessages, setConversationMessagesFor]
+  );
+
+  const resumePendingConversationCreation = useCallback(async () => {
+    const draft = pendingConversationDraftRef.current;
+    if (!draft) return;
+
+    try {
+      await finalizeConversationCreation(draft.walletAddress, draft.displayName, {
+        fromSecurityCheck: true,
+      });
     } catch (error) {
-      console.error('[Messages] Create conversation error:', error);
-      toast.error('Failed to create conversation');
+      console.error('[Messages] Resume conversation creation error:', error);
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to create conversation'
+      );
     }
-  };
+  }, [finalizeConversationCreation]);
+  
+  // Handle create new conversation
+  const handleCreateConversation = useCallback(
+    async (walletAddress: string, displayName?: string): Promise<CreateConversationResult> => {
+      const trimmedWalletAddress = walletAddress.trim();
+      const trimmedDisplayName = displayName?.trim() || undefined;
+
+      if (!addressRef.current) {
+        throw new Error('Please connect your wallet first');
+      }
+
+      if (requiresChatSecurityCheck) {
+        pendingConversationDraftRef.current = {
+          walletAddress: trimmedWalletAddress,
+          displayName: trimmedDisplayName,
+        };
+        promptChatSecurityCheck(resumePendingConversationCreation);
+        return 'pending';
+      }
+
+      try {
+        return await finalizeConversationCreation(trimmedWalletAddress, trimmedDisplayName);
+      } catch (error) {
+        if (isBridgeAuthRequiredError(error)) {
+          pendingConversationDraftRef.current = {
+            walletAddress: trimmedWalletAddress,
+            displayName: trimmedDisplayName,
+          };
+          promptChatSecurityCheck(resumePendingConversationCreation);
+          return 'pending';
+        }
+
+        console.error('[Messages] Create conversation error:', error);
+        throw (error instanceof Error
+          ? error
+          : new Error('Failed to create conversation'));
+      }
+    },
+    [
+      finalizeConversationCreation,
+      promptChatSecurityCheck,
+      requiresChatSecurityCheck,
+      resumePendingConversationCreation,
+    ]
+  );
+
+  if (requiresChatSecurityCheck) {
+    return (
+      <section className="h-full bg-ui-page overflow-hidden p-6">
+        <div className="flex h-full items-center justify-center">
+          <div className="w-full max-w-[560px] rounded-[32px] border border-white/8 bg-[var(--t-card-bg)] p-8 shadow-[0_30px_80px_rgba(0,0,0,0.32)]">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1">
+              <ShieldCheck size={14} className="text-[#78E5BF]" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#78E5BF]">Protected Area</span>
+            </div>
+
+            <h2 className="text-[28px] font-extrabold tracking-tight text-white">Unlock Secure Messages</h2>
+            <p className="mt-3 max-w-[460px] text-sm leading-6 text-zinc-400">
+              Messages and conversations need a one-time wallet security check before Orina can sync your chat session. This is where the first signature should happen, not during wallet login.
+            </p>
+
+            <div className="mt-6 grid gap-3">
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">What you are approving</p>
+                <p className="mt-1 text-sm font-semibold text-white">Wallet session unlock for Messages & conversations</p>
+              </div>
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">Wallet request</p>
+                    <p className="mt-1 text-sm font-semibold text-white">One-time signature</p>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-black/20 px-3 py-1.5">
+                    <LockKeyhole size={14} className="text-zinc-300" />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300">No Gas</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/6 bg-black/20 px-4 py-3">
+              <p className="text-[11px] leading-5 text-zinc-400">
+                After you sign once, Orina will load your conversation list automatically. No transaction is sent and no token approval is requested.
+              </p>
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => promptChatSecurityCheck()}
+                className="rounded-full bg-[#2CC295] px-5 py-3 text-sm font-black uppercase tracking-[0.08em] text-black transition-colors hover:bg-[#34d3a3]"
+              >
+                Unlock Messages
+              </button>
+              <p className="text-xs text-zinc-500">Conversations stay hidden until the wallet security check is complete.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <>
@@ -1359,16 +1515,24 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                 {/* Footer - Rating from reputation system */}
                 {userInfo.walletAddress && (() => {
                   const rep = getPartnerReputation(userInfo.walletAddress);
-                  const filledStars = Math.round(rep.score);
                   return (
                     <StudioSidebarFooter className="p-6 bg-ui-input border-t border-[var(--t-border-subtle)]">
-                      <div className="flex items-center justify-center gap-1.5 mb-1">
-                        <span className="text-xl font-bold text-ui-primary">{rep.score}</span>
-                        <div className="flex items-center">
-                          {renderStars(filledStars)}
-                        </div>
-                      </div>
-                      <p className="text-[10px] text-ui-muted text-center">Based on {rep.reviewCount} reviews</p>
+                      {rep.score !== null ? (
+                        <>
+                          <div className="flex items-center justify-center gap-1.5 mb-1">
+                            <span className="text-xl font-bold text-ui-primary">{rep.score}</span>
+                            <div className="flex items-center">
+                              {renderStars(Math.round(rep.score))}
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-ui-muted text-center">Based on {rep.reviewCount} reviews</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-bold text-ui-primary text-center">No reviews yet</p>
+                          <p className="mt-1 text-[10px] text-ui-muted text-center">This profile has not received any reviews yet.</p>
+                        </>
+                      )}
                     </StudioSidebarFooter>
                   );
                 })()}
@@ -1460,7 +1624,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                       <span className="text-blue-400 text-sm">i</span>
                     </div>
                     <p className="text-[10px] text-zinc-400 leading-relaxed">
-                      Reports are stored locally and will be reviewed when the moderation system is connected. Blockchain addresses associated with reports are flagged for community safety.
+                      Reports are submitted securely to the server for moderation review. Blockchain addresses associated with reports are flagged for community safety.
                     </p>
                   </div>
                 </div>
@@ -1475,21 +1639,28 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (!reportReason) {
                       toast.error('Please select a reason');
                       return;
                     }
-                    // Store report in localStorage
-                    const reports = JSON.parse(localStorage.getItem('orina_user_reports') || '[]');
-                    reports.push({
-                      target: reportTarget,
-                      reason: reportReason,
-                      reporter: address,
-                      timestamp: new Date().toISOString()
-                    });
-                    localStorage.setItem('orina_user_reports', JSON.stringify(reports));
-                    toast.success('Report submitted successfully');
+                    // Submit report to server-side moderation table
+                    try {
+                      const { SUPABASE_EDGE_URL } = await import('/utils/supabase/info');
+                      await fetch(`${SUPABASE_EDGE_URL}/orina-chat-v1/messages/report`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          targetWallet: reportTarget.address,
+                          targetName: reportTarget.name,
+                          reason: reportReason,
+                        }),
+                      });
+                      toast.success('Report submitted successfully');
+                    } catch (err) {
+                      console.error('[Messages] Report submit error:', err);
+                      toast.error('Failed to submit report');
+                    }
                     setReportModalOpen(false);
                     setReportTarget(null);
                     setReportReason('');

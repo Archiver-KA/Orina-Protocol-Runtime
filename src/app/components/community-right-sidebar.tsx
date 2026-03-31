@@ -1,20 +1,39 @@
-import { Users, TrendingUp as TrendingUpIcon, TrendingDown, HelpCircle, Code, ExternalLink } from 'lucide-react';
-import { getAvatarByUserId } from '@/app/components/user-avatars';
+import { useEffect, useState } from 'react';
+import { useAccount } from 'wagmi';
+import { Users, TrendingUp as TrendingUpIcon, TrendingDown, Minus, HelpCircle, Code, ExternalLink } from 'lucide-react';
+import type { CommunityStats, TrendingTopic } from '@/types/community';
+import { formatCount, loadCommunityHubFromServer } from '@/utils/communityUtils';
 import { StudioSidebarShell, StudioSidebarHeader, StudioSidebarScroll, StudioSidebarFooter } from '@/app/components/ui/studio-sidebar';
 
-export function CommunityRightSidebar() {
-  const trendingTopics = [
-    { tag: '#RWA_Miami', posts: '1.2k', trend: 'up' },
-    { tag: '#MarketplaceTech', posts: '845', trend: 'up' },
-    { tag: '#NFT_Analysis', posts: '623', trend: 'down' },
-    { tag: '#Web3Security', posts: '502', trend: 'up' },
-  ];
+const EMPTY_STATS: CommunityStats = {
+  totalPosts: 0,
+  totalUsers: 0,
+  activeToday: 0,
+  totalComments: 0,
+};
 
-  const AvatarComponents = [
-    getAvatarByUserId(1),
-    getAvatarByUserId(2),
-    getAvatarByUserId(6),
-  ];
+export function CommunityRightSidebar() {
+  const { address } = useAccount();
+  const [stats, setStats] = useState<CommunityStats>(EMPTY_STATS);
+  const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadHub() {
+      const snapshot = await loadCommunityHubFromServer(address);
+      if (cancelled) return;
+      setStats(snapshot.stats);
+      setTrendingTopics(snapshot.trendingTopics);
+    }
+
+    void loadHub();
+    return () => {
+      cancelled = true;
+    };
+  }, [address]);
+
+  const hasLiveData = stats.totalPosts > 0 || stats.totalComments > 0 || trendingTopics.length > 0;
 
   return (
     <StudioSidebarShell widthClassName="w-full" className="community-borderless-theme bg-ui-page border-l-0 p-2.5">
@@ -31,16 +50,16 @@ export function CommunityRightSidebar() {
           <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[11px] uppercase font-bold text-ui-muted">Community Stats</h3>
-              <span className="w-2 h-2 bg-[#2CC295] rounded-full animate-pulse" />
+              <span className={`w-2 h-2 rounded-full ${hasLiveData ? 'bg-[#2CC295] animate-pulse' : 'bg-ui-border-subtle'}`} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-[10px] text-ui-muted font-bold uppercase mb-1">Active Today</p>
-                <p className="text-lg font-bold text-ui-primary">2,842</p>
+                <p className="text-lg font-bold text-ui-primary">{formatCount(stats.activeToday)}</p>
               </div>
               <div>
                 <p className="text-[10px] text-ui-muted font-bold uppercase mb-1">Total Posts</p>
-                <p className="text-lg font-bold text-ui-primary">12.4k</p>
+                <p className="text-lg font-bold text-ui-primary">{formatCount(stats.totalPosts)}</p>
               </div>
             </div>
           </div>
@@ -52,23 +71,27 @@ export function CommunityRightSidebar() {
                 Trending Topics
               </h2>
             </div>
-            <div className="space-y-4">
-              {trendingTopics.map((topic, index) => (
-                <div key={index} className="flex items-center justify-between group cursor-pointer">
-                  <div>
-                    <p className="text-sm font-bold text-ui-primary group-hover:text-primary transition-colors">
-                      {topic.tag}
-                    </p>
-                    <p className="text-[10px] text-ui-muted">{topic.posts} posts today</p>
+            {trendingTopics.length === 0 ? (
+              <p className="text-xs text-ui-muted">No community topics yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {trendingTopics.map((topic) => (
+                  <div key={topic.tag} className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-ui-primary">#{topic.tag}</p>
+                      <p className="text-[10px] text-ui-muted">{formatCount(topic.postCount)} posts</p>
+                    </div>
+                    {topic.trend === 'up' ? (
+                      <TrendingUpIcon size={14} className="text-primary" />
+                    ) : topic.trend === 'down' ? (
+                      <TrendingDown size={14} className="text-red-500" />
+                    ) : (
+                      <Minus size={14} className="text-ui-muted" />
+                    )}
                   </div>
-                  {topic.trend === 'up' ? (
-                    <TrendingUpIcon size={14} className="text-primary" />
-                  ) : (
-                    <TrendingDown size={14} className="text-red-500" />
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
@@ -99,29 +122,11 @@ export function CommunityRightSidebar() {
               </a>
             </div>
           </div>
-
-          <div className="p-5 bg-[rgba(44,194,149,0.08)] border border-[#2CC295]/20 rounded-[24px] backdrop-blur-[10px]">
-            <p className="text-[11px] font-bold text-primary uppercase tracking-widest mb-3">Join the Convo</p>
-            <div className="flex -space-x-3 mb-3">
-              {AvatarComponents.map((Avatar, index) => (
-                <Avatar key={index} className="w-8 h-8 rounded-full border-2 border-[#141417]" />
-              ))}
-              <div className="w-8 h-8 rounded-full border-2 border-[#141417] bg-zinc-800 flex items-center justify-center text-[10px] text-ui-primary font-bold">
-                +42
-              </div>
-            </div>
-            <p className="text-xs text-ui-secondary mb-4">
-              Connect with colleagues already active in the RWA community.
-            </p>
-            <button className="w-full py-2.5 bg-[#2CC295] text-black font-bold text-xs rounded-full uppercase tracking-tight hover:bg-[#25a67d] transition-all">
-              Sync Contacts
-            </button>
-          </div>
         </StudioSidebarScroll>
 
         <StudioSidebarFooter className="border-t border-[var(--t-border-subtle)] p-4 bg-transparent backdrop-blur-0">
           <p className="text-[10px] text-ui-muted text-center uppercase tracking-widest">
-            Live community monitoring active
+            {hasLiveData ? 'Live community monitoring active' : 'No community data yet'}
           </p>
         </StudioSidebarFooter>
       </div>

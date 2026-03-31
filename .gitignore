@@ -35,3 +35,14 @@ data/geo/out/*
 !data/geo/out/.gitkeep
 data/geo/vendor/
 .gitnexus
+
+# Local nested repos / agent artifacts kept outside main repo tracking
+/.agent/
+/foundry
+/foundry/
+/atp34-testnet-contracts/
+
+# Root scratch artifacts
+/console.log((i+336)+'
+/l.includes('text-ui')
+/line.startsWith(k+'

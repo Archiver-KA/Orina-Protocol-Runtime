@@ -1,0 +1,462 @@
+import type { MarketplaceAsset } from '@/app/types/asset';
+import { getWalletIdentity } from '@/utils/walletIdentityStore';
+import { loadUserProfileLocalOnlySnapshot, shortenUserDisplayName } from '@/utils/profileUtils';
+import {
+  encodeIn,
+  isSupabaseRestEnabled,
+  restSelect,
+  toQuery,
+  dispatchSyncEvent,
+} from '@/utils/supabaseRest';
+import {
+  hydrateMarketplaceCatalogFromSupabase,
+  loadMarketplaceCatalogSync,
+} from '@/utils/marketplaceCatalog';
+
+export interface SellerProfileCardData {
+  address: string;
+  displayName: string;
+  username: string;
+  bio: string;
+  avatarUrl?: string;
+  bannerUrl?: string;
+  totalSalesEth: string;
+  followers: string;
+  rating: string;
+  hasReviews: boolean;
+  floorPriceEth: string;
+  itemsListed: string;
+  verified: boolean;
+  directoryRank: number;
+  rankScore: number;
+  metrics: {
+    overallScore: number;
+    totalVolume: number;
+    averageRating: number;
+    totalReviews: number;
+    followerCount: number;
+    itemsListed: number;
+    floorPriceEth: number;
+  };
+}
+
+type DbProfileRow = {
+  id: string;
+  wallet_address: string;
+  display_name: string | null;
+  username: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  banner_url: string | null;
+  is_verified: boolean;
+  status: string | null;
+};
+
+type DbProfileReputationSummaryRow = {
+  wallet_address: string;
+  overall_score: number | string;
+  total_volume: number | string;
+  average_rating: number | string;
+  total_reviews: number | string;
+  is_verified: boolean;
+};
+
+type DbUserFollowRow = {
+  following_user_id: string;
+};
+
+type SellerListingStats = {
+  itemsListed: number;
+  floorPriceEth: number;
+};
+
+type SellerDirectoryOptions = {
+  addresses?: string[];
+  marketplaceAssets?: MarketplaceAsset[];
+};
+
+export const SELLER_DIRECTORY_SYNC_EVENT = 'orina:seller-directory-changed';
+
+const sellerDirectoryCache = new Map<string, SellerProfileCardData>();
+const sellerDirectoryHydrateInFlight = new Map<string, Promise<SellerProfileCardData[]>>();
+
+function normalizeAddress(address?: string | null): string {
+  return String(address || '').trim().toLowerCase();
+}
+
+function toNumber(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function parseMarketplacePrice(price?: string | null): number {
+  const parsed = Number.parseFloat(String(price || '').replace(/[^\d.]/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatCompactCount(value: number): string {
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+  return `${value}`;
+}
+
+function formatEth(value: number): string {
+  if (!value || value <= 0) return '0 ETH';
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}K ETH`;
+  return `${value.toFixed(2)} ETH`;
+}
+
+function resolveRating(address: string, summary?: DbProfileReputationSummaryRow | null): Pick<SellerProfileCardData, 'rating' | 'hasReviews'> {
+  const totalReviews = Math.max(0, Math.round(toNumber(summary?.total_reviews)));
+  if (totalReviews > 0) {
+    return {
+      rating: toNumber(summary?.average_rating).toFixed(1),
+      hasReviews: true,
+    };
+  }
+
+  const identity = getWalletIdentity(address);
+  if (identity.reputation.totalReviews > 0) {
+    return {
+      rating: identity.reputation.averageRating.toFixed(1),
+      hasReviews: true,
+    };
+  }
+
+  return {
+    rating: 'No reviews',
+    hasReviews: false,
+  };
+}
+
+function buildSellerMetrics(
+  address: string,
+  listingStats: Map<string, SellerListingStats>,
+  summary?: DbProfileReputationSummaryRow | null,
+  followerCount?: number,
+): SellerProfileCardData['metrics'] {
+  const normalized = normalizeAddress(address);
+  const localProfile = loadUserProfileLocalOnlySnapshot(normalized);
+  const identity = getWalletIdentity(normalized);
+  const listing = listingStats.get(normalized) || { itemsListed: 0, floorPriceEth: 0 };
+
+  return {
+    overallScore: Math.max(
+      0,
+      Math.round(toNumber(summary?.overall_score) || identity.reputation.overallScore || 0),
+    ),
+    totalVolume: Math.max(0, toNumber(summary?.total_volume) || localProfile?.stats?.totalSales || 0),
+    averageRating: Math.max(0, toNumber(summary?.average_rating) || identity.reputation.averageRating || 0),
+    totalReviews: Math.max(
+      0,
+      Math.round(toNumber(summary?.total_reviews) || identity.reputation.totalReviews || 0),
+    ),
+    followerCount: Math.max(0, followerCount ?? localProfile?.followers?.length ?? identity.social.followersCount ?? 0),
+    itemsListed: Math.max(0, listing.itemsListed),
+    floorPriceEth: Math.max(0, listing.floorPriceEth),
+  };
+}
+
+function compareSellerProfiles(left: SellerProfileCardData, right: SellerProfileCardData): number {
+  const scoreDiff = right.metrics.overallScore - left.metrics.overallScore;
+  if (scoreDiff !== 0) return scoreDiff;
+
+  if (left.verified !== right.verified) {
+    return Number(right.verified) - Number(left.verified);
+  }
+
+  const reviewDiff = right.metrics.totalReviews - left.metrics.totalReviews;
+  if (reviewDiff !== 0) return reviewDiff;
+
+  const ratingDiff = right.metrics.averageRating - left.metrics.averageRating;
+  if (ratingDiff !== 0) return ratingDiff;
+
+  const volumeDiff = right.metrics.totalVolume - left.metrics.totalVolume;
+  if (volumeDiff !== 0) return volumeDiff;
+
+  const followerDiff = right.metrics.followerCount - left.metrics.followerCount;
+  if (followerDiff !== 0) return followerDiff;
+
+  const listedDiff = right.metrics.itemsListed - left.metrics.itemsListed;
+  if (listedDiff !== 0) return listedDiff;
+
+  const nameDiff = left.displayName.localeCompare(right.displayName);
+  if (nameDiff !== 0) return nameDiff;
+
+  return left.address.localeCompare(right.address);
+}
+
+function sortAndRankProfiles(profiles: SellerProfileCardData[]): SellerProfileCardData[] {
+  return [...profiles]
+    .sort(compareSellerProfiles)
+    .map((profile, index) => ({
+      ...profile,
+      directoryRank: index + 1,
+      rankScore: profile.metrics.overallScore,
+    }));
+}
+
+function buildListingStats(assets: MarketplaceAsset[]): Map<string, SellerListingStats> {
+  const stats = new Map<string, SellerListingStats>();
+
+  for (const asset of assets) {
+    const sellerAddress = normalizeAddress(asset.seller?.address);
+    if (!sellerAddress) continue;
+
+    const price = parseMarketplacePrice(asset.price);
+    const current = stats.get(sellerAddress) || { itemsListed: 0, floorPriceEth: 0 };
+    const nextFloorPrice =
+      current.floorPriceEth > 0 && price > 0
+        ? Math.min(current.floorPriceEth, price)
+        : current.floorPriceEth > 0
+          ? current.floorPriceEth
+          : price;
+
+    stats.set(sellerAddress, {
+      itemsListed: current.itemsListed + 1,
+      floorPriceEth: nextFloorPrice,
+    });
+  }
+
+  return stats;
+}
+
+function buildSeedAddresses(options: SellerDirectoryOptions, assets: MarketplaceAsset[]): string[] {
+  const seed: string[] = [];
+  const seen = new Set<string>();
+
+  const push = (address?: string | null) => {
+    const normalized = normalizeAddress(address);
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    seed.push(normalized);
+  };
+
+  const explicitAddresses = (options.addresses || []).filter(Boolean);
+  explicitAddresses.forEach(push);
+  if (explicitAddresses.length > 0) {
+    return seed;
+  }
+
+  assets.forEach((asset) => push(asset.seller?.address));
+
+  return seed;
+}
+
+async function fetchActiveDirectoryProfileRows(): Promise<DbProfileRow[]> {
+  return restSelect<DbProfileRow>(
+    'profiles',
+    toQuery({
+      select: 'id,wallet_address,display_name,username,bio,avatar_url,banner_url,is_verified,status',
+      status: 'eq.active',
+      limit: '100',
+    }),
+  ).catch(() => []);
+}
+
+function buildSellerProfileCard(
+  address: string,
+  listingStats: Map<string, SellerListingStats>,
+  profileRow?: DbProfileRow | null,
+  summary?: DbProfileReputationSummaryRow | null,
+  followerCount?: number,
+): SellerProfileCardData {
+  const normalized = normalizeAddress(address);
+  const localProfile = loadUserProfileLocalOnlySnapshot(normalized);
+  const ratingSummary = resolveRating(normalized, summary);
+  const metrics = buildSellerMetrics(normalized, listingStats, summary, followerCount);
+  const username = profileRow?.username || localProfile?.username || `@${normalized.slice(2, 10)}`;
+  const displayName =
+    profileRow?.display_name ||
+    localProfile?.displayName ||
+    shortenUserDisplayName(normalized);
+  const resolvedVerified = Boolean(profileRow?.is_verified ?? summary?.is_verified ?? localProfile?.verified);
+
+  return {
+    address: normalized,
+    displayName,
+    username,
+    bio: profileRow?.bio || localProfile?.bio || '',
+    avatarUrl: profileRow?.avatar_url || localProfile?.avatarUrl || localProfile?.avatar,
+    bannerUrl: profileRow?.banner_url || localProfile?.bannerUrl || localProfile?.banner,
+    totalSalesEth: formatEth(metrics.totalVolume),
+    followers: formatCompactCount(metrics.followerCount),
+    rating: ratingSummary.rating,
+    hasReviews: ratingSummary.hasReviews,
+    floorPriceEth: formatEth(metrics.floorPriceEth),
+    itemsListed: `${metrics.itemsListed}`,
+    verified: resolvedVerified,
+    directoryRank: 0,
+    rankScore: metrics.overallScore,
+    metrics,
+  };
+}
+
+function readCachedProfiles(addresses: string[], listingStats: Map<string, SellerListingStats>): SellerProfileCardData[] {
+  return addresses.map((address) => {
+    const cached = sellerDirectoryCache.get(address);
+    if (!cached) return buildSellerProfileCard(address, listingStats);
+
+    const listing = listingStats.get(address);
+    const nextMetrics = {
+      ...cached.metrics,
+      itemsListed: listing?.itemsListed ?? cached.metrics.itemsListed,
+      floorPriceEth:
+        listing && listing.floorPriceEth > 0
+          ? listing.floorPriceEth
+          : cached.metrics.floorPriceEth,
+    };
+
+    return {
+      ...cached,
+      floorPriceEth: formatEth(nextMetrics.floorPriceEth),
+      itemsListed: `${nextMetrics.itemsListed}`,
+      totalSalesEth: formatEth(nextMetrics.totalVolume),
+      followers: formatCompactCount(nextMetrics.followerCount),
+      directoryRank: 0,
+      rankScore: nextMetrics.overallScore,
+      metrics: nextMetrics,
+    };
+  });
+}
+
+function updateCache(nextProfiles: SellerProfileCardData[]): void {
+  let changed = false;
+
+  for (const profile of nextProfiles) {
+    const prev = sellerDirectoryCache.get(profile.address);
+    if (!prev || JSON.stringify(prev) !== JSON.stringify(profile)) {
+      sellerDirectoryCache.set(profile.address, profile);
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    dispatchSyncEvent(SELLER_DIRECTORY_SYNC_EVENT);
+  }
+}
+
+async function resolveMarketplaceAssets(options: SellerDirectoryOptions): Promise<MarketplaceAsset[]> {
+  if (Array.isArray(options.marketplaceAssets) && options.marketplaceAssets.length > 0) {
+    return options.marketplaceAssets;
+  }
+
+  const cachedAssets = loadMarketplaceCatalogSync();
+  if (cachedAssets.length > 0) return cachedAssets;
+
+  return hydrateMarketplaceCatalogFromSupabase();
+}
+
+export function loadSellerDirectorySync(options: SellerDirectoryOptions = {}): SellerProfileCardData[] {
+  const marketplaceAssets = options.marketplaceAssets || loadMarketplaceCatalogSync();
+  const listingStats = buildListingStats(marketplaceAssets);
+  const addresses = buildSeedAddresses(options, marketplaceAssets);
+  if (addresses.length === 0) {
+    const cachedProfiles = Array.from(sellerDirectoryCache.values());
+    if (cachedProfiles.length > 0) {
+      return sortAndRankProfiles(cachedProfiles);
+    }
+  }
+  return sortAndRankProfiles(readCachedProfiles(addresses, listingStats));
+}
+
+export async function hydrateSellerDirectoryFromSupabase(
+  options: SellerDirectoryOptions = {},
+): Promise<SellerProfileCardData[]> {
+  const marketplaceAssets = await resolveMarketplaceAssets(options);
+  const listingStats = buildListingStats(marketplaceAssets);
+  const explicitAddresses = (options.addresses || []).filter(Boolean);
+  let addresses = buildSeedAddresses(options, marketplaceAssets);
+  let profileRows: DbProfileRow[] | null = null;
+
+  if (addresses.length === 0 && explicitAddresses.length === 0) {
+    profileRows = await fetchActiveDirectoryProfileRows();
+    addresses = profileRows
+      .map((row) => normalizeAddress(row.wallet_address))
+      .filter(Boolean);
+  }
+
+  if (addresses.length === 0) return [];
+
+  const inFlightKey = addresses.slice().sort().join('|');
+  const existing = sellerDirectoryHydrateInFlight.get(inFlightKey);
+  if (existing) return existing;
+
+  const request = (async () => {
+    if (!isSupabaseRestEnabled()) {
+      const fallbackProfiles = sortAndRankProfiles(readCachedProfiles(addresses, listingStats));
+      updateCache(fallbackProfiles);
+      return fallbackProfiles;
+    }
+
+    const resolvedProfileRows = profileRows ?? await restSelect<DbProfileRow>(
+      'profiles',
+      toQuery({
+        select: 'id,wallet_address,display_name,username,bio,avatar_url,banner_url,is_verified,status',
+        wallet_address: encodeIn(addresses),
+      }),
+    ).catch(() => []);
+
+    const profileByAddress = new Map(
+      resolvedProfileRows
+        .filter((row) => !row.status || row.status === 'active')
+        .map((row) => [normalizeAddress(row.wallet_address), row] as const),
+    );
+
+    const profileIds = resolvedProfileRows.map((row) => row.id).filter(Boolean);
+
+    const [reputationRows, followerRows] = await Promise.all([
+      restSelect<DbProfileReputationSummaryRow>(
+        'profile_reputation_summaries',
+        toQuery({
+          select: 'wallet_address,overall_score,total_volume,average_rating,total_reviews,is_verified',
+          wallet_address: encodeIn(addresses),
+        }),
+      ).catch(() => []),
+      profileIds.length > 0
+        ? restSelect<DbUserFollowRow>(
+            'user_follows',
+            toQuery({
+              select: 'following_user_id',
+              following_user_id: encodeIn(profileIds),
+            }),
+          ).catch(() => [])
+        : Promise.resolve([] as DbUserFollowRow[]),
+    ]);
+
+    const reputationByAddress = new Map(
+      reputationRows.map((row) => [normalizeAddress(row.wallet_address), row] as const),
+    );
+
+    const followerCountByProfileId = followerRows.reduce<Map<string, number>>((acc, row) => {
+      const current = acc.get(row.following_user_id) || 0;
+      acc.set(row.following_user_id, current + 1);
+      return acc;
+    }, new Map());
+
+    const nextProfiles = addresses.map((address) => {
+      const profileRow = profileByAddress.get(address);
+      const followerCount = profileRow ? followerCountByProfileId.get(profileRow.id) : undefined;
+      return buildSellerProfileCard(
+        address,
+        listingStats,
+        profileRow,
+        reputationByAddress.get(address),
+        followerCount,
+      );
+    });
+
+    const rankedProfiles = sortAndRankProfiles(nextProfiles);
+    updateCache(rankedProfiles);
+    return rankedProfiles;
+  })().finally(() => {
+    sellerDirectoryHydrateInFlight.delete(inFlightKey);
+  });
+
+  sellerDirectoryHydrateInFlight.set(inFlightKey, request);
+  return request;
+}

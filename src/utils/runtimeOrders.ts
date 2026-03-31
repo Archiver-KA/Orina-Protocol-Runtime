@@ -1,3 +1,9 @@
+/**
+ * @deprecated Phase 4 - Hybrid wallet data: Runtime orders.
+ * localStorage persistence should migrate to remote-first via the
+ * protocol_runtime_orders (000005) server table.
+ * See spec: 15-local-api-audit-and-server-migration-plan.md
+ */
 import { ACTIVE_CHAIN_ID, CONTRACTS, PAYMENT_TOKENS, PROTOCOL } from "@/config/contracts";
 import { deriveOrderProgress } from "@/utils/orderLifecycle";
 import type { OrderShippingAddressSnapshot, OrderUiRecord } from "@/types/order";

@@ -1,3 +1,9 @@
+/**
+ * @deprecated Phase 3 - Hybrid wallet data: User settings.
+ * localStorage persistence should migrate to remote-first via the
+ * user_app_settings (000019) server table.
+ * See spec: 15-local-api-audit-and-server-migration-plan.md
+ */
 import type { StoredUserAppSettingsRecord, UserAppSettings } from '@/types/user-settings';
 import type { NotificationPreferences } from '@/types/notifications';
 import type { UserProfile } from '@/types/profile';
@@ -99,6 +105,12 @@ function toLanguageCode(value: unknown, fallback: string): string {
   return normalized || fallback;
 }
 
+function normalizeProfileEmail(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase();
+  return normalized || undefined;
+}
+
 function toThemeMode(value: unknown): boolean | null {
   if (value === 'dark') return true;
   if (value === 'light') return false;
@@ -150,6 +162,7 @@ function buildStoredSettingsRecord(raw: Record<string, unknown> | null | undefin
     notificationTypeMessage: toBoolean(source.notificationTypeMessage, DEFAULT_USER_APP_SETTINGS.notificationTypeMessage),
     notificationTypeSystem: toBoolean(source.notificationTypeSystem, DEFAULT_USER_APP_SETTINGS.notificationTypeSystem),
     notificationTypeCommunity: toBoolean(source.notificationTypeCommunity, DEFAULT_USER_APP_SETTINGS.notificationTypeCommunity),
+    profileEmail: normalizeProfileEmail(source.profileEmail),
     updatedAt: typeof source.updatedAt === 'number' && Number.isFinite(source.updatedAt)
       ? source.updatedAt
       : Date.now(),
@@ -189,6 +202,7 @@ function buildDbRow(userId: string, settings: StoredUserAppSettingsRecord): DbUs
       twoFactor: settings.twoFactor,
       sessionLockout: settings.sessionLockout,
       ipWhitelist: settings.ipWhitelist,
+      profileEmail: settings.profileEmail || null,
     },
     display_settings: {
       darkMode: settings.darkMode,
@@ -239,6 +253,7 @@ function mapDbRowToStoredSettings(row: DbUserAppSettingsRow): StoredUserAppSetti
     notificationTypeMessage: types.message,
     notificationTypeSystem: types.system,
     notificationTypeCommunity: types.community,
+    profileEmail: security.profileEmail,
     language: region.language,
     timezone: region.timezone,
     currency: region.currency,
@@ -283,6 +298,7 @@ function mapLegacyUserPreferencesRowToStoredSettings(
     showActivity: privacy.showActivity,
     showBalance: privacy.showBalance,
     showFollowers: privacy.showFollowers,
+    profileEmail: ui.profile_email,
     updatedAt: row.updated_at ? Date.parse(row.updated_at) : fallback.updatedAt,
   });
 }
@@ -427,7 +443,7 @@ export function readLocalUserAppSettings(address?: string | null): StoredUserApp
 }
 
 export function settingsRecordToAppSettings(record: StoredUserAppSettingsRecord): UserAppSettings {
-  const { updatedAt: _updatedAt, ...settings } = record;
+  const { updatedAt: _updatedAt, profileEmail: _profileEmail, ...settings } = record;
   return settings;
 }
 
@@ -465,9 +481,17 @@ export async function hydrateUserAppSettingsFromSupabase(address?: string | null
     const legacyRow = legacyRows[0];
     if (!row && !legacyRow) return local;
 
-    const remote = row
-      ? mapDbRowToStoredSettings(row)
-      : mapLegacyUserPreferencesRowToStoredSettings(legacyRow as DbLegacyUserPreferencesRow, local);
+    const remoteFromCanonical = row ? mapDbRowToStoredSettings(row) : null;
+    const remoteFromLegacy = legacyRow
+      ? mapLegacyUserPreferencesRowToStoredSettings(legacyRow as DbLegacyUserPreferencesRow, local)
+      : null;
+    const remote = remoteFromCanonical
+      ? buildStoredSettingsRecord({
+          ...remoteFromCanonical,
+          profileEmail: remoteFromCanonical.profileEmail || remoteFromLegacy?.profileEmail,
+          updatedAt: row.updated_at ? Date.parse(row.updated_at) : (remoteFromLegacy?.updatedAt || Date.now()),
+        })
+      : (remoteFromLegacy as StoredUserAppSettingsRecord);
     const nextBase = (remote.updatedAt || 0) >= (local.updatedAt || 0) ? remote : local;
     const next: StoredUserAppSettingsRecord = {
       ...nextBase,
@@ -498,32 +522,34 @@ export async function saveUserAppSettings(
     throw new Error('No wallet connected');
   }
 
-  const nextRecord = saveLocalSettings(normalizedWallet, {
+  const currentLocal = readLocalUserAppSettings(normalizedWallet);
+  const nextRecord = buildStoredSettingsRecord({
+    ...currentLocal,
     ...buildStoredSettingsRecord(settings as unknown as Record<string, unknown>),
+    profileEmail: currentLocal.profileEmail,
     updatedAt: Date.now(),
-  });
+  } as unknown as Record<string, unknown>);
 
-  if (!isSupabaseRestEnabled()) {
-    return { settings: nextRecord, remoteSynced: false };
-  }
-
-  try {
-    const userId = await resolveRemoteProfileId(normalizedWallet);
-    if (!userId) {
-      return { settings: nextRecord, remoteSynced: false };
+  // Server-first: persist to Supabase, then cache locally
+  let remoteSynced = false;
+  if (isSupabaseRestEnabled()) {
+    try {
+      const userId = await resolveRemoteProfileId(normalizedWallet);
+      if (userId) {
+        await restUpsert(
+          'user_app_settings',
+          [buildDbRow(userId, nextRecord)],
+          { onConflict: 'user_id' }
+        );
+        remoteSynced = true;
+      }
+    } catch (error) {
+      console.debug('[UserSettings] Supabase sync skipped:', error);
     }
-
-    await restUpsert(
-      'user_app_settings',
-      [buildDbRow(userId, nextRecord)],
-      { onConflict: 'user_id' }
-    );
-
-    return { settings: nextRecord, remoteSynced: true };
-  } catch (error) {
-    console.debug('[UserSettings] Supabase sync skipped:', error);
-    return { settings: nextRecord, remoteSynced: false };
   }
+
+  saveLocalSettings(normalizedWallet, nextRecord);
+  return { settings: nextRecord, remoteSynced };
 }
 
 export async function patchUserAppSettings(
@@ -532,4 +558,50 @@ export async function patchUserAppSettings(
 ): Promise<{ settings: StoredUserAppSettingsRecord; remoteSynced: boolean }> {
   const current = settingsRecordToAppSettings(readLocalUserAppSettings(address));
   return saveUserAppSettings(address, { ...current, ...patch });
+}
+
+export function readLocalUserProfileEmail(address?: string | null): string | undefined {
+  return readLocalUserAppSettings(address).profileEmail;
+}
+
+export async function saveUserProfileEmail(
+  address: string,
+  email?: string | null
+): Promise<{ settings: StoredUserAppSettingsRecord; remoteSynced: boolean }> {
+  if (shouldBlockGuestWrite('saveUserProfileEmail')) {
+    throw new Error('Guest mode is read only');
+  }
+
+  const normalizedWallet = normalizeWallet(address);
+  if (!normalizedWallet) {
+    throw new Error('No wallet connected');
+  }
+
+  const currentLocal = readLocalUserAppSettings(normalizedWallet);
+  const nextRecord = buildStoredSettingsRecord({
+    ...currentLocal,
+    profileEmail: normalizeProfileEmail(email),
+    updatedAt: Date.now(),
+  } as unknown as Record<string, unknown>);
+
+  // Server-first: persist to Supabase, then cache locally
+  let remoteSynced = false;
+  if (isSupabaseRestEnabled()) {
+    try {
+      const userId = await resolveRemoteProfileId(normalizedWallet);
+      if (userId) {
+        await restUpsert(
+          'user_app_settings',
+          [buildDbRow(userId, nextRecord)],
+          { onConflict: 'user_id' }
+        );
+        remoteSynced = true;
+      }
+    } catch (error) {
+      console.debug('[UserSettings] Profile email sync skipped:', error);
+    }
+  }
+
+  saveLocalSettings(normalizedWallet, nextRecord);
+  return { settings: nextRecord, remoteSynced };
 }
