@@ -2,6 +2,7 @@ import {
   getDeterministicOwnedAssetDetailsById,
   getTestWalletMyAssets,
 } from '@/utils/testWalletAssetFixtures';
+import type { RuntimeMintedAssetRecord } from '@/utils/runtimeMintedAssets';
 import {
   getLocalSupabaseId,
   isSupabaseRestEnabled,
@@ -89,6 +90,121 @@ function propertiesToAttributes(
     attrs[prop.trait_type] = prop.value;
   }
   return attrs;
+}
+
+function inferNetworkFromChainId(chainId: number | null | undefined): 'mainnet' | 'testnet' | null {
+  if (chainId === 97 || chainId === 11155111) return 'testnet';
+  if (chainId === 56 || chainId === 1 || chainId === 137 || chainId === 42161 || chainId === 8453) return 'mainnet';
+  return null;
+}
+
+function extractCurrencyFromPrice(value: string | null | undefined): string | null {
+  const parts = String(value || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return null;
+  return parts[parts.length - 1]?.toUpperCase() || null;
+}
+
+function buildSeedItemFromRuntimeMintedRecord(
+  record: RuntimeMintedAssetRecord,
+  chainId?: number | null,
+): AssetMetadataSeedItem | null {
+  if (record.assetType !== 'RWA') return null;
+
+  const assetUid = normalizeAssetUid(record.details.assetUid || record.id);
+  const title = String(record.details.name || record.myAsset.name || '').trim();
+  if (!assetUid || !title) return null;
+
+  const galleryImages = uniqueStrings(record.details.images?.length ? record.details.images : [record.details.image]);
+  const media = galleryImages.map((url, index) => ({
+    mediaType: 'image' as const,
+    url,
+    sortOrder: index,
+    metadata: index === 0 ? { role: 'cover' } : {},
+  }));
+
+  const normalizedCategory = record.details.category ? normalizeCategoryFilterValue(record.details.category) : null;
+  const resolvedChainId = chainId ?? mapChainId(record.details.blockchain, undefined);
+  const resolvedNetwork = inferNetworkFromChainId(resolvedChainId);
+  const totalSlots = Number(record.myAsset.totalAmount || 0) || 0;
+  const availableSlots = Number(record.myAsset.availableAmount || 0) || 0;
+  const price = String(record.myAsset.minPrice || record.details.currentPrice || '').trim();
+  const currency = extractCurrencyFromPrice(price);
+  const mintedAt = record.details.mintDate ?? record.createdAt;
+
+  const tags = uniqueStrings([
+    normalizedCategory || '',
+    String(record.details.blockchain || '').toLowerCase(),
+    'runtime_minted',
+    'rwa',
+  ]).map((tag) => slugify(tag)).filter(Boolean);
+
+  return {
+    assetUid,
+    title,
+    slug: slugify(`${assetUid}-${title}`) || assetUid,
+    category: normalizedCategory,
+    subcategory: null,
+    description: record.details.description || null,
+    coverImageUrl: record.details.image || null,
+    galleryImages,
+    attributes: {
+      ...propertiesToAttributes(record.details.properties),
+      on_chain_unit_id: record.details.unitId || null,
+      on_chain_total_amount: totalSlots || null,
+      estimated_price: price ? { suggested: price, currency } : null,
+    },
+    metadata: {
+      seed_source: 'runtime_minted_asset_bridge_v1',
+      asset_namespace: 'runtime_minted',
+      local_asset_id: record.id,
+      onchain_asset_id: record.details.onchainAssetId || record.details.tokenId || record.id,
+      name: title,
+      description: record.details.description || null,
+      image: record.details.image || null,
+      images: galleryImages,
+      seller: record.details.seller || {
+        address: record.walletAddress,
+        verified: false,
+      },
+      seller_wallet: record.walletAddress,
+      price: price || null,
+      priceUSD: record.details.currentPriceUsd || null,
+      currency,
+      availableSlots,
+      totalSlots,
+      minPurchaseSlots: totalSlots > 0 ? 1 : null,
+      maxPurchaseSlots: totalSlots > 0 ? totalSlots : null,
+      listedAt: mintedAt,
+      expiresAt: null,
+      listingDuration: null,
+      views: record.details.views ?? 0,
+      likes: record.details.favorites ?? 0,
+      rank: null,
+      verified: !!record.details.verified,
+      featured: false,
+      blockchain: record.details.blockchain || null,
+      network: resolvedNetwork,
+      listing_network: resolvedNetwork,
+      listing_stats: null,
+      configurableAttributes: record.details.configurableAttributes ?? null,
+      deliverySnapshot: record.details.deliverySnapshot ?? null,
+      assetLocationSnapshot: record.details.assetLocationSnapshot ?? null,
+      tags,
+      createdAt: mintedAt,
+      updatedAt: record.createdAt,
+      mintTxHash: record.txHash || null,
+      mintedAt,
+      unitId: record.details.unitId || null,
+      unitName: record.details.unitName || null,
+      unitLabel: record.details.unitLabel || null,
+    },
+    contractAddress: record.details.contractAddress || null,
+    tokenId: record.details.onchainAssetId || record.details.tokenId || record.id,
+    chainId: resolvedChainId,
+    isActive: true,
+    media,
+    tags,
+  };
 }
 
 function buildSeedItemFromAssetId(assetId: string): AssetMetadataSeedItem | null {
@@ -280,4 +396,58 @@ export async function ensureAssetMetadataSeedForWalletFixtures(walletAddress?: s
   ];
 
   await ensureAssetMetadataSeedForIds(assetIds, walletAddress);
+}
+
+export async function syncRuntimeMintedAssetToMarketplace(
+  record: RuntimeMintedAssetRecord,
+  walletAddress?: string | null,
+  chainId?: number | null,
+): Promise<{ ok: boolean; assetId?: string | null }> {
+  if (!isSupabaseRestEnabled()) return { ok: false, assetId: null };
+
+  const seedItem = buildSeedItemFromRuntimeMintedRecord(record, chainId);
+  if (!seedItem) return { ok: false, assetId: null };
+
+  const result = await sendAssetMetadataSeedViaBridge([seedItem], walletAddress || record.walletAddress);
+  if (!result?.ok) return { ok: false, assetId: null };
+
+  const row = (result.rows || []).find((entry) => normalizeAssetUid(entry.assetUid) === normalizeAssetUid(seedItem.assetUid)) || null;
+  if (row?.assetId) {
+    setLocalSupabaseId('asset', normalizeAssetUid(seedItem.assetUid), row.assetId);
+    setLocalSupabaseId('asset_rev', row.assetId, normalizeAssetUid(seedItem.assetUid));
+  }
+
+  dispatchAssetMetadataChangedEvent();
+  return { ok: true, assetId: row?.assetId ?? null };
+}
+
+export async function syncRuntimeMintedAssetsToMarketplace(
+  records: RuntimeMintedAssetRecord[],
+  walletAddress?: string | null,
+  chainId?: number | null,
+): Promise<{ ok: boolean; count: number }> {
+  if (!isSupabaseRestEnabled() || !records.length) return { ok: false, count: 0 };
+
+  const seedItems = records
+    .map((record) => buildSeedItemFromRuntimeMintedRecord(record, chainId))
+    .filter(Boolean) as AssetMetadataSeedItem[];
+
+  if (!seedItems.length) return { ok: false, count: 0 };
+
+  const dedupedSeedItems = Array.from(
+    new Map(seedItems.map((item) => [normalizeAssetUid(item.assetUid), item] as const)).values(),
+  );
+
+  const result = await sendAssetMetadataSeedViaBridge(dedupedSeedItems, walletAddress);
+  if (!result?.ok) return { ok: false, count: 0 };
+
+  for (const row of result.rows || []) {
+    const uid = normalizeAssetUid(row.assetUid);
+    if (!uid || !row.assetId) continue;
+    setLocalSupabaseId('asset', uid, row.assetId);
+    setLocalSupabaseId('asset_rev', row.assetId, uid);
+  }
+
+  dispatchAssetMetadataChangedEvent();
+  return { ok: true, count: dedupedSeedItems.length };
 }

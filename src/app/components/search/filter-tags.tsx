@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { SearchFilters } from '@/types/search';
 import { motion, AnimatePresence } from 'motion/react';
+import { getMarketplaceNetworkFilterOptionLabel } from '@/utils/marketplaceNetwork';
 import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
 interface FilterTagsProps {
@@ -46,12 +47,12 @@ export function FilterTags({ filters, onRemoveFilter, onClearAll }: FilterTagsPr
     });
   }
 
-  // Blockchain tags
-  filters.blockchains.forEach((blockchain) => {
+  // Network tags
+  filters.blockchains.forEach((network) => {
     tags.push({
-      key: 'blockchain',
-      value: blockchain,
-      label: blockchain.charAt(0).toUpperCase() + blockchain.slice(1),
+      key: 'network',
+      value: network,
+      label: getMarketplaceNetworkFilterOptionLabel(network),
     });
   });
 
@@ -67,10 +68,15 @@ export function FilterTags({ filters, onRemoveFilter, onClearAll }: FilterTagsPr
   if (tags.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-4">
-      <h2 className="text-ui-muted font-bold text-[11px] uppercase tracking-widest shrink-0">
-        Active Filters:
-      </h2>
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex items-center gap-2 shrink-0">
+        <h2 className="text-ui-muted font-semibold text-[10px] uppercase tracking-[0.18em]">
+          Active Filters
+        </h2>
+        <span className="inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)] px-2.5 py-1 text-[10px] font-semibold text-ui-primary">
+          {tags.length}
+        </span>
+      </div>
       <div className="flex flex-wrap gap-2 items-center">
         <AnimatePresence mode="popLayout">
           {tags.map((tag, index) => (
@@ -80,11 +86,20 @@ export function FilterTags({ filters, onRemoveFilter, onClearAll }: FilterTagsPr
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
               transition={{ duration: 0.2 }}
-              className="inline-flex items-center gap-2 bg-[#2CC295]/10 border border-[#2CC295]/20 rounded-lg px-3 py-1.5 group cursor-pointer hover:border-[#2CC295]/40 transition-all"
+              className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 group cursor-pointer transition-all ${
+                tag.key === 'query'
+                  ? 'bg-[#2CC295]/10 border-[#2CC295]/20 hover:border-[#2CC295]/35'
+                  : 'bg-[var(--t-surface-2)] border-ui-border-subtle hover:border-[#2CC295]/18 hover:bg-[var(--t-surface-5)]'
+              }`}
               onClick={() => onRemoveFilter(tag.key, tag.value)}
             >
-              <span className="text-[#2CC295] text-sm font-medium">{tag.label}</span>
-              <X size={14} className="text-[#2CC295]/60 group-hover:text-[#2CC295]" />
+              <span className={`text-sm font-medium ${tag.key === 'query' ? 'text-[#2CC295]' : 'text-ui-primary'}`}>
+                {tag.label}
+              </span>
+              <X
+                size={14}
+                className={tag.key === 'query' ? 'text-[#2CC295]/60 group-hover:text-[#2CC295]' : 'text-ui-muted group-hover:text-ui-primary'}
+              />
             </motion.div>
           ))}
         </AnimatePresence>
@@ -92,7 +107,7 @@ export function FilterTags({ filters, onRemoveFilter, onClearAll }: FilterTagsPr
         {tags.length > 1 && (
           <button
             onClick={onClearAll}
-            className="text-[10px] text-ui-muted hover:text-[#2CC295] transition-colors uppercase font-bold tracking-widest ml-2"
+            className="rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)] px-4 py-2 text-[10px] text-ui-secondary hover:text-ui-primary hover:bg-[var(--t-surface-5)] transition-colors uppercase font-semibold tracking-[0.18em]"
           >
             Clear All
           </button>

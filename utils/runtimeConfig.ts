@@ -31,7 +31,15 @@ export const runtimeFlags = {
 export const runtimeConfig = {
   supabaseFunctionsNamespace: readString(
     'VITE_SUPABASE_FUNCTIONS_NAMESPACE',
-    readString('VITE_SUPABASE_AUTH_BRIDGE_FN_NAME', ''),
+    readString('VITE_SUPABASE_SHARED_SERVER_FN_NAME', ''),
+  ),
+  supabaseSellerMintingFunctionName: readString(
+    'VITE_SUPABASE_SELLER_MINTING_FN_NAME',
+    'orina-seller-minting-v1',
+  ),
+  supabaseReceiptSyncFunctionName: readString(
+    'VITE_SUPABASE_RECEIPT_SYNC_FN_NAME',
+    'orina-receipt-sync-v1',
   ),
   sepoliaRpcUrl: readString('VITE_SEPOLIA_RPC_URL', ''),
   approximateEthUsdRate: readFloat('VITE_APPROX_ETH_USD_RATE', 0),

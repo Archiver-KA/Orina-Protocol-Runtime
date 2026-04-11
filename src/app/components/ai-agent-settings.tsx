@@ -43,7 +43,7 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
       if (!hasRemoteConfig || !walletAddress) {
         if (!cancelled) {
           setLoading(false);
-          setRuntimeError(hasRemoteConfig ? '' : 'AI settings service is not configured in this environment.');
+          setRuntimeError(hasRemoteConfig ? '' : 'AI settings are not available in this environment.');
         }
         return;
       }
@@ -79,7 +79,7 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
     } catch (error) {
       if (cancelled) return;
       console.error('Error loading AI Agent config:', error);
-      setRuntimeError('Unable to reach the AI configuration service.');
+      setRuntimeError('Unable to load AI settings right now.');
     } finally {
       if (!cancelled) {
         setLoading(false);
@@ -90,7 +90,7 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
 
   const handleSave = async () => {
     if (!hasRemoteConfig) {
-      setRuntimeError('AI settings service is not configured in this environment.');
+      setRuntimeError('AI settings are not available in this environment.');
       return;
     }
 
@@ -116,11 +116,11 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000);
       } else {
-        setRuntimeError('Unable to save AI agent configuration right now.');
+        setRuntimeError('Unable to save AI settings right now.');
       }
     } catch (error) {
       console.error('Error saving AI Agent config:', error);
-      setRuntimeError('Unable to save AI agent configuration right now.');
+      setRuntimeError('Unable to save AI settings right now.');
     } finally {
       setSaving(false);
     }
@@ -131,12 +131,12 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-[10px] font-bold text-ui-muted uppercase tracking-widest flex items-center gap-3">
+          <h3 className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest flex items-center gap-3">
             <Bot className="text-[#2CC295]" size={18} />
-            AI Agent for Messages
+            AI Reply Assistant
           </h3>
           <p className="text-sm text-ui-muted mt-2">
-            Let AI handle customer inquiries automatically in Messages
+            Let AI handle buyer messages automatically in Messages
           </p>
         </div>
       </div>
@@ -161,15 +161,15 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <h4 className="text-ui-primary font-bold">Enable AI Agent</h4>
+              <h4 className="text-ui-primary font-semibold">Enable AI Assistant</h4>
               {enabled && (
-                <span className="text-xs bg-[#2CC295]/10 text-[#2CC295] border border-[#2CC295]/20 px-2 py-0.5 rounded uppercase font-bold">
+                <span className="text-xs bg-[#2CC295]/10 text-[#2CC295] border border-[#2CC295]/20 px-2 py-0.5 rounded uppercase font-semibold">
                   Active
                 </span>
               )}
             </div>
             <p className="text-sm text-ui-muted mt-1">
-              AI will automatically respond to customer messages on your behalf
+              AI will reply to buyer messages for you
             </p>
           </div>
           <button
@@ -193,25 +193,25 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
         <div className="space-y-4">
           {/* Agent Name */}
           <div>
-            <label className="block text-xs font-bold text-ui-muted uppercase mb-2">
-              AI Agent Name
+            <label className="block text-xs font-semibold text-ui-muted uppercase mb-2">
+              Assistant Name
             </label>
             <input
               type="text"
               value={agentName}
               onChange={(e) => setAgentName(e.target.value)}
-              placeholder="e.g., Tesla Sales Assistant, Property Bot"
+              placeholder="e.g., Store Assistant, Concierge"
               className="w-full bg-[var(--t-surface-5)] rounded-lg px-4 py-2.5 text-ui-primary text-sm placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295]/50"
             />
             <p className="text-xs text-ui-muted mt-1">
-              This name will be shown to customers in Messages
+              This name appears in Messages when AI replies
             </p>
           </div>
 
           {/* Behavior */}
           <div>
-            <label className="block text-xs font-bold text-ui-muted uppercase mb-2">
-              AI Behavior
+            <label className="block text-xs font-semibold text-ui-muted uppercase mb-2">
+              Reply Style
             </label>
             <div className="space-y-2">
               {(['conservative', 'moderate', 'aggressive'] as AIAgentBehavior[]).map((mode) => (
@@ -231,11 +231,11 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
                     className="mt-0.5 w-4 h-4 text-[#2CC295] bg-[var(--t-surface-10)] border-ui-border focus:ring-0 focus:ring-offset-0"
                   />
                   <div className="flex-1">
-                    <div className="text-sm font-bold text-ui-primary capitalize">{mode}</div>
+                    <div className="text-sm font-semibold text-ui-primary capitalize">{mode}</div>
                     <div className="text-xs text-ui-muted mt-0.5">
-                      {mode === 'conservative' && 'Only answer direct questions. Minimal engagement.'}
-                      {mode === 'moderate' && 'Answer questions and suggest related products. Balanced approach.'}
-                      {mode === 'aggressive' && 'Proactive selling. Suggest products and create urgency.'}
+                      {mode === 'conservative' && 'Replies only to direct questions.'}
+                      {mode === 'moderate' && 'Answers questions and suggests relevant products.'}
+                      {mode === 'aggressive' && 'Takes a stronger sales approach and recommends products more often.'}
                     </div>
                   </div>
                 </label>
@@ -252,9 +252,9 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
                 className="bg-[var(--t-surface-10)]"
               />
               <div className="flex-1">
-                <div className="text-sm font-bold text-ui-primary">Auto-reply to new messages</div>
+                <div className="text-sm font-semibold text-ui-primary">Reply to new messages automatically</div>
                 <div className="text-xs text-ui-muted mt-0.5">
-                  Automatically respond when customers send messages
+                  Send an automatic first reply when a buyer messages you
                 </div>
               </div>
             </label>
@@ -262,7 +262,7 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
 
           {/* Greeting Message (Optional) */}
           <div>
-            <label className="block text-xs font-bold text-ui-muted uppercase mb-2">
+            <label className="block text-xs font-semibold text-ui-muted uppercase mb-2">
               Custom Greeting (Optional)
             </label>
             <textarea
@@ -273,7 +273,7 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
               className="w-full bg-[var(--t-surface-5)] rounded-lg px-4 py-2.5 text-ui-primary text-sm placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295]/50 resize-none"
             />
             <p className="text-xs text-ui-muted mt-1">
-              Custom message when AI first greets customers
+              Custom opening message for the first reply
             </p>
           </div>
 
@@ -283,7 +283,7 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
               <AlertCircle className="text-yellow-400 shrink-0" size={16} />
               <div className="text-xs text-yellow-200">
                 <strong className="block mb-1">API Key Required:</strong>
-                Make sure you have an active API key with <strong>read</strong> permission for AI Agent to access your asset data.
+                Keep an active API key with <strong>read</strong> access so AI can reference your listings.
               </div>
             </div>
           </div>
@@ -295,7 +295,7 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
         <button
           onClick={handleSave}
           disabled={loading || refreshing || saving || !enabled || !agentName.trim() || !hasRemoteConfig}
-          className="flex-1 px-4 py-2.5 bg-[#2CC295] text-black rounded-full text-sm font-bold hover:bg-[#25a67d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="flex-1 px-4 py-2.5 bg-[#2CC295] text-black rounded-full text-sm font-semibold hover:bg-[#25a67d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {saving ? (
             <>
@@ -319,18 +319,18 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
           <div className="grid grid-cols-3 gap-4 pt-4">
             <div className="bg-[var(--t-surface-2)] rounded-xl p-4">
               <MessageSquare className="text-[#2CC295] mb-2" size={16} />
-              <div className="text-xs text-ui-secondary uppercase font-bold">Response Time</div>
-              <div className="text-lg font-bold text-ui-primary mt-1">Instant</div>
+              <div className="text-xs text-ui-secondary uppercase font-semibold">Response Time</div>
+              <div className="text-lg font-semibold text-ui-primary mt-1">Instant</div>
             </div>
             <div className="bg-[var(--t-surface-2)] rounded-xl p-4">
               <Zap className="text-[#2CC295] mb-2" size={16} />
-              <div className="text-xs text-ui-secondary uppercase font-bold">Availability</div>
-              <div className="text-lg font-bold text-ui-primary mt-1">24/7</div>
+              <div className="text-xs text-ui-secondary uppercase font-semibold">Availability</div>
+              <div className="text-lg font-semibold text-ui-primary mt-1">24/7</div>
             </div>
             <div className="bg-[var(--t-surface-2)] rounded-xl p-4">
               <Settings className="text-[#2CC295] mb-2" size={16} />
-              <div className="text-xs text-ui-secondary uppercase font-bold">Mode</div>
-              <div className="text-lg font-bold text-ui-primary mt-1 capitalize">{behavior}</div>
+              <div className="text-xs text-ui-secondary uppercase font-semibold">Mode</div>
+              <div className="text-lg font-semibold text-ui-primary mt-1 capitalize">{behavior}</div>
             </div>
           </div>
         </>

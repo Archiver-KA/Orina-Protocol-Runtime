@@ -41,7 +41,7 @@ export function StudioPillButton({
   return (
     <button
       className={cn(
-        'px-5 py-2 rounded-full text-xs font-bold transition-all',
+        'px-5 py-2 rounded-full text-xs font-semibold transition-all',
         active
           ? 'bg-[var(--color-pill-active-bg)] text-[var(--color-pill-active-fg)] shadow-lg shadow-[#2CC295]/20'
           : 'text-ui-secondary hover:text-ui-primary',

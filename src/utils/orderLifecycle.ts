@@ -1,5 +1,10 @@
 import { OrderState, PROTOCOL } from '@/config/contracts';
 import type { OrderUiRecord } from '@/types/order';
+import {
+  type OrderBusinessOutcome,
+  hasOrderPaymentCommitted,
+  resolveOrderSemantics,
+} from '@/utils/orderSemantics';
 
 export type OrderLifecyclePhase =
   | 'waiting_seller_confirm'
@@ -12,6 +17,36 @@ export type OrderLifecyclePhase =
   | 'disputed'
   | 'finalized'
   | 'cancelled';
+
+export type OrderViewerRole = 'buyer' | 'seller' | 'none';
+
+export interface OrderLifecycleActionFlags {
+  sellerConfirm: boolean;
+  sellerCancel: boolean;
+  buyerAcceptRevisedTime: boolean;
+  buyerCancel: boolean;
+  confirmDelivery: boolean;
+  openDispute: boolean;
+}
+
+type OrderLifecycleInput = Pick<
+  OrderUiRecord,
+  'state' | 'finalized' | 'sellerConfirmed' | 'payDeadline' | 'autoReleaseAt' | 'proposedAt'
+> & Partial<Pick<OrderUiRecord, 'buyer' | 'seller' | 'disputeDeadline' | 'disputed' | 'paidAt'>>;
+
+export interface ResolvedOrderLifecycle {
+  phase: OrderLifecyclePhase;
+  label: string;
+  countdownDeadline: bigint;
+  businessOutcome: OrderBusinessOutcome;
+  viewerRole: OrderViewerRole;
+  isClosed: boolean;
+  isCompleted: boolean;
+  isCancelled: boolean;
+  isDisputed: boolean;
+  deliveryConfirmed: boolean;
+  allowedActions: OrderLifecycleActionFlags;
+}
 
 export type MarketplaceOrderSnapshot = readonly [
   `0x${string}`,
@@ -41,6 +76,19 @@ export type MarketplaceOrderSnapshot = readonly [
   `0x${string}`,
 ];
 
+const LIFECYCLE_LABELS: Record<OrderLifecyclePhase, string> = {
+  waiting_seller_confirm: 'Waiting Seller Confirm',
+  seller_confirm_expired: 'Seller Confirm Expired',
+  waiting_buyer_accept: 'Waiting Buyer Re-Sign',
+  buyer_accept_expired: 'Buyer Re-Sign Expired',
+  agreed_delivery: 'Agreed Delivery',
+  awaiting_auto_finalize: 'Awaiting Auto Finalize',
+  auto_finalize_ready: 'Auto Finalize Ready',
+  disputed: 'Disputed',
+  finalized: 'Finalized',
+  cancelled: 'Cancelled',
+};
+
 function normalizeAddress(value?: string | null) {
   return value?.toLowerCase() ?? '';
 }
@@ -50,26 +98,19 @@ function bigintToSafeNumber(value: bigint) {
   return Number.isFinite(result) ? result : 0;
 }
 
-export function getSellerConfirmDeadline(order: Pick<OrderUiRecord, 'proposedAt'>) {
-  return order.proposedAt + BigInt(PROTOCOL.SELLER_CONFIRM_WINDOW);
+function resolveViewerRole(order: Partial<Pick<OrderUiRecord, 'buyer' | 'seller'>>, viewerAddress?: string): OrderViewerRole {
+  if (!viewerAddress) return 'none';
+  if (order.buyer && normalizeAddress(order.buyer) === normalizeAddress(viewerAddress)) return 'buyer';
+  if (order.seller && normalizeAddress(order.seller) === normalizeAddress(viewerAddress)) return 'seller';
+  return 'none';
 }
 
-export function getBuyerAcceptanceDeadline(order: Pick<OrderUiRecord, 'payDeadline'>) {
-  return order.payDeadline;
-}
+function resolvePhase(order: OrderLifecycleInput, nowSec: number): OrderLifecyclePhase {
+  const semantics = resolveOrderSemantics(order);
 
-export function getBuyerDisputeDeadline(order: Pick<OrderUiRecord, 'autoReleaseAt'>) {
-  if (order.autoReleaseAt <= 0n) return 0n;
-  return order.autoReleaseAt + BigInt(PROTOCOL.BUYER_ACTION_WINDOW);
-}
-
-export function getOrderLifecyclePhase(
-  order: Pick<OrderUiRecord, 'state' | 'finalized' | 'sellerConfirmed' | 'payDeadline' | 'autoReleaseAt' | 'proposedAt'>,
-  nowSec = Math.floor(Date.now() / 1000),
-): OrderLifecyclePhase {
-  if (order.finalized || order.state === OrderState.FINALIZED) return 'finalized';
-  if (order.state === OrderState.CANCELLED) return 'cancelled';
-  if (order.state === OrderState.DISPUTED) return 'disputed';
+  if (semantics.isCancelled) return 'cancelled';
+  if (semantics.isDisputed) return 'disputed';
+  if (semantics.isCompleted) return 'finalized';
 
   if (order.state === OrderState.PENDING_CONFIRM) {
     if (!order.sellerConfirmed) {
@@ -101,6 +142,87 @@ export function getOrderLifecyclePhase(
   }
 
   return 'cancelled';
+}
+
+function resolveCountdownDeadline(order: OrderLifecycleInput, phase: OrderLifecyclePhase) {
+  switch (phase) {
+    case 'waiting_seller_confirm':
+    case 'seller_confirm_expired':
+      return getSellerConfirmDeadline(order);
+    case 'waiting_buyer_accept':
+    case 'buyer_accept_expired':
+      return getBuyerAcceptanceDeadline(order);
+    case 'agreed_delivery':
+      return order.autoReleaseAt;
+    case 'awaiting_auto_finalize':
+      return order.disputeDeadline ?? getBuyerDisputeDeadline(order);
+    default:
+      return 0n;
+  }
+}
+
+function resolveAllowedActions(
+  order: OrderLifecycleInput,
+  phase: OrderLifecyclePhase,
+  viewerRole: OrderViewerRole,
+): OrderLifecycleActionFlags {
+  const sellerWindow = phase === 'waiting_seller_confirm';
+  const buyerWindow = phase === 'waiting_buyer_accept';
+  const buyerReviewWindow = (phase === 'agreed_delivery' || phase === 'awaiting_auto_finalize')
+    && order.state === OrderState.PAID;
+
+  return {
+    sellerConfirm: viewerRole === 'seller' && sellerWindow,
+    sellerCancel: viewerRole === 'seller' && sellerWindow,
+    buyerAcceptRevisedTime: viewerRole === 'buyer' && buyerWindow,
+    buyerCancel: viewerRole === 'buyer' && buyerWindow,
+    confirmDelivery: viewerRole === 'buyer' && buyerReviewWindow,
+    openDispute: viewerRole === 'buyer' && phase === 'awaiting_auto_finalize',
+  };
+}
+
+export function resolveOrderLifecycle(
+  order: OrderLifecycleInput,
+  options: { viewerAddress?: string; nowSec?: number } = {},
+): ResolvedOrderLifecycle {
+  const nowSec = options.nowSec ?? Math.floor(Date.now() / 1000);
+  const semantics = resolveOrderSemantics(order);
+  const phase = resolvePhase(order, nowSec);
+  const viewerRole = resolveViewerRole(order, options.viewerAddress);
+
+  return {
+    phase,
+    label: LIFECYCLE_LABELS[phase],
+    countdownDeadline: resolveCountdownDeadline(order, phase),
+    businessOutcome: semantics.businessOutcome,
+    viewerRole,
+    isClosed: semantics.isClosed,
+    isCompleted: semantics.isCompleted,
+    isCancelled: semantics.isCancelled,
+    isDisputed: semantics.isDisputed,
+    deliveryConfirmed: semantics.deliveryConfirmed,
+    allowedActions: resolveAllowedActions(order, phase, viewerRole),
+  };
+}
+
+export function getSellerConfirmDeadline(order: Pick<OrderUiRecord, 'proposedAt'>) {
+  return order.proposedAt + BigInt(PROTOCOL.SELLER_CONFIRM_WINDOW);
+}
+
+export function getBuyerAcceptanceDeadline(order: Pick<OrderUiRecord, 'payDeadline'>) {
+  return order.payDeadline;
+}
+
+export function getBuyerDisputeDeadline(order: Pick<OrderUiRecord, 'autoReleaseAt'>) {
+  if (order.autoReleaseAt <= 0n) return 0n;
+  return order.autoReleaseAt + BigInt(PROTOCOL.BUYER_ACTION_WINDOW);
+}
+
+export function getOrderLifecyclePhase(
+  order: Pick<OrderUiRecord, 'state' | 'finalized' | 'sellerConfirmed' | 'payDeadline' | 'autoReleaseAt' | 'proposedAt'>,
+  nowSec = Math.floor(Date.now() / 1000),
+): OrderLifecyclePhase {
+  return resolveOrderLifecycle(order, { nowSec }).phase;
 }
 
 export function deriveOrderProgress(
@@ -178,7 +300,13 @@ export function reconcileOrderFromChain(
   ] = chainOrder;
   const state = Number(stateValue);
   const settlementType = Number(settlementTypeValue);
-  const paymentActive = state >= OrderState.PAID || paidAt > 0n;
+  const semantics = resolveOrderSemantics({
+    state,
+    finalized,
+    disputed: state === OrderState.DISPUTED,
+    paidAt,
+  });
+  const paymentActive = hasOrderPaymentCommitted({ state, finalized, paidAt });
   const disputeDeadline =
     autoReleaseAt > 0n
       ? autoReleaseAt + BigInt(PROTOCOL.BUYER_ACTION_WINDOW)
@@ -209,7 +337,7 @@ export function reconcileOrderFromChain(
     sellerConfirmed,
     disputed: state === OrderState.DISPUTED,
     paymentSent: paymentActive,
-    deliveryConfirmed: finalized || state === OrderState.FINALIZED,
+    deliveryConfirmed: semantics.deliveryConfirmed,
     createdAt: order.createdAt ?? Number(proposedAt) * 1000,
     updatedAt: Date.now(),
     deliveryDeadline: autoReleaseAt > 0n ? Number(autoReleaseAt) * 1000 : order.deliveryDeadline,
@@ -217,53 +345,17 @@ export function reconcileOrderFromChain(
     signatures: {
       buyer1: buyerSig1 !== '0x',
       seller: sellerConfirmed || sellerSig !== '0x',
-      buyer2: buyerSig2 !== '0x' || finalized || paymentActive || (sellerConfirmed && payDeadline === 0n),
+      buyer2: buyerSig2 !== '0x' || semantics.isCompleted || paymentActive || (sellerConfirmed && payDeadline === 0n),
     },
   };
 }
 
 export function getOrderLifecycleLabel(order: OrderUiRecord, nowSec = Math.floor(Date.now() / 1000)) {
-  switch (getOrderLifecyclePhase(order, nowSec)) {
-    case 'waiting_seller_confirm':
-      return 'Waiting Seller Confirm';
-    case 'seller_confirm_expired':
-      return 'Seller Confirm Expired';
-    case 'waiting_buyer_accept':
-      return 'Waiting Buyer Re-Sign';
-    case 'buyer_accept_expired':
-      return 'Buyer Re-Sign Expired';
-    case 'agreed_delivery':
-      return 'Agreed Delivery';
-    case 'awaiting_auto_finalize':
-      return 'Awaiting Auto Finalize';
-    case 'auto_finalize_ready':
-      return 'Auto Finalize Ready';
-    case 'disputed':
-      return 'Disputed';
-    case 'finalized':
-      return 'Finalized';
-    case 'cancelled':
-      return 'Cancelled';
-    default:
-      return 'Unknown';
-  }
+  return resolveOrderLifecycle(order, { nowSec }).label;
 }
 
 export function getOrderCountdownDeadline(order: OrderUiRecord, nowSec = Math.floor(Date.now() / 1000)) {
-  switch (getOrderLifecyclePhase(order, nowSec)) {
-    case 'waiting_seller_confirm':
-    case 'seller_confirm_expired':
-      return getSellerConfirmDeadline(order);
-    case 'waiting_buyer_accept':
-    case 'buyer_accept_expired':
-      return getBuyerAcceptanceDeadline(order);
-    case 'agreed_delivery':
-      return order.autoReleaseAt;
-    case 'awaiting_auto_finalize':
-      return order.disputeDeadline ?? getBuyerDisputeDeadline(order);
-    default:
-      return 0n;
-  }
+  return resolveOrderLifecycle(order, { nowSec }).countdownDeadline;
 }
 
 export function isBuyerForOrder(order: Pick<OrderUiRecord, 'buyer'>, viewerAddress?: string) {
@@ -281,28 +373,29 @@ export function isPartyForOrder(order: Pick<OrderUiRecord, 'buyer' | 'seller'>, 
 }
 
 export function canSellerConfirm(order: OrderUiRecord) {
-  return getOrderLifecyclePhase(order) === 'waiting_seller_confirm';
+  return resolveOrderLifecycle(order).phase === 'waiting_seller_confirm';
 }
 
 export function canSellerCancelOrder(order: OrderUiRecord) {
-  return getOrderLifecyclePhase(order) === 'waiting_seller_confirm';
+  return resolveOrderLifecycle(order).phase === 'waiting_seller_confirm';
 }
 
 export function canBuyerAcceptRevisedTime(order: OrderUiRecord) {
-  return getOrderLifecyclePhase(order) === 'waiting_buyer_accept';
+  return resolveOrderLifecycle(order).phase === 'waiting_buyer_accept';
 }
 
 export function canBuyerCancelOrder(order: OrderUiRecord) {
-  return getOrderLifecyclePhase(order) === 'waiting_buyer_accept';
+  return resolveOrderLifecycle(order).phase === 'waiting_buyer_accept';
 }
 
 export function canConfirmDelivery(order: OrderUiRecord, nowSec = Math.floor(Date.now() / 1000)) {
-  const phase = getOrderLifecyclePhase(order, nowSec);
-  return (phase === 'agreed_delivery' || phase === 'awaiting_auto_finalize') && order.state === OrderState.PAID;
+  const lifecycle = resolveOrderLifecycle(order, { nowSec, viewerAddress: order.buyer });
+  return lifecycle.allowedActions.confirmDelivery;
 }
 
 export function canOpenDispute(order: OrderUiRecord, nowSec = Math.floor(Date.now() / 1000)) {
-  return getOrderLifecyclePhase(order, nowSec) === 'awaiting_auto_finalize';
+  const lifecycle = resolveOrderLifecycle(order, { nowSec, viewerAddress: order.buyer });
+  return lifecycle.allowedActions.openDispute;
 }
 
 export function isAutoFinalizeReady(order: OrderUiRecord, nowSec = Math.floor(Date.now() / 1000)) {
@@ -310,26 +403,25 @@ export function isAutoFinalizeReady(order: OrderUiRecord, nowSec = Math.floor(Da
 }
 
 export function canViewerSellerConfirm(order: OrderUiRecord, viewerAddress?: string, nowSec = Math.floor(Date.now() / 1000)) {
-  return isSellerForOrder(order, viewerAddress) && getOrderLifecyclePhase(order, nowSec) === 'waiting_seller_confirm';
+  return resolveOrderLifecycle(order, { viewerAddress, nowSec }).allowedActions.sellerConfirm;
 }
 
 export function canViewerSellerCancelOrder(order: OrderUiRecord, viewerAddress?: string, nowSec = Math.floor(Date.now() / 1000)) {
-  return isSellerForOrder(order, viewerAddress) && getOrderLifecyclePhase(order, nowSec) === 'waiting_seller_confirm';
+  return resolveOrderLifecycle(order, { viewerAddress, nowSec }).allowedActions.sellerCancel;
 }
 
 export function canViewerBuyerAcceptRevisedTime(order: OrderUiRecord, viewerAddress?: string, nowSec = Math.floor(Date.now() / 1000)) {
-  return isBuyerForOrder(order, viewerAddress) && getOrderLifecyclePhase(order, nowSec) === 'waiting_buyer_accept';
+  return resolveOrderLifecycle(order, { viewerAddress, nowSec }).allowedActions.buyerAcceptRevisedTime;
 }
 
 export function canViewerBuyerCancelOrder(order: OrderUiRecord, viewerAddress?: string, nowSec = Math.floor(Date.now() / 1000)) {
-  return isBuyerForOrder(order, viewerAddress)
-    && getOrderLifecyclePhase(order, nowSec) === 'waiting_buyer_accept';
+  return resolveOrderLifecycle(order, { viewerAddress, nowSec }).allowedActions.buyerCancel;
 }
 
 export function canViewerConfirmDelivery(order: OrderUiRecord, viewerAddress?: string, nowSec = Math.floor(Date.now() / 1000)) {
-  return isBuyerForOrder(order, viewerAddress) && canConfirmDelivery(order, nowSec);
+  return resolveOrderLifecycle(order, { viewerAddress, nowSec }).allowedActions.confirmDelivery;
 }
 
 export function canViewerOpenDispute(order: OrderUiRecord, viewerAddress?: string, nowSec = Math.floor(Date.now() / 1000)) {
-  return isBuyerForOrder(order, viewerAddress) && canOpenDispute(order, nowSec);
+  return resolveOrderLifecycle(order, { viewerAddress, nowSec }).allowedActions.openDispute;
 }

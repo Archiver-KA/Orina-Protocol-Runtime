@@ -63,7 +63,7 @@ export class RuntimeErrorBoundary extends React.Component<
             <AlertTriangle size={18} className="text-red-300" />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-sm font-bold text-ui-primary">{this.props.title}</h3>
+            <h3 className="text-sm font-semibold text-ui-primary">{this.props.title}</h3>
             <p className="mt-1 text-xs leading-relaxed text-ui-muted">
               {this.props.description || 'This section encountered a runtime error.'}
             </p>
@@ -75,7 +75,7 @@ export class RuntimeErrorBoundary extends React.Component<
             <button
               type="button"
               onClick={this.handleRetry}
-              className="mt-4 inline-flex items-center gap-2 rounded-full bg-[var(--t-surface-5)] px-4 py-2 text-xs font-bold text-ui-primary transition-colors hover:bg-[var(--t-surface-10)]"
+              className="mt-4 inline-flex items-center gap-2 rounded-full bg-[var(--t-surface-5)] px-4 py-2 text-xs font-semibold text-ui-primary transition-colors hover:bg-[var(--t-surface-10)]"
             >
               <RefreshCw size={13} />
               Retry

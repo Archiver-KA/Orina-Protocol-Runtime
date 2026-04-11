@@ -61,39 +61,6 @@ type DbProtocolOrderRow = {
   updated_at: string;
 };
 
-type DbProfileReputationSummaryRow = {
-  user_id: string;
-  wallet_address: string;
-  overall_score: number | string;
-  level: string;
-  transaction_score: number | string;
-  rating_score: number | string;
-  response_score: number | string;
-  completion_score: number | string;
-  dispute_score: number | string;
-  verification_score: number | string;
-  total_transactions: number | string;
-  successful_transactions: number | string;
-  failed_transactions: number | string;
-  total_volume: number | string;
-  average_rating: number | string;
-  total_reviews: number | string;
-  average_response_time: number | string;
-  completion_rate: number | string;
-  dispute_rate: number | string;
-  disputes_resolved: number | string;
-  disputes_total: number | string;
-  account_age_days: number | string;
-  is_verified: boolean;
-  email_verified: boolean;
-  phone_verified: boolean;
-  kyc_verified: boolean;
-  has_escrow: boolean;
-  premium_member: boolean;
-  last_transaction_date: string | null;
-  last_updated: string | null;
-};
-
 type SubmitProfileReviewInput = {
   reviewerAddress: string;
   reviewedAddress: string;
@@ -138,20 +105,6 @@ function toNumber(value: unknown): number {
 function clampRating(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(1, Math.min(5, Math.round(value * 10) / 10));
-}
-
-function normalizeReputationLevel(value: unknown): ReputationScore['level'] {
-  if (
-    value === 'newcomer' ||
-    value === 'bronze' ||
-    value === 'silver' ||
-    value === 'gold' ||
-    value === 'platinum' ||
-    value === 'diamond'
-  ) {
-    return value;
-  }
-  return 'newcomer';
 }
 
 function normalizeOrderStatus(status: string | null | undefined): ActivityItem['status'] {
@@ -201,6 +154,26 @@ function getOrderAssetName(order: DbProtocolOrderRow): string {
   return order.order_uid ? `Order ${order.order_uid}` : 'Order';
 }
 
+function getOrderAssetId(order: DbProtocolOrderRow): string | null {
+  const metadata = getOrderMetadata(order);
+  const candidates = [
+    metadata.asset_uid,
+    metadata.assetUid,
+    metadata.asset_id,
+    metadata.assetId,
+    metadata.on_chain_asset_id,
+    metadata.onchainAssetId,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate === null || candidate === undefined) continue;
+    const normalized = String(candidate).trim();
+    if (normalized) return normalized;
+  }
+
+  return null;
+}
+
 function getOrderValue(order: DbProtocolOrderRow): number {
   const direct = toNumber(order.total_value);
   if (direct > 0) return direct;
@@ -245,7 +218,7 @@ function buildActivitiesFromOrders(address: string, orders: DbProtocolOrderRow[]
         id: order.order_uid || `order-${normalized}-${index}`,
         userId: normalized,
         type: isBuyerSide ? 'purchase' : 'sale',
-        assetId: String(getOrderMetadata(order).asset_uid || order.order_uid || `order-${index}`),
+        assetId: getOrderAssetId(order) || order.order_uid || `order-${index}`,
         assetName: getOrderAssetName(order),
         assetImage: '',
         price: getOrderValue(order),
@@ -268,7 +241,7 @@ function buildDisputesFromOrders(address: string, orders: DbProtocolOrderRow[]):
       return {
         id: order.order_uid || `dispute-${normalized}-${index}`,
         transactionId: order.order_uid || `dispute-${index}`,
-        assetId: String(getOrderMetadata(order).asset_uid || order.order_uid || `asset-${index}`),
+        assetId: getOrderAssetId(order) || order.order_uid || `asset-${index}`,
         assetName: getOrderAssetName(order),
         initiatedBy: buyer || normalized,
         against: seller || normalized,
@@ -418,6 +391,49 @@ async function fetchOrdersForWallet(address: string): Promise<DbProtocolOrderRow
   return dedupeOrders([...buyerRows, ...sellerRows]);
 }
 
+async function fetchOrdersByUid(orderUids: Array<string | null | undefined>): Promise<Map<string, DbProtocolOrderRow>> {
+  const uniqueOrderUids = Array.from(
+    new Set(orderUids.map((orderUid) => String(orderUid || '').trim()).filter(Boolean)),
+  );
+  if (uniqueOrderUids.length === 0) return new Map();
+
+  try {
+    const rows = await restSelect<DbProtocolOrderRow>(
+      'protocol_orders',
+      toQuery({
+        select: 'order_uid,buyer_address,seller_address,status,total_value,amount,price_per_unit,metadata,created_at,updated_at',
+        order_uid: encodeIn(uniqueOrderUids),
+      }),
+    );
+
+    return new Map(
+      rows
+        .filter((row) => String(row.order_uid || '').trim())
+        .map((row) => [String(row.order_uid).trim(), row] as const),
+    );
+  } catch {
+    return new Map();
+  }
+}
+
+function resolveReviewAssetId(row: DbProfileReviewRow, order?: DbProtocolOrderRow | null): string {
+  const storedAssetId = String(row.asset_uid || '').trim();
+  const fallbackAssetId = order ? getOrderAssetId(order) : null;
+
+  if (fallbackAssetId && (!storedAssetId || storedAssetId === String(row.order_uid || '').trim())) {
+    return fallbackAssetId;
+  }
+
+  return storedAssetId || String(row.order_uid || '').trim() || row.id;
+}
+
+function resolveReviewAssetName(row: DbProfileReviewRow, order?: DbProtocolOrderRow | null): string {
+  const storedAssetName = String(row.asset_name || '').trim();
+  if (storedAssetName) return storedAssetName;
+  if (order) return getOrderAssetName(order);
+  return 'Order review';
+}
+
 function computeReputationSnapshot(
   address: string,
   ratings: Rating[],
@@ -463,6 +479,76 @@ function saveReputationSnapshot(address: string, ratings: Rating[], score: Reput
   dispatchSyncEvent(REPUTATION_SYNC_EVENT);
 }
 
+
+function buildRatingMergeKey(rating: Rating): string {
+  const transactionId = String(rating.transactionId || '').trim().toLowerCase();
+  const fromUserId = normalizeWallet(rating.fromUserId) || String(rating.fromUserId || '').trim().toLowerCase();
+  const ratingType = String(rating.ratingType || '').trim().toLowerCase();
+
+  if (transactionId && fromUserId && ratingType) {
+    return `${transactionId}::${fromUserId}::${ratingType}`;
+  }
+
+  return String(rating.id || '').trim().toLowerCase();
+}
+
+function coalesceRatingText(primary?: string, fallback?: string): string | undefined {
+  const normalizedPrimary = typeof primary === 'string' ? primary.trim() : '';
+  if (normalizedPrimary) return normalizedPrimary;
+
+  const normalizedFallback = typeof fallback === 'string' ? fallback.trim() : '';
+  return normalizedFallback || undefined;
+}
+
+function mergeRatingRecords(primary: Rating, fallback?: Rating | null): Rating {
+  if (!fallback) return primary;
+
+  return {
+    ...fallback,
+    ...primary,
+    id: coalesceRatingText(primary.id, fallback.id) || fallback.id,
+    fromUserId: coalesceRatingText(primary.fromUserId, fallback.fromUserId) || fallback.fromUserId,
+    fromUsername:
+      coalesceRatingText(primary.fromUsername, fallback.fromUsername)
+      || fallback.fromUsername,
+    toUserId: coalesceRatingText(primary.toUserId, fallback.toUserId) || fallback.toUserId,
+    transactionId:
+      coalesceRatingText(primary.transactionId, fallback.transactionId)
+      || fallback.transactionId,
+    assetId: coalesceRatingText(primary.assetId, fallback.assetId) || fallback.assetId,
+    assetName: coalesceRatingText(primary.assetName, fallback.assetName) || fallback.assetName,
+    overallRating: primary.overallRating || fallback.overallRating,
+    communicationRating: primary.communicationRating || fallback.communicationRating,
+    deliveryRating: primary.deliveryRating || fallback.deliveryRating,
+    accuracyRating: primary.accuracyRating || fallback.accuracyRating,
+    review: coalesceRatingText(primary.review, fallback.review),
+    pros: primary.pros && primary.pros.length > 0 ? primary.pros : fallback.pros,
+    cons: primary.cons && primary.cons.length > 0 ? primary.cons : fallback.cons,
+    ratingType: primary.ratingType || fallback.ratingType,
+    response: coalesceRatingText(primary.response, fallback.response),
+    responseDate: primary.responseDate ?? fallback.responseDate,
+    verified: primary.verified || fallback.verified,
+    helpful: Math.max(primary.helpful || 0, fallback.helpful || 0),
+    timestamp: Math.max(primary.timestamp || 0, fallback.timestamp || 0),
+  };
+}
+
+function mergeRatingsWithLocalCache(remoteRatings: Rating[], localRatings: Rating[]): Rating[] {
+  const merged = new Map<string, Rating>();
+
+  localRatings.forEach((rating) => {
+    const key = buildRatingMergeKey(rating);
+    if (key) merged.set(key, rating);
+  });
+
+  remoteRatings.forEach((rating) => {
+    const key = buildRatingMergeKey(rating);
+    if (!key) return;
+    merged.set(key, mergeRatingRecords(rating, merged.get(key)));
+  });
+
+  return Array.from(merged.values()).sort((left, right) => right.timestamp - left.timestamp);
+}
 function mergeRatingIntoLocalCache(reviewedAddress: string, rating: Rating): Rating[] {
   const normalized = normalizeWallet(reviewedAddress);
   const nextRatings = loadRatings(normalized).filter((item) => {
@@ -514,54 +600,6 @@ function refreshCachedReputationFromLocalData(address: string, ratings: Rating[]
   });
 }
 
-function mapSummaryRowToReputationScore(
-  address: string,
-  summary: DbProfileReputationSummaryRow,
-  ratings: Rating[]
-): ReputationScore {
-  const normalized = normalizeWallet(address);
-  const overallScore = Math.round(toNumber(summary.overall_score));
-  const level = normalizeReputationLevel(summary.level);
-
-  return {
-    userId: normalized,
-    overallScore,
-    level,
-    transactionScore: Math.round(toNumber(summary.transaction_score)),
-    ratingScore: Math.round(toNumber(summary.rating_score)),
-    responseScore: Math.round(toNumber(summary.response_score)),
-    completionScore: Math.round(toNumber(summary.completion_score)),
-    disputeScore: Math.round(toNumber(summary.dispute_score)),
-    verificationScore: Math.round(toNumber(summary.verification_score)),
-    metrics: {
-      totalTransactions: Math.max(0, Math.round(toNumber(summary.total_transactions))),
-      successfulTransactions: Math.max(0, Math.round(toNumber(summary.successful_transactions))),
-      failedTransactions: Math.max(0, Math.round(toNumber(summary.failed_transactions))),
-      totalVolume: toNumber(summary.total_volume),
-      averageRating: toNumber(summary.average_rating),
-      totalReviews: Math.max(0, Math.round(toNumber(summary.total_reviews))),
-      averageResponseTime: toNumber(summary.average_response_time),
-      completionRate: toNumber(summary.completion_rate),
-      disputeRate: toNumber(summary.dispute_rate),
-      disputesResolved: Math.max(0, Math.round(toNumber(summary.disputes_resolved))),
-      disputesTotal: Math.max(0, Math.round(toNumber(summary.disputes_total))),
-      accountAge: Math.max(0, Math.round(toNumber(summary.account_age_days))),
-    },
-    trustIndicators: {
-      isVerified: !!summary.is_verified,
-      emailVerified: !!summary.email_verified,
-      phoneVerified: !!summary.phone_verified,
-      kycVerified: !!summary.kyc_verified,
-      hasEscrow: !!summary.has_escrow,
-      premiumMember: !!summary.premium_member,
-    },
-    scoreHistory: [],
-    recentRatings: ratings.slice(0, 5),
-    lastUpdated: toTimestamp(summary.last_updated) || Date.now(),
-    lastTransactionDate: toTimestamp(summary.last_transaction_date),
-  };
-}
-
 export async function hydrateReputationFromSupabase(
   address: string,
   options: { force?: boolean } = {}
@@ -585,58 +623,54 @@ export async function hydrateReputationFromSupabase(
     const reviewedUserId = await ensureRemoteProfileIdForWallet(normalized);
     if (!reviewedUserId) return loadReputationScore(normalized);
 
-    const [summaryRows, reviewRows] = await Promise.all([
-      restSelect<DbProfileReputationSummaryRow>(
-        'profile_reputation_summaries',
-        toQuery({
-          select: '*',
-          wallet_address: encodeEq(normalized),
-          limit: '1',
-        })
-      ).catch(() => []),
-      restSelect<DbProfileReviewRow>(
+    const reviewRows = await restSelect<DbProfileReviewRow>(
         'profile_reviews',
         toQuery({
           select: 'id,reviewer_user_id,reviewed_user_id,order_uid,asset_uid,asset_name,review_text,overall_rating,communication_rating,delivery_rating,accuracy_rating,rating_type,response_text,response_date,verified,helpful_count,created_at,updated_at',
           reviewed_user_id: encodeEq(reviewedUserId),
           order: 'created_at.desc',
         })
-      ).catch(() => []),
+      ).catch(() => []);
+
+    const [reviewerWalletById, orderByUid] = await Promise.all([
+      fetchWalletsByProfileIds(reviewRows.map((row) => row.reviewer_user_id)),
+      fetchOrdersByUid(reviewRows.map((row) => row.order_uid)),
     ]);
+    const remoteRatings: Rating[] = reviewRows.map((row, index) => {
+      const linkedOrder = row.order_uid ? orderByUid.get(row.order_uid) : undefined;
 
-    const reviewerWalletById = await fetchWalletsByProfileIds(reviewRows.map((row) => row.reviewer_user_id));
-    const ratings: Rating[] = reviewRows.map((row, index) => ({
-      id: row.id,
-      fromUserId: reviewerWalletById[row.reviewer_user_id] || row.reviewer_user_id,
-      fromUsername:
-        (reviewerWalletById[row.reviewer_user_id] || row.reviewer_user_id).slice(2, 10) ||
-        `reviewer_${index + 1}`,
-      toUserId: normalized,
-      transactionId: row.order_uid || row.id,
-      assetId: row.asset_uid || row.order_uid || row.id,
-      assetName: row.asset_name || 'Order review',
-      overallRating: clampRating(toNumber(row.overall_rating)),
-      communicationRating: clampRating(toNumber(row.communication_rating)),
-      deliveryRating: clampRating(toNumber(row.delivery_rating)),
-      accuracyRating: clampRating(toNumber(row.accuracy_rating)),
-      review: row.review_text || undefined,
-      ratingType: row.rating_type,
-      response: row.response_text || undefined,
-      responseDate: toTimestamp(row.response_date),
-      verified: !!row.verified,
-      helpful: Number(row.helpful_count || 0),
-      timestamp: toTimestamp(row.created_at) || Date.now(),
-    }));
+      return {
+        id: row.id,
+        fromUserId: reviewerWalletById[row.reviewer_user_id] || row.reviewer_user_id,
+        fromUsername:
+          (reviewerWalletById[row.reviewer_user_id] || row.reviewer_user_id).slice(2, 10) ||
+          `reviewer_${index + 1}`,
+        toUserId: normalized,
+        transactionId: row.order_uid || row.id,
+        assetId: resolveReviewAssetId(row, linkedOrder),
+        assetName: resolveReviewAssetName(row, linkedOrder),
+        overallRating: clampRating(toNumber(row.overall_rating)),
+        communicationRating: clampRating(toNumber(row.communication_rating)),
+        deliveryRating: clampRating(toNumber(row.delivery_rating)),
+        accuracyRating: clampRating(toNumber(row.accuracy_rating)),
+        review: row.review_text || undefined,
+        ratingType: row.rating_type,
+        response: row.response_text || undefined,
+        responseDate: toTimestamp(row.response_date),
+        verified: !!row.verified,
+        helpful: Number(row.helpful_count || 0),
+        timestamp: toTimestamp(row.created_at) || Date.now(),
+      };
+    });
+    const localRatings = loadRatings(normalized);
+    const mergedRatings = mergeRatingsWithLocalCache(remoteRatings, localRatings);
 
-    const summary = summaryRows[0] || null;
-    const score = summary
-      ? mapSummaryRowToReputationScore(normalized, summary, ratings)
-      : computeReputationSnapshot(
-          normalized,
-          ratings,
-          await fetchOrdersForWallet(normalized).catch(() => [])
-        );
-    saveReputationSnapshot(normalized, ratings, score);
+    const score = computeReputationSnapshot(
+      normalized,
+      mergedRatings,
+      await fetchOrdersForWallet(normalized).catch(() => [])
+    );
+    saveReputationSnapshot(normalized, mergedRatings, score);
     reputationHydrateLastAt.set(normalized, Date.now());
     return score;
   })();

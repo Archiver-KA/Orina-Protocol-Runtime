@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Search, CheckCircle, XCircle, Package, User, Store, Info, Check, Timer, ExternalLink, AlertTriangle } from 'lucide-react';
-import { useAccount, usePublicClient } from 'wagmi';
+import { usePublicClient } from 'wagmi';
 import { BaseError } from 'viem';
 import { AnimatePresence, motion } from 'motion/react';
 import { createPortal } from 'react-dom';
@@ -66,6 +66,7 @@ import {
 import { useAccessGuard } from '@/hooks/useAccessGuard';
 import { useProtocolChain } from '@/hooks/useProtocolChain';
 import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import {
   getWalletErrorMessage,
   isWalletChainMismatchError,
@@ -242,7 +243,7 @@ interface OrdersProps {
 }
 
 export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigationRequest }: OrdersProps) {
-  const { address, isConnected } = useAccount();
+  const { address, walletConnected } = useEffectiveViewer();
   const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const publicClient = usePublicClient({ chainId: chainId ?? undefined });
   const accessGuard = useAccessGuard(onNavigateToPage);
@@ -622,7 +623,7 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
           <div className="p-8">
             <div className="mb-6">
               <ProtocolChainBanner
-                isConnected={isConnected}
+                isConnected={walletConnected}
                 isOnProtocolChain={protocolChain.isOnProtocolChain}
                 currentChainLabel={protocolChain.currentChainLabel}
                 targetChainLabel={protocolChain.targetChainLabel}
@@ -1195,7 +1196,7 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
         <div className="p-8">
           <div className="mb-6">
             <ProtocolChainBanner
-              isConnected={isConnected}
+              isConnected={walletConnected}
               isOnProtocolChain={protocolChain.isOnProtocolChain}
               currentChainLabel={protocolChain.currentChainLabel}
               targetChainLabel={protocolChain.targetChainLabel}

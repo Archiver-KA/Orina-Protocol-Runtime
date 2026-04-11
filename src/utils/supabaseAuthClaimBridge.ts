@@ -3,21 +3,26 @@
  * same-origin XSS like the wallet session; do not add VITE_* or client-side secrets for signing JWTs.
  */
 import { supabaseUrl, publicAnonKey } from '/utils/supabase/info';
-import { runtimeConfig } from '/utils/runtimeConfig';
 import { clearWalletAuthSession, getWalletAuthSession, hasCompatibleWalletAuthMessage } from '@/utils/walletAuthSession';
 import { normalizeAddress } from '@/utils/storageScope';
 import type { SecurityCheckRequestData } from '@/types/wallet';
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
+const DEFAULT_AUTH_BRIDGE_FN_NAME = 'orina-auth-bridge-v1';
+const LEGACY_AUTH_BRIDGE_PATH_PREFIX = '/auth/supabase-claim-bridge';
+
+function readEnvString(name: string): string | null {
+  const value = env[name];
+  return typeof value === 'string' ? value.trim() : null;
+}
 
 const BRIDGE_ENABLED =
   (env.VITE_SUPABASE_AUTH_BRIDGE_ENABLED || '').toLowerCase() === 'true';
 const BRIDGE_FN_NAME =
-  env.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME ||
-  runtimeConfig.supabaseFunctionsNamespace ||
-  '';
+  readEnvString('VITE_SUPABASE_AUTH_BRIDGE_FN_NAME') || DEFAULT_AUTH_BRIDGE_FN_NAME;
 const BRIDGE_PATH_PREFIX =
-  env.VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX || '/auth/supabase-claim-bridge';
+  readEnvString('VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX')
+  ?? (BRIDGE_FN_NAME === DEFAULT_AUTH_BRIDGE_FN_NAME ? '' : LEGACY_AUTH_BRIDGE_PATH_PREFIX);
 
 const STORAGE_KEY = 'orina_supabase_auth_claim_bridge_session';
 const SESSION_EVENT = 'orina:supabase-auth-claim-bridge';
@@ -72,6 +77,27 @@ interface AssetMetadataSeedBridgeItem {
 interface AssetMetadataSeedBridgeResponse {
   ok: boolean;
   rows?: Array<{ assetUid: string; assetId: string }>;
+}
+
+interface ProtocolOrderSeedBridgeItem {
+  orderUid: string;
+  chainId: number;
+  marketplaceContract: string;
+  assetContract?: string | null;
+  assetTokenId?: string | null;
+  buyerAddress: string;
+  sellerAddress: string;
+  status: string;
+  amount?: string | number | null;
+  pricePerUnit?: string | number | null;
+  totalValue?: string | number | null;
+  currencySymbol?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+interface ProtocolOrderSeedBridgeResponse {
+  ok: boolean;
+  rows?: Array<{ orderUid: string; id: string }>;
 }
 
 export interface BridgeWalletSessionSummary {
@@ -667,6 +693,64 @@ export async function sendAssetMetadataSeedViaBridge(
     return (payload || { ok: false }) as AssetMetadataSeedBridgeResponse;
   } catch (error) {
     console.debug('[H1 Bridge] asset-metadata-seed network error:', error);
+    return null;
+  }
+}
+
+export async function sendProtocolOrderSeedViaBridge(
+  orderItems: ProtocolOrderSeedBridgeItem[],
+  walletAddress?: string | null,
+): Promise<ProtocolOrderSeedBridgeResponse | null> {
+  if (!isBrowser() || !supabaseUrl || !publicAnonKey || !getBridgeBaseUrl()) return null;
+  if (!orderItems?.length) return { ok: true, rows: [] };
+
+  try {
+    if (isSupabaseAuthClaimBridgeEnabled() && !getSupabaseBridgeAccessToken()) {
+      if (!walletAddress) return null;
+      await ensureSupabaseBridgeAccessToken({
+        walletAddress,
+        promptOnAuthMissing: false,
+      });
+    }
+  } catch (error) {
+    console.debug('[H1 Bridge] protocol-order-seed token exchange skipped:', error);
+    return null;
+  }
+
+  if (isSupabaseAuthClaimBridgeEnabled() && !getSupabaseBridgeAccessToken()) {
+    return null;
+  }
+
+  try {
+    const res = await fetch(`${getBridgeBaseUrl()}/protocol-order-seed`, {
+      method: 'POST',
+      headers: bridgeAuthHeaders(),
+      body: JSON.stringify({
+        orderItems,
+        client: {
+          app: 'ATP2',
+          phase: 'C2.4',
+          requestedAt: new Date().toISOString(),
+        },
+      }),
+    });
+
+    const text = await res.text().catch(() => '');
+    let payload: any = null;
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch {
+      payload = { raw: text };
+    }
+
+    if (!res.ok) {
+      console.debug('[H1 Bridge] protocol-order-seed failed:', res.status, payload);
+      return null;
+    }
+
+    return (payload || { ok: false }) as ProtocolOrderSeedBridgeResponse;
+  } catch (error) {
+    console.debug('[H1 Bridge] protocol-order-seed network error:', error);
     return null;
   }
 }

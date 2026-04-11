@@ -10,7 +10,7 @@ export function SidebarSectionTitle({ children, className, ...props }: BaseProps
   return (
     <div
       className={cn(
-        'text-[11px] uppercase tracking-[0.15em] font-bold text-zinc-500 px-2 flex items-center gap-2',
+        'text-[11px] uppercase tracking-[0.15em] font-semibold text-zinc-500 px-2 flex items-center gap-2',
         className
       )}
       {...props}

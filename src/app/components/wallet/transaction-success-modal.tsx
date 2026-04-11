@@ -1,4 +1,5 @@
 import { TransactionResult } from '@/types/wallet';
+import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 
 interface TransactionSuccessModalProps {
   result: TransactionResult;
@@ -18,20 +19,19 @@ export function TransactionSuccessModal({ result, onClose }: TransactionSuccessM
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-6"
-      style={{
-        background: 'rgba(0, 0, 0, 0.9)',
-        backdropFilter: 'blur(12px)',
-      }}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-6 backdrop-blur-[14px]"
     >
-      <div className="studio-modal-theme bg-ui-card w-full max-w-lg rounded-[2.5rem] border border-ui-border-subtle overflow-hidden shadow-2xl flex flex-col relative">
+      <div className="studio-modal-theme studio-glass-modal relative flex w-full max-w-lg flex-col overflow-hidden rounded-[32px] border border-ui-border-subtle bg-ui-card shadow-2xl">
         
         {/* Success Header */}
-        <div className="p-10 text-center">
+        <div className="border-b border-ui-border-subtle p-10 text-center">
+          <div className="mb-4 inline-flex items-center rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#2CC295]">Confirmed</span>
+          </div>
           <div className="flex justify-center mb-6">
             <div className="relative">
               <div
-                className="w-24 h-24 bg-[#2CC295]/20 rounded-full flex items-center justify-center"
+                className="flex h-24 w-24 items-center justify-center rounded-full border border-[#2CC295]/20 bg-[#2CC295]/12"
                 style={{
                   animation: 'pulse-custom 2s infinite ease-in-out',
                 }}
@@ -42,35 +42,35 @@ export function TransactionSuccessModal({ result, onClose }: TransactionSuccessM
                     boxShadow: '0 0 30px rgba(44, 194, 149, 0.4)',
                   }}
                 >
-                  <span className="material-symbols-outlined text-black text-4xl font-bold">check</span>
+                  <span className="material-symbols-outlined text-black text-4xl font-semibold">check</span>
                 </div>
               </div>
             </div>
           </div>
-          <h2 className="text-3xl font-extrabold text-white mb-2">Success!</h2>
-          <p className="text-zinc-400 text-sm px-6">
+          <h2 className="mb-2 text-3xl font-semibold text-ui-primary">Success!</h2>
+          <p className="px-6 text-sm text-ui-secondary">
             Your transaction has been successfully confirmed on the blockchain.
           </p>
         </div>
 
         {/* Transaction Details */}
-        <div className="px-10 py-6 border-y border-[#27272a]/50 bg-zinc-900/20">
+        <div className="border-y border-ui-border-subtle bg-[var(--t-surface-5)] px-10 py-6">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Transaction Hash</span>
-              <span className="text-white font-mono text-xs">{formatHash(result.hash)}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">Transaction Hash</span>
+              <span className="font-mono text-xs text-ui-primary">{formatHash(result.hash)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Network Fee</span>
-              <span className="text-white font-bold text-sm">{result.networkFee}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">Network Fee</span>
+              <span className="text-sm font-semibold text-ui-primary">{result.networkFee}</span>
             </div>
 
             {/* Confirmation Section */}
-            <div className="pt-4 border-t border-[#27272a]/30">
-              <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest text-center mb-2">Confirmed At</p>
-              <div className="rounded-2xl border border-white/5 bg-black/30 px-4 py-3 text-center">
-                <p className="text-sm font-bold text-white">{formatTimestamp(result.timestamp)}</p>
-                <p className="mt-1 text-[10px] uppercase tracking-widest text-zinc-500">
+            <div className="border-t border-ui-border-subtle pt-4">
+              <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-widest text-ui-muted">Confirmed At</p>
+              <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-4 py-3 text-center">
+                <p className="text-sm font-semibold text-ui-primary">{formatTimestamp(result.timestamp)}</p>
+                <p className="mt-1 text-[10px] uppercase tracking-widest text-ui-muted">
                   Canonical transaction confirmation
                 </p>
               </div>
@@ -80,13 +80,15 @@ export function TransactionSuccessModal({ result, onClose }: TransactionSuccessM
 
         {/* Action Button */}
         <div className="p-10">
-          <button
+          <StudioActionButton
+            type="button"
             onClick={onClose}
-            className="w-full py-4 bg-[#2CC295] hover:bg-[#2CC295]/90 text-black font-extrabold rounded-2xl transition-all shadow-lg shadow-[#2CC295]/20 text-sm uppercase tracking-widest flex items-center justify-center gap-2"
+            variant="primary"
+            size="lg"
+            className="w-full text-sm font-semibold uppercase tracking-widest shadow-lg shadow-[#2CC295]/20"
           >
-            View on Etherscan
-            <span className="material-symbols-outlined text-lg">open_in_new</span>
-          </button>
+            Close
+          </StudioActionButton>
         </div>
       </div>
 

@@ -39,6 +39,16 @@ function normalize(value?: string | number | bigint | null) {
   return String(value ?? '').trim().toLowerCase();
 }
 
+function coerceText(value: unknown, fallback = ''): string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+  if (value === null || value === undefined) return fallback;
+  const normalized = String(value).trim();
+  return normalized || fallback;
+}
+
 function parseAmount(value: string | number | undefined, fallback = 0) {
   const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''));
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -61,7 +71,7 @@ function resolveUpdatedAt(record?: RuntimeMintedAssetRecord) {
 }
 
 function resolveHealth(status: string, availableAmount: number, totalAmount: number): WarehouseInventoryHealth {
-  const normalizedStatus = status.trim().toLowerCase();
+  const normalizedStatus = coerceText(status).toLowerCase();
   if (availableAmount <= 0 || normalizedStatus === 'sold out') return 'sold_out';
   if (normalizedStatus === 'paused' || normalizedStatus === 'inactive' || normalizedStatus === 'delisted') {
     return 'inactive';
@@ -161,15 +171,15 @@ export function buildWarehouseInventory({
     return {
       id: asset.id,
       asset,
-      name: asset.name,
+      name: coerceText(asset.name, 'Untitled Asset'),
       category: getCategoryDisplayLabel(asset.category),
-      image: asset.image,
-      status: asset.status,
+      image: coerceText(asset.image),
+      status: coerceText(asset.status, 'Unknown'),
       totalAmount,
       availableAmount,
       soldAmount,
-      minPrice: asset.minPrice,
-      mintedDate: asset.mintedDate,
+      minPrice: coerceText(asset.minPrice, '0 ETH'),
+      mintedDate: coerceText(asset.mintedDate, 'Unknown date'),
       listedOnMarketplace,
       marketplaceAssetId: marketplaceAsset?.id,
       tokenId: runtimeDetails?.tokenId,
@@ -181,7 +191,7 @@ export function buildWarehouseInventory({
         runtimeDetails?.deliverySnapshot?.preview ||
         runtimeDetails?.deliverySnapshot?.countryNameSnapshot,
       updatedAt,
-      health: resolveHealth(asset.status, availableAmount, totalAmount),
+      health: resolveHealth(coerceText(asset.status, 'Unknown'), availableAmount, totalAmount),
       configurableAttributeCount: Array.isArray(runtimeDetails?.configurableAttributes)
         ? runtimeDetails.configurableAttributes.length
         : 0,
@@ -190,7 +200,7 @@ export function buildWarehouseInventory({
 }
 
 function getWarehouseSortValue(item: WarehouseInventoryItem) {
-  return Number.parseFloat(item.minPrice.replace(/[^0-9.]/g, '')) || 0;
+  return Number.parseFloat(coerceText(item.minPrice).replace(/[^0-9.]/g, '')) || 0;
 }
 
 function getWarehouseSortDate(item: WarehouseInventoryItem) {

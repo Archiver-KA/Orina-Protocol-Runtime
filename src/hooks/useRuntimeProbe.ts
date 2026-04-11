@@ -7,7 +7,7 @@
  *   3. FeeManager config (platform/DAO/burn/total bps)
  *   4. ShippingRegistry options (nextOptionId)
  *   5. Wallet chain (expects chainId 97)
- *   6. Supabase runtime tables (protocol_assets, protocol_orders)
+ *   6. Supabase runtime tables (assets_catalog, asset_protocol_links, protocol_assets, protocol_orders)
  */
 
 import { useReadContracts, useChainId } from 'wagmi';
@@ -141,12 +141,14 @@ function normalizeRuntimeUnitResult(result: unknown): RuntimeUnitResult | null {
 export async function probeSupabaseTables(): Promise<SupabaseTableProbeResult[]> {
   if (!isSupabaseRestEnabled()) {
     return [
+      { table: 'assets_catalog', status: 'warn', detail: 'Supabase REST not configured' },
+      { table: 'asset_protocol_links', status: 'warn', detail: 'Supabase REST not configured' },
       { table: 'protocol_assets', status: 'warn', detail: 'Supabase REST not configured' },
       { table: 'protocol_orders', status: 'warn', detail: 'Supabase REST not configured' },
     ];
   }
 
-  const tables = ['protocol_assets', 'protocol_orders'] as const;
+  const tables = ['assets_catalog', 'asset_protocol_links', 'protocol_assets', 'protocol_orders'] as const;
   const results: SupabaseTableProbeResult[] = [];
 
   for (const table of tables) {
@@ -168,58 +170,58 @@ export async function probeSupabaseTables(): Promise<SupabaseTableProbeResult[]>
 
 export function useRuntimeProbe() {
   const walletChainId = useChainId();
-  const { chainId: selectedChainId, contracts: protocolContracts, networkLabel } = useProtocolDataNetwork();
+  const { chainId: protocolChainId, contracts: protocolContracts, networkLabel } = useProtocolDataNetwork();
 
   // ── Build multicall contracts array ──────────────────────────
   const calls = useMemo(() => {
-    if (!selectedChainId || !protocolContracts) return [] as const;
+    if (!protocolChainId || !protocolContracts) return [] as const;
 
     return [
     // --- Contract liveness ---
     // 0: MarketplaceATP VERSION
-    { chainId: selectedChainId, address: protocolContracts.MARKETPLACE_ATP, abi: MARKETPLACE_ABI, functionName: 'VERSION' },
+    { chainId: protocolChainId, address: protocolContracts.MARKETPLACE_ATP, abi: MARKETPLACE_ABI, functionName: 'VERSION' },
     // 1: MarketplaceATP nextOrderId
-    { chainId: selectedChainId, address: protocolContracts.MARKETPLACE_ATP, abi: MARKETPLACE_ABI, functionName: 'nextOrderId' },
+    { chainId: protocolChainId, address: protocolContracts.MARKETPLACE_ATP, abi: MARKETPLACE_ABI, functionName: 'nextOrderId' },
     // 2: OrinaRWA VERSION
-    { chainId: selectedChainId, address: protocolContracts.ORINA_RWA, abi: ORINA_RWA_ABI, functionName: 'VERSION' },
+    { chainId: protocolChainId, address: protocolContracts.ORINA_RWA, abi: ORINA_RWA_ABI, functionName: 'VERSION' },
     // 3: OrinaRWA nextAssetId
-    { chainId: selectedChainId, address: protocolContracts.ORINA_RWA, abi: ORINA_RWA_ABI, functionName: 'nextAssetId' },
+    { chainId: protocolChainId, address: protocolContracts.ORINA_RWA, abi: ORINA_RWA_ABI, functionName: 'nextAssetId' },
     // 4: FeeManager VERSION
-    { chainId: selectedChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'VERSION' },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'VERSION' },
     // 5: UnitRegistry nextUnitId
-    { chainId: selectedChainId, address: protocolContracts.UNIT_REGISTRY, abi: UNIT_REGISTRY_ABI, functionName: 'nextUnitId' },
+    { chainId: protocolChainId, address: protocolContracts.UNIT_REGISTRY, abi: UNIT_REGISTRY_ABI, functionName: 'nextUnitId' },
     // 6: ShippingRegistry nextOptionId
-    { chainId: selectedChainId, address: protocolContracts.SHIPPING_REGISTRY, abi: SHIPPING_REGISTRY_ABI, functionName: 'nextOptionId' },
+    { chainId: protocolChainId, address: protocolContracts.SHIPPING_REGISTRY, abi: SHIPPING_REGISTRY_ABI, functionName: 'nextOptionId' },
     // 7: DisputeManager VERSION
-    { chainId: selectedChainId, address: protocolContracts.DISPUTE_MANAGER, abi: DISPUTE_MANAGER_ABI, functionName: 'VERSION' },
+    { chainId: protocolChainId, address: protocolContracts.DISPUTE_MANAGER, abi: DISPUTE_MANAGER_ABI, functionName: 'VERSION' },
     // 8: AutoTimeManager VERSION
-    { chainId: selectedChainId, address: protocolContracts.AUTOTIME_MANAGER, abi: AUTO_TIME_MANAGER_ABI, functionName: 'VERSION' },
+    { chainId: protocolChainId, address: protocolContracts.AUTOTIME_MANAGER, abi: AUTO_TIME_MANAGER_ABI, functionName: 'VERSION' },
     // 9: PaymentGateway VERSION
-    { chainId: selectedChainId, address: protocolContracts.PAYMENT_GATEWAY, abi: PAYMENT_GATEWAY_ABI, functionName: 'VERSION' },
+    { chainId: protocolChainId, address: protocolContracts.PAYMENT_GATEWAY, abi: PAYMENT_GATEWAY_ABI, functionName: 'VERSION' },
     // 10: RWAReceiptNFT VERSION
-    { chainId: selectedChainId, address: protocolContracts.RECEIPT_NFT, abi: RECEIPT_NFT_ABI, functionName: 'VERSION' },
+    { chainId: protocolChainId, address: protocolContracts.RECEIPT_NFT, abi: RECEIPT_NFT_ABI, functionName: 'VERSION' },
 
     // --- FeeManager config ---
     // 11: platformFeeBps
-    { chainId: selectedChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'platformFeeBps' },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'platformFeeBps' },
     // 12: daoFeeBps
-    { chainId: selectedChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'daoFeeBps' },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'daoFeeBps' },
     // 13: burnFeeBps
-    { chainId: selectedChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'burnFeeBps' },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'burnFeeBps' },
     // 14: getTotalFeeBps
-    { chainId: selectedChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getTotalFeeBps' },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getTotalFeeBps' },
 
     // --- UnitRegistry seeds (IDs 0–8) ---
     // 15–23: getUnit(0..8)
     ...Object.values(UNIT_IDS).map((id) => ({
-      chainId: selectedChainId,
+      chainId: protocolChainId,
       address: protocolContracts.UNIT_REGISTRY,
       abi: UNIT_REGISTRY_ABI,
       functionName: 'getUnit',
       args: [BigInt(id)],
     })),
     ] as const;
-  }, [protocolContracts, selectedChainId]);
+  }, [protocolChainId, protocolContracts]);
 
   const { data, isLoading } = useReadContracts({
     contracts: calls as Parameters<typeof useReadContracts>[0]['contracts'],
@@ -234,18 +236,18 @@ export function useRuntimeProbe() {
     // ── Chain probe ──────────────────────────────────────────────
     const chain: ChainProbeResult = {
       chainId: walletChainId,
-      expected: selectedChainId ?? 0,
-      status: !selectedChainId ? 'warn'
-        : walletChainId === selectedChainId ? 'ok'
+      expected: protocolChainId ?? 0,
+      status: !protocolChainId ? 'warn'
+        : walletChainId === protocolChainId ? 'ok'
         : walletChainId === 0 ? 'warn'
         : 'error',
-      detail: !selectedChainId
+      detail: !protocolChainId
         ? `${networkLabel} is not configured for runtime probing yet`
-        : walletChainId === selectedChainId
-        ? `${networkLabel} (${selectedChainId}) ✓`
+        : walletChainId === protocolChainId
+        ? `${networkLabel} (${protocolChainId}) ✓`
         : walletChainId === 0
-        ? `No wallet connected. Expected ${networkLabel} (${selectedChainId})`
-        : `Wrong chain: ${walletChainId}, expected ${selectedChainId} (${networkLabel})`,
+        ? `No wallet connected. Expected ${networkLabel} (${protocolChainId})`
+        : `Wrong chain: ${walletChainId}, expected ${protocolChainId} (${networkLabel})`,
     };
 
     if (loading) {
@@ -260,7 +262,7 @@ export function useRuntimeProbe() {
       };
     }
 
-    if (!selectedChainId || !protocolContracts || !data) {
+    if (!protocolChainId || !protocolContracts || !data) {
       const fallbackFees: FeeProbeResult = {
         platformBps: 0n,
         daoBps: 0n,
@@ -434,7 +436,7 @@ export function useRuntimeProbe() {
       supabase: [],    // filled async by panel via probeSupabaseTables()
       summary,
     };
-  }, [calls.length, data, isLoading, networkLabel, protocolContracts, selectedChainId, walletChainId]);
+  }, [calls.length, data, isLoading, networkLabel, protocolChainId, protocolContracts, walletChainId]);
 
   return report;
 }

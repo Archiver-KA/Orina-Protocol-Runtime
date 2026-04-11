@@ -1,15 +1,27 @@
 {
-  "name": "@figma/my-make-file",
+  "name": "@orina/protocol-app",
   "private": true,
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node scripts/prerender-public-routes.mjs",
     "dev": "vite",
+    "test": "vitest run",
+    "smoke:attach-metamask": "node scripts/attach-metamask-smoke.mjs",
+    "smoke:connected:protocol": "node scripts/attach-metamask-smoke.mjs --match-url localhost:5173 --goto http://localhost:5173/ --ensure-chain 97 --smoke-connected --wallet-request-timeout-ms 20000 --smoke-timeout-ms 12000 --timeout-ms 8000",
+    "smoke:api-keys:protocol": "node scripts/smoke-api-key-generate.mjs --match-url 5173 --goto http://localhost:5173/ --require-chain 97",
+    "smoke:messaging:rls": "node supabase/audit/smoke_messaging_rls_direct.cjs",
+    "smoke:protected-mint:protocol": "node scripts/attach-metamask-smoke.mjs --match-url localhost:5173 --goto http://localhost:5173/ --ensure-chain 97 --smoke-protected-mint --wallet-request-timeout-ms 45000 --smoke-timeout-ms 45000 --timeout-ms 8000",
+    "verify:protocol-runtime-surface": "node scripts/check-protocol-runtime-surface.mjs",
+    "verify:protocol-release": "npm run verify:viewer-release && npm run smoke:connected:protocol",
+    "verify:viewer-release": "node scripts/check-effective-viewer-surfaces.mjs && npm run verify:protocol-runtime-surface && vitest run src/utils/appRoutes.test.ts src/utils/orderSemantics.test.ts src/utils/runtimeOrders.test.ts src/utils/walletAuthSession.test.ts && npm run build",
     "geo:download:geonames": "node scripts/geo/download-geonames.mjs",
     "geo:build": "node scripts/geo/build-geo-import.mjs",
     "geo:build:strict": "node scripts/geo/build-geo-import.mjs --strict",
     "geo:export:migrations": "node scripts/geo/export-supabase-geo-migrations.mjs",
+    "repair:runtime-minted-projections": "node supabase/audit/run_runtime_projection_repair_from_env.cjs",
+    "smoke:review:e2e": "node supabase/audit/run_review_smoke_from_env.cjs",
+    "audit:supabase:security-definer": "node scripts/audit-supabase-security-definer.mjs",
     "security:check-client-secrets": "node scripts/check-client-no-privileged-supabase-secrets.mjs",
     "security:scan": "node scripts/security-scan-system.mjs"
   },
@@ -83,7 +95,8 @@
     "@tailwindcss/vite": "4.1.12",
     "@vitejs/plugin-react": "4.7.0",
     "tailwindcss": "4.1.12",
-    "vite": "^6.4.1"
+    "vite": "^6.4.1",
+    "vitest": "^4.1.3"
   },
   "peerDependencies": {
     "react": "18.3.1",

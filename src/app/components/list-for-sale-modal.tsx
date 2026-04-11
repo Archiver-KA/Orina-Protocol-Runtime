@@ -155,7 +155,7 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
             <StudioModalHeader className="p-6 md:p-8 border-b-0 pb-3 md:pb-4">
             <div className="flex items-start justify-between mb-3 md:mb-4">
               <div>
-                <h2 className="text-lg font-bold text-ui-primary tracking-tight mb-1">List for Sale</h2>
+                <h2 className="text-lg font-semibold text-ui-primary tracking-tight mb-1">List for Sale</h2>
                 <p className="text-[10px] text-ui-muted uppercase tracking-widest">Create a marketplace listing for this asset</p>
               </div>
               <StudioModalCloseButton onClick={onClose} />
@@ -177,14 +177,14 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
                 className="w-16 h-16 rounded-lg"
               />
               <div className="flex-1">
-                <p className="text-base font-bold tracking-tight text-ui-primary">{asset.name}</p>
+                <p className="text-base font-semibold tracking-tight text-ui-primary">{asset.name}</p>
                 <p className="text-[10px] uppercase tracking-widest text-ui-muted">Token ID: {asset.id}</p>
               </div>
             </div>
 
             {/* Price per Unit */}
             <div className="mb-6">
-              <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
+              <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-semibold">
                 Price per Unit (ETH)
               </StudioFieldLabel>
               <StudioNumberField
@@ -197,7 +197,7 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
                   isLightTheme ? '!bg-[#F3F5F8] !border-[var(--t-border-subtle)]' : ''
                 }`}
                 style={lightSurfaceStyle}
-                rightSlot={<span className="text-[10px] font-bold uppercase tracking-widest text-ui-muted">ETH</span>}
+                rightSlot={<span className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">ETH</span>}
               />
               {price && parseFloat(price) > 0 && (
                 <StudioFieldHint>
@@ -208,7 +208,7 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
 
             {/* Quantity */}
             <div className="mb-6">
-              <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
+              <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-semibold">
                 Quantity
               </StudioFieldLabel>
               <div
@@ -228,7 +228,7 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
                   -
                 </button>
                 <div className="flex-1 text-center">
-                  <p className="text-5xl font-bold text-ui-primary leading-none">{quantity}</p>
+                  <p className="text-5xl font-semibold text-ui-primary leading-none">{quantity}</p>
                   <p className="text-sm text-ui-muted mt-2">of {maxQuantity} available</p>
                 </div>
                 <button
@@ -249,7 +249,7 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
 
             {/* Listing Duration */}
             <div className="mb-6">
-              <label className="text-[10px] text-ui-muted uppercase font-bold mb-2 block">
+              <label className="text-[10px] text-ui-muted uppercase font-semibold mb-2 block">
                 Listing Duration
               </label>
               <div className="grid grid-cols-5 gap-2">
@@ -257,7 +257,7 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
                   <button
                     key={option.value}
                     onClick={() => setDuration(option.value)}
-                    className={`p-3 rounded-full border text-xs font-bold transition-all ${
+                    className={`p-3 rounded-full border text-xs font-semibold transition-all ${
                       duration === option.value
                         ? 'bg-[#2CC295] border-[#2CC295] text-black'
                         : `lsf-surface bg-[var(--t-surface-5)] border-ui-border-subtle text-ui-secondary hover:text-ui-primary hover:bg-[var(--t-surface-10)] ${
@@ -277,14 +277,14 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
               <div className="p-4 bg-[#2CC295]/10 border border-[#2CC295]/20 rounded-xl mb-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] text-[#2CC295] uppercase font-bold mb-1">Total Earnings</p>
-                    <p className="text-xl font-bold text-ui-primary">
+                    <p className="text-[10px] text-[#2CC295] uppercase font-semibold mb-1">Total Earnings</p>
+                    <p className="text-xl font-semibold text-ui-primary">
                       {(parseFloat(price) * quantity).toFixed(4)} ETH
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] text-ui-muted uppercase font-bold mb-1">Marketplace Fee (2.5%)</p>
-                    <p className="text-sm font-bold text-ui-secondary">
+                    <p className="text-[10px] text-ui-muted uppercase font-semibold mb-1">Marketplace Fee (2.5%)</p>
+                    <p className="text-sm font-semibold text-ui-secondary">
                       {(parseFloat(price) * quantity * 0.025).toFixed(4)} ETH
                     </p>
                   </div>
@@ -322,7 +322,7 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
                 onClick={onClose}
                 variant="secondary"
                 size="lg"
-                className={`lsf-surface flex-1 text-sm font-bold tracking-tight ${
+                className={`lsf-surface flex-1 text-sm font-semibold tracking-tight ${
                   isLightTheme ? '!bg-[#F3F5F8] !border !border-[var(--t-border-subtle)] hover:!bg-[#ECEFF3]' : ''
                 }`}
                 style={lightSurfaceStyle}
@@ -334,7 +334,7 @@ export function ListForSaleModal({ isOpen, onClose, asset }: ListForSaleModalPro
                 disabled={!isFormValid}
                 variant="primary"
                 size="lg"
-                className="flex-1 text-sm font-bold tracking-tight disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 text-sm font-semibold tracking-tight disabled:opacity-50 disabled:cursor-not-allowed"
                 leftIcon={<Tag size={18} />}
               >
                 List for Sale

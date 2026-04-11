@@ -34,6 +34,9 @@ const deliveryHydrateInFlight = new Set<string>();
 
 let geoCountriesCache: GeoCountry[] | null = null;
 const geoPlacesCache = new Map<string, GeoPlace[]>();
+const GEO_LEVEL_DESCENT_LIMIT = 3;
+
+type GeoPlacesLoader = (countryCode: string, parentId: string | null) => Promise<GeoPlace[]>;
 
 type DbGeoCountryRow = {
   code: string;
@@ -467,6 +470,89 @@ export async function loadGeoPlaces(countryCode: string, parentId: string | null
     .sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));
   geoPlacesCache.set(cacheKey, fallback);
   return fallback;
+}
+
+function sortGeoPlaces(places: GeoPlace[]): GeoPlace[] {
+  return [...places].sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));
+}
+
+function uniqueGeoPlaces(places: GeoPlace[]): GeoPlace[] {
+  const byId = new Map<string, GeoPlace>();
+  for (const place of places) {
+    if (!byId.has(place.id)) {
+      byId.set(place.id, place);
+    }
+  }
+  return Array.from(byId.values());
+}
+
+async function loadDescendantGeoPlacesByKind(
+  countryCode: string,
+  parentPlaces: GeoPlace[],
+  expectedKind: GeoPlace['placeKind'],
+  loadPlaces: GeoPlacesLoader,
+  maxDepth = GEO_LEVEL_DESCENT_LIMIT
+): Promise<GeoPlace[]> {
+  let frontier = uniqueGeoPlaces(parentPlaces);
+  const visitedParentIds = new Set<string>();
+
+  for (let depth = 0; depth < maxDepth && frontier.length > 0; depth += 1) {
+    const nextParentIds = frontier
+      .map((place) => place.id)
+      .filter((placeId) => {
+        if (visitedParentIds.has(placeId)) return false;
+        visitedParentIds.add(placeId);
+        return true;
+      });
+
+    if (nextParentIds.length === 0) break;
+
+    const childBatches = await Promise.all(
+      nextParentIds.map((placeId) => loadPlaces(countryCode, placeId))
+    );
+    const children = uniqueGeoPlaces(childBatches.flat());
+    const matches = children.filter((place) => place.placeKind === expectedKind);
+    if (matches.length > 0) {
+      return sortGeoPlaces(matches);
+    }
+
+    frontier = children;
+  }
+
+  return [];
+}
+
+export async function loadGeoPlacesForLevel(
+  country: GeoCountry | null | undefined,
+  levelIndex: number,
+  parentId: string | null,
+  loadPlaces: GeoPlacesLoader = loadGeoPlaces
+): Promise<GeoPlace[]> {
+  const normalizedCountryCode = normalizeCountryCode(country?.code);
+  if (!normalizedCountryCode) return [];
+
+  const expectedKind = country?.addressSchema.levels[levelIndex]?.kind;
+  const directPlaces = sortGeoPlaces(await loadPlaces(normalizedCountryCode, parentId));
+
+  if (!expectedKind) return directPlaces;
+
+  const directMatches = directPlaces.filter((place) => place.placeKind === expectedKind);
+  if (directMatches.length > 0) {
+    return directMatches;
+  }
+
+  // Some countries skip an intermediate admin layer in the schema but keep it in the dataset.
+  const descendantMatches = await loadDescendantGeoPlacesByKind(
+    normalizedCountryCode,
+    directPlaces,
+    expectedKind,
+    loadPlaces
+  );
+  if (descendantMatches.length > 0) {
+    return descendantMatches;
+  }
+
+  return directPlaces;
 }
 
 export function clearGeoAddressCaches(): void {

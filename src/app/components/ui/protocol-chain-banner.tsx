@@ -54,7 +54,7 @@ export function ProtocolChainBanner({
             ) : (
               <AlertTriangle size={16} className="text-amber-300" />
             )}
-            <span className={`text-xs font-bold uppercase tracking-widest ${titleClass}`}>{title}</span>
+            <span className={`text-xs font-semibold uppercase tracking-widest ${titleClass}`}>{title}</span>
           </div>
           <div className="mt-2 space-y-1 text-xs">
             <p className="text-ui-secondary">

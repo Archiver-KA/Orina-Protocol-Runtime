@@ -2,13 +2,16 @@ export type APIKeyPermission = 'read' | 'write' | 'mint' | 'delete';
 
 export interface APIKey {
   id: string;
-  key: string; // sk_seller_xxxxx
+  key: string; // Raw key is only returned once at creation time
+  keyPreview?: string;
+  rawKeyAvailable?: boolean;
   name: string;
   walletAddress: string;
   permissions: APIKeyPermission[];
   createdAt: string;
   lastUsedAt: string | null;
   expiresAt: string | null;
+  revokedAt?: string | null;
   isActive: boolean;
   usageStats: {
     totalRequests: number;

@@ -15,7 +15,7 @@ export function RatingBreakdown({ stats }: RatingBreakdownProps) {
       {/* Overall Rating */}
       <div className="flex items-start gap-6">
         <div className="text-center">
-          <div className="text-5xl font-bold text-white mb-2">
+          <div className="text-5xl font-semibold text-white mb-2">
             {formatRating(averageRating)}
           </div>
           <StarRating rating={averageRating} size={20} />
@@ -62,13 +62,13 @@ export function RatingBreakdown({ stats }: RatingBreakdownProps) {
       <div className="grid grid-cols-2 gap-4 pt-4 border-t border-zinc-800">
         <div className="text-center p-3 bg-zinc-900/50 rounded-lg">
           <p className="text-sm text-zinc-500 mb-1">Verified Purchase</p>
-          <p className="text-xl font-bold text-green-400">
+          <p className="text-xl font-semibold text-green-400">
             {stats.verifiedPurchaseCount}
           </p>
         </div>
         <div className="text-center p-3 bg-zinc-900/50 rounded-lg">
           <p className="text-sm text-zinc-500 mb-1">With Photos</p>
-          <p className="text-xl font-bold text-blue-400">
+          <p className="text-xl font-semibold text-blue-400">
             {stats.withPhotosCount}
           </p>
         </div>

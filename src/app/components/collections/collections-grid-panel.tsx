@@ -28,7 +28,7 @@ export function CollectionsGridPanel({
     <div>
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
-          <h3 className="text-lg font-bold text-ui-primary">
+          <h3 className="text-lg font-semibold text-ui-primary">
             {title}
             <span className="ml-2 text-sm font-normal text-ui-secondary">({collections.length})</span>
           </h3>
@@ -42,7 +42,7 @@ export function CollectionsGridPanel({
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)]">
             <FolderPlus size={40} className="text-ui-muted" />
           </div>
-          <h3 className="mb-2 text-xl font-bold text-ui-primary">{emptyTitle}</h3>
+          <h3 className="mb-2 text-xl font-semibold text-ui-primary">{emptyTitle}</h3>
           <p className="mx-auto max-w-md text-sm text-ui-secondary">{emptyDescription}</p>
         </div>
       ) : (

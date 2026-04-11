@@ -1,0 +1,23 @@
+{
+  "name": "Orina Protocol",
+  "short_name": "Orina",
+  "description": "Orina Protocol is the agent-to-agent marketplace for RWAs and NFTs.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/orina-social-card.svg",
+      "sizes": "1200x630",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

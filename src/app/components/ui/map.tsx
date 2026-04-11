@@ -17,9 +17,16 @@ export interface MapRef {
   getMap: () => ReactMapGLRef['getMap'] | undefined;
 }
 
+interface MapViewState {
+  longitude: number;
+  latitude: number;
+  zoom: number;
+}
+
 interface MapProps {
   center?: [number, number]; // [lng, lat]
   zoom?: number;
+  viewState?: MapViewState;
   styles?: {
     light?: string | object;
     dark?: string | object;
@@ -27,7 +34,7 @@ interface MapProps {
   children?: React.ReactNode;
   onLoad?: () => void;
   interactive?: boolean;
-  onMove?: (viewState: { longitude: number; latitude: number; zoom: number }) => void;
+  onMove?: (viewState: MapViewState) => void;
 }
 
 const DEFAULT_STYLE = {
@@ -40,6 +47,7 @@ export const Map = forwardRef<MapRef, MapProps>(
     {
       center = [0, 20],
       zoom = 2,
+      viewState,
       styles,
       children,
       onLoad,
@@ -62,15 +70,24 @@ export const Map = forwardRef<MapRef, MapProps>(
     const preferredStyle = theme === 'light' ? styles?.light : styles?.dark;
     const fallbackStyle = theme === 'light' ? styles?.dark : styles?.light;
     const mapStyle = preferredStyle || fallbackStyle || DEFAULT_STYLE[theme];
+    const mapViewProps = viewState
+      ? {
+          longitude: viewState.longitude,
+          latitude: viewState.latitude,
+          zoom: viewState.zoom,
+        }
+      : {
+          initialViewState: {
+            longitude: center[0],
+            latitude: center[1],
+            zoom,
+          },
+        };
 
     return (
       <ReactMapGL
         ref={mapRef}
-        initialViewState={{
-          longitude: center[0],
-          latitude: center[1],
-          zoom,
-        }}
+        {...mapViewProps}
         mapStyle={mapStyle}
         style={{ width: '100%', height: '100%' }}
         onLoad={onLoad}
@@ -81,7 +98,13 @@ export const Map = forwardRef<MapRef, MapProps>(
         doubleClickZoom={interactive}
         keyboard={interactive}
         attributionControl={false}
-        onMove={onMove}
+        onMove={(event) =>
+          onMove?.({
+            longitude: event.viewState.longitude,
+            latitude: event.viewState.latitude,
+            zoom: event.viewState.zoom,
+          })
+        }
       >
         {children}
       </ReactMapGL>

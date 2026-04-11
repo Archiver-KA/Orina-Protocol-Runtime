@@ -107,7 +107,7 @@ export const NotificationItem = forwardRef<HTMLDivElement, NotificationItemProps
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <h4 className="text-white text-xs font-bold truncate">
+          <h4 className="text-white text-xs font-semibold truncate">
             {notification.title}
           </h4>
           <p className="text-zinc-400 text-[11px] mt-0.5 line-clamp-2">

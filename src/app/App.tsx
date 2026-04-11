@@ -1,409 +1,191 @@
-import { Navbar } from '@/app/components/navbar';
-import { AISidebar } from '@/app/components/ai/ai-sidebar';
-import { AnimatePresence } from 'motion/react';
-import { LeftSidebar } from '@/app/components/left-sidebar';
-import { MainContent } from '@/app/components/main-content';
-import { RightSidebar } from '@/app/components/right-sidebar';
-import { Orders } from '@/app/components/orders';
-import { Marketplace } from '@/app/components/marketplace';
-import { MarketInsights } from '@/app/components/market-insights';
-import { Minting } from '@/app/components/minting';
-import { MintingRightSidebar } from '@/app/components/minting-right-sidebar';
-import { Assets } from '@/app/components/assets';
-import { AssetsRightSidebar } from '@/app/components/assets-right-sidebar';
-import { Community } from '@/app/components/community';
-import { CommunityRightSidebar } from '@/app/components/community-right-sidebar';
-import { Messages } from '@/app/components/messages';
-import { History } from '@/app/components/history';
-import { HistoryRightSidebar } from '@/app/components/history-right-sidebar';
-import { EnhancedProfile } from '@/app/components/profile/enhanced-profile'; // ✅ Unified profile for both owner & visitor modes
-import { Settings } from '@/app/components/settings';
-import { AgentSettings } from '@/app/components/agent-settings';
-import { CanonicalAssetDetailsRoute } from '@/app/components/asset-details/canonical-asset-details-route';
-import { SearchPage } from '@/app/components/search/search-page';
-import { FavoritesFollowingPage } from '@/app/components/favorites/favorites-following-page';
-import { CommandPalette } from '@/app/components/command-palette/command-palette';
-import { WalletModals } from '@/app/components/wallet/wallet-modals';
-import { PublicHomePage } from '@/app/components/public-home-page';
-import { useState, useEffect, useRef } from 'react';
-import { Web3Provider } from '@/providers/Web3Provider';
-import { NotificationProvider, useNotifications } from '@/contexts/NotificationContext';
-import { WalletModalProvider } from '@/contexts/WalletModalContext';
-import { ProtocolNetworkProvider } from '@/contexts/ProtocolNetworkContext';
-import { UserProvider } from '@/contexts/UserContext';
-import { WalletConnectionStatus } from '@/app/components/wallet-connection-status';
-import { RuntimeErrorBoundary } from '@/app/components/ui/runtime-error-boundary';
-import { Toaster } from '@/app/components/ui/sonner';
-import { useTheme } from '@/app/contexts/ThemeContext';
-import { useUserInitialization } from '@/hooks/useUserInitialization';
-
-import { useAccessMode } from '@/hooks/useAccessMode';
-import { useAccessGuard } from '@/hooks/useAccessGuard';
-import { useCommandPalette } from '@/hooks/useCommandPalette';
-import { getConversations as getChatConversations } from '@/utils/messagesClient';
-import { buildNotificationSourceId } from '@/utils/notifications';
-import { shortenUserDisplayName } from '@/utils/profileUtils';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { AppSeo } from '@/app/components/seo/app-seo';
+import { PublicShell } from '@/app/components/public/public-shell';
+import { APP_NAVIGATION_EVENT, type AppNavigationEventDetail } from '@/utils/appNavigation';
+import { buildAppHref, parseAppLocation } from '@/utils/appRoutes';
+import { isGuestModeForced } from '@/utils/guestMode';
+import { getWalletAuthSession } from '@/utils/walletAuthSession';
+import type { RuntimeAppProps } from '@/app/runtime/runtime-app-types';
 import type { OrderNavigationRequest } from '@/types/orderNavigation';
+import type { ProfileTab } from '@/types/profile';
 
-// Inner component that uses wagmi hooks (must be inside Web3Provider)
-function AppContent({
-  activePage,
-  setActivePage,
-  sidebarCollapsed,
-  setSidebarCollapsed,
-  selectedAssetId,
-  searchQuery,
-  previousPage,
-  selectedConversationId,
-  selectedProfileAddress,
-  ordersNavigationRequest,
-  onConsumeOrderNavigationRequest,
-  onOpenInsightsOrder,
-  handleNavigateToAsset,
-  handleBackFromAssetDetails,
-  handleSearch,
-  handleNavigateToUserProfile,
-  handleNavigateToMessages,
-  getGridLayout
-}: any) {
-  // Initialize user data when wallet connects (must be inside Web3Provider)
-  useUserInitialization();
-  const { addNotification } = useNotifications();
-  const { applyThemeFromWallet } = useTheme();
-  const [showAISidebar, setShowAISidebar] = useState(false);
+let runtimeAppPromise: Promise<typeof import('@/app/runtime/runtime-app')> | null = null;
 
-  const { isGuest, effectiveConnectedAddress, canAccessPage, resolvePageForMode } = useAccessMode();
-  const accessGuard = useAccessGuard(setActivePage);
-  const connectedAddress = effectiveConnectedAddress;
-  const chatNotificationPollInFlightRef = useRef(false);
-  const chatNotificationBaselineReadyRef = useRef(false);
-  const chatUnreadSnapshotRef = useRef<Record<string, number>>({});
+function loadRuntimeApp() {
+  runtimeAppPromise ??= import('@/app/runtime/runtime-app');
+  return runtimeAppPromise;
+}
 
-  useEffect(() => {
-    const nextPage = resolvePageForMode(activePage);
-    if (nextPage !== activePage) {
-      setActivePage(nextPage);
-    }
-  }, [activePage, resolvePageForMode, setActivePage]);
+const RuntimeApp = lazy(() =>
+  loadRuntimeApp().then((module) => ({ default: module.RuntimeApp })),
+);
 
-  useEffect(() => {
-    if (effectiveConnectedAddress && activePage === 'home') {
-      setActivePage('overview');
-    }
-  }, [effectiveConnectedAddress, activePage, setActivePage]);
+const DEFAULT_ASSET_RETURN_PAGE = 'marketplace';
 
-  useEffect(() => {
-    applyThemeFromWallet(effectiveConnectedAddress ?? null);
-  }, [effectiveConnectedAddress, applyThemeFromWallet]);
-
-  useEffect(() => {
-    chatNotificationBaselineReadyRef.current = false;
-    chatUnreadSnapshotRef.current = {};
-  }, [connectedAddress]);
-
-  useEffect(() => {
-    if (!connectedAddress || isGuest || typeof window === 'undefined') return;
-
-    let cancelled = false;
-    const normalizedAddress = connectedAddress.toLowerCase();
-
-    const pollChatNotifications = async (force: boolean = false) => {
-      if (cancelled) return;
-      if (!force && document.hidden) return;
-      if (chatNotificationPollInFlightRef.current) return;
-
-      // Avoid duplicate chat notifications while the Messages page already runs its own chat polling/emit logic.
-      // Reset baseline so the first poll after leaving Messages becomes a fresh baseline (no backfill spam).
-      if (activePage === 'messages') {
-        chatNotificationBaselineReadyRef.current = false;
-        chatUnreadSnapshotRef.current = {};
-        return;
-      }
-
-      chatNotificationPollInFlightRef.current = true;
-      try {
-        const conversations = await getChatConversations(connectedAddress);
-        if (cancelled) return;
-
-        const nextUnreadSnapshot: Record<string, number> = {};
-
-        for (const conv of conversations) {
-          const conversationId = String(conv.id || '');
-          if (!conversationId) continue;
-
-          const unread = Number(conv.unreadCount?.[normalizedAddress] || 0);
-          nextUnreadSnapshot[conversationId] = unread;
-
-          if (!chatNotificationBaselineReadyRef.current) continue;
-
-          const prevUnread = Number(chatUnreadSnapshotRef.current[conversationId] || 0);
-          if (unread <= prevUnread || unread <= 0) continue;
-
-          const otherAddress =
-            (Array.isArray(conv.participants)
-              ? conv.participants.find((p) => String(p).toLowerCase() !== normalizedAddress)
-              : '') || '';
-          const actorName =
-            String(conv.displayName || '').trim() ||
-            (otherAddress ? shortenUserDisplayName(otherAddress) : 'New contact');
-          const lastMessage = String(conv.lastMessage || '').trim() || 'Sent you a message';
-          const lastMessageTime = String(conv.lastMessageTime || conv.createdAt || Date.now());
-
-          addNotification('message', 'New Message', `${actorName}: ${lastMessage}`, {
-            sourceId: buildNotificationSourceId('chat:message:new', [conversationId, lastMessageTime]),
-            eventCode: 'chat:message:new',
-            conversationId,
-            actorAddress: otherAddress ? otherAddress.toLowerCase() : undefined,
-            actorName,
-            action: 'open_chat_thread',
-            actionPage: 'messages',
-          } as any);
-        }
-
-        chatUnreadSnapshotRef.current = nextUnreadSnapshot;
-        chatNotificationBaselineReadyRef.current = true;
-      } catch (error) {
-        console.debug('[App] Chat notification poll error:', error);
-      } finally {
-        chatNotificationPollInFlightRef.current = false;
-      }
-    };
-
-    void pollChatNotifications(true);
-
-    const intervalId = window.setInterval(() => {
-      void pollChatNotifications(false);
-    }, 2500);
-
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        void pollChatNotifications(true);
-      }
-    };
-
-    window.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      cancelled = true;
-      chatNotificationPollInFlightRef.current = false;
-      window.clearInterval(intervalId);
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [activePage, addNotification, connectedAddress, isGuest]);
-
-  const guardedSetActivePage = (page: string) => {
-    if (canAccessPage(page)) {
-      setActivePage(resolvePageForMode(page));
-      return;
-    }
-    accessGuard.denyToGuest('home');
-  };
-  const guardedNavigateToUserProfile = (walletAddress: string) => {
-    if (!canAccessPage('profile')) {
-      accessGuard.denyToGuest('home');
-      return;
-    }
-    handleNavigateToUserProfile(walletAddress);
-  };
-  const guardedNavigateToMessages = (walletAddress: string) => {
-    if (!canAccessPage('messages')) {
-      accessGuard.denyToGuest('home');
-      return;
-    }
-    handleNavigateToMessages(walletAddress);
-  };
-  const commandPalette = useCommandPalette(
-    guardedSetActivePage,
-    undefined,
-    () => setSidebarCollapsed(prev => !prev),
-    { canAccessPage, isGuest }
-  );
-
-  if (!effectiveConnectedAddress && activePage === 'home') {
-    return (
-      <>
-        <Toaster position="top-right" />
-        <div className="relative h-screen bg-ui-page text-ui-secondary overflow-hidden">
-          <div className="absolute inset-0">
-            <PublicHomePage />
-          </div>
-          <div className="absolute inset-x-0 top-0 z-20">
-            <Navbar activePage={activePage} setActivePage={guardedSetActivePage} onSearch={handleSearch} isGuest={isGuest} onToggleAI={() => setShowAISidebar(v => !v)} aiActive={showAISidebar} />
-          </div>
-        </div>
-        <WalletModals />
-      </>
-    );
+function resolveSafeAssetPage(candidate?: string | null, fallback?: string | null) {
+  if (candidate && candidate !== 'asset-details') {
+    return candidate;
   }
+  if (fallback && fallback !== 'asset-details') {
+    return fallback;
+  }
+  return DEFAULT_ASSET_RETURN_PAGE;
+}
 
+function readInitialRouteState() {
+  if (typeof window === 'undefined') {
+    return parseAppLocation({ pathname: '/', search: '' } as Pick<Location, 'pathname' | 'search'>);
+  }
+  return parseAppLocation(window.location);
+}
+
+function readWindowHref() {
+  if (typeof window === 'undefined') return '/';
+  return `${window.location.pathname || '/'}${window.location.search || ''}`;
+}
+
+function shouldEnableRuntimeOnBoot(route: ReturnType<typeof readInitialRouteState>) {
+  if (route.page !== 'home') return true;
+  if (typeof window === 'undefined') return false;
+  if (isGuestModeForced()) return false;
+  return Boolean(getWalletAuthSession());
+}
+
+function RuntimeLoadingSurface({ label }: { label: string }) {
   return (
-    <>
-      <Toaster position="top-right" />
-      {/* Outer: flex-row so sidebar spans full height */}
-      <div className="h-screen bg-ui-page text-ui-secondary overflow-hidden flex flex-row">
-        {/* Left: Native Bar (full height) */}
-        {!isGuest && (
-          <LeftSidebar
-            activePage={activePage}
-            setActivePage={guardedSetActivePage}
-            collapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-            isGuest={isGuest}
-          />
-        )}
-
-        {/* Right: Navbar on top + Content below */}
-        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          <Navbar activePage={activePage} setActivePage={guardedSetActivePage} onSearch={handleSearch} isGuest={isGuest} onToggleAI={() => setShowAISidebar(v => !v)} aiActive={showAISidebar} />
-
-          <main
-            className={isGuest ? 'flex-1 overflow-hidden bg-ui-page text-ui-secondary' : 'flex-1 overflow-hidden bg-ui-page text-ui-secondary'}
-            style={!isGuest ? {
-              display: 'grid',
-              gridTemplateColumns: (['marketplace', 'market-insights', 'messages', 'profile', 'settings', 'agent-settings', 'asset-details', 'favorites', 'search'].includes(activePage))
-                ? '1fr'
-                : '1fr 344px',
-            } : undefined}
-          >
-            {activePage === 'overview' && <MainContent />}
-            {activePage === 'orders' && (
-              <Orders
-                onNavigateToPage={guardedSetActivePage}
-                navigationRequest={ordersNavigationRequest}
-                onConsumeNavigationRequest={onConsumeOrderNavigationRequest}
-              />
-            )}
-            {activePage === 'marketplace' && <Marketplace onNavigateToPage={guardedSetActivePage} onNavigateToUserProfile={guardedNavigateToUserProfile} />}
-            {activePage === 'market-insights' && <MarketInsights onOpenOrderRequest={onOpenInsightsOrder} />}
-            {activePage === 'minting' && (
-              <RuntimeErrorBoundary
-                title="Minting Page Failed to Load"
-                description="The minting workspace hit a runtime error. Retry after the page resets."
-                resetKey={activePage}
-              >
-                <Minting />
-              </RuntimeErrorBoundary>
-            )}
-            {activePage === 'assets' && <Assets />}
-            {activePage === 'community' && <Community onNavigateToUserProfile={guardedNavigateToUserProfile} />}
-            {activePage === 'messages' && <Messages onNavigateToUserProfile={guardedNavigateToUserProfile} initialConversationId={selectedConversationId} />}
-            {activePage === 'profile' && (
-              <EnhancedProfile
-                key={`profile-${selectedProfileAddress || connectedAddress}`}
-                address={selectedProfileAddress || effectiveConnectedAddress}
-                onNavigateToAsset={handleNavigateToAsset}
-                onNavigateToMessages={guardedNavigateToMessages}
-              />
-            )}
-            {activePage === 'history' && <History />}
-            {!isGuest && activePage === 'overview' && <RightSidebar />}
-            {!isGuest && activePage === 'minting' && (
-              <RuntimeErrorBoundary
-                title="Minting Sidebar Failed to Load"
-                description="The minting sidebar hit a runtime error and was isolated from the main workspace."
-                resetKey={`sidebar:${activePage}`}
-              >
-                <MintingRightSidebar />
-              </RuntimeErrorBoundary>
-            )}
-            {!isGuest && activePage === 'assets' && <AssetsRightSidebar />}
-            {!isGuest && activePage === 'community' && <CommunityRightSidebar />}
-            {!isGuest && activePage === 'history' && <HistoryRightSidebar />}
-            {activePage === 'settings' && (
-              <RuntimeErrorBoundary
-                title="Settings Page Failed to Load"
-                description="The settings workspace hit a runtime error. Retry after the page resets."
-                resetKey={activePage}
-              >
-                <Settings />
-              </RuntimeErrorBoundary>
-            )}
-            {activePage === 'agent-settings' && (
-              <RuntimeErrorBoundary
-                title="Agent Setting Page Failed to Load"
-                description="The agent automation workspace hit a runtime error. Retry after the page resets."
-                resetKey={activePage}
-              >
-                <AgentSettings />
-              </RuntimeErrorBoundary>
-            )}
-            {activePage === 'asset-details' && (
-              <CanonicalAssetDetailsRoute
-                assetId={selectedAssetId}
-                onBack={handleBackFromAssetDetails}
-                onNavigateToSeller={guardedNavigateToUserProfile}
-                previousPage={previousPage}
-              />
-            )}
-            {activePage === 'search' && (
-              <SearchPage
-                initialQuery={searchQuery}
-                onNavigateToAsset={handleNavigateToAsset}
-              />
-            )}
-            {activePage === 'favorites' && (
-              <FavoritesFollowingPage
-                onNavigateToAsset={handleNavigateToAsset}
-                onNavigateToUserProfile={guardedNavigateToUserProfile}
-              />
-            )}
-            <WalletConnectionStatus />
-          </main>
-        </div>
+    <div className="flex h-screen min-h-screen items-center justify-center bg-ui-page px-6 py-8 text-ui-secondary">
+      <div className="flex items-center gap-3 rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-5 py-4 text-sm shadow-[0_18px_60px_-42px_rgba(0,0,0,0.6)]">
+        <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#2CC295]" aria-hidden="true" />
+        <span>{label}</span>
       </div>
-
-      {/* Command Palette (⌘K) */}
-      <CommandPalette
-        isOpen={commandPalette.isOpen}
-        searchQuery={commandPalette.searchQuery}
-        setSearchQuery={commandPalette.setSearchQuery}
-        selectedIndex={commandPalette.selectedIndex}
-        searchResults={commandPalette.searchResults}
-        onClose={commandPalette.close}
-      />
-
-      {/* Wallet Modals */}
-      <WalletModals />
-
-      {/* AI Sidebar — fixed overlay */}
-      <AnimatePresence>
-        {showAISidebar && (
-          <RuntimeErrorBoundary
-            title="AI Sidebar Failed to Load"
-            description="The AI workspace hit a runtime error. Close and reopen the panel to retry."
-            compact
-            resetKey={`${activePage}:${showAISidebar ? 'open' : 'closed'}`}
-          >
-            <AISidebar
-              activePage={activePage}
-              onClose={() => setShowAISidebar(false)}
-            />
-          </RuntimeErrorBoundary>
-        )}
-      </AnimatePresence>
-    </>
+    </div>
   );
 }
 
 export default function App() {
-  const [activePage, setActivePage] = useState<string>('home');
+  const [initialRouteState] = useState(() => readInitialRouteState());
+  const [activePage, setActivePage] = useState<string>(initialRouteState.page);
   const [previousPage, setPreviousPage] = useState<string>('');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [previousRouteHref, setPreviousRouteHref] = useState<string>('');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(initialRouteState.assetId);
+  const [searchQuery, setSearchQuery] = useState<string>(initialRouteState.searchQuery);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const [selectedProfileAddress, setSelectedProfileAddress] = useState<string | null>(null);
+  const [selectedProfileAddress, setSelectedProfileAddress] = useState<string | null>(initialRouteState.profileAddress);
+  const [selectedProfileTab, setSelectedProfileTab] = useState<ProfileTab | null>(initialRouteState.profileTab);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(initialRouteState.collectionId);
+  const [marketplaceNavigationRequest, setMarketplaceNavigationRequest] = useState<RuntimeAppProps['marketplaceNavigationRequest']>(initialRouteState.marketplaceNavigationRequest);
+  const [searchNavigationRequest, setSearchNavigationRequest] = useState<RuntimeAppProps['searchNavigationRequest']>(initialRouteState.searchNavigationRequest);
   const [ordersNavigationRequest, setOrdersNavigationRequest] = useState<OrderNavigationRequest | null>(null);
+  const [runtimeEnabled, setRuntimeEnabled] = useState(() => shouldEnableRuntimeOnBoot(initialRouteState));
+  const [connectRequestKey, setConnectRequestKey] = useState(0);
 
-  // ✅ SMART NAVIGATION: Wrap setActivePage to clear profile address when navigating to own profile
-  // This ensures clicking "Profile" from dropdown/sidebar shows OWN profile, not the last visited one
+  const warmRuntime = () => {
+    void loadRuntimeApp();
+  };
+
+  const pushRoute = (href: string, replace: boolean = false) => {
+    if (typeof window === 'undefined') return;
+    const currentHref = `${window.location.pathname}${window.location.search}`;
+    if (currentHref === href) return;
+    window.history[replace ? 'replaceState' : 'pushState']({}, '', href);
+  };
+
+  const applyRouteState = (route: ReturnType<typeof parseAppLocation>) => {
+    setActivePage(route.page);
+    setSearchQuery(route.searchQuery);
+    setSelectedAssetId(route.assetId);
+    setSelectedProfileAddress(route.profileAddress);
+    setSelectedProfileTab(route.profileTab);
+    setSelectedCollectionId(route.collectionId);
+    setMarketplaceNavigationRequest(route.marketplaceNavigationRequest);
+    setSearchNavigationRequest(route.searchNavigationRequest);
+  };
+
+  const applyParsedRoute = (replace: boolean = false) => {
+    if (typeof window === 'undefined') return;
+    const route = parseAppLocation(window.location);
+    applyRouteState(route);
+
+    if (replace) {
+      pushRoute(
+        buildAppHref({
+          page: route.page,
+          searchQuery: route.searchQuery,
+          profileAddress: route.profileAddress,
+          profileTab: route.profileTab,
+          assetId: route.assetId,
+          collectionId: route.collectionId,
+          collectionSlug: route.collectionSlug,
+          category: route.marketplaceNavigationRequest?.category || route.searchNavigationRequest?.category || null,
+          subcategory: route.marketplaceNavigationRequest?.subcategory || route.searchNavigationRequest?.subcategory || null,
+        }),
+        true,
+      );
+    }
+  };
+
   const handleSetActivePage = (page: string) => {
+    if (!['asset-details', 'collection-details'].includes(page)) {
+      setPreviousPage('');
+      setPreviousRouteHref('');
+    }
     if (page === 'profile') {
-      // Clear selectedProfileAddress so EnhancedProfile falls back to connectedAddress (own profile)
       setSelectedProfileAddress(null);
+      setSelectedProfileTab(null);
+    }
+    if (page !== 'asset-details') {
+      setSelectedAssetId(null);
+    }
+    if (page !== 'collection-details') {
+      setSelectedCollectionId(null);
+    }
+    if (page !== 'search') {
+      setSearchNavigationRequest(null);
+    }
+    if (page !== 'marketplace') {
+      setMarketplaceNavigationRequest(null);
     }
     setActivePage(page);
+    pushRoute(buildAppHref({ page }));
   };
+
+  const ensureRuntime = (options?: { connectModal?: boolean }) => {
+    warmRuntime();
+    setRuntimeEnabled(true);
+    if (options?.connectModal) {
+      setConnectRequestKey((value) => value + 1);
+    }
+  };
+
+  useEffect(() => {
+    if ((activePage !== 'home' || connectRequestKey > 0) && !runtimeEnabled) {
+      setRuntimeEnabled(true);
+    }
+  }, [activePage, connectRequestKey, runtimeEnabled]);
+
+  useEffect(() => {
+    if (activePage !== 'home') {
+      warmRuntime();
+    }
+  }, [activePage]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = () => {
+      applyParsedRoute();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    applyParsedRoute(true);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -434,8 +216,12 @@ export default function App() {
           ? metadata.actorAddress.trim()
           : null;
 
+      ensureRuntime();
       setSelectedConversationId(conversationId || actorAddress || null);
+      setPreviousPage('');
+      setPreviousRouteHref('');
       setActivePage('messages');
+      pushRoute(buildAppHref({ page: 'messages' }));
     };
 
     window.addEventListener('orina:notification-action', handleNotificationAction as EventListener);
@@ -444,63 +230,124 @@ export default function App() {
     };
   }, []);
 
-
-
-  // NOTE: ⌘K is now handled by Navbar search bar
-  // Command Palette shortcuts are disabled in favor of search
-  /*
-  useKeyboardShortcut(
-    { key: 'k', meta: true },
-    () => commandPalette.toggle(),
-    true
-  );
-
-  useKeyboardShortcut(
-    { key: 'k', ctrl: true },
-    () => commandPalette.toggle(),
-    true
-  );
-  */
-
-  // Handle asset navigation
   const handleNavigateToAsset = (assetId: string, fromPage?: string) => {
-    if (fromPage) {
-      setPreviousPage(fromPage);
-    } else {
-      setPreviousPage(activePage); // Use current page as previous
-    }
+    const originPage = resolveSafeAssetPage(
+      fromPage,
+      activePage === 'asset-details' ? previousPage : activePage,
+    );
+    const originHref =
+      activePage === 'asset-details'
+        ? previousRouteHref || buildAppHref({ page: originPage })
+        : readWindowHref();
+    ensureRuntime();
+    setPreviousPage(originPage);
+    setPreviousRouteHref(originHref);
     setSelectedAssetId(assetId);
     setActivePage('asset-details');
+    pushRoute(buildAppHref({ page: 'asset-details', assetId }));
   };
 
-  // Handle back from asset details
+  const handleNavigateToCollection = (collectionId: string, fromPage?: string) => {
+    const originPage =
+      fromPage ||
+      (activePage === 'collection-details' ? previousPage : activePage) ||
+      'marketplace';
+    const originHref =
+      activePage === 'collection-details'
+        ? previousRouteHref || buildAppHref({ page: originPage })
+        : readWindowHref();
+    ensureRuntime();
+    setPreviousPage(originPage);
+    setPreviousRouteHref(originHref);
+    setSelectedCollectionId(collectionId);
+    setActivePage('collection-details');
+    pushRoute(buildAppHref({ page: 'collection-details', collectionId }));
+  };
+
   const handleBackFromAssetDetails = () => {
-    setActivePage(previousPage);
+    const fallbackPage = resolveSafeAssetPage(previousPage);
+    if (previousRouteHref && typeof window !== 'undefined' && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    setPreviousPage('');
+    setPreviousRouteHref('');
+    setSelectedAssetId(null);
+    setActivePage(fallbackPage);
+    if (fallbackPage === 'collection-details' && selectedCollectionId) {
+      pushRoute(buildAppHref({ page: 'collection-details', collectionId: selectedCollectionId }));
+      return;
+    }
+    pushRoute(buildAppHref({ page: fallbackPage }));
   };
 
-  // Handle search from navbar
+  const handleBackFromCollectionDetails = () => {
+    const fallbackPage = previousPage && previousPage !== 'collection-details' ? previousPage : 'marketplace';
+    if (previousRouteHref && typeof window !== 'undefined' && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    setPreviousPage('');
+    setPreviousRouteHref('');
+    setSelectedCollectionId(null);
+    setActivePage(fallbackPage);
+    if (fallbackPage === 'profile' && selectedProfileAddress) {
+      pushRoute(buildAppHref({ page: 'profile', profileAddress: selectedProfileAddress, profileTab: selectedProfileTab }));
+      return;
+    }
+    pushRoute(buildAppHref({ page: fallbackPage }));
+  };
+
+  const handleBackFromProfile = () => {
+    const fallbackPage = previousPage && previousPage !== 'profile' ? previousPage : 'overview';
+    if (previousRouteHref && typeof window !== 'undefined' && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    setPreviousPage('');
+    setPreviousRouteHref('');
+    setSelectedProfileAddress(null);
+    setSelectedProfileTab(null);
+    setActivePage(fallbackPage);
+    pushRoute(buildAppHref({ page: fallbackPage }));
+  };
+
   const handleSearch = (query: string) => {
+    ensureRuntime();
+    setPreviousPage('');
+    setPreviousRouteHref('');
+    setSearchNavigationRequest(null);
     setSearchQuery(query);
     setActivePage('search');
+    pushRoute(buildAppHref({ page: 'search', searchQuery: query }));
   };
 
   const handleNavigateToMessages = (walletAddress: string) => {
+    ensureRuntime();
+    setPreviousPage('');
+    setPreviousRouteHref('');
     if (!walletAddress || !walletAddress.startsWith('0x')) {
       setSelectedConversationId(null);
       setActivePage('messages');
+      pushRoute(buildAppHref({ page: 'messages' }));
       return;
     }
     setSelectedConversationId(walletAddress);
     setActivePage('messages');
+    pushRoute(buildAppHref({ page: 'messages' }));
   };
 
   const handleOpenInsightsOrder = (request: Omit<OrderNavigationRequest, 'requestKey'>) => {
     if (!request.orderId) return;
+    ensureRuntime();
+    setPreviousPage('');
+    setPreviousRouteHref('');
     setOrdersNavigationRequest({
       ...request,
       requestKey: `${request.source || 'orders'}:${request.orderId}:${request.timestamp || Date.now()}`,
     });
     setActivePage('orders');
+    pushRoute(buildAppHref({ page: 'orders' }));
   };
 
   const handleConsumeOrderNavigationRequest = (requestKey: string) => {
@@ -509,62 +356,200 @@ export default function App() {
     ));
   };
 
-  // Handle profile navigation from community
-  const handleNavigateToUserProfile = (walletAddress: string) => {
-    // ✅ SIMPLIFIED: Just validate address and navigate
+  const handleConsumeMarketplaceNavigationRequest = (requestKey: string) => {
+    setMarketplaceNavigationRequest((current) => (
+      current?.requestKey === requestKey ? null : current
+    ));
+  };
+
+  const handleConsumeSearchNavigationRequest = (requestKey: string) => {
+    setSearchNavigationRequest((current) => (
+      current?.requestKey === requestKey ? null : current
+    ));
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleAppNavigation = (event: Event) => {
+      const customEvent = event as CustomEvent<AppNavigationEventDetail>;
+      const detail = customEvent.detail;
+      if (!detail) return;
+
+      ensureRuntime();
+
+      if (detail.assetId) {
+        handleNavigateToAsset(detail.assetId, detail.fromPage);
+        return;
+      }
+
+      const routeCategory = String(detail.category || detail.subcategory || '').trim();
+      const routeSubcategory = String(detail.subcategory || '').trim();
+      const routeQuery = String(detail.query || '').trim();
+
+      if (detail.page === 'marketplace' && routeCategory) {
+        setPreviousPage('');
+        setPreviousRouteHref('');
+        setMarketplaceNavigationRequest({
+          category: routeCategory,
+          subcategory: routeSubcategory || undefined,
+          requestKey: `marketplace:${routeCategory}:${Date.now()}`,
+        });
+        setActivePage('marketplace');
+        pushRoute(buildAppHref({
+          page: 'marketplace',
+          category: routeCategory,
+          subcategory: routeSubcategory || undefined,
+        }));
+        return;
+      }
+
+      if (detail.page === 'search' && (routeCategory || routeQuery)) {
+        setPreviousPage('');
+        setPreviousRouteHref('');
+        setSearchQuery(routeQuery);
+        if (routeCategory) {
+          setSearchNavigationRequest({
+            query: routeQuery || undefined,
+            category: routeCategory,
+            subcategory: routeSubcategory || undefined,
+            requestKey: `search:${routeCategory}:${routeQuery || 'no-query'}:${Date.now()}`,
+          });
+        } else {
+          setSearchNavigationRequest(null);
+        }
+        setActivePage('search');
+        pushRoute(buildAppHref({
+          page: 'search',
+          searchQuery: routeQuery,
+          category: routeCategory || undefined,
+          subcategory: routeSubcategory || undefined,
+        }));
+        return;
+      }
+
+      if (detail.page === 'orders') {
+        if (detail.orderId?.trim()) {
+          handleOpenInsightsOrder({
+            orderId: detail.orderId.trim(),
+            timestamp: Date.now(),
+          });
+          return;
+        }
+        handleSetActivePage('orders');
+        return;
+      }
+
+      if (detail.page) {
+        handleSetActivePage(detail.page);
+      }
+    };
+
+    window.addEventListener(APP_NAVIGATION_EVENT, handleAppNavigation as EventListener);
+    return () => {
+      window.removeEventListener(APP_NAVIGATION_EVENT, handleAppNavigation as EventListener);
+    };
+  }, [handleNavigateToAsset, handleOpenInsightsOrder]);
+
+  const handleNavigateToUserProfile = (walletAddress: string, initialTab: ProfileTab = 'overview') => {
     if (!walletAddress || !walletAddress.startsWith('0x') || walletAddress.length !== 42) {
-      console.error('❌ [Navigation] Invalid wallet address:', walletAddress);
+      console.error('[Navigation] Invalid wallet address:', walletAddress);
       return;
     }
 
+    ensureRuntime();
     setPreviousPage(activePage);
+    setPreviousRouteHref(readWindowHref());
     setSelectedProfileAddress(walletAddress);
+    setSelectedProfileTab(initialTab);
     setActivePage('profile');
+    pushRoute(buildAppHref({
+      page: 'profile',
+      profileAddress: walletAddress,
+      profileTab: initialTab,
+    }));
   };
 
-  // Determine grid layout based on page and sidebar state
   const getGridLayout = () => {
     const sidebarWidth = sidebarCollapsed ? '88px' : '248px';
 
-    // Pages without right sidebar (search has its own right sidebar built-in)
-    if (activePage === 'marketplace' || activePage === 'market-insights' || activePage === 'messages' || activePage === 'profile' || activePage === 'settings' || activePage === 'agent-settings' || activePage === 'asset-details' || activePage === 'favorites' || activePage === 'search') {
+    if (activePage === 'marketplace' || activePage === 'market-insights' || activePage === 'messages' || activePage === 'profile' || activePage === 'settings' || activePage === 'agent-settings' || activePage === 'asset-details' || activePage === 'collection-details' || activePage === 'favorites' || activePage === 'search') {
       return `grid-cols-[${sidebarWidth}_1fr]`;
     }
 
-    // Pages with right sidebar (all 320px)
     return `grid-cols-[${sidebarWidth}_1fr_344px]`;
   };
 
+  const shouldRenderRuntime = runtimeEnabled || activePage !== 'home' || connectRequestKey > 0;
+
+  const runtimeProps: RuntimeAppProps = {
+    activePage,
+    setActivePage: handleSetActivePage,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+    selectedAssetId,
+    searchQuery,
+    previousPage,
+    selectedConversationId,
+    selectedProfileAddress,
+    selectedProfileTab,
+    selectedCollectionId,
+    marketplaceNavigationRequest,
+    searchNavigationRequest,
+    ordersNavigationRequest,
+    onConsumeMarketplaceNavigationRequest: handleConsumeMarketplaceNavigationRequest,
+    onConsumeSearchNavigationRequest: handleConsumeSearchNavigationRequest,
+    onConsumeOrderNavigationRequest: handleConsumeOrderNavigationRequest,
+    onOpenInsightsOrder: handleOpenInsightsOrder,
+    handleNavigateToAsset,
+    handleNavigateToCollection,
+    handleBackFromAssetDetails,
+    handleBackFromCollectionDetails,
+    handleBackFromProfile,
+    handleSearch,
+    handleNavigateToUserProfile,
+    handleNavigateToMessages,
+    getGridLayout,
+    connectRequestKey,
+  };
+
+  const publicShell = (
+    <PublicShell
+      activePage="home"
+      onNavigateToPage={(page) => {
+        if (page !== 'home') {
+          warmRuntime();
+        }
+        handleSetActivePage(page);
+      }}
+      onSearch={handleSearch}
+      onConnectWallet={() => ensureRuntime({ connectModal: true })}
+      onWarmRuntime={warmRuntime}
+    />
+  );
+
   return (
-    <Web3Provider>
-      <ProtocolNetworkProvider>
-        <NotificationProvider>
-          <WalletModalProvider>
-            <UserProvider>
-              <AppContent
-                activePage={activePage}
-                setActivePage={handleSetActivePage}
-                sidebarCollapsed={sidebarCollapsed}
-                setSidebarCollapsed={setSidebarCollapsed}
-                selectedAssetId={selectedAssetId}
-                searchQuery={searchQuery}
-                previousPage={previousPage}
-                selectedConversationId={selectedConversationId}
-                selectedProfileAddress={selectedProfileAddress}
-                ordersNavigationRequest={ordersNavigationRequest}
-                onConsumeOrderNavigationRequest={handleConsumeOrderNavigationRequest}
-                onOpenInsightsOrder={handleOpenInsightsOrder}
-                handleNavigateToAsset={handleNavigateToAsset}
-                handleBackFromAssetDetails={handleBackFromAssetDetails}
-                handleSearch={handleSearch}
-                handleNavigateToUserProfile={handleNavigateToUserProfile}
-                handleNavigateToMessages={handleNavigateToMessages}
-                getGridLayout={getGridLayout}
-              />
-            </UserProvider>
-          </WalletModalProvider>
-        </NotificationProvider>
-      </ProtocolNetworkProvider>
-    </Web3Provider>
+    <>
+      <AppSeo
+        activePage={activePage}
+        searchQuery={searchQuery}
+        selectedAssetId={selectedAssetId}
+        selectedProfileAddress={selectedProfileAddress}
+        selectedCollectionId={selectedCollectionId}
+      />
+      {shouldRenderRuntime ? (
+        <Suspense
+          fallback={
+            activePage === 'home'
+              ? publicShell
+              : <RuntimeLoadingSurface label={`Loading ${activePage.replace(/-/g, ' ')}...`} />
+          }
+        >
+          <RuntimeApp {...runtimeProps} />
+        </Suspense>
+      ) : (
+        publicShell
+      )}
+    </>
   );
 }

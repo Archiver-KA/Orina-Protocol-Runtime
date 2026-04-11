@@ -52,7 +52,7 @@ class CommunityErrorBoundary extends React.Component<
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-500/10 text-red-400">
               <AlertTriangle size={24} />
             </div>
-            <h2 className="text-xl font-bold text-ui-primary">Community hit an unexpected error</h2>
+            <h2 className="text-xl font-semibold text-ui-primary">Community hit an unexpected error</h2>
             <p className="mt-2 text-sm text-ui-secondary">
               The page was recovered before it could fall into a blank screen. Retry the Community feed once.
             </p>

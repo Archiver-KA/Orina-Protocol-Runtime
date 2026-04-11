@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode, type Context } from 'react';
 import { getAvatarTypeForAddress, getDefaultUsername } from '@/utils/avatarUtils';
 import type { AvatarType } from '@/utils/avatarUtils';
 import { loadUserProfile, isDefaultWalletDisplayName, PROFILE_SYNC_EVENT, shortenUserDisplayName } from '@/utils/profileUtils';
@@ -31,7 +31,17 @@ interface UserContextType {
   clearUserSession: () => void;
 }
 
-const UserContext = createContext<UserContextType | undefined>(undefined);
+declare global {
+  var __orinaUserContext: Context<UserContextType | undefined> | undefined;
+}
+
+const UserContext = globalThis.__orinaUserContext
+  ?? createContext<UserContextType | undefined>(undefined);
+
+if (!globalThis.__orinaUserContext) {
+  UserContext.displayName = 'UserContext';
+  globalThis.__orinaUserContext = UserContext;
+}
 
 function normalizeUserDataShape(raw: any): UserData {
   if (!raw || typeof raw !== 'object') return {};

@@ -22,8 +22,8 @@ function clamp(value: number, min: number, max: number) {
 }
 
 export function MarketVolumeChart({
-  title = 'Protocol Order Activity',
-  subtitle = 'Created vs finalized orders',
+  title = 'Order Activity',
+  subtitle = 'Created and finalized orders',
   primaryLabel = 'Created',
   secondaryLabel = 'Finalized',
   points = [],
@@ -87,10 +87,10 @@ export function MarketVolumeChart({
   const hoveredPoint = hoveredIndex !== null ? geometry.scaledPoints[clamp(hoveredIndex, 0, geometry.scaledPoints.length - 1)] : null;
 
   return (
-    <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] p-6 backdrop-blur-[10px]">
+    <div className="bg-ui-card rounded-[24px] p-6 backdrop-blur-[10px]">
       <div className="flex items-center justify-between gap-4 mb-6">
         <div>
-          <h3 className="text-lg font-bold text-ui-primary">{title}</h3>
+          <h3 className="text-lg font-semibold text-ui-primary">{title}</h3>
           <p className="text-xs text-ui-muted uppercase tracking-widest mt-1">{subtitle}</p>
         </div>
         <div className="flex gap-4">
@@ -113,15 +113,15 @@ export function MarketVolumeChart({
         <div className="h-80 relative">
           {hoveredPoint && (
             <div className="absolute left-0 top-0 z-10 max-w-[240px] rounded-[18px] border border-ui-border-subtle bg-ui-card/95 backdrop-blur px-4 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.25)]">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-ui-muted">{hoveredPoint.label}</p>
+              <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-ui-muted">{hoveredPoint.label}</p>
               <div className="mt-2 space-y-1">
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-ui-secondary">{primaryLabel}</span>
-                  <span className="text-xs font-bold text-ui-primary">{hoveredPoint.primaryValue}</span>
+                  <span className="text-xs font-semibold text-ui-primary">{hoveredPoint.primaryValue}</span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-ui-secondary">{secondaryLabel}</span>
-                  <span className="text-xs font-bold text-ui-primary">{hoveredPoint.secondaryValue}</span>
+                  <span className="text-xs font-semibold text-ui-primary">{hoveredPoint.secondaryValue}</span>
                 </div>
                 {hoveredPoint.details?.map((detail) => (
                   <div key={`${hoveredPoint.key}-${detail.label}`} className="flex items-center justify-between gap-4">
@@ -133,7 +133,7 @@ export function MarketVolumeChart({
             </div>
           )}
 
-          <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 320">
+          <svg className="w-full h-full" preserveAspectRatio="xMidYMid meet" viewBox="0 0 1000 320">
             <defs>
               <linearGradient id="protocolPrimaryGradient" x1="0" x2="0" y1="0" y2="1">
                 <stop offset="0%" stopColor="#2CC295" stopOpacity="0.2"></stop>
@@ -169,6 +169,7 @@ export function MarketVolumeChart({
                   fill="#2CC295"
                   stroke="rgba(0,0,0,0.35)"
                   strokeWidth="2"
+                  vectorEffect="non-scaling-stroke"
                   onMouseEnter={() => setHoveredIndex(index)}
                 />
                 <circle
@@ -178,6 +179,7 @@ export function MarketVolumeChart({
                   fill="#F7DC7F"
                   stroke="rgba(0,0,0,0.35)"
                   strokeWidth="2"
+                  vectorEffect="non-scaling-stroke"
                   onMouseEnter={() => setHoveredIndex(index)}
                 />
               </g>

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useAccount } from 'wagmi';
 import { Upload } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { createPortal } from 'react-dom';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { ImageUpload, type UploadedImage } from '@/app/components/image-upload';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import {
@@ -40,7 +40,7 @@ export function CollectionEditorModal({
   onClose,
   onSubmit,
 }: CollectionEditorModalProps) {
-  const { address } = useAccount();
+  const { address } = useEffectiveViewer();
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [serverCategoryValues, setServerCategoryValues] = useState([] as string[]);
@@ -139,7 +139,7 @@ export function CollectionEditorModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="studio-form-backdrop fixed inset-0 z-[146] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+        className="studio-portal-backdrop fixed inset-0 z-[146] flex items-center justify-center p-4 md:p-6 bg-black/72 backdrop-blur-[12px]"
         onClick={(event) => {
           if (event.target === event.currentTarget) onClose();
         }}
@@ -152,12 +152,12 @@ export function CollectionEditorModal({
           className="relative z-[1] w-full max-w-2xl h-[calc(100dvh-3rem)]"
           onClick={(event) => event.stopPropagation()}
         >
-          <StudioModalPanel className="studio-form-modal max-w-2xl h-[calc(100dvh-3rem)]">
+          <StudioModalPanel className="studio-portal-modal max-w-2xl h-[calc(100dvh-3rem)] rounded-[36px]">
             <form onSubmit={handleSubmit} className="flex h-full flex-col">
               <StudioModalHeader className="p-6 md:p-8 border-b-0 pb-3 md:pb-4">
                 <div className="mb-3 md:mb-4 flex items-start justify-between">
                   <div>
-                    <h2 className="mb-1 text-lg font-bold tracking-tight text-ui-primary">
+                    <h2 className="mb-1 text-lg font-semibold tracking-tight text-ui-primary">
                       {mode === 'create' ? 'Create Collection' : 'Edit Collection'}
                     </h2>
                     <p className="text-[10px] uppercase tracking-widest text-ui-muted">
@@ -172,7 +172,7 @@ export function CollectionEditorModal({
                 className="hidden-scrollbar space-y-6 p-6 pt-0 md:p-8"
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
               >
-                <div className="studio-form-surface rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4 backdrop-blur-[8px]">
+                <div className="studio-portal-surface rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4 backdrop-blur-[8px]">
                   <ImageUpload
                     walletAddress={address}
                     variant="banner"
@@ -193,7 +193,7 @@ export function CollectionEditorModal({
                     onChange={(event) => setName(event.target.value)}
                     placeholder="Orina Genesis"
                     maxLength={50}
-                    className="studio-form-input p-4"
+                    className="studio-portal-input p-4"
                     required
                   />
                   <StudioFieldHint>{name.length}/50 characters</StudioFieldHint>
@@ -218,7 +218,7 @@ export function CollectionEditorModal({
                     placeholder="Describe the thesis, tone, or collector profile for this collection..."
                     maxLength={240}
                     rows={5}
-                    className="studio-form-input p-4"
+                    className="studio-portal-input p-4"
                   />
                   <StudioFieldHint>{bio.length}/240 characters</StudioFieldHint>
                 </div>
@@ -230,13 +230,13 @@ export function CollectionEditorModal({
                     value={tagsInput}
                     onChange={(event) => setTagsInput(event.target.value)}
                     placeholder="rwa, logistics, yield"
-                    className="studio-form-input p-4"
+                    className="studio-portal-input p-4"
                   />
                   <StudioFieldHint>Separate tags with commas</StudioFieldHint>
                 </div>
 
                 <div className="rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-ui-muted">Collection Assets</p>
+                  <p className="text-[10px] font-medium uppercase tracking-widest text-ui-muted">Collection Assets</p>
                   <p className="mt-2 text-sm text-ui-secondary">
                     {effectiveItemIds.length > 0
                       ? `${effectiveItemIds.length} asset${effectiveItemIds.length === 1 ? '' : 's'} currently linked to this collection.`
@@ -251,7 +251,7 @@ export function CollectionEditorModal({
                   onClick={onClose}
                   variant="secondary"
                   size="lg"
-                  className="studio-form-secondary flex-1 text-sm font-bold tracking-tight transition-all hover:border-[#2CC295]/35 hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
+                  className="studio-portal-secondary flex-1 text-sm font-semibold tracking-[-0.01em] transition-all hover:border-[#2CC295]/35 hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
                 >
                   Cancel
                 </StudioActionButton>
@@ -259,7 +259,7 @@ export function CollectionEditorModal({
                   type="submit"
                   variant="primary"
                   size="lg"
-                  className="flex-1 text-sm font-bold tracking-tight shadow-lg shadow-[#2CC295]/20"
+                  className="flex-1 text-sm font-semibold tracking-[-0.01em]"
                   leftIcon={<Upload size={16} />}
                   disabled={!name.trim()}
                 >

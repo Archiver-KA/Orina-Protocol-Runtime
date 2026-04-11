@@ -1,6 +1,7 @@
 import type { MarketplaceAsset } from '@/app/types/asset';
 import { getWalletIdentity } from '@/utils/walletIdentityStore';
 import { loadUserProfileLocalOnlySnapshot, shortenUserDisplayName } from '@/utils/profileUtils';
+import { hydrateReputationFromSupabase } from '@/utils/profileReputationSync';
 import {
   encodeIn,
   isSupabaseRestEnabled,
@@ -52,15 +53,6 @@ type DbProfileRow = {
   status: string | null;
 };
 
-type DbProfileReputationSummaryRow = {
-  wallet_address: string;
-  overall_score: number | string;
-  total_volume: number | string;
-  average_rating: number | string;
-  total_reviews: number | string;
-  is_verified: boolean;
-};
-
 type DbUserFollowRow = {
   following_user_id: string;
 };
@@ -110,15 +102,7 @@ function formatEth(value: number): string {
   return `${value.toFixed(2)} ETH`;
 }
 
-function resolveRating(address: string, summary?: DbProfileReputationSummaryRow | null): Pick<SellerProfileCardData, 'rating' | 'hasReviews'> {
-  const totalReviews = Math.max(0, Math.round(toNumber(summary?.total_reviews)));
-  if (totalReviews > 0) {
-    return {
-      rating: toNumber(summary?.average_rating).toFixed(1),
-      hasReviews: true,
-    };
-  }
-
+function resolveRating(address: string): Pick<SellerProfileCardData, 'rating' | 'hasReviews'> {
   const identity = getWalletIdentity(address);
   if (identity.reputation.totalReviews > 0) {
     return {
@@ -136,7 +120,6 @@ function resolveRating(address: string, summary?: DbProfileReputationSummaryRow 
 function buildSellerMetrics(
   address: string,
   listingStats: Map<string, SellerListingStats>,
-  summary?: DbProfileReputationSummaryRow | null,
   followerCount?: number,
 ): SellerProfileCardData['metrics'] {
   const normalized = normalizeAddress(address);
@@ -147,13 +130,13 @@ function buildSellerMetrics(
   return {
     overallScore: Math.max(
       0,
-      Math.round(toNumber(summary?.overall_score) || identity.reputation.overallScore || 0),
+      Math.round(identity.reputation.overallScore || 0),
     ),
-    totalVolume: Math.max(0, toNumber(summary?.total_volume) || localProfile?.stats?.totalSales || 0),
-    averageRating: Math.max(0, toNumber(summary?.average_rating) || identity.reputation.averageRating || 0),
+    totalVolume: Math.max(0, identity.reputation.totalVolume || localProfile?.stats?.totalSales || 0),
+    averageRating: Math.max(0, identity.reputation.averageRating || 0),
     totalReviews: Math.max(
       0,
-      Math.round(toNumber(summary?.total_reviews) || identity.reputation.totalReviews || 0),
+      Math.round(identity.reputation.totalReviews || 0),
     ),
     followerCount: Math.max(0, followerCount ?? localProfile?.followers?.length ?? identity.social.followersCount ?? 0),
     itemsListed: Math.max(0, listing.itemsListed),
@@ -262,19 +245,19 @@ function buildSellerProfileCard(
   address: string,
   listingStats: Map<string, SellerListingStats>,
   profileRow?: DbProfileRow | null,
-  summary?: DbProfileReputationSummaryRow | null,
   followerCount?: number,
 ): SellerProfileCardData {
   const normalized = normalizeAddress(address);
   const localProfile = loadUserProfileLocalOnlySnapshot(normalized);
-  const ratingSummary = resolveRating(normalized, summary);
-  const metrics = buildSellerMetrics(normalized, listingStats, summary, followerCount);
+  const identity = getWalletIdentity(normalized);
+  const ratingSummary = resolveRating(normalized);
+  const metrics = buildSellerMetrics(normalized, listingStats, followerCount);
   const username = profileRow?.username || localProfile?.username || `@${normalized.slice(2, 10)}`;
   const displayName =
     profileRow?.display_name ||
     localProfile?.displayName ||
     shortenUserDisplayName(normalized);
-  const resolvedVerified = Boolean(profileRow?.is_verified ?? summary?.is_verified ?? localProfile?.verified);
+  const resolvedVerified = Boolean(profileRow?.is_verified ?? localProfile?.verified ?? identity.verification.isVerified);
 
   return {
     address: normalized,
@@ -409,14 +392,8 @@ export async function hydrateSellerDirectoryFromSupabase(
 
     const profileIds = resolvedProfileRows.map((row) => row.id).filter(Boolean);
 
-    const [reputationRows, followerRows] = await Promise.all([
-      restSelect<DbProfileReputationSummaryRow>(
-        'profile_reputation_summaries',
-        toQuery({
-          select: 'wallet_address,overall_score,total_volume,average_rating,total_reviews,is_verified',
-          wallet_address: encodeIn(addresses),
-        }),
-      ).catch(() => []),
+    const [, followerRows] = await Promise.all([
+      Promise.all(addresses.map((address) => hydrateReputationFromSupabase(address).catch(() => null))),
       profileIds.length > 0
         ? restSelect<DbUserFollowRow>(
             'user_follows',
@@ -427,10 +404,6 @@ export async function hydrateSellerDirectoryFromSupabase(
           ).catch(() => [])
         : Promise.resolve([] as DbUserFollowRow[]),
     ]);
-
-    const reputationByAddress = new Map(
-      reputationRows.map((row) => [normalizeAddress(row.wallet_address), row] as const),
-    );
 
     const followerCountByProfileId = followerRows.reduce<Map<string, number>>((acc, row) => {
       const current = acc.get(row.following_user_id) || 0;
@@ -445,7 +418,6 @@ export async function hydrateSellerDirectoryFromSupabase(
         address,
         listingStats,
         profileRow,
-        reputationByAddress.get(address),
         followerCount,
       );
     });

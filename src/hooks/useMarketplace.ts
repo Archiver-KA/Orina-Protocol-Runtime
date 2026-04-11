@@ -6,7 +6,7 @@
  */
 
 import { useMemo } from 'react';
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, usePublicClient, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { OrderStatus } from '@/config/contracts';
 import { MARKETPLACE_ABI } from '@/config/abis';
 import { getBuyerDisputeDeadline, getSellerConfirmDeadline } from '@/utils/orderLifecycle';
@@ -21,6 +21,16 @@ type MarketplaceOrderRead = {
   finalized: boolean;
   sellerConfirmed: boolean;
 };
+
+const BSC_SAFE_WALLET_GAS_CAP = 15_000_000n;
+
+function resolveBufferedGasLimit(estimatedGas: bigint, chainId?: number | null) {
+  const bufferedGas = estimatedGas + (estimatedGas / 5n) + 100_000n;
+  if (chainId === 56 || chainId === 97) {
+    return bufferedGas > BSC_SAFE_WALLET_GAS_CAP ? BSC_SAFE_WALLET_GAS_CAP : bufferedGas;
+  }
+  return bufferedGas;
+}
 
 function deriveOrderStatusResult(order?: MarketplaceOrderRead): OrderStatusResult | undefined {
   if (!order) return undefined;
@@ -255,6 +265,8 @@ export function useProtocolConstants() {
 /** Buyer creates order (Sig 1) */
 export function useCreateOrder() {
   const { chainId, marketplaceAddress } = useProtocolDataNetwork();
+  const { address } = useAccount();
+  const publicClient = usePublicClient({ chainId: chainId ?? undefined });
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
     hash,
@@ -270,8 +282,24 @@ export function useCreateOrder() {
     proposedEstDeliverySeconds: bigint,
     buyerSig1: `0x${string}`,
   ) => {
-    if (!chainId || !marketplaceAddress) {
+    if (!chainId || !marketplaceAddress || !address) {
       throw new Error('Protocol network is not enabled for order creation');
+    }
+
+    let gas: bigint | undefined;
+    if (publicClient) {
+      try {
+        const estimatedGas = await publicClient.estimateContractGas({
+          account: address,
+          address: marketplaceAddress,
+          abi: MARKETPLACE_ABI,
+          functionName: 'createOrder',
+          args: [seller, paymentToken, assetId, amount, grossPriceProposed, proposedEstDeliverySeconds, buyerSig1],
+        });
+        gas = resolveBufferedGasLimit(estimatedGas, chainId);
+      } catch (estimateError) {
+        console.warn('[useCreateOrder] Gas estimation failed; falling back to wallet estimation.', estimateError);
+      }
     }
 
     return writeContractAsync({
@@ -280,6 +308,7 @@ export function useCreateOrder() {
       abi: MARKETPLACE_ABI,
       functionName: 'createOrder',
       args: [seller, paymentToken, assetId, amount, grossPriceProposed, proposedEstDeliverySeconds, buyerSig1],
+      ...(gas ? { gas } : {}),
     });
   };
 

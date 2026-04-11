@@ -1,10 +1,15 @@
 import type { AssetDraft, MarketAnalysis, SellerMintingRequest } from '@/app/types/ai-agent';
 import { getSupabaseFunctionUrl } from '/utils/supabase/functions';
+import { runtimeConfig } from '/utils/runtimeConfig';
 import {
   ensureSupabaseBridgeAccessToken,
   getSupabaseBridgeAccessToken,
   isSupabaseAuthClaimBridgeEnabled,
 } from '@/utils/supabaseAuthClaimBridge';
+
+export function getSellerMintingFunctionUrl(path = ''): string {
+  return getSupabaseFunctionUrl(path, runtimeConfig.supabaseSellerMintingFunctionName);
+}
 
 export async function getSellerAIHeaders(walletAddress: string, json = false): Promise<Record<string, string>> {
   if (!walletAddress) {
@@ -67,7 +72,7 @@ export async function generateAssetDraft(
     overrideDescription,
   };
 
-  const draftUrl = getSupabaseFunctionUrl('ai/seller/generate-draft');
+  const draftUrl = getSellerMintingFunctionUrl('generate-draft');
   if (!draftUrl) {
     throw new Error('Supabase function configuration is missing in this environment.');
   }

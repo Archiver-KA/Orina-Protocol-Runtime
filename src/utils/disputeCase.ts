@@ -1,3 +1,4 @@
+import type { AIDisputeContext } from '@/app/types/ai-agent';
 import type {
   DisputeCaseProjection,
   DisputeParticipantRole,
@@ -6,6 +7,7 @@ import type {
   DisputeThreadMessage,
   OrderUiRecord,
 } from '@/types/order';
+import { formatOrderGrossPrice } from '@/utils/orderDisplay';
 
 function buildSystemMessage(content: string, timestamp = Date.now(), proposalId?: string): DisputeThreadMessage {
   return {
@@ -25,6 +27,44 @@ export function getDisputeCase(order: OrderUiRecord): DisputeCaseProjection {
     evidenceUrls: [],
     messages: [],
     proposals: [],
+  };
+}
+
+function bigintToIsoString(value?: bigint) {
+  if (!value || value <= 0n) return undefined;
+  return new Date(Number(value) * 1000).toISOString();
+}
+
+function joinMessagesBySender(messages: DisputeThreadMessage[], sender: Exclude<DisputeParticipantRole, 'system'>) {
+  const chunks = messages
+    .filter((message) => message.sender === sender && message.type === 'message')
+    .map((message) => message.content.trim())
+    .filter(Boolean);
+
+  return chunks.length > 0 ? chunks.join('\n\n') : undefined;
+}
+
+export function buildAIDisputeContext(order: OrderUiRecord): AIDisputeContext {
+  const disputeCase = getDisputeCase(order);
+  const buyerComment = disputeCase.comment.trim() || joinMessagesBySender(disputeCase.messages, 'buyer');
+  const sellerResponse = joinMessagesBySender(disputeCase.messages, 'seller');
+
+  return {
+    orderId: order.orderId.toString(),
+    disputeReasons: disputeCase.reasons,
+    buyerReasons: disputeCase.reasons,
+    evidenceUrls: disputeCase.evidenceUrls,
+    buyerComment,
+    sellerResponse,
+    grossPriceFormatted: formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals),
+    orderAmount: order.grossPrice.toString(),
+    openedAt: bigintToIsoString(order.disputeOpenedAt),
+    deadline: bigintToIsoString(order.disputeDeadline),
+    deliveryConfirmed: Boolean(order.deliveryConfirmed),
+    messages: disputeCase.messages.map((message) => ({
+      sender: message.sender,
+      content: message.content,
+    })),
   };
 }
 
@@ -50,7 +90,7 @@ export function createDisputeProjection(
   const timestamp = Date.now();
   const reasonLabel = params.reasons.length > 0 ? params.reasons.join(', ') : 'No reasons provided';
   const messages: DisputeThreadMessage[] = [
-    buildSystemMessage('Dispute opened on-chain. Escrow is now frozen.', timestamp),
+    buildSystemMessage('Dispute opened. Payment is now on hold until resolution.', timestamp),
     {
       id: `message-${timestamp}-${Math.random().toString(36).slice(2, 8)}`,
       sender: params.openerRole,
@@ -76,11 +116,16 @@ export function appendDisputeMessage(
   sender: Exclude<DisputeParticipantRole, 'system'>,
   senderAddress: `0x${string}`,
   content: string,
+  imageUrls: string[] = [],
 ): OrderUiRecord {
   const disputeCase = getDisputeCase(order);
   const timestamp = Date.now();
+  const nextImageUrls = imageUrls.filter(Boolean);
   return withDisputeCase(order, {
     ...disputeCase,
+    evidenceUrls: nextImageUrls.length > 0
+      ? Array.from(new Set([...disputeCase.evidenceUrls, ...nextImageUrls]))
+      : disputeCase.evidenceUrls,
     messages: [
       ...disputeCase.messages,
       {
@@ -88,6 +133,7 @@ export function appendDisputeMessage(
         sender,
         senderAddress,
         content,
+        imageUrls: nextImageUrls.length > 0 ? nextImageUrls : undefined,
         timestamp,
         type: 'message',
       },

@@ -7,17 +7,20 @@ import {
   ProtocolOrderRow,
   loadRuntimeOrders,
   mergeOrderRecords,
+  removeRuntimeOrders,
   readProjectedOrdersForWallet,
   type RuntimeOrderScope,
   subscribeToRuntimeOrders,
 } from '@/utils/runtimeOrders';
 import { reconcileOrderFromChain, type MarketplaceOrderSnapshot } from '@/utils/orderLifecycle';
+import { isOrderCancelled, isOrderCompleted } from '@/utils/orderSemantics';
 import { encodeIn, isSupabaseRestEnabled, restSelect } from '@/utils/supabaseRest';
 import {
   getUnitDisplayLabel,
   normalizeAssetResult,
   normalizeUnitResult,
 } from '@/utils/onchainNormalization';
+import { sortOrdersNewestFirst } from '@/utils/orderSorting';
 import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
 type DisputeSnapshot = readonly [boolean, number, bigint, bigint, boolean, bigint, bigint];
@@ -35,14 +38,96 @@ interface ProtocolOrderEventRow {
 export type OrderData = OrderUiRecord;
 
 type OrderPublicClient = NonNullable<ReturnType<typeof usePublicClient>>;
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
+function isUninitializedMarketplaceOrderSnapshot(snapshot: MarketplaceOrderSnapshot) {
+  const [
+    buyer,
+    seller,
+    payer,
+    refundRecipient,
+    paymentToken,
+    assetId,
+    amount,
+    grossPrice,
+    proposedAt,
+    paidAt,
+    autoReleaseAt,
+    estDeliverySeconds,
+    payDeadline,
+    stateValue,
+    settlementTypeValue,
+    split,
+    platformFeeBpsSnapshot,
+    daoFeeBpsSnapshot,
+    burnFeeBpsSnapshot,
+    referralFeeBpsSnapshot,
+    finalized,
+    sellerConfirmed,
+    buyerSig1,
+    sellerSig,
+    buyerSig2,
+  ] = snapshot;
+
+  return (
+    buyer.toLowerCase() === ZERO_ADDRESS
+    && seller.toLowerCase() === ZERO_ADDRESS
+    && payer.toLowerCase() === ZERO_ADDRESS
+    && refundRecipient.toLowerCase() === ZERO_ADDRESS
+    && paymentToken.toLowerCase() === ZERO_ADDRESS
+    && assetId === 0n
+    && amount === 0n
+    && grossPrice === 0n
+    && proposedAt === 0n
+    && paidAt === 0n
+    && autoReleaseAt === 0n
+    && estDeliverySeconds === 0n
+    && payDeadline === 0n
+    && Number(stateValue) === 0
+    && Number(settlementTypeValue) === 0
+    && isZeroSplitSettlementSnapshot(split)
+    && platformFeeBpsSnapshot === 0n
+    && daoFeeBpsSnapshot === 0n
+    && burnFeeBpsSnapshot === 0n
+    && referralFeeBpsSnapshot === 0n
+    && finalized === false
+    && sellerConfirmed === false
+    && buyerSig1 === '0x'
+    && sellerSig === '0x'
+    && buyerSig2 === '0x'
+  );
+}
+
+function isZeroBigIntLike(value: unknown) {
+  return value === 0n || value === 0 || value === '0';
+}
+
+function isZeroSplitSettlementSnapshot(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.every((entry) => isZeroBigIntLike(entry));
+  }
+
+  if (value && typeof value === 'object') {
+    const split = value as {
+      verdict?: unknown;
+      buyerShareBps?: unknown;
+      sellerShareBps?: unknown;
+    };
+
+    return isZeroBigIntLike(split.verdict ?? 0)
+      && isZeroBigIntLike(split.buyerShareBps ?? 0)
+      && isZeroBigIntLike(split.sellerShareBps ?? 0);
+  }
+
+  return false;
+}
 async function readCanonicalOrdersFromChain(
   publicClient: OrderPublicClient,
   baseOrders: OrderUiRecord[],
   scope: RuntimeOrderScope,
 ) {
   if (baseOrders.length === 0) return [] as OrderUiRecord[];
-  if (!scope.chainId || !scope.marketplaceContract || !scope.disputeManagerAddress) {
+  if (!scope.chainId || !scope.marketplaceContract) {
     return baseOrders;
   }
 
@@ -57,37 +142,45 @@ async function readCanonicalOrdersFromChain(
     })),
   });
 
-  const disputeResults = await publicClient.multicall({
-    allowFailure: true,
-    contracts: baseOrders.map((order) => ({
-      address: scope.disputeManagerAddress as `0x${string}`,
-      chainId: scope.chainId,
-      abi: DISPUTE_MANAGER_ABI,
-      functionName: 'disputes',
-      args: [order.orderId] as const,
-    })),
-  });
+  const disputeResults = scope.disputeManagerAddress
+    ? await publicClient.multicall({
+        allowFailure: true,
+        contracts: baseOrders.map((order) => ({
+          address: scope.disputeManagerAddress as `0x${string}`,
+          chainId: scope.chainId,
+          abi: DISPUTE_MANAGER_ABI,
+          functionName: 'disputes',
+          args: [order.orderId] as const,
+        })),
+      })
+    : baseOrders.map(() => ({ status: 'failure' as const }));
 
-  return baseOrders.map((order, index) => {
+  return baseOrders.flatMap((order, index) => {
     const result = results[index];
-    const chainOrder =
-      result.status === 'success'
-        ? reconcileOrderFromChain(order, result.result as unknown as MarketplaceOrderSnapshot)
-        : order;
+    if (result.status !== 'success') {
+      return [order];
+    }
+
+    const snapshot = result.result as unknown as MarketplaceOrderSnapshot;
+    if (isUninitializedMarketplaceOrderSnapshot(snapshot)) {
+      return [];
+    }
+
+    const chainOrder = reconcileOrderFromChain(order, snapshot);
 
     const disputeResult = disputeResults[index];
     if (disputeResult.status !== 'success') {
-      return chainOrder;
+      return [chainOrder];
     }
 
     const [active, verdict, openedAt, deadline, extended, buyerShareBps, sellerShareBps] =
       disputeResult.result as unknown as DisputeSnapshot;
 
     if (!active && openedAt === 0n && verdict === 0 && buyerShareBps === 0n && sellerShareBps === 0n) {
-      return chainOrder;
+      return [chainOrder];
     }
 
-    return {
+    return [{
       ...chainOrder,
       disputeOpenedAt: openedAt > 0n ? openedAt : chainOrder.disputeOpenedAt,
       disputeDeadline: deadline > 0n ? deadline : chainOrder.disputeDeadline,
@@ -96,7 +189,7 @@ async function readCanonicalOrdersFromChain(
       disputeBuyerShareBps: buyerShareBps > 0n ? buyerShareBps : chainOrder.disputeBuyerShareBps,
       disputeSellerShareBps: sellerShareBps > 0n ? sellerShareBps : chainOrder.disputeSellerShareBps,
       disputed: active || chainOrder.disputed,
-    };
+    }];
   });
 }
 
@@ -250,15 +343,22 @@ export function useUserOrders(userAddress?: string) {
           ? await enrichOrdersWithOnchainMetadata(publicClient, canonicalOrders, scope)
           : canonicalOrders;
 
+        const resolvedIds = new Set(resolvedOrders.map((order) => order.orderId.toString()));
+        const droppedRuntimeOrderIds = runtimeOrders
+          .filter((order) => !resolvedIds.has(order.orderId.toString()))
+          .map((order) => order.orderId);
+
+        if (droppedRuntimeOrderIds.length > 0) {
+          removeRuntimeOrders(droppedRuntimeOrderIds, scope);
+        }
+
         if (cancelled) return;
 
-        setOrders(
-          [...resolvedOrders].sort((left, right) => Number(right.proposedAt - left.proposedAt)),
-        );
+        setOrders(sortOrdersNewestFirst(resolvedOrders));
       } catch (error) {
         console.warn('[useUserOrders] Failed to load canonical orders', error);
         if (!cancelled) {
-          setOrders(loadRuntimeOrders(userAddress, scope));
+          setOrders(sortOrdersNewestFirst(loadRuntimeOrders(userAddress, scope)));
         }
       } finally {
         if (!cancelled) {
@@ -324,8 +424,8 @@ export function useUserStats(userAddress?: string) {
     totalVolume: orders.reduce((sum, order) => sum + Number(order.grossPrice), 0),
     asSellerCount: orders.filter((order) => order.seller.toLowerCase() === userAddress?.toLowerCase()).length,
     asBuyerCount: orders.filter((order) => order.buyer.toLowerCase() === userAddress?.toLowerCase()).length,
-    completedOrders: orders.filter((order) => order.finalized || order.state === OrderState.FINALIZED).length,
-    cancelledOrders: orders.filter((order) => order.state === OrderState.CANCELLED).length,
+    completedOrders: orders.filter((order) => isOrderCompleted(order)).length,
+    cancelledOrders: orders.filter((order) => isOrderCancelled(order)).length,
   }), [orders, userAddress]);
 
   return { stats, isLoading, refresh };
@@ -425,7 +525,7 @@ export function usePortfolioMetrics(userAddress?: string) {
         .reduce((sum, order) => sum + Number(order.grossPrice), 0),
 
       totalEarned: orders
-        .filter((order) => order.seller.toLowerCase() === userAddress?.toLowerCase() && (order.finalized || order.state === OrderState.FINALIZED))
+        .filter((order) => order.seller.toLowerCase() === userAddress?.toLowerCase() && isOrderCompleted(order))
         .reduce((sum, order) => sum + Number(order.grossPrice), 0),
 
       activeOrders: orders.filter((order) =>
@@ -434,7 +534,7 @@ export function usePortfolioMetrics(userAddress?: string) {
         || order.state === OrderState.DISPUTED,
       ).length,
 
-      completedDeals: orders.filter((order) => order.finalized || order.state === OrderState.FINALIZED).length,
+      completedDeals: orders.filter((order) => isOrderCompleted(order)).length,
 
       averageOrderValue: orders.length > 0
         ? orders.reduce((sum, order) => sum + Number(order.grossPrice), 0) / orders.length

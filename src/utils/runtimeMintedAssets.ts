@@ -4,7 +4,7 @@
  * protocol_runtime_minted_assets (000005) server table.
  * See spec: 15-local-api-audit-and-server-migration-plan.md
  */
-import { CONTRACTS, ACTIVE_CHAIN_ID } from "@/config/contracts";
+import type { CONTRACTS } from "@/config/contracts";
 import {
   dispatchSyncEvent,
   encodeEq,
@@ -14,8 +14,8 @@ import {
 } from "@/utils/supabaseRest";
 import type { AssetDetails, MyAssetNft, MyAssetRwa } from "@/types/asset";
 import {
-  getProtocolNetworkOptionByKey,
-  PROTOCOL_NETWORK_STORAGE_KEY,
+  LIVE_PROTOCOL_CHAIN_ID,
+  LIVE_PROTOCOL_CONTRACTS,
 } from "@/utils/protocolNetwork";
 import { normalizeCategoryFilterValue } from "@/utils/taxonomy";
 
@@ -59,6 +59,12 @@ export interface RuntimeMintedAssetScope {
   assetContract?: string | null;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 function parseNumberLike(value: unknown, fallback = 0) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
@@ -93,31 +99,15 @@ function looksLikeAddress(value?: string | null) {
 }
 
 function readStoredRuntimeMintedAssetScope(): RuntimeMintedAssetScope {
-  if (typeof window === "undefined") {
-    return {
-      chainId: ACTIVE_CHAIN_ID,
-      assetContract: CONTRACTS.ORINA_RWA,
-    };
-  }
-
-  try {
-    const selectedNetworkKey = window.localStorage.getItem(PROTOCOL_NETWORK_STORAGE_KEY);
-    const selectedNetwork = getProtocolNetworkOptionByKey(selectedNetworkKey);
-    return {
-      chainId: selectedNetwork?.chainId ?? ACTIVE_CHAIN_ID,
-      assetContract: selectedNetwork?.contracts?.ORINA_RWA ?? null,
-    };
-  } catch {
-    return {
-      chainId: ACTIVE_CHAIN_ID,
-      assetContract: CONTRACTS.ORINA_RWA,
-    };
-  }
+  return {
+    chainId: LIVE_PROTOCOL_CHAIN_ID,
+    assetContract: LIVE_PROTOCOL_CONTRACTS.ORINA_RWA,
+  };
 }
 
 function resolveRuntimeMintedAssetScope(scope?: RuntimeMintedAssetScope) {
   const stored = readStoredRuntimeMintedAssetScope();
-  const chainId = scope?.chainId ?? stored.chainId ?? ACTIVE_CHAIN_ID;
+  const chainId = scope?.chainId ?? stored.chainId ?? LIVE_PROTOCOL_CHAIN_ID;
   const assetContract = String(
     scope?.assetContract
     ?? stored.assetContract
@@ -131,6 +121,36 @@ function resolveRuntimeMintedAssetScope(scope?: RuntimeMintedAssetScope) {
       ? (assetContract as `0x${string}`)
       : null,
   };
+}
+
+function matchesRuntimeMintedAssetRecordScope(
+  record: RuntimeMintedAssetRecord,
+  scope: ReturnType<typeof resolveRuntimeMintedAssetScope>,
+) {
+  if (!scope.assetContractAddress) return true;
+  const assetContract = looksLikeAddress(record.details.contractAddress)
+    ? record.details.contractAddress.trim().toLowerCase()
+    : '';
+  return assetContract === scope.assetContractAddress;
+}
+
+function matchesRuntimeMintedAssetRowOwner(
+  row: ProtocolAssetRow,
+  walletAddress: string,
+) {
+  const metadata = asRecord(row.metadata);
+  const runtimeRecord = asRecord(metadata?.runtimeRecord);
+  const candidates = [
+    row.owner_address,
+    metadata?.submittedByWallet,
+    runtimeRecord?.walletAddress,
+  ];
+
+  return candidates.some((candidate) => normalizeAddressLike(candidate) === walletAddress);
+}
+
+function normalizeAddressLike(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
 function getRuntimeMintedAssetsStorageKey(scope?: RuntimeMintedAssetScope) {
@@ -234,7 +254,7 @@ function buildGenericDetails(
       row.asset_contract
       || fallback?.contractAddress
       || resolvedScope.assetContractAddress
-      || CONTRACTS.ORINA_RWA,
+      || LIVE_PROTOCOL_CONTRACTS.ORINA_RWA,
     ),
     unitId: coalesceString(
       metadata.unitId,
@@ -504,26 +524,48 @@ export async function hydrateRuntimeMintedAssetsFromSupabase(
   scope?: RuntimeMintedAssetScope,
 ) {
   const resolvedScope = resolveRuntimeMintedAssetScope(scope);
-  if (!isSupabaseRestEnabled() || !walletAddress || !resolvedScope.assetContractAddress) {
+  if (!isSupabaseRestEnabled() || !walletAddress) {
     return loadRuntimeMintedAssets(walletAddress, resolvedScope);
   }
 
   try {
     const normalized = walletAddress.toLowerCase();
-    const remoteRows = await restSelect<ProtocolAssetRow>(
+    let remoteRows = await restSelect<ProtocolAssetRow>(
       "protocol_assets",
       toQuery({
         chain_id: encodeEq(resolvedScope.chainId),
-        asset_contract: encodeEq(resolvedScope.assetContract),
         owner_address: encodeEq(normalized),
+        ...(resolvedScope.assetContractAddress
+          ? { asset_contract: encodeEq(resolvedScope.assetContractAddress) }
+          : {}),
+        order: 'updated_at.desc',
+        limit: '200',
       }),
     );
+
+    if (remoteRows.length === 0) {
+      remoteRows = await restSelect<ProtocolAssetRow>(
+        "protocol_assets",
+        toQuery({
+          chain_id: encodeEq(resolvedScope.chainId),
+          order: 'updated_at.desc',
+          limit: '500',
+        }),
+      );
+    }
+
     const remoteRecords = remoteRows
+      .filter((row) => matchesRuntimeMintedAssetRowOwner(row, normalized))
       .map((row) => fromProtocolAssetRow(row, resolvedScope))
       .filter((value): value is RuntimeMintedAssetRecord => !!value)
       .filter((record) => record.walletAddress.toLowerCase() === normalized);
+      
+    const scopedRemoteRecords = remoteRecords.filter((record) =>
+      matchesRuntimeMintedAssetRecordScope(record, resolvedScope)
+    );
     const merged = mergeRuntimeMintedAssets(readLocalRuntimeMintedAssets(resolvedScope), remoteRecords);
-    writeLocalRuntimeMintedAssets(merged, resolvedScope);
+    const nextRecords = scopedRemoteRecords.length > 0 ? mergeRuntimeMintedAssets(readLocalRuntimeMintedAssets(resolvedScope), scopedRemoteRecords) : merged;
+    writeLocalRuntimeMintedAssets(nextRecords, resolvedScope);
     return loadRuntimeMintedAssets(walletAddress, resolvedScope);
   } catch (error) {
     console.warn("[runtimeMintedAssets] Failed to hydrate minted assets from Supabase", error);
@@ -533,10 +575,9 @@ export async function hydrateRuntimeMintedAssetsFromSupabase(
 
 export function loadRuntimeMintedAssets(walletAddress?: string | null, scope?: RuntimeMintedAssetScope) {
   const resolvedScope = resolveRuntimeMintedAssetScope(scope);
-  const records = readLocalRuntimeMintedAssets(resolvedScope).filter((record) => {
-    const assetContract = String(record.details.contractAddress || resolvedScope.assetContract).toLowerCase();
-    return assetContract === resolvedScope.assetContract;
-  });
+  const records = readLocalRuntimeMintedAssets(resolvedScope).filter((record) =>
+    matchesRuntimeMintedAssetRecordScope(record, resolvedScope)
+  );
   if (!walletAddress) return records;
   const normalized = walletAddress.toLowerCase();
   return records.filter((record) => record.walletAddress.toLowerCase() === normalized);
@@ -557,6 +598,9 @@ export function getRuntimeMintedAssetDetailsById(assetId: string, scope?: Runtim
 }
 
 export function loadRuntimeMyAssets(walletAddress?: string | null, scope?: RuntimeMintedAssetScope) {
+  if (!walletAddress) {
+    return { rwaAssets: [], nftAssets: [] };
+  }
   const records = loadRuntimeMintedAssets(walletAddress, scope);
   const rwaAssets = records
     .filter((record): record is RuntimeMintedAssetRecord & { assetType: "RWA"; myAsset: MyAssetRwa } => record.assetType === "RWA")

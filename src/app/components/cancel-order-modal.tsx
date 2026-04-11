@@ -1,6 +1,6 @@
 import { AlertCircle, XCircle, CheckCircle2, Shield, DollarSign } from 'lucide-react';
 import { formatAddress } from '@/utils/format';
-import { ACTIVE_CHAIN_ID, EXPLORER_URLS } from '@/config/contracts';
+import { EXPLORER_URLS } from '@/config/contracts';
 import { useCancelOrder } from '@/hooks/useOrders';
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
@@ -10,6 +10,8 @@ import { StudioNoticePanel } from '@/app/components/ui/studio-notice-panel';
 import { StudioFieldHint, StudioFieldLabel, StudioTextareaField } from '@/app/components/ui/studio-form-fields';
 import { StudioModalBody, StudioModalCloseButton, StudioModalFooter, StudioModalHeader, StudioModalPanel, StudioModalShell } from '@/app/components/ui/studio-modal';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
+import { useProtocolChain } from '@/hooks/useProtocolChain';
+import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { formatOrderGrossPrice, formatOrderQuantity } from '@/utils/orderDisplay';
 
@@ -37,11 +39,16 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
   const { address } = useAccount();
   const { cancelOrder, hash, isPending, isConfirming, isConfirmed, error } = useCancelOrder();
   const { requireWalletActionAsync } = useRequireWalletAction();
+  const protocolChain = useProtocolChain();
+  const { chainId: liveChainId } = useProtocolDataNetwork();
   const [txStatus, setTxStatus] = useState<'idle' | 'preparing' | 'pending' | 'confirming' | 'success' | 'error'>('idle');
   const [cancelReason, setCancelReason] = useState('');
   const paymentValueLabel = formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
   const quantityLabel = formatOrderQuantity(order.amount, order.unitLabel, order.unitName);
-  const explorerBaseUrl = EXPLORER_URLS[ACTIVE_CHAIN_ID] ?? EXPLORER_URLS[97];
+  const explorerBaseUrl = EXPLORER_URLS[liveChainId ?? 97] ?? EXPLORER_URLS[97];
+  const summaryPanelClass = 'studio-form-surface rounded-[28px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4 space-y-3';
+  const warningPanelClass = 'rounded-[28px] border border-amber-500/30 bg-amber-500/10 p-4';
+  const dangerPanelClass = 'rounded-[28px] border border-red-500/30 bg-red-500/10 p-4';
 
   // Reset status when modal opens
   useEffect(() => {
@@ -84,22 +91,31 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
       return;
     }
 
+    const continueCancelOrder = async () => {
+      if (!(await protocolChain.ensureProtocolChainAsync('cancel this order'))) {
+        return;
+      }
+
+      setTxStatus('preparing');
+
+      try {
+        await cancelOrder(order.orderId);
+      } catch (err) {
+        console.error('Failed to cancel order:', err);
+        setTxStatus('error');
+      }
+    };
+
     if (!(await requireWalletActionAsync({
       capability: 'protocol_order_write',
       actionLabel: 'cancel orders',
       fallbackPage: 'orders',
+      onSecurityCheckConfirmed: continueCancelOrder,
     }))) {
       return;
     }
 
-    setTxStatus('preparing');
-    
-    try {
-      await cancelOrder(order.orderId);
-    } catch (err) {
-      console.error('Failed to cancel order:', err);
-      setTxStatus('error');
-    }
+    await continueCancelOrder();
   };
 
   const isBuyer = address?.toLowerCase() === order.buyer.toLowerCase();
@@ -112,18 +128,18 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
   const canceller = isBuyer ? 'Buyer' : isSeller ? 'Seller' : 'Unknown';
 
   return (
-    <StudioModalShell className="studio-form-backdrop bg-black/80 backdrop-blur-sm">
-      <StudioModalPanel className="studio-form-modal max-w-lg rounded-xl">
+    <StudioModalShell className="studio-form-backdrop bg-black/85 backdrop-blur-[14px]">
+      <StudioModalPanel className="studio-form-modal max-w-lg rounded-[32px]">
         {/* Header */}
         <StudioModalHeader className="border-b border-ui-border-subtle">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-red-500/20 bg-red-500/12">
               <XCircle className="text-red-400" size={20} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-ui-primary">Cancel Order</h2>
-              <p className="text-xs text-ui-muted">Order #{order.orderId.toString()}</p>
+              <h2 className="text-xl font-semibold text-ui-primary">Cancel Order</h2>
+              <p className="text-xs text-ui-muted">Terminate order #{order.orderId.toString()}</p>
             </div>
           </div>
           <StudioModalCloseButton
@@ -147,12 +163,12 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
           {canCancel && txStatus === 'idle' && (
             <StudioNoticePanel variant="error" title="Important Notice">
               <span className="leading-relaxed">
-                By cancelling this order, the agreement will be terminated.
+                Cancelling this order terminates the agreement and closes the escrow flow.
                 {isPaid && isBuyer && (
-                  <strong className="block mt-2">Your payment will be refunded.</strong>
+                  <strong className="block mt-2">Your payment will be refunded to the buyer wallet.</strong>
                 )}
                 {isPaid && isSeller && (
-                  <strong className="block mt-2">Payment will be refunded to buyer.</strong>
+                  <strong className="block mt-2">Buyer payment will be refunded from escrow.</strong>
                 )}
                 <strong className="block mt-2">This action cannot be undone.</strong>
               </span>
@@ -160,17 +176,17 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
           )}
 
           {/* Order Summary */}
-          <div className="studio-form-surface bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg p-4 space-y-3">
-            <h3 className="text-xs font-bold text-ui-muted uppercase tracking-widest mb-3">Order Details</h3>
+          <div className={summaryPanelClass}>
+            <h3 className="text-xs font-semibold text-ui-muted uppercase tracking-widest mb-3">Order Details</h3>
             
             <div className="flex items-center justify-between">
               <span className="text-sm text-ui-secondary">Asset ID</span>
-              <span className="text-sm text-ui-primary font-bold">#{order.assetId.toString()}</span>
+              <span className="text-sm text-ui-primary font-semibold">#{order.assetId.toString()}</span>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-sm text-ui-secondary">Amount</span>
-              <span className="text-sm text-ui-primary font-bold">{quantityLabel}</span>
+              <span className="text-sm text-ui-primary font-semibold">{quantityLabel}</span>
             </div>
 
             <div className="flex items-center justify-between py-2 border-t border-ui-border-subtle">
@@ -185,14 +201,14 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
 
             <div className="flex items-center justify-between py-2 border-t border-ui-border-subtle">
               <span className="text-sm text-ui-secondary">Order Value</span>
-              <span className="text-sm text-ui-primary font-bold font-mono">
+              <span className="text-sm text-ui-primary font-semibold font-mono">
                 {paymentValueLabel}
               </span>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-sm text-ui-secondary">Order State</span>
-              <span className={`text-sm font-bold ${
+              <span className={`text-sm font-semibold ${
                 order.state === 0 ? 'text-blue-400' : 
                 order.state === 1 ? 'text-amber-400' : 
                 'text-ui-muted'
@@ -204,23 +220,23 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
             {address && (
               <div className="flex items-center justify-between pt-2 border-t border-ui-border-subtle">
                 <span className="text-sm text-ui-secondary">You are</span>
-                <span className="text-sm text-[#2CC295] font-bold">{canceller}</span>
+                <span className="text-sm text-[#2CC295] font-semibold">{canceller}</span>
               </div>
             )}
           </div>
 
           {/* Refund Info */}
           {isPaid && (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+            <div className={warningPanelClass}>
               <div className="flex items-start gap-3">
                 <DollarSign className="text-amber-400 flex-shrink-0 mt-1" size={20} />
                 <div className="flex-1">
-                  <h3 className="text-sm font-bold text-amber-400 mb-2">Refund Information</h3>
+                  <h3 className="text-sm font-semibold text-amber-400 mb-2">Refund Information</h3>
                   <div className="space-y-2 text-xs text-ui-secondary">
-                    <p>💰 Payment amount: <strong className="text-amber-400">{paymentValueLabel}</strong></p>
-                    <p>↩️ Refund to: <strong className="text-ui-primary font-mono">{formatAddress(order.buyer)}</strong></p>
-                    <p>⏱️ Timing: Immediate (same transaction)</p>
-                    <p>🔐 Security: Funds returned from escrow</p>
+                    <p>Refund amount: <strong className="text-amber-400">{paymentValueLabel}</strong></p>
+                    <p>Refund destination: <strong className="text-ui-primary font-mono">{formatAddress(order.buyer)}</strong></p>
+                    <p>Timing: immediate in the cancellation transaction.</p>
+                    <p>Funds return from escrow to the buyer wallet.</p>
                   </div>
                 </div>
               </div>
@@ -229,7 +245,7 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
 
           {/* Cancel Reason (Optional) */}
           {canCancel && txStatus === 'idle' && (
-            <div className="studio-form-surface bg-[var(--t-surface-5)] border border-ui-border-subtle rounded-lg p-4">
+            <div className={summaryPanelClass}>
               <StudioFieldLabel className="text-ui-muted text-xs mb-2">
                 Cancellation Reason (Optional)
               </StudioFieldLabel>
@@ -237,7 +253,7 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
                 placeholder="E.g., Changed my mind, Found better deal, Delivery too long..."
-                className="studio-form-input bg-[var(--t-surface-5)] border-ui-border-subtle rounded-lg px-3 py-2"
+                className="studio-form-input rounded-[24px] border-ui-border-subtle bg-[var(--t-surface-2)] px-4 py-3"
                 rows={3}
                 maxLength={200}
               />
@@ -246,18 +262,18 @@ export function CancelOrderModal({ isOpen, onClose, order, onSuccess }: CancelOr
           )}
 
           {/* What Happens */}
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+          <div className={dangerPanelClass}>
             <div className="flex items-start gap-3">
                 <XCircle className="text-red-400 flex-shrink-0 mt-1" size={20} />
                 <div className="flex-1">
-                  <h3 className="text-sm font-bold text-red-400 mb-2">What happens next?</h3>
+                  <h3 className="text-sm font-semibold text-red-400 mb-2">What happens next?</h3>
                   <div className="space-y-2 text-xs text-ui-secondary">
-                    <p>❌ Order state changes to "Cancelled"</p>
-                    {isPaid && <p>💰 Payment refunded to buyer wallet</p>}
-                    {!isPaid && <p>🔓 No payments to refund (order not paid)</p>}
-                  <p>📝 Cancellation recorded on blockchain</p>
-                  <p>🚫 Order cannot be reactivated</p>
-                  <p>⛔ Assets remain with seller</p>
+                    <p>The order state changes to cancelled.</p>
+                    {isPaid && <p>Escrowed payment is refunded to the buyer wallet.</p>}
+                    {!isPaid && <p>No payment is refunded because the order was not paid.</p>}
+                    <p>The cancellation is recorded on-chain.</p>
+                    <p>The order cannot be reactivated after this action.</p>
+                    <p>The asset remains with the seller.</p>
                 </div>
               </div>
             </div>

@@ -6,6 +6,7 @@ import { validateReviewForm, generateReviewId } from '@/utils/reviewUtils';
 import { StarRating } from './star-rating';
 import { toast } from 'sonner';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
+import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 
 interface WriteReviewModalProps {
   isOpen: boolean;
@@ -116,7 +117,7 @@ export function WriteReviewModal({
   return (
     <AnimatePresence>
       <div
-        className="fixed inset-0 z-[80] flex items-center justify-center p-6 bg-black/85 backdrop-blur-sm"
+        className="studio-form-backdrop fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-6 backdrop-blur-sm"
         onClick={handleClose}
       >
         <motion.div
@@ -125,16 +126,16 @@ export function WriteReviewModal({
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.2 }}
           onClick={(e) => e.stopPropagation()}
-          className="studio-modal-theme bg-ui-card w-full max-w-2xl rounded-2xl border border-ui-border-subtle overflow-hidden shadow-2xl"
+          className="studio-modal-theme studio-form-modal w-full max-w-2xl overflow-hidden rounded-[32px] border border-ui-border-subtle shadow-2xl"
         >
           {/* Header */}
-          <div className="p-6 border-b border-zinc-800">
+          <div className="p-6 border-b border-ui-border-subtle">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-white">
+                <h2 className="text-lg font-semibold text-ui-primary">
                   {existingReview ? 'Edit Review' : 'Write a Review'}
                 </h2>
-                <p className="text-sm text-zinc-400 mt-1">{assetName}</p>
+                <p className="mt-1 text-sm text-ui-secondary">{assetName}</p>
               </div>
               <StudioModalCloseButton onClick={handleClose} />
             </div>
@@ -144,7 +145,7 @@ export function WriteReviewModal({
           <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
             {/* Rating */}
             <div>
-              <label className="block text-sm font-bold text-white mb-3">
+              <label className="mb-3 block text-sm font-semibold text-ui-primary">
                 Overall Rating *
               </label>
               <div className="flex items-center gap-4">
@@ -154,7 +155,7 @@ export function WriteReviewModal({
                   interactive
                   onChange={setRating}
                 />
-                <span className="text-sm font-bold text-[#2CC295]">
+                <span className="text-sm font-semibold text-[#2CC295]">
                   {getRatingLabel(rating)}
                 </span>
               </div>
@@ -162,7 +163,7 @@ export function WriteReviewModal({
 
             {/* Title */}
             <div>
-              <label className="block text-sm font-bold text-white mb-2">
+              <label className="mb-2 block text-sm font-semibold text-ui-primary">
                 Review Title *
               </label>
               <input
@@ -171,16 +172,16 @@ export function WriteReviewModal({
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Summarize your experience in one sentence"
                 maxLength={100}
-                className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#2CC295] transition-colors"
+                className="studio-form-input w-full rounded-[24px] border border-ui-border-subtle px-4 py-3 text-sm text-ui-primary placeholder:text-ui-muted focus:outline-none transition-colors"
               />
-              <p className="text-xs text-zinc-500 mt-1">
+              <p className="mt-1 text-xs text-ui-muted">
                 {title.length}/100 characters
               </p>
             </div>
 
             {/* Content */}
             <div>
-              <label className="block text-sm font-bold text-white mb-2">
+              <label className="mb-2 block text-sm font-semibold text-ui-primary">
                 Your Review *
               </label>
               <textarea
@@ -189,60 +190,66 @@ export function WriteReviewModal({
                 placeholder="Share details about your experience with this asset..."
                 rows={6}
                 maxLength={2000}
-                className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#2CC295] transition-colors resize-none"
+                className="studio-form-input w-full resize-none rounded-[24px] border border-ui-border-subtle px-4 py-3 text-sm text-ui-primary placeholder:text-ui-muted focus:outline-none transition-colors"
               />
-              <p className="text-xs text-zinc-500 mt-1">
+              <p className="mt-1 text-xs text-ui-muted">
                 {content.length}/2000 characters (minimum 20)
               </p>
             </div>
 
             {/* Photos */}
             <div>
-              <label className="block text-sm font-bold text-white mb-2">
+              <label className="mb-2 block text-sm font-semibold text-ui-primary">
                 Add Photos (Optional)
               </label>
               
               {photos.length > 0 && (
                 <div className="grid grid-cols-4 gap-3 mb-3">
                   {photos.map((photo, index) => (
-                    <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-zinc-900 group">
+                    <div key={index} className="group relative aspect-square overflow-hidden rounded-[24px] bg-[var(--t-surface-5)]">
                       <img
                         src={`https://source.unsplash.com/200x200/?${photo}`}
                         alt={`Photo ${index + 1}`}
                         className="w-full h-full object-cover"
                       />
-                      <button
+                      <StudioActionButton
+                        type="button"
                         onClick={() => handleRemovePhoto(index)}
-                        className="absolute top-2 right-2 p-1 bg-red-500 hover:bg-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        variant="danger"
+                        size="icon"
+                        className="absolute right-2 top-2 h-8 w-8 opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
                       >
                         <X size={14} className="text-white" />
-                      </button>
+                      </StudioActionButton>
                     </div>
                   ))}
                 </div>
               )}
 
               {photos.length < 5 && (
-                <button
+                <StudioActionButton
+                  type="button"
                   onClick={handleAddPhoto}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors"
+                  variant="secondary"
+                  size="lg"
+                  className="w-full text-sm text-ui-primary"
                 >
-                  <Upload size={18} className="text-zinc-500" />
-                  <span className="text-sm text-zinc-400">
+                  <Upload size={18} className="text-ui-secondary" />
+                  <span className="text-sm text-ui-secondary">
                     Add Photo ({photos.length}/5)
                   </span>
-                </button>
+                </StudioActionButton>
               )}
 
-              <p className="text-xs text-zinc-500 mt-2">
+              <p className="mt-2 text-xs text-ui-muted">
                 Photos help others make informed decisions
               </p>
             </div>
 
             {/* Guidelines */}
-            <div className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-lg">
-              <p className="text-xs font-bold text-white mb-2">Review Guidelines:</p>
-              <ul className="text-xs text-zinc-500 space-y-1">
+            <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4">
+              <p className="mb-2 text-xs font-semibold text-ui-primary">Review Guidelines:</p>
+              <ul className="space-y-1 text-xs text-ui-secondary">
                 <li>• Be honest and share your genuine experience</li>
                 <li>• Focus on the asset quality and transaction process</li>
                 <li>• Avoid offensive language or personal attacks</li>
@@ -252,25 +259,31 @@ export function WriteReviewModal({
           </div>
 
           {/* Footer */}
-          <div className="p-6 border-t border-zinc-800 flex items-center justify-between">
-            <p className="text-xs text-zinc-500">
+          <div className="flex items-center justify-between border-t border-ui-border-subtle p-6">
+            <p className="text-xs text-ui-muted">
               * Required fields
             </p>
 
             <div className="flex items-center gap-3">
-              <button
+              <StudioActionButton
+                type="button"
                 onClick={handleClose}
-                className="px-6 py-3 bg-zinc-900 hover:bg-zinc-800 text-white font-bold rounded-lg transition-colors"
+                variant="secondary"
+                size="lg"
+                className="text-ui-primary"
               >
                 Cancel
-              </button>
-              <button
+              </StudioActionButton>
+              <StudioActionButton
+                type="button"
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="px-6 py-3 bg-[#2CC295] hover:bg-[#25a882] text-black font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                variant="primary"
+                size="lg"
+                className="disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSubmitting ? 'Submitting...' : existingReview ? 'Update Review' : 'Submit Review'}
-              </button>
+              </StudioActionButton>
             </div>
           </div>
         </motion.div>

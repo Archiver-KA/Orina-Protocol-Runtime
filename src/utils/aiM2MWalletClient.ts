@@ -7,7 +7,10 @@ import type {
   AIM2MWalletConfig,
 } from '@/app/types/ai-m2m-wallet';
 import { publicAnonKey } from '/utils/supabase/info';
-import { getSupabaseFunctionsBaseUrl } from '/utils/supabase/functions';
+import {
+  getSupabaseFunctionsBaseUrl,
+  getSupabaseFunctionsNamespace,
+} from '/utils/supabase/functions';
 import {
   ensureSupabaseBridgeAccessToken,
   isBridgeAuthRequiredError,
@@ -15,8 +18,28 @@ import {
   isSupabaseAuthClaimBridgeEnabled,
 } from '@/utils/supabaseAuthClaimBridge';
 
-const BASE_URL = getSupabaseFunctionsBaseUrl();
+const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
+const DEFAULT_AI_M2M_FN_NAME = 'orina-ai-m2m-v2';
+const LEGACY_AI_M2M_PATH_PREFIX = '/ai/m2m';
+
+function readEnvString(name: string): string | null {
+  const value = env[name];
+  return typeof value === 'string' ? value.trim() : null;
+}
+
+const SHARED_FUNCTION_NAMESPACE = getSupabaseFunctionsNamespace();
+const AI_M2M_FN_NAME = readEnvString('VITE_SUPABASE_AI_M2M_FN_NAME') || DEFAULT_AI_M2M_FN_NAME;
+const AI_M2M_PATH_PREFIX =
+  readEnvString('VITE_SUPABASE_AI_M2M_PATH_PREFIX')
+  ?? (AI_M2M_FN_NAME === SHARED_FUNCTION_NAMESPACE ? LEGACY_AI_M2M_PATH_PREFIX : '');
+const BASE_URL = getSupabaseFunctionsBaseUrl(AI_M2M_FN_NAME);
 const AI_M2M_CONFIG_CACHE = new Map<string, AIM2MConfigResponse>();
+
+function buildAIM2MRequestPath(path: string): string {
+  const normalizedPath = String(path || '').replace(/^\/+/, '');
+  const prefix = String(AI_M2M_PATH_PREFIX || '').trim().replace(/\/+$/, '');
+  return prefix ? `${prefix}/${normalizedPath}` : `/${normalizedPath}`;
+}
 
 interface AIM2MDelegateResponse {
   success: boolean;
@@ -122,7 +145,7 @@ async function getProtectedJsonHeadersWithMode(
   if (!BASE_URL || !publicAnonKey) {
     throw makeClientError(
       'service_not_configured',
-      'Supabase function configuration is missing in this environment.',
+      'AI wallet settings are not available in this environment.',
     );
   }
 
@@ -132,7 +155,7 @@ async function getProtectedJsonHeadersWithMode(
     if (!existingToken) {
       throw makeClientError(
         'bridge_disabled',
-        'Supabase auth bridge is disabled. Set VITE_SUPABASE_AUTH_BRIDGE_ENABLED=true for delegated AI wallet settings.',
+        'AI wallet setup is not available right now.',
       );
     }
   } else {
@@ -152,14 +175,14 @@ async function getProtectedJsonHeadersWithMode(
       if (isBridgeAuthRequiredError(error)) {
         throw makeClientError(
           'wallet_session_required',
-          'Confirm the wallet security check in Orina, then retry the delegated AI wallet action.',
+          'Confirm your wallet in Orina, then try AI wallet setup again.',
           { details: error.request },
         );
       }
       throw coerceClientError(
         error,
         'bridge_exchange_failed',
-        'Wallet auth bridge exchange failed.',
+        'We could not confirm your wallet right now.',
       );
     }
   }
@@ -168,7 +191,7 @@ async function getProtectedJsonHeadersWithMode(
   if (!accessToken) {
     throw makeClientError(
       'wallet_session_required',
-      'Wallet session authentication required. Sign the Orina wallet auth message, then retry the delegated AI wallet setup.',
+      'Please confirm your wallet once in Orina, then try AI wallet setup again.',
     );
   }
 
@@ -263,7 +286,7 @@ export class AIM2MWalletClient {
   static async getConfig(walletAddress: string): Promise<AIM2MClientResult<AIM2MConfigResponse>> {
     const result = await requestWithWalletAuth<AIM2MConfigResponse>(
       walletAddress,
-      `/ai/m2m/config/${walletAddress}`,
+      buildAIM2MRequestPath(`config/${walletAddress}`),
       false,
     );
     if (result.ok) {
@@ -273,7 +296,7 @@ export class AIM2MWalletClient {
   }
 
   static async saveConfig(config: Partial<AIM2MWalletConfig> & { walletAddress: string }): Promise<AIM2MClientResult<AIM2MConfigResponse>> {
-    const result = await requestWithWalletAuth<AIM2MConfigResponse>(config.walletAddress, '/ai/m2m/config', true, {
+    const result = await requestWithWalletAuth<AIM2MConfigResponse>(config.walletAddress, buildAIM2MRequestPath('config'), true, {
       method: 'POST',
       body: JSON.stringify(config),
     });
@@ -284,21 +307,21 @@ export class AIM2MWalletClient {
   }
 
   static async generateDelegate(walletAddress: string): Promise<AIM2MClientResult<AIM2MDelegateResponse>> {
-    return requestWithWalletAuth<AIM2MDelegateResponse>(walletAddress, '/ai/m2m/delegates/generate', true, {
+    return requestWithWalletAuth<AIM2MDelegateResponse>(walletAddress, buildAIM2MRequestPath('delegates/generate'), true, {
       method: 'POST',
       body: JSON.stringify({ walletAddress }),
     });
   }
 
   static async createDelegateInvite(walletAddress: string): Promise<AIM2MClientResult<AIM2MInviteResponse>> {
-    return requestWithWalletAuth<AIM2MInviteResponse>(walletAddress, '/ai/m2m/delegates/invite', true, {
+    return requestWithWalletAuth<AIM2MInviteResponse>(walletAddress, buildAIM2MRequestPath('delegates/invite'), true, {
       method: 'POST',
       body: JSON.stringify({ walletAddress }),
     });
   }
 
   static async acceptDelegateInvite(walletAddress: string, inviteId: string): Promise<AIM2MClientResult<AIM2MDelegateResponse>> {
-    return requestWithWalletAuth<AIM2MDelegateResponse>(walletAddress, '/ai/m2m/delegates/accept-invite', true, {
+    return requestWithWalletAuth<AIM2MDelegateResponse>(walletAddress, buildAIM2MRequestPath('delegates/accept-invite'), true, {
       method: 'POST',
       body: JSON.stringify({ inviteId }),
     });

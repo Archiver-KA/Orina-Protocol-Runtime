@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Package, Sparkles, ShoppingBag, Grid3x3, Boxes } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAccount } from 'wagmi';
 import { SellerAssetManagementModal } from '@/app/components/seller-asset-management-modal';
 import { TransferModal } from '@/app/components/transfer-modal';
 import { ListForSaleModal } from '@/app/components/list-for-sale-modal';
@@ -32,6 +31,12 @@ import {
   subscribeToRuntimeMintedAssets,
 } from '@/utils/runtimeMintedAssets';
 import {
+  hydrateRuntimeReceiptsFromSupabase,
+  loadRuntimeReceipts,
+  subscribeToRuntimeReceipts,
+  syncRuntimeReceiptsForWallet,
+} from '@/utils/runtimeReceipts';
+import {
   buildCanonicalOwnedPortfolio,
   formatEthDisplay,
 } from '@/utils/assetsPortfolio';
@@ -42,6 +47,7 @@ import {
 } from '@/utils/marketplaceCatalog';
 import { buildWarehouseInventory, sortWarehouseInventory } from '@/utils/warehouseInventory';
 import type { CollectionSummary } from '@/types/collection';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
 import {
@@ -57,14 +63,106 @@ import {
 type AssetTab = 'All Assets' | 'Warehouse' | 'Receipts' | 'NFT Owned';
 type AnyAsset = MyAssetRwa | MyAssetReceipt | MyAssetNft;
 
+function normalizeMatchValue(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+function findMarketplaceListingForOwnedRwa(
+  asset: MyAssetRwa,
+  walletAddress: string | undefined,
+  runtimeMintedRecords: Array<{ id: string; assetType: 'RWA' | 'NFT'; details: { id?: string; tokenId?: string; onchainAssetId?: string; name?: string } }>,
+  marketplaceCatalog: Array<{ id: string; tokenId: string; onchainAssetId?: string; name: string; seller: { address: string }; availableSlots?: number }>,
+) {
+  const normalizedWallet = normalizeMatchValue(walletAddress);
+  if (!normalizedWallet) return null;
+
+  const runtimeRecord = runtimeMintedRecords.find((record) => {
+    if (record.assetType !== 'RWA') return false;
+    const candidates = [record.id, record.details.id, record.details.tokenId, record.details.onchainAssetId]
+      .map(normalizeMatchValue)
+      .filter(Boolean);
+    return (
+      candidates.includes(normalizeMatchValue(asset.id)) ||
+      normalizeMatchValue(record.details.name) === normalizeMatchValue(asset.name)
+    );
+  });
+
+  const candidateIds = new Set(
+    [
+      asset.id,
+      runtimeRecord?.id,
+      runtimeRecord?.details.id,
+      runtimeRecord?.details.tokenId,
+      runtimeRecord?.details.onchainAssetId,
+    ]
+      .map(normalizeMatchValue)
+      .filter(Boolean),
+  );
+
+  const exactMatch = marketplaceCatalog.find((marketplaceAsset) => {
+    if (normalizeMatchValue(marketplaceAsset.seller.address) !== normalizedWallet) return false;
+    return (
+      candidateIds.has(normalizeMatchValue(marketplaceAsset.id)) ||
+      candidateIds.has(normalizeMatchValue(marketplaceAsset.tokenId)) ||
+      candidateIds.has(normalizeMatchValue(marketplaceAsset.onchainAssetId))
+    );
+  });
+
+  if (exactMatch) return exactMatch;
+
+  const nameMatches = marketplaceCatalog.filter((marketplaceAsset) => (
+    normalizeMatchValue(marketplaceAsset.seller.address) === normalizedWallet &&
+    normalizeMatchValue(marketplaceAsset.name) === normalizeMatchValue(asset.name)
+  ));
+
+  return nameMatches.length === 1 ? nameMatches[0] : null;
+}
+
+function overlayMarketplaceListingState(
+  rwaAssets: MyAssetRwa[],
+  walletAddress: string | undefined,
+  runtimeMintedRecords: Array<{ id: string; assetType: 'RWA' | 'NFT'; details: { id?: string; tokenId?: string; onchainAssetId?: string; name?: string } }>,
+  marketplaceCatalog: Array<{ id: string; tokenId: string; onchainAssetId?: string; name: string; seller: { address: string }; availableSlots?: number; totalSlots?: number; price: string }>,
+) {
+  return rwaAssets.map((asset) => {
+    const listing = findMarketplaceListingForOwnedRwa(asset, walletAddress, runtimeMintedRecords, marketplaceCatalog);
+    if (!listing) return asset;
+
+    const nextAvailable = typeof listing.availableSlots === 'number'
+      ? listing.availableSlots
+      : asset.availableAmount;
+    const nextTotal = typeof listing.totalSlots === 'number'
+      ? listing.totalSlots
+      : asset.totalAmount;
+
+    return {
+      ...asset,
+      status: Number(nextAvailable) <= 0 ? 'Sold Out' : 'Active',
+      availableAmount: nextAvailable,
+      totalAmount: nextTotal,
+      minPrice: listing.price || asset.minPrice,
+    };
+  });
+}
+
+function coerceText(value: unknown, fallback = ''): string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+  if (value === null || value === undefined) return fallback;
+  const normalized = String(value).trim();
+  return normalized || fallback;
+}
+
 function getAssetSortValue(asset: AnyAsset) {
   switch (asset.type) {
     case 'RWA':
-      return Number.parseFloat(asset.minPrice.replace(/[^0-9.]/g, '')) || 0;
+      return Number.parseFloat(coerceText(asset.minPrice).replace(/[^0-9.]/g, '')) || 0;
     case 'Receipt':
-      return Number.parseFloat(asset.purchaseValue.replace(/[^0-9.]/g, '')) || 0;
+      return Number.parseFloat(coerceText(asset.purchaseValue).replace(/[^0-9.]/g, '')) || 0;
     case 'NFT':
-      return Number.parseFloat(asset.currentPrice.replace(/[^0-9.]/g, '')) || 0;
+      return Number.parseFloat(coerceText(asset.currentPrice).replace(/[^0-9.]/g, '')) || 0;
     default:
       return 0;
   }
@@ -73,9 +171,9 @@ function getAssetSortValue(asset: AnyAsset) {
 function getAssetSortDate(asset: AnyAsset) {
   switch (asset.type) {
     case 'RWA':
-      return Date.parse(asset.mintedDate) || 0;
+      return Date.parse(coerceText(asset.mintedDate)) || 0;
     case 'Receipt':
-      return Date.parse(asset.purchaseDate) || 0;
+      return Date.parse(coerceText(asset.purchaseDate)) || 0;
     case 'NFT':
       return 0;
     default:
@@ -92,9 +190,9 @@ function sortAssets<T extends AnyAsset>(items: T[], sortBy: string): T[] {
     case 'Value: Low to High':
       return next.sort((a, b) => getAssetSortValue(a) - getAssetSortValue(b));
     case 'A-Z':
-      return next.sort((a, b) => a.name.localeCompare(b.name));
+      return next.sort((a, b) => coerceText(a.name, 'Untitled Asset').localeCompare(coerceText(b.name, 'Untitled Asset')));
     case 'Z-A':
-      return next.sort((a, b) => b.name.localeCompare(a.name));
+      return next.sort((a, b) => coerceText(b.name, 'Untitled Asset').localeCompare(coerceText(a.name, 'Untitled Asset')));
     case 'Recent':
     default:
       return next.sort((a, b) => getAssetSortDate(b) - getAssetSortDate(a));
@@ -102,8 +200,8 @@ function sortAssets<T extends AnyAsset>(items: T[], sortBy: string): T[] {
 }
 
 export function Assets() {
-  const { address, isConnected } = useAccount();
-  const { assetAddress, chainId } = useProtocolDataNetwork();
+  const { address, isConnected } = useEffectiveViewer();
+  const { assetAddress, chainId, marketplaceAddress, receiptNftAddress } = useProtocolDataNetwork();
   const { requireWalletActionAsync } = useRequireWalletAction();
   const [activeTab, setActiveTab] = useState<AssetTab>('All Assets');
   const [selectedAsset, setSelectedAsset] = useState<AnyAsset | null>(null);
@@ -123,12 +221,38 @@ export function Assets() {
     chainId,
     assetContract: assetAddress,
   }), [assetAddress, chainId]);
-  const [runtimeOwnedAssets, setRuntimeOwnedAssets] = useState(() => loadRuntimeMyAssets(address, runtimeAssetScope));
-  const [runtimeMintedRecords, setRuntimeMintedRecords] = useState(() => loadRuntimeMintedAssets(address, runtimeAssetScope));
+  const receiptScope = useMemo(() => ({
+    chainId,
+    marketplaceContract: marketplaceAddress,
+    assetContract: assetAddress,
+    receiptContract: receiptNftAddress,
+  }), [assetAddress, chainId, marketplaceAddress, receiptNftAddress]);
+  const emptyOwnedAssets = useMemo(() => ({
+    rwaAssets: [] as MyAssetRwa[],
+    receiptAssets: [] as MyAssetReceipt[],
+    nftAssets: [] as MyAssetNft[],
+  }), []);
+  const [runtimeOwnedAssets, setRuntimeOwnedAssets] = useState(() => ({
+    ...emptyOwnedAssets,
+    ...(address ? loadRuntimeMyAssets(address, runtimeAssetScope) : {}),
+    receiptAssets: address ? loadRuntimeReceipts(address, receiptScope) : [],
+  }));
+  const [runtimeMintedRecords, setRuntimeMintedRecords] = useState(() => (
+    address ? loadRuntimeMintedAssets(address, runtimeAssetScope) : []
+  ));
   const [marketplaceCatalog, setMarketplaceCatalog] = useState(() => loadMarketplaceCatalogSync());
+  const runtimeOwnedAssetsForDisplay = useMemo(() => ({
+    ...runtimeOwnedAssets,
+    rwaAssets: overlayMarketplaceListingState(
+      runtimeOwnedAssets.rwaAssets,
+      address,
+      runtimeMintedRecords,
+      marketplaceCatalog,
+    ),
+  }), [address, marketplaceCatalog, runtimeMintedRecords, runtimeOwnedAssets]);
   const portfolio = useMemo(
-    () => buildCanonicalOwnedPortfolio(address, runtimeOwnedAssets),
-    [address, runtimeOwnedAssets],
+    () => buildCanonicalOwnedPortfolio(address, runtimeOwnedAssetsForDisplay),
+    [address, runtimeOwnedAssetsForDisplay],
   );
   const rwaAssets = portfolio.rwaAssets;
   const receiptAssets = portfolio.receiptAssets;
@@ -140,16 +264,42 @@ export function Assets() {
 
   useEffect(() => {
     const refreshRuntimeAssets = () => {
-      setRuntimeOwnedAssets(loadRuntimeMyAssets(address, runtimeAssetScope));
+      if (!address) {
+        setRuntimeOwnedAssets(emptyOwnedAssets);
+        setRuntimeMintedRecords([]);
+        return;
+      }
+      setRuntimeOwnedAssets({
+        ...loadRuntimeMyAssets(address, runtimeAssetScope),
+        receiptAssets: loadRuntimeReceipts(address, receiptScope),
+      });
       setRuntimeMintedRecords(loadRuntimeMintedAssets(address, runtimeAssetScope));
     };
 
     refreshRuntimeAssets();
     if (address) {
-      void hydrateRuntimeMintedAssetsFromSupabase(address, runtimeAssetScope).then(refreshRuntimeAssets);
+      const hydrationTasks: Array<Promise<unknown>> = [
+        hydrateRuntimeMintedAssetsFromSupabase(address, runtimeAssetScope),
+        hydrateRuntimeReceiptsFromSupabase(address, receiptScope),
+      ];
+      if (isConnected) {
+        hydrationTasks.push(
+          syncRuntimeReceiptsForWallet(address, receiptScope, { promptOnAuthMissing: false })
+            .catch((error) => {
+              console.warn('[Assets] Failed to trigger receipt sync', error);
+              return null;
+            }),
+        );
+      }
+      void Promise.allSettled(hydrationTasks).then(refreshRuntimeAssets);
     }
-    return subscribeToRuntimeMintedAssets(refreshRuntimeAssets);
-  }, [address, runtimeAssetScope]);
+    const unsubscribeMinted = subscribeToRuntimeMintedAssets(refreshRuntimeAssets);
+    const unsubscribeReceipts = subscribeToRuntimeReceipts(refreshRuntimeAssets);
+    return () => {
+      unsubscribeMinted();
+      unsubscribeReceipts();
+    };
+  }, [address, emptyOwnedAssets, isConnected, receiptScope, runtimeAssetScope]);
 
   useEffect(() => {
     const refreshMarketplaceCatalog = () => {
@@ -264,26 +414,31 @@ export function Assets() {
       return;
     }
 
+    const continueSaveCollection = async () => {
+      if (collectionEditorMode === 'create') {
+        const created = createCollection(address, draft);
+        setSelectedCollection(created);
+        toast.success(`Created collection "${created.name}"`);
+      } else if (selectedCollection) {
+        const updated = updateCollection(address, selectedCollection.id, draft);
+        if (updated) {
+          setSelectedCollection(updated);
+          toast.success(`Updated collection "${updated.name}"`);
+        }
+      }
+
+      setIsCollectionEditorOpen(false);
+    };
+
     const allowed = await requireWalletActionAsync({
       capability: 'protocol_asset_write',
       actionLabel: collectionEditorMode === 'create' ? 'create a collection' : 'edit this collection',
       fallbackPage: 'assets',
+      onSecurityCheckConfirmed: continueSaveCollection,
     });
     if (!allowed) return;
 
-    if (collectionEditorMode === 'create') {
-      const created = createCollection(address, draft);
-      setSelectedCollection(created);
-      toast.success(`Created collection "${created.name}"`);
-    } else if (selectedCollection) {
-      const updated = updateCollection(address, selectedCollection.id, draft);
-      if (updated) {
-        setSelectedCollection(updated);
-        toast.success(`Updated collection "${updated.name}"`);
-      }
-    }
-
-    setIsCollectionEditorOpen(false);
+    await continueSaveCollection();
   };
 
   const handleAddAssetToCollection = async (collectionId: string, assetId: string) => {
@@ -292,26 +447,31 @@ export function Assets() {
       return;
     }
 
+    const continueAddAssetToCollection = async () => {
+      const updated = addAssetToCollection(address, collectionId, assetId);
+      if (!updated) {
+        toast.error('Unable to add asset to collection');
+        return;
+      }
+
+      const addedAsset = collectionAssetOptions.find((asset) => asset.id === assetId);
+      toast.success(
+        addedAsset
+          ? `Added "${addedAsset.name}" to "${updated.name}"`
+          : `Added asset to "${updated.name}"`
+      );
+      setIsAddAssetModalOpen(false);
+    };
+
     const allowed = await requireWalletActionAsync({
       capability: 'protocol_asset_write',
       actionLabel: 'add an asset to this collection',
       fallbackPage: 'assets',
+      onSecurityCheckConfirmed: continueAddAssetToCollection,
     });
     if (!allowed) return;
 
-    const updated = addAssetToCollection(address, collectionId, assetId);
-    if (!updated) {
-      toast.error('Unable to add asset to collection');
-      return;
-    }
-
-    const addedAsset = collectionAssetOptions.find((asset) => asset.id === assetId);
-    toast.success(
-      addedAsset
-        ? `Added "${addedAsset.name}" to "${updated.name}"`
-        : `Added asset to "${updated.name}"`
-    );
-    setIsAddAssetModalOpen(false);
+    await continueAddAssetToCollection();
   };
 
   return (
@@ -402,11 +562,11 @@ export function Assets() {
         <StudioPageHeader title="My Asset" compact />
 
         {/* Portfolio Overview */}
-        <StudioPanel className="rounded-[24px] p-6 backdrop-blur-[10px]">
+        <StudioPanel elevation="none" className="rounded-[24px] p-6 backdrop-blur-[10px]">
           <div className="flex items-start justify-between mb-8">
             <div>
-              <p className="text-xs text-ui-muted uppercase tracking-widest font-bold">Canonical Portfolio Snapshot</p>
-              <h2 className="text-4xl font-bold text-ui-primary mt-1">
+              <p className="text-xs text-ui-muted uppercase tracking-widest font-semibold">Portfolio Snapshot</p>
+              <h2 className="text-4xl font-semibold text-ui-primary mt-1">
                 {formatEthDisplay(portfolio.totalEstimatedEth)}
               </h2>
               <div className="flex items-center gap-2 mt-2">
@@ -414,8 +574,8 @@ export function Assets() {
                   {portfolio.totalAssets} tracked assets on {portfolio.networkLabel}
                 </span>
                 {portfolio.fixtureWallet && (
-                  <span className="text-primary text-xs font-bold">
-                    Fixture-enhanced wallet
+                  <span className="text-primary text-xs font-semibold">
+                    Sample data added
                   </span>
                 )}
               </div>
@@ -424,23 +584,23 @@ export function Assets() {
             {/* Quick Stats */}
             <div className="flex gap-8">
               <div className="text-center">
-                <p className="text-xs text-ui-muted uppercase tracking-widest font-bold mb-1">RWA</p>
-                <p className="text-2xl font-bold text-ui-primary">{totalRWA}</p>
+                <p className="text-xs text-ui-muted uppercase tracking-widest font-semibold mb-1">RWA</p>
+                <p className="text-2xl font-semibold text-ui-primary">{totalRWA}</p>
               </div>
               <div className="text-center">
-                <p className="text-xs text-ui-muted uppercase tracking-widest font-bold mb-1">Receipts</p>
-                <p className="text-2xl font-bold text-ui-primary">{totalReceipts}</p>
+                <p className="text-xs text-ui-muted uppercase tracking-widest font-semibold mb-1">Receipts</p>
+                <p className="text-2xl font-semibold text-ui-primary">{totalReceipts}</p>
               </div>
               <div className="text-center">
-                <p className="text-xs text-ui-muted uppercase tracking-widest font-bold mb-1">NFTs</p>
-                <p className="text-2xl font-bold text-ui-primary">{totalNFTs}</p>
+                <p className="text-xs text-ui-muted uppercase tracking-widest font-semibold mb-1">NFTs</p>
+                <p className="text-2xl font-semibold text-ui-primary">{totalNFTs}</p>
               </div>
             </div>
           </div>
 
           <div className="space-y-4">
             <div>
-              <div className="mb-1.5 flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.12em] text-ui-muted">
+              <div className="mb-1.5 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.12em] text-ui-muted">
                 <span>RWA Minted</span>
                 <span>{formatEthDisplay(portfolio.typeValueEth.rwa)}</span>
               </div>
@@ -454,7 +614,7 @@ export function Assets() {
               </div>
             </div>
             <div>
-              <div className="mb-1.5 flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.12em] text-ui-muted">
+              <div className="mb-1.5 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.12em] text-ui-muted">
                 <span>Receipts</span>
                 <span>{formatEthDisplay(portfolio.typeValueEth.receipts)}</span>
               </div>
@@ -468,7 +628,7 @@ export function Assets() {
               </div>
             </div>
             <div>
-              <div className="mb-1.5 flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.12em] text-ui-muted">
+              <div className="mb-1.5 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.12em] text-ui-muted">
                 <span>NFT Owned</span>
                 <span>{formatEthDisplay(portfolio.typeValueEth.nfts)}</span>
               </div>
@@ -528,7 +688,7 @@ export function Assets() {
           </div>
         </StudioPanel>
 
-        <StudioPanel className="rounded-[24px] p-6 backdrop-blur-[10px]">
+        <div className="rounded-[24px] p-6">
           <CollectionsGridPanel
             title="My Collections"
             subtitle="Create and curate collections from assets owned or managed by this wallet."
@@ -543,7 +703,7 @@ export function Assets() {
                   onClick={handleOpenCreateCollection}
                   variant="secondary"
                   size="lg"
-                  className="studio-form-secondary text-sm font-bold tracking-tight transition-all hover:border-[#2CC295]/35 hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
+                  className="studio-form-secondary text-sm font-semibold tracking-tight transition-all hover:border-[#2CC295]/35 hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
                 >
                   Create Collection
                 </StudioActionButton>
@@ -558,7 +718,7 @@ export function Assets() {
                   }}
                   variant="primary"
                   size="lg"
-                  className="text-sm font-bold tracking-tight shadow-lg shadow-[#2CC295]/20"
+                  className="text-sm font-semibold tracking-tight"
                 >
                   Add Asset to Collection
                 </StudioActionButton>
@@ -569,7 +729,7 @@ export function Assets() {
               setIsCollectionModalOpen(true);
             }}
           />
-        </StudioPanel>
+        </div>
 
         {/* Assets Grid */}
         <div className="relative z-[10] pb-20">
@@ -589,7 +749,7 @@ export function Assets() {
               title="No assets found"
               description={
                 address
-                  ? 'No canonical assets are indexed for this wallet yet.'
+                  ? 'No assets are available for this wallet yet.'
                   : 'Connect a wallet to inspect owned RWA, receipt NFTs, and digital NFTs.'
               }
               className="py-16 px-6 text-center"

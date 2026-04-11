@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, ReactNode, useState, useCallback, useEffect, type Context } from 'react';
 import { useAccount, useSignMessage } from 'wagmi';
 import { toast } from 'sonner';
 import { buildWalletAuthMessage, setWalletAuthSession } from '@/utils/walletAuthSession';
@@ -21,7 +21,17 @@ interface WalletModalContextValue {
   handleSignatureCancel: () => void;
 }
 
-const WalletModalContext = createContext<WalletModalContextValue | undefined>(undefined);
+declare global {
+  var __orinaWalletModalContext: Context<WalletModalContextValue | undefined> | undefined;
+}
+
+const WalletModalContext = globalThis.__orinaWalletModalContext
+  ?? createContext<WalletModalContextValue | undefined>(undefined);
+
+if (!globalThis.__orinaWalletModalContext) {
+  WalletModalContext.displayName = 'WalletModalContext';
+  globalThis.__orinaWalletModalContext = WalletModalContext;
+}
 
 export function WalletModalProvider({ children }: { children: ReactNode }) {
   const [modalState, setModalState] = useState<WalletModalState>({

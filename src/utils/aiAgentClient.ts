@@ -163,7 +163,7 @@ export class AIAgentClient {
       if (err.message === 'Wallet session authentication required') {
         return {
           action: 'error_fallback',
-          text: 'Your wallet session is not authenticated. Please sign in with your wallet and try again.',
+          text: 'Please confirm your wallet once in Orina and try again.',
         };
       }
       if (err.name === 'AbortError') {

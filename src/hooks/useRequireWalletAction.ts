@@ -5,11 +5,13 @@ import { useAccessGuard } from '@/hooks/useAccessGuard';
 import { isProtocolCapability, type AccessCapability } from '@/app/access/access-policy';
 import { useProtocolChain } from '@/hooks/useProtocolChain';
 import { useWalletSecurityPrompt } from '@/hooks/useWalletSecurityPrompt';
+import type { WalletModalConfirmHandler } from '@/types/wallet';
 
 interface RequireWalletActionOptions {
   capability: AccessCapability;
   actionLabel: string;
   fallbackPage?: string;
+  onSecurityCheckConfirmed?: WalletModalConfirmHandler;
 }
 
 export function useRequireWalletAction(setActivePage?: (page: string) => void) {
@@ -27,7 +29,7 @@ export function useRequireWalletAction(setActivePage?: (page: string) => void) {
   }, [accessGuard]);
 
   const requireWalletActionAsync = useCallback(async (options: RequireWalletActionOptions): Promise<boolean> => {
-    const { capability, actionLabel, fallbackPage = 'home' } = options;
+    const { capability, actionLabel, fallbackPage = 'home', onSecurityCheckConfirmed } = options;
     if (accessGuard.canUseCapability(capability)) {
       if (isProtocolCapability(capability)) {
         return protocolChain.ensureProtocolChainAsync(actionLabel);
@@ -56,7 +58,7 @@ export function useRequireWalletAction(setActivePage?: (page: string) => void) {
         return false;
       }
 
-      promptProtocolSecurityCheck(actionLabel);
+      promptProtocolSecurityCheck(actionLabel, onSecurityCheckConfirmed);
       return false;
     }
 

@@ -5,10 +5,10 @@ import {
   ShieldCheck,
   WalletCards,
 } from 'lucide-react';
-import { useAccount } from 'wagmi';
 import { APIKeysSettings } from './api-keys-settings';
 import { AIAgentSettings } from './ai-agent-settings';
 import { AIM2MWalletSettings } from './ai-m2m-wallet-settings';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { RuntimeErrorBoundary } from '@/app/components/ui/runtime-error-boundary';
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
@@ -72,7 +72,7 @@ function ViewportLazySection({
         <div className="rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-2)] p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h3 className="text-sm font-bold text-ui-primary">{title}</h3>
+              <h3 className="text-sm font-semibold text-ui-primary">{title}</h3>
               <p className="mt-1 text-xs text-ui-muted">{description}</p>
             </div>
             <StudioLoadingIndicator size={16} tone="muted" />
@@ -102,7 +102,7 @@ function renderActivityTone(item: AIM2MActivityItem): string {
 }
 
 export function AgentSettings() {
-  const { address } = useAccount();
+  const { address } = useEffectiveViewer();
   const [m2mSnapshot, setM2MSnapshot] = useState<AIM2MWalletRuntimeSnapshot | null>(null);
   const [isM2MSectionMounted, setIsM2MSectionMounted] = useState(false);
 
@@ -112,7 +112,7 @@ export function AgentSettings() {
   }, [address]);
 
   const selectedPermissions = useMemo(() => {
-    if (!m2mSnapshot?.allowedActions.length) return 'No delegated actions selected';
+    if (!m2mSnapshot?.allowedActions.length) return 'No actions selected';
     return m2mSnapshot.allowedActions.map((action) => action.replace('_', ' ')).join(', ');
   }, [m2mSnapshot]);
 
@@ -127,16 +127,16 @@ export function AgentSettings() {
 
   const runtimeWalletLabel = useMemo(
     () => hasMaterializedCycle
-      ? m2mSnapshot?.deployedWalletAddress || m2mSnapshot?.predictedWalletAddress || 'Not derived yet'
-      : 'Not deployed yet',
+      ? m2mSnapshot?.deployedWalletAddress || m2mSnapshot?.predictedWalletAddress || 'Not ready yet'
+      : 'Not created yet',
     [hasMaterializedCycle, m2mSnapshot],
   );
 
   const runtimeWalletCaption = useMemo(() => {
-    if (!hasMaterializedCycle) return 'This card stays neutral until the root wallet creates a live cycle.';
-    if (m2mSnapshot?.deployedWalletAddress) return 'Live deployed wallet';
-    if (m2mSnapshot?.predictedWalletAddress) return 'Next deterministic wallet';
-    return 'Wallet address will appear after configuration is valid';
+    if (!hasMaterializedCycle) return 'This area updates after your main wallet creates an AI wallet.';
+    if (m2mSnapshot?.deployedWalletAddress) return 'Live AI wallet';
+    if (m2mSnapshot?.predictedWalletAddress) return 'Next AI wallet';
+    return 'The wallet address will appear once setup is ready';
   }, [hasMaterializedCycle, m2mSnapshot]);
 
   const visibleActivity = useMemo(
@@ -155,9 +155,9 @@ export function AgentSettings() {
             <div className="flex-1 overflow-y-auto custom-scrollbar">
               <div className="p-8 relative z-10 max-w-5xl mx-auto space-y-8">
                 <header className="mb-2">
-                  <h1 className="text-2xl font-bold text-ui-strong">Agent Setting</h1>
+                  <h1 className="text-2xl font-semibold text-ui-strong">Agent Settings</h1>
                   <p className="text-sm text-ui-muted mt-1">
-                    Manage API credentials, message automation, and delegated AI wallet orchestration from one workspace.
+                    Manage API access, message automation, and AI wallet controls in one place.
                   </p>
                 </header>
 
@@ -165,7 +165,7 @@ export function AgentSettings() {
                   {address ? (
                     <RuntimeErrorBoundary
                       title="API Keys Unavailable"
-                      description="The API key manager hit a runtime error. Retry without leaving Agent Setting."
+                      description="API keys could not load here. Try again without leaving Agent Settings."
                       compact
                       resetKey={`agent:keys:${address}`}
                     >
@@ -180,14 +180,14 @@ export function AgentSettings() {
 
                 <div>
                   <ViewportLazySection
-                    title="Seller AI Auto-Reply"
-                    description="Configure AI to automatically respond to buyer inquiries on your behalf using your store and order data."
+                    title="AI Replies"
+                    description="Let AI answer buyer questions using your listings and order context."
                     minHeightClassName="min-h-[220px]"
                   >
                     {address ? (
                       <RuntimeErrorBoundary
                         title="AI Agent Settings Unavailable"
-                        description="The AI configuration panel failed to load. Retry after the section resets."
+                        description="AI reply settings could not load. Try again in a moment."
                         compact
                         resetKey={`agent:messages:${address}`}
                       >
@@ -195,7 +195,7 @@ export function AgentSettings() {
                       </RuntimeErrorBoundary>
                     ) : (
                       <div className="text-center py-8">
-                        <p className="text-sm text-ui-muted">Connect your wallet to manage AI auto-reply settings</p>
+                        <p className="text-sm text-ui-muted">Connect your wallet to manage AI replies</p>
                       </div>
                     )}
                   </ViewportLazySection>
@@ -203,15 +203,15 @@ export function AgentSettings() {
 
                 <div>
                   <ViewportLazySection
-                    title="AI Wallet M2M"
-                    description="This onchain-heavy workspace mounts only when needed to reduce initial page boot cost."
+                    title="AI Wallet Automation"
+                    description="This section loads only when needed so the page stays fast."
                     minHeightClassName="min-h-[280px]"
                     onViewportEnter={() => setIsM2MSectionMounted(true)}
                   >
                     {address ? (
                       <RuntimeErrorBoundary
-                        title="AI Wallet M2M Settings Unavailable"
-                        description="The delegated wallet configuration panel failed to load. Retry after the section resets."
+                        title="AI Wallet Settings Unavailable"
+                        description="AI wallet controls could not load. Try again in a moment."
                         compact
                         resetKey={`agent:m2m:${address}`}
                       >
@@ -222,7 +222,7 @@ export function AgentSettings() {
                       </RuntimeErrorBoundary>
                     ) : (
                       <div className="text-center py-8">
-                        <p className="text-sm text-ui-muted">Connect your wallet to manage delegated AI wallet policy</p>
+                        <p className="text-sm text-ui-muted">Connect your wallet to manage AI wallet rules</p>
                       </div>
                     )}
                   </ViewportLazySection>
@@ -237,10 +237,10 @@ export function AgentSettings() {
             <div className="p-6 bg-gradient-to-b from-[var(--t-surface-2)] to-transparent">
               <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
                 <WalletCards className="text-ui-muted" size={18} />
-                AI Wallet Runtime
+                AI Wallet Status
               </h2>
               <p className="text-xs text-ui-muted mt-1">
-                Live cycle status, closeout posture, wallet balance, permissions, and recent activity.
+                See wallet status, balance, permissions, and recent activity.
               </p>
             </div>
 
@@ -250,11 +250,11 @@ export function AgentSettings() {
                   <div className="flex items-start gap-3">
                     <StudioLoadingIndicator size={16} tone="muted" className="mt-0.5" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">
-                        Runtime Snapshot Deferred
+                      <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest">
+                        Status Loads Here
                       </p>
                       <p className="mt-2 text-sm text-ui-muted">
-                        Scroll to the `AI Wallet M2M` block to initialize the delegated wallet runtime snapshot and recent activity feed.
+                        Open the AI Wallet section to load status and recent activity.
                       </p>
                     </div>
                   </div>
@@ -263,29 +263,29 @@ export function AgentSettings() {
                 <>
                   <div className={sidebarCardClass}>
                     <div className="flex items-center justify-between gap-3 mb-3">
-                      <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">
-                        Cycle Status
+                      <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest">
+                        Current Status
                       </p>
                       {hasMaterializedCycle ? (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full border border-[#2CC295]/25 bg-[#2CC295]/10 text-[#2CC295] uppercase font-bold">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full border border-[#2CC295]/25 bg-[#2CC295]/10 text-[#2CC295] uppercase font-semibold">
                           {m2mSnapshot?.sessionStatus || 'active'}
                         </span>
                       ) : null}
                     </div>
                     {hasMaterializedCycle ? (
                       <div className="space-y-2">
-                        <div className="text-sm font-bold text-ui-primary">
-                          {m2mSnapshot?.deployedWalletAddress ? 'AI wallet deployed' : 'Cycle preview ready'}
+                        <div className="text-sm font-semibold text-ui-primary">
+                          {m2mSnapshot?.deployedWalletAddress ? 'AI wallet is live' : 'Ready to create'}
                         </div>
                         <div className="text-xs text-ui-muted">
                           {m2mSnapshot?.deployedWalletAddress
-                            ? 'The immutable AI wallet cycle is live. Root can only revoke or close it after idle funds sweep back home.'
-                            : 'The next deterministic AI wallet is derived from the current root configuration.'}
+                            ? 'Your AI wallet is live. You can end this setup later after any unused balance returns to your main wallet.'
+                            : 'Your next AI wallet is ready based on the current settings.'}
                         </div>
                       </div>
                     ) : (
                       <div className="text-sm text-ui-muted">
-                        No active AI wallet cycle. Deploy from the root wallet to provision the internal signer and lock a new cycle.
+                        No AI wallet is active yet. Create one from your main wallet to start a new protected setup.
                       </div>
                     )}
                   </div>
@@ -293,8 +293,8 @@ export function AgentSettings() {
                   <div className={sidebarCardClass}>
                     <div className="flex items-center gap-2 mb-3">
                       <ShieldCheck className="text-[#2CC295]" size={14} />
-                      <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">
-                        Rights And Limits
+                      <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest">
+                        Rules And Limits
                       </p>
                     </div>
                     <div className="space-y-2 text-xs">
@@ -317,7 +317,7 @@ export function AgentSettings() {
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-ui-muted">Root fallback</span>
+                        <span className="text-ui-muted">Main wallet backup</span>
                         <span className="text-ui-primary">
                           {m2mSnapshot?.rootFallbackEnabled ? 'Always On' : 'Disabled'}
                         </span>
@@ -328,8 +328,8 @@ export function AgentSettings() {
                   <div className={sidebarCardClass}>
                     <div className="flex items-center gap-2 mb-3">
                       <KeyRound className="text-[#2CC295]" size={14} />
-                      <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">
-                        Wallet Runtime
+                      <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest">
+                        Wallet Details
                       </p>
                     </div>
                     <div className="space-y-3 text-xs">
@@ -349,7 +349,7 @@ export function AgentSettings() {
                           </div>
                         </div>
                         <div>
-                          <div className="text-ui-muted mb-1">Session</div>
+                          <div className="text-ui-muted mb-1">Cycle #</div>
                           <div className="text-ui-primary">
                             {m2mSnapshot?.latestSessionNonce ?? 'n/a'}
                           </div>
@@ -362,7 +362,7 @@ export function AgentSettings() {
                             {m2mSnapshot?.walletIsActive
                               ? 'Active'
                               : m2mSnapshot?.walletInitialized
-                                ? 'Expired / Idle'
+                                ? 'Expired / waiting to close'
                                 : 'Not initialized'}
                           </div>
                         </div>
@@ -379,22 +379,22 @@ export function AgentSettings() {
                   {hasMaterializedCycle && m2mSnapshot?.selectedDelegate ? (
                     <div className={sidebarCardClass}>
                       <div className="flex items-center justify-between gap-3 mb-3">
-                        <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">
-                          Managed Signer
+                        <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest">
+                          AI Signer
                         </p>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full border border-[#2CC295]/25 bg-[#2CC295]/10 text-[#2CC295] uppercase font-bold">
-                          internal
+                        <span className="text-[10px] px-2 py-0.5 rounded-full border border-[#2CC295]/25 bg-[#2CC295]/10 text-[#2CC295] uppercase font-semibold">
+                          current
                         </span>
                       </div>
                       <div className="space-y-2">
-                        <div className="text-sm font-bold text-ui-primary">
-                          {m2mSnapshot.selectedDelegate.label || 'Managed signer'}
+                        <div className="text-sm font-semibold text-ui-primary">
+                          {m2mSnapshot.selectedDelegate.label || 'AI signer'}
                         </div>
                         <div className="text-xs text-ui-muted break-all">
                           {m2mSnapshot.selectedDelegate.delegateAddress}
                         </div>
                         <div className="text-[10px] text-ui-muted">
-                          Bound to the current cycle only. Root remains the canonical buyer, seller, refund, and payout recipient.
+                          This signer only works for the current setup. Your main wallet still handles refunds and payouts.
                         </div>
                       </div>
                     </div>
@@ -403,7 +403,7 @@ export function AgentSettings() {
                   <div className={sidebarCardClass}>
                     <div className="flex items-center gap-2 mb-3">
                       <Activity className="text-[#2CC295]" size={14} />
-                      <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">
+                      <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest">
                         Recent Activity
                       </p>
                     </div>
@@ -412,7 +412,7 @@ export function AgentSettings() {
                         <div key={item.id} className="flex items-start gap-3">
                           <div className={`mt-1 h-2.5 w-2.5 rounded-full ${renderActivityTone(item)}`} />
                           <div className="min-w-0 flex-1">
-                            <div className="text-xs font-bold text-ui-primary">{item.label}</div>
+                            <div className="text-xs font-semibold text-ui-primary">{item.label}</div>
                             <div className="text-[10px] text-ui-muted mt-1">{item.detail}</div>
                             <div className="text-[10px] text-ui-muted mt-1">{formatTimestamp(item.timestamp)}</div>
                           </div>
@@ -420,7 +420,7 @@ export function AgentSettings() {
                       ))}
                       {!visibleActivity.length ? (
                         <div className="text-sm text-ui-muted">
-                          Cycle preview, deploy, funding, revoke, and expiry events will appear here.
+                          Setup, funding, and close events will appear here.
                         </div>
                       ) : null}
                     </div>

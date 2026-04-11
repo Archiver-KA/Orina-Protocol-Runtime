@@ -5,13 +5,29 @@
  */
 import { normalizeAddress } from '@/utils/storageScope';
 
+const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
 const WALLET_AUTH_SESSION_KEY = 'orina_wallet_auth_session';
+const DEFAULT_WALLET_AUTH_SESSION_TTL_MS = 30 * 60 * 1000;
 
 interface WalletAuthSession {
   address: string;
   signedAt: number;
   signature: string;
   message?: string;
+}
+
+function getWalletAuthSessionTtlMs() {
+  const configuredValue = Number(env.VITE_WALLET_AUTH_SESSION_TTL_MS || '');
+  if (Number.isFinite(configuredValue) && configuredValue > 0) {
+    return Math.floor(configuredValue);
+  }
+  return DEFAULT_WALLET_AUTH_SESSION_TTL_MS;
+}
+
+function isWalletAuthSessionExpired(session: WalletAuthSession) {
+  const signedAt = Number(session.signedAt) || 0;
+  if (signedAt <= 0) return true;
+  return signedAt + getWalletAuthSessionTtlMs() <= Date.now();
 }
 
 function normalizeWalletAuthMessage(message?: string): string {
@@ -45,12 +61,19 @@ export function getWalletAuthSession(): WalletAuthSession | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as WalletAuthSession;
     if (!parsed?.address || !parsed?.signature) return null;
-    return {
+    const session = {
       address: normalizeAddress(parsed.address),
       signedAt: Number(parsed.signedAt) || Date.now(),
       signature: String(parsed.signature),
       message: typeof parsed.message === 'string' ? parsed.message : undefined,
     };
+
+    if (!hasCompatibleWalletAuthMessage(session.message, session.address) || isWalletAuthSessionExpired(session)) {
+      clearWalletAuthSession();
+      return null;
+    }
+
+    return session;
   } catch {
     return null;
   }

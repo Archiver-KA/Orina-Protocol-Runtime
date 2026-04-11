@@ -1,10 +1,10 @@
-import { ACTIVE_CHAIN_ID } from '@/config/contracts';
 import type {
   MyAssetNft,
   MyAssetReceipt,
   MyAssetRwa,
 } from '@/app/components/cards/my-asset-cards';
 import { getTestWalletMyAssets } from '@/utils/testWalletAssetFixtures';
+import { LIVE_PROTOCOL_CHAIN_ID } from '@/utils/protocolNetwork';
 import type { RuntimeMintedAssetRecord } from '@/utils/runtimeMintedAssets';
 import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
@@ -53,6 +53,26 @@ export interface CanonicalOwnedPortfolio {
   networkLabel: string;
 }
 
+export interface RuntimeOwnedPortfolioAssets {
+  rwaAssets: MyAssetRwa[];
+  receiptAssets?: MyAssetReceipt[];
+  nftAssets: MyAssetNft[];
+}
+
+function coerceText(value: unknown, fallback = ''): string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+  if (value === null || value === undefined) return fallback;
+  const normalized = String(value).trim();
+  return normalized || fallback;
+}
+
+function coerceLowerText(value: unknown): string {
+  return coerceText(value).toLowerCase();
+}
+
 function dedupeById<T extends { id: string }>(items: T[]): T[] {
   const merged = new Map<string, T>();
   for (const item of items) {
@@ -81,11 +101,11 @@ export function formatEthDisplay(value: number): string {
 function getAssetValueEth(asset: AnyOwnedAsset): number {
   switch (asset.type) {
     case 'RWA':
-      return parseEthLikeValue(asset.minPrice);
+      return parseEthLikeValue(coerceText(asset.minPrice));
     case 'Receipt':
-      return parseEthLikeValue(asset.purchaseValue);
+      return parseEthLikeValue(coerceText(asset.purchaseValue));
     case 'NFT':
-      return parseEthLikeValue(asset.currentPrice);
+      return parseEthLikeValue(coerceText(asset.currentPrice));
     default:
       return 0;
   }
@@ -101,10 +121,10 @@ function getTopAssets(assets: AnyOwnedAsset[]): TopValuedOwnedAsset[] {
       valueEth: getAssetValueEth(asset),
       valueLabel:
         asset.type === 'RWA'
-          ? asset.minPrice
+          ? coerceText(asset.minPrice, '0 ETH')
           : asset.type === 'Receipt'
-            ? asset.purchaseValue
-            : asset.currentPrice,
+            ? coerceText(asset.purchaseValue, '0 ETH')
+            : coerceText(asset.currentPrice, '0 ETH'),
     }))
     .sort((a, b) => b.valueEth - a.valueEth)
     .slice(0, 5);
@@ -123,7 +143,9 @@ function getCategoryBreakdown(assets: AnyOwnedAsset[]): AssetCategoryBreakdown[]
 }
 
 function getNetworkLabel(): string {
-  switch (ACTIVE_CHAIN_ID) {
+  const liveChainId = LIVE_PROTOCOL_CHAIN_ID;
+
+  switch (liveChainId) {
     case 97:
       return 'BSC Testnet';
     case 56:
@@ -131,21 +153,23 @@ function getNetworkLabel(): string {
     case 1:
       return 'Ethereum';
     default:
-      return `Chain ${ACTIVE_CHAIN_ID}`;
+      return `Chain ${liveChainId}`;
   }
 }
 
 export function buildCanonicalOwnedPortfolio(
   walletAddress?: string | null,
-  runtimeOwnedAssets?: { rwaAssets: MyAssetRwa[]; nftAssets: MyAssetNft[] },
+  runtimeOwnedAssets?: RuntimeOwnedPortfolioAssets,
 ): CanonicalOwnedPortfolio {
   const fixture = getTestWalletMyAssets(walletAddress);
-  const runtime = runtimeOwnedAssets || { rwaAssets: [], nftAssets: [] };
+  const runtime = runtimeOwnedAssets || { rwaAssets: [], receiptAssets: [], nftAssets: [] };
 
   const rwaAssets = fixture
     ? mergeById(runtime.rwaAssets, fixture.rwaAssets)
     : dedupeById(runtime.rwaAssets);
-  const receiptAssets = fixture?.receiptAssets ?? [];
+  const receiptAssets = fixture
+    ? mergeById(runtime.receiptAssets ?? [], fixture.receiptAssets)
+    : dedupeById(runtime.receiptAssets ?? []);
   const nftAssets = fixture
     ? mergeById(runtime.nftAssets, fixture.nftAssets)
     : dedupeById(runtime.nftAssets);
@@ -173,8 +197,8 @@ export function buildCanonicalOwnedPortfolio(
       nfts: nftAssets.length,
     },
     listingStatus: {
-      activeRwa: rwaAssets.filter((asset) => asset.status.toLowerCase() === 'active').length,
-      soldOutRwa: rwaAssets.filter((asset) => asset.status.toLowerCase() === 'sold out').length,
+      activeRwa: rwaAssets.filter((asset) => coerceLowerText(asset.status) === 'active').length,
+      soldOutRwa: rwaAssets.filter((asset) => coerceLowerText(asset.status) === 'sold out').length,
       nonTransferableReceipts: receiptAssets.length,
       transferableNfts: nftAssets.filter((asset) => asset.transferable).length,
     },

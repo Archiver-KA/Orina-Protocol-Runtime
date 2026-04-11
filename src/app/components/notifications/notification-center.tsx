@@ -113,7 +113,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
               className="absolute right-0 top-full mt-2 w-[470px] max-w-[calc(100vw-2rem)] z-50"
             >
               <div
-                className="dropdown-panel rounded-[24px] overflow-hidden"
+                className="nativebar-dropdown-panel dropdown-panel rounded-[24px] overflow-hidden"
                 style={{
                   background: 'rgba(18, 18, 18, 1)',
                   backdropFilter: 'blur(20px) saturate(140%)',
@@ -125,7 +125,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <Bell size={18} className="text-primary" />
-                      <h3 className="text-label font-bold text-white">Notifications</h3>
+                      <h3 className="text-label font-semibold text-white">Notifications</h3>
                       {unreadCount > 0 && (
                         <NotificationBadge count={unreadCount} size="sm" />
                       )}
@@ -175,7 +175,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                         <button
                           key={option.value}
                           onClick={() => setFilterType(option.value)}
-                          className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border-0 ${
+                          className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border-0 ${
                             filterType === option.value
                               ? 'bg-[rgba(255,255,255,0.08)] text-white'
                               : 'bg-[rgba(255,255,255,0.04)] text-zinc-400 hover:bg-[rgba(255,255,255,0.05)] hover:text-white'
@@ -236,7 +236,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
 
                         {/* Divider */}
                         <div className="pt-3 mt-3">
-                          <p className="text-xs font-bold text-zinc-500 mb-3 uppercase tracking-wider">
+                          <p className="text-xs font-semibold text-zinc-500 mb-3 uppercase tracking-wider">
                             Notification Types
                           </p>
 
@@ -329,7 +329,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                 {/* Footer - View All Notifications */}
                 {!showSettings && notifications.length > 0 && (
                   <div className="p-3">
-                    <button className="w-full text-center text-xs font-bold text-primary hover:text-[color:color-mix(in_srgb,var(--color-primary-custom)_82%,black)] transition-colors py-2">
+                    <button className="w-full text-center text-xs font-semibold text-primary hover:text-[color:color-mix(in_srgb,var(--color-primary-custom)_82%,black)] transition-colors py-2">
                       View All Notifications
                     </button>
                   </div>

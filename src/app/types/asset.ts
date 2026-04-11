@@ -68,7 +68,7 @@ export interface MarketplaceAsset {
   // === PRICING ===
   price: string;                   // Current price: "5.8 ETH" hoặc "5800000000000000000" (wei)
   priceUSD?: string;               // USD equivalent: "$12,450"
-  currency: 'ETH' | 'WETH' | 'USDC' | 'DAI'; // Payment currency
+  currency: 'ETH' | 'WETH' | 'USDC' | 'USDT' | 'WBNB' | 'DAI'; // Payment currency
   
   // === AVAILABILITY (for RWA with slots) ===
   availableSlots?: number;         // Available slots: 45
@@ -194,7 +194,7 @@ export interface ReceiptNFT {
   // === PAYMENT ===
   purchaseValue: string;           // Amount paid: "5.8 ETH"
   purchaseValueUSD?: string;       // USD at time of purchase
-  currency: 'ETH' | 'WETH' | 'USDC' | 'DAI';
+  currency: 'ETH' | 'WETH' | 'USDC' | 'USDT' | 'WBNB' | 'DAI';
   
   // === STATUS ===
   verified: boolean;               // Receipt verified on-chain

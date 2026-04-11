@@ -119,7 +119,7 @@ export function NewConversationModal({
           <div className="studio-portal-header shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <h1 className="text-lg font-bold text-white tracking-tight truncate">New Conversation</h1>
+                <h1 className="text-lg font-semibold text-white tracking-tight truncate">New Conversation</h1>
                 <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5">
                   Wallet-to-Wallet Secure Messaging
                 </p>
@@ -136,7 +136,7 @@ export function NewConversationModal({
                 <div className="hidden-scrollbar flex h-auto min-h-0 w-full max-w-[366px] flex-col gap-4 overflow-visible pr-1">
                   <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Recipient Wallet</h3>
+                      <h3 className="text-[10px] font-semibold uppercase tracking-[1px] text-[#71717A]">Recipient Wallet</h3>
                       <Wallet className="text-[#52525B]" size={14} />
                     </div>
 
@@ -168,8 +168,8 @@ export function NewConversationModal({
 
                   <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Contact Label</h3>
-                      <span className="text-[9px] font-bold uppercase tracking-[1px] text-[#71717A]">Optional</span>
+                      <h3 className="text-[10px] font-semibold uppercase tracking-[1px] text-[#71717A]">Contact Label</h3>
+                      <span className="text-[9px] font-semibold uppercase tracking-[1px] text-[#71717A]">Optional</span>
                     </div>
                     <input
                       type="text"
@@ -188,16 +188,16 @@ export function NewConversationModal({
                 <div className="hidden-scrollbar flex h-auto min-h-0 w-full max-w-[366px] flex-col gap-4 overflow-visible pr-1">
                   <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Conversation Preview</h3>
+                      <h3 className="text-[10px] font-semibold uppercase tracking-[1px] text-[#71717A]">Conversation Preview</h3>
                       <User className="text-[#52525B]" size={14} />
                     </div>
 
                     <div className="studio-portal-subsurface bg-black/40 rounded-xl p-4 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#2CC295]/20 border border-[#2CC295]/30 text-[#2CC295] font-bold text-sm inline-flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-[#2CC295]/20 border border-[#2CC295]/30 text-[#2CC295] font-semibold text-sm inline-flex items-center justify-center">
                         {recipientLabel.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-white truncate">{recipientLabel}</p>
+                        <p className="text-sm font-semibold text-white truncate">{recipientLabel}</p>
                         <p className="text-[10px] text-[#71717A] font-mono truncate">
                           {isValidAddress ? trimmedAddress : 'No valid address yet'}
                         </p>
@@ -208,7 +208,7 @@ export function NewConversationModal({
                   <button
                     onClick={handleSubmit}
                     disabled={isValidating || !isValidAddress}
-                    className="w-full h-[49px] rounded-full bg-[#2CC295] text-black text-sm font-black uppercase tracking-[0.08em] flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full h-[49px] rounded-full bg-[#2CC295] text-black text-sm font-semibold uppercase tracking-[0.08em] flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <MessageSquarePlus size={16} />
                     {isValidating ? 'Creating...' : 'Start Conversation'}

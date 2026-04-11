@@ -5,8 +5,11 @@ import { createPortal } from 'react-dom';
 import { useAccount } from 'wagmi';
 import { AssetThumb } from '@/app/components/asset-thumb';
 import { ProtocolChainBanner } from '@/app/components/ui/protocol-chain-banner';
+import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
+import { useAccessMode } from '@/hooks/useAccessMode';
 import { useProtocolChain } from '@/hooks/useProtocolChain';
+import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { submitProfileReview } from '@/utils/profileReputationSync';
 import type { OrderShippingAddressSnapshot } from '@/types/order';
 import {
@@ -19,10 +22,13 @@ import {
 interface ConfirmDeliveryModalProps {
   order: {
     orderId: bigint;
+    assetId: bigint;
+    assetUid?: string;
     assetName: string;
     assetImage: string;
     grossPrice: bigint;
     amount: bigint;
+    unitLabel?: string;
     unitName?: string;
     seller: `0x${string}`;
     paymentTokenSymbol?: string;
@@ -40,7 +46,9 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [review, setReview] = useState('');
+  const access = useAccessMode();
   const protocolChain = useProtocolChain();
+  const { requireWalletActionAsync } = useRequireWalletAction();
   const quantityLabel = formatOrderQuantity(order.amount, order.unitLabel, order.unitName);
   const grossPriceLabel = formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
   const shippingDetails = getOrderShippingDetails(order.shippingAddressSnapshot, order.shippingMethodLabel);
@@ -56,31 +64,46 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
   const handleConfirm = async () => {
     if (isSubmitting) return;
 
-    try {
-      setIsSubmitting(true);
-      await onConfirm();
-      if (rating > 0 && address) {
-        await submitProfileReview({
-          reviewerAddress: address,
-          reviewedAddress: order.seller,
-          orderUid: order.orderId.toString(),
-          assetId: order.orderId.toString(),
-          assetName: order.assetName,
-          rating,
-          review,
-          ratingType: 'seller',
-          source: 'confirm_delivery_modal',
-        });
+    const continueConfirmDelivery = async () => {
+      try {
+        setIsSubmitting(true);
+        await onConfirm();
+        if (rating > 0 && address) {
+          await submitProfileReview({
+            reviewerAddress: address,
+            reviewedAddress: order.seller,
+            orderUid: order.orderId.toString(),
+            assetId: order.assetUid?.trim() || order.assetId.toString(),
+            assetName: order.assetName,
+            rating,
+            review,
+            ratingType: 'seller',
+            source: 'confirm_delivery_modal',
+          });
+        }
+      } finally {
+        setIsSubmitting(false);
       }
-    } finally {
-      setIsSubmitting(false);
+    };
+
+    if (!(await requireWalletActionAsync({
+      capability: 'protocol_order_write',
+      actionLabel: 'confirm delivery',
+      fallbackPage: 'orders',
+      onSecurityCheckConfirmed: continueConfirmDelivery,
+    }))) {
+      return;
     }
+
+    await continueConfirmDelivery();
   };
 
   const primaryLabel = isSubmitting
-    ? 'Open MetaMask...'
+    ? 'Open Wallet...'
     : !protocolChain.isConnected
       ? 'Connect Wallet'
+      : access.isAuthPending
+        ? 'Unlock Wallet'
       : !protocolChain.isOnProtocolChain
         ? 'Switch Network'
         : 'Confirm';
@@ -104,16 +127,16 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
             <div className="studio-portal-header shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <h2 className="text-lg font-bold text-white tracking-tight truncate">Confirm Delivery</h2>
+                  <h2 className="text-lg font-semibold text-white tracking-tight truncate">Confirm Delivery</h2>
                   <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5">
                     Release escrow and finalize order #{order.orderId.toString()}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="studio-portal-chip h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
+                  <span className="studio-portal-chip h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-semibold text-zinc-400 uppercase tracking-widest">
                     Order #{order.orderId.toString().slice(-6)}
                   </span>
-                  <span className="h-7 px-3 inline-flex items-center bg-[#2CC295]/15 rounded-full border border-[#2CC295]/30 text-[9px] font-bold text-[#2CC295] uppercase tracking-widest">
+                  <span className="h-7 px-3 inline-flex items-center bg-[#2CC295]/15 rounded-full border border-[#2CC295]/30 text-[9px] font-semibold text-[#2CC295] uppercase tracking-widest">
                     Delivery Check
                   </span>
                   <StudioModalCloseButton onClick={onCancel} disabled={isSubmitting} />
@@ -132,14 +155,14 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                       <div className="flex items-center gap-4">
                         <AssetThumb
                           src={order.assetImage}
-                          alt="Product"
+                          alt="Asset"
                           className="w-16 h-16 rounded-xl bg-zinc-800 border border-[#27272a] shrink-0"
                         />
                         <div className="min-w-0">
-                          <p className="text-base font-bold text-white leading-tight truncate">{order.assetName}</p>
+                          <p className="text-base font-semibold text-white leading-tight truncate">{order.assetName}</p>
                           <p className="mt-1 text-[10px] text-zinc-500 uppercase tracking-widest">
                             Qty
-                            <span className="ml-2 text-[#2CC295] font-bold">{quantityLabel}</span>
+                            <span className="ml-2 text-[#2CC295] font-semibold">{quantityLabel}</span>
                           </p>
                         </div>
                       </div>
@@ -147,23 +170,23 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
 
                     {/* Summary */}
                     <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-4">
-                      <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Finalization Summary</h4>
+                      <h4 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Finalization Summary</h4>
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-zinc-500">Quantity</span>
-                          <span className="text-xs font-bold text-white">{quantityLabel}</span>
+                          <span className="text-xs font-semibold text-white">{quantityLabel}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-zinc-500">Amount</span>
-                          <span className="text-xl font-bold text-white">{grossPriceLabel}</span>
+                          <span className="text-xl font-semibold text-white">{grossPriceLabel}</span>
                         </div>
                       </div>
                     </div>
 
                     {hasOrderShippingDetails(shippingDetails) ? (
                       <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
-                        <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Shipping Snapshot</h4>
-                        {shippingDetails.methodLabel ? <p className="text-xs font-bold text-[#2CC295]">{shippingDetails.methodLabel}</p> : null}
+                        <h4 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Shipping Snapshot</h4>
+                        {shippingDetails.methodLabel ? <p className="text-xs font-semibold text-[#2CC295]">{shippingDetails.methodLabel}</p> : null}
                         {shippingDetails.recipientName ? <p className="text-xs text-white">{shippingDetails.recipientName}</p> : null}
                         {shippingDetails.address ? <p className="text-[11px] text-zinc-400 leading-relaxed">{shippingDetails.address}</p> : null}
                         {shippingDetails.phone ? <p className="text-[10px] text-zinc-500">{shippingDetails.phone}</p> : null}
@@ -177,14 +200,14 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
 
                     {/* What happens next */}
                     <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
-                      <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">What Happens Next</h4>
+                      <h4 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">What Happens Next</h4>
                       <div className="space-y-3">
                         <div className="flex items-start gap-3">
                           <div className="w-9 h-9 rounded-lg bg-[#2CC295]/10 border border-[#2CC295]/20 flex items-center justify-center shrink-0">
                             <Coins className="text-[#2CC295]" size={16} />
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-white">Funds Released</p>
+                            <p className="text-xs font-semibold text-white">Funds Released</p>
                             <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
                               Escrowed funds are transferred to the seller wallet.
                             </p>
@@ -195,7 +218,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                             <Award className="text-blue-400" size={16} />
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-white">Receipt Finalized</p>
+                            <p className="text-xs font-semibold text-white">Receipt Finalized</p>
                             <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
                               Receipt and ownership state are finalized on-chain.
                             </p>
@@ -206,7 +229,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                             <Check className="text-green-400" size={16} />
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-white">Order Closed</p>
+                            <p className="text-xs font-semibold text-white">Order Closed</p>
                             <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
                               Order state becomes FINALIZED and cannot be changed.
                             </p>
@@ -232,7 +255,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                     <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
                       <div className="flex items-center gap-2">
                         <Star className="text-[#2CC295] fill-[#2CC295]" size={16} />
-                        <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Rate Your Experience</h4>
+                        <h4 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Rate Your Experience</h4>
                       </div>
                       <div className="flex items-center gap-1.5">
                         {[1, 2, 3, 4, 5].map((star) => (
@@ -242,7 +265,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                             onClick={() => setRating(star)}
                             onMouseEnter={() => setHoveredRating(star)}
                             onMouseLeave={() => setHoveredRating(0)}
-                            className="transition-all hover:scale-110"
+                            className="rounded-full p-1 transition-all hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35"
                           >
                             <Star
                               size={24}
@@ -256,7 +279,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                         ))}
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">
+                        <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mb-2">
                           Review (Optional)
                         </label>
                         <textarea
@@ -274,7 +297,7 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                     <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
                       <div className="flex items-start gap-2 mb-3">
                         <AlertTriangle className="text-orange-400 shrink-0 mt-0.5" size={16} />
-                        <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">
+                        <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-widest">
                           Irreversible Action
                         </p>
                       </div>
@@ -283,27 +306,33 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
                       </p>
                       {isSubmitting ? (
                         <p className="mt-3 text-[11px] text-[#2CC295] leading-relaxed">
-                          Waiting for MetaMask confirmation...
+                          Waiting for wallet confirmation...
                         </p>
                       ) : null}
                     </div>
 
                     {/* Actions */}
                     <div className="grid grid-cols-2 gap-3 pt-1">
-                      <button
+                      <StudioActionButton
+                        type="button"
                         onClick={onCancel}
                         disabled={isSubmitting}
-                        className="studio-portal-secondary h-12 px-6 bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-white font-bold text-base rounded-full transition-colors"
+                        variant="secondary"
+                        size="lg"
+                        className="studio-portal-secondary flex-1 text-base text-ui-primary"
                       >
                         Cancel
-                      </button>
-                      <button
+                      </StudioActionButton>
+                      <StudioActionButton
+                        type="button"
                         onClick={handleConfirm}
                         disabled={isSubmitting}
-                        className="h-12 px-6 bg-[#2CC295] hover:bg-[#25a882] text-black font-bold text-base rounded-full transition-all shadow-lg shadow-[#2CC295]/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                        variant="primary"
+                        size="lg"
+                        className="flex-1 text-base shadow-lg shadow-[#2CC295]/20 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {primaryLabel}
-                      </button>
+                      </StudioActionButton>
                     </div>
                   </div>
                 </div>

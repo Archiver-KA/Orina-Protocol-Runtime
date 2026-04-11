@@ -63,7 +63,7 @@ async function buildWalletAuthHeaders(
 
   const existingToken = getSupabaseBridgeAccessToken();
   if (!existingToken) {
-    throw new Error('Wallet session required. Sign the Orina wallet auth message, then retry.');
+    throw new Error('Please confirm your wallet once in Orina to continue messaging.');
   }
 
   const headers: Record<string, string> = {

@@ -1,0 +1,384 @@
+{
+  "nodes": [
+    {
+      "slug": "physical_goods",
+      "parentSlug": null,
+      "nodeType": "asset_class",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "physical_goods",
+      "sortOrder": 10,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Physical Goods"
+      },
+      "aliases": {
+        "en": ["physical goods", "physical products"]
+      },
+      "metadata": {
+        "legacyCategoryAliases": []
+      }
+    },
+    {
+      "slug": "real_estate",
+      "parentSlug": null,
+      "nodeType": "asset_class",
+      "assetClassSlug": "real_estate",
+      "marketBucket": "real_estate",
+      "sortOrder": 20,
+      "isActive": false,
+      "supportsCurrentProtocol": false,
+      "labels": {
+        "en": "Real Estate"
+      },
+      "aliases": {
+        "en": ["property", "real estate"]
+      },
+      "metadata": {
+        "legacyCategoryAliases": ["property"]
+      }
+    },
+    {
+      "slug": "service_rights",
+      "parentSlug": null,
+      "nodeType": "asset_class",
+      "assetClassSlug": "service_rights",
+      "marketBucket": "service_rights",
+      "sortOrder": 30,
+      "isActive": false,
+      "supportsCurrentProtocol": false,
+      "labels": {
+        "en": "Service Rights"
+      },
+      "aliases": {
+        "en": ["service rights", "service entitlement"]
+      },
+      "metadata": {
+        "legacyCategoryAliases": []
+      }
+    },
+    {
+      "slug": "digital_assets",
+      "parentSlug": null,
+      "nodeType": "asset_class",
+      "assetClassSlug": "digital_assets",
+      "marketBucket": "digital_assets",
+      "sortOrder": 40,
+      "isActive": false,
+      "supportsCurrentProtocol": false,
+      "labels": {
+        "en": "Digital Assets"
+      },
+      "aliases": {
+        "en": ["digital assets", "tokenized assets"]
+      },
+      "metadata": {
+        "legacyCategoryAliases": []
+      }
+    },
+    {
+      "slug": "agri_food",
+      "parentSlug": "physical_goods",
+      "nodeType": "category",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "agri_food",
+      "sortOrder": 100,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Agriculture & Food"
+      },
+      "aliases": {
+        "en": ["agriculture", "food", "agri products"]
+      },
+      "metadata": {
+        "legacyCategoryAliases": ["food", "agriculture", "agri"]
+      }
+    },
+    {
+      "slug": "fashion_textiles",
+      "parentSlug": "physical_goods",
+      "nodeType": "category",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "fashion_textiles",
+      "sortOrder": 110,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Fashion & Textiles"
+      },
+      "aliases": {
+        "en": ["fashion", "textiles", "clothing and fabric"]
+      },
+      "metadata": {
+        "legacyCategoryAliases": ["clothing", "fashion", "textiles", "apparel"]
+      }
+    },
+    {
+      "slug": "home_living",
+      "parentSlug": "physical_goods",
+      "nodeType": "category",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "home_living",
+      "sortOrder": 120,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Home & Living"
+      },
+      "aliases": {
+        "en": ["home goods", "home and living", "household"]
+      },
+      "metadata": {
+        "legacyCategoryAliases": ["home", "home goods", "furniture", "appliances"]
+      }
+    },
+    {
+      "slug": "consumer_electronics",
+      "parentSlug": "physical_goods",
+      "nodeType": "category",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "consumer_electronics",
+      "sortOrder": 130,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Consumer Electronics"
+      },
+      "aliases": {
+        "en": ["electronics", "consumer electronics", "electronic devices"]
+      },
+      "metadata": {
+        "legacyCategoryAliases": ["electronics", "consumer electronics", "digital devices"]
+      }
+    },
+    {
+      "slug": "industrial_supply",
+      "parentSlug": "physical_goods",
+      "nodeType": "category",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "industrial_supply",
+      "sortOrder": 140,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Industrial Supply"
+      },
+      "aliases": {
+        "en": ["industrial", "industrial equipment", "industrial tools"]
+      },
+      "metadata": {
+        "legacyCategoryAliases": ["industrial", "industrial equipment", "tools", "machinery"]
+      }
+    },
+    {
+      "slug": "automotive_parts",
+      "parentSlug": "physical_goods",
+      "nodeType": "category",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "automotive_parts",
+      "sortOrder": 150,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Automotive Parts"
+      },
+      "aliases": {
+        "en": ["auto parts", "automotive", "vehicle parts"]
+      },
+      "metadata": {
+        "legacyCategoryAliases": ["auto parts", "automotive", "vehicle parts"]
+      }
+    },
+    {
+      "slug": "raw_materials_packaging",
+      "parentSlug": "physical_goods",
+      "nodeType": "category",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "raw_materials_packaging",
+      "sortOrder": 160,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Raw Materials & Packaging"
+      },
+      "aliases": {
+        "en": ["raw materials", "packaging", "industrial materials"]
+      },
+      "metadata": {
+        "legacyCategoryAliases": ["raw materials", "packaging", "materials"]
+      }
+    },
+    {
+      "slug": "luxury_collectibles",
+      "parentSlug": "physical_goods",
+      "nodeType": "category",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "luxury_collectibles",
+      "sortOrder": 170,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Luxury & Collectibles"
+      },
+      "aliases": {
+        "en": ["luxury", "collectibles", "premium collectibles"]
+      },
+      "metadata": {
+        "legacyCategoryAliases": ["luxury", "collectibles"]
+      }
+    },
+    {
+      "slug": "coffee",
+      "parentSlug": "agri_food",
+      "nodeType": "subcategory",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "agri_food",
+      "sortOrder": 1000,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Coffee"
+      },
+      "aliases": {
+        "en": ["coffee beans", "roasted coffee", "green coffee"]
+      },
+      "metadata": {
+        "legacySubcategoryAliases": ["coffee beans", "roasted coffee", "green coffee"]
+      }
+    },
+    {
+      "slug": "garments",
+      "parentSlug": "fashion_textiles",
+      "nodeType": "subcategory",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "fashion_textiles",
+      "sortOrder": 1100,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Garments"
+      },
+      "aliases": {
+        "en": ["clothing", "apparel", "garments"]
+      },
+      "metadata": {
+        "legacySubcategoryAliases": ["clothing", "apparel", "garments"]
+      }
+    },
+    {
+      "slug": "furniture",
+      "parentSlug": "home_living",
+      "nodeType": "subcategory",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "home_living",
+      "sortOrder": 1200,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Furniture"
+      },
+      "aliases": {
+        "en": ["furniture", "home furniture"]
+      },
+      "metadata": {
+        "legacySubcategoryAliases": ["furniture", "home furniture"]
+      }
+    },
+    {
+      "slug": "mobile_devices",
+      "parentSlug": "consumer_electronics",
+      "nodeType": "subcategory",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "consumer_electronics",
+      "sortOrder": 1300,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Mobile Devices"
+      },
+      "aliases": {
+        "en": ["mobile phone", "smartphone", "tablet"]
+      },
+      "metadata": {
+        "legacySubcategoryAliases": ["mobile phone", "smartphone", "tablet", "phone"]
+      }
+    },
+    {
+      "slug": "tools_equipment",
+      "parentSlug": "industrial_supply",
+      "nodeType": "subcategory",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "industrial_supply",
+      "sortOrder": 1400,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Tools & Equipment"
+      },
+      "aliases": {
+        "en": ["tools", "equipment", "industrial tools"]
+      },
+      "metadata": {
+        "legacySubcategoryAliases": ["tools", "equipment", "industrial tools"]
+      }
+    },
+    {
+      "slug": "engine_parts",
+      "parentSlug": "automotive_parts",
+      "nodeType": "subcategory",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "automotive_parts",
+      "sortOrder": 1500,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Engine Parts"
+      },
+      "aliases": {
+        "en": ["engine components", "engine parts", "motor parts"]
+      },
+      "metadata": {
+        "legacySubcategoryAliases": ["engine components", "engine parts", "motor parts"]
+      }
+    },
+    {
+      "slug": "metals",
+      "parentSlug": "raw_materials_packaging",
+      "nodeType": "subcategory",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "raw_materials_packaging",
+      "sortOrder": 1600,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Metals"
+      },
+      "aliases": {
+        "en": ["metal", "alloy", "steel", "aluminum", "copper"]
+      },
+      "metadata": {
+        "legacySubcategoryAliases": ["metal", "alloy", "steel", "aluminum", "copper"]
+      }
+    },
+    {
+      "slug": "watches",
+      "parentSlug": "luxury_collectibles",
+      "nodeType": "subcategory",
+      "assetClassSlug": "physical_goods",
+      "marketBucket": "luxury_collectibles",
+      "sortOrder": 1700,
+      "isActive": true,
+      "supportsCurrentProtocol": true,
+      "labels": {
+        "en": "Watches"
+      },
+      "aliases": {
+        "en": ["watch", "wristwatch", "timepiece"]
+      },
+      "metadata": {
+        "legacySubcategoryAliases": ["watch", "wristwatch", "timepiece"]
+      }
+    }
+  ]
+}

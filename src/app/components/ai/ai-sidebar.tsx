@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { X, Send, History, MessageSquare, Trash2, Image, Sparkles, ChevronRight, ArrowLeft, Plus, ArrowUp, Clock, Loader2, Maximize2, Minimize2 } from 'lucide-react';
+import { X, History, MessageSquare, Trash2, Image, Sparkles, ChevronRight, ArrowLeft, Plus, ArrowUp, Clock, Loader2, Maximize2, Minimize2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useAccount } from 'wagmi';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import {
   AIChatEntry,
   AIAssistContext,
@@ -14,6 +14,17 @@ import {
 } from '@/app/types/ai-agent';
 import { AIAgentClient } from '@/utils/aiAgentClient';
 import { BorderlessTextarea } from './borderless-textarea';
+import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
+import { getCategoryDisplayLabel } from '@/utils/taxonomy';
+import {
+  dispatchAppNavigation,
+  navigateToSearchCategory,
+  navigateToSearchResults,
+} from '@/utils/appNavigation';
+import {
+  getMarketplaceCatalogAssetById,
+  loadMarketplaceCatalogSync,
+} from '@/utils/marketplaceCatalog';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -47,6 +58,9 @@ function AIFlowerIcon({ className = '' }: { className?: string }) {
   );
 }
 
+const AI_SIDEBAR_PILL_CLASS =
+  'studio-glass-chip rounded-full border-0 bg-[var(--t-surface-10)] text-ui-secondary transition-colors hover:bg-[var(--t-input-focus-bg)] hover:text-ui-primary';
+
 // ── Simple inline markdown renderer ─────────────────────────────────────────
 function renderMarkdown(text: string) {
   // Split into lines, handle each
@@ -57,7 +71,7 @@ function renderMarkdown(text: string) {
     let last = 0, m: RegExpExecArray | null;
     while ((m = regex.exec(line)) !== null) {
       if (m.index > last) parts.push(line.slice(last, m.index));
-      if (m[1] !== undefined) parts.push(<strong key={m.index} className="font-semibold text-white">{m[1]}</strong>);
+      if (m[1] !== undefined) parts.push(<strong key={m.index} className="font-semibold">{m[1]}</strong>);
       else if (m[2] !== undefined) parts.push(<em key={m.index} className="italic">{m[2]}</em>);
       else if (m[3] !== undefined) parts.push(
         <a key={m.index} href={m[4]} target="_blank" rel="noopener noreferrer"
@@ -72,14 +86,14 @@ function renderMarkdown(text: string) {
   });
 }
 
-function ChatBubble({ entry }: { entry: AIChatEntry }) {
+function ChatBubble({ entry, animateResponse = false }: { entry: AIChatEntry; animateResponse?: boolean }) {
   const isUser = entry.role === 'user';
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-2`}>
       <div
         className={`${isUser ? 'max-w-[82%]' : 'max-w-[96%] w-full'} rounded-[14px] px-3.5 py-2.5 text-[13px] leading-relaxed ${
           isUser
-            ? 'bg-black text-white rounded-br-[4px] font-medium'
+            ? 'ai-user-chat-bubble rounded-br-[4px] font-medium'
             : 'bg-transparent text-ui-primary'
         }`}
       >
@@ -90,7 +104,9 @@ function ChatBubble({ entry }: { entry: AIChatEntry }) {
             ))}
           </div>
         )}
-        {renderMarkdown(entry.text)}
+        <div className={isUser ? undefined : animateResponse ? 'ai-response-text-reveal' : 'ai-response-text'}>
+          {renderMarkdown(entry.text)}
+        </div>
       </div>
     </div>
   );
@@ -98,6 +114,7 @@ function ChatBubble({ entry }: { entry: AIChatEntry }) {
 
 
 function AIProductCard({ product, onView }: { product: AIProductResult; onView: (p: AIProductResult) => void }) {
+  const categoryLabel = getCategoryDisplayLabel(product.category);
   return (
     <div className="flex items-center gap-2.5 rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] p-5 transition-colors hover:bg-[var(--t-surface-hover)] group">
       <div className="w-10 h-10 rounded-lg bg-[var(--t-input-bg)] overflow-hidden shrink-0">
@@ -106,8 +123,17 @@ function AIProductCard({ product, onView }: { product: AIProductResult; onView: 
           : <div className="w-full h-full bg-ui-input" />}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[12px] font-bold text-ui-primary truncate">{product.title}</p>
-        <p className="text-[11px] text-ui-muted truncate">{product.category}{product.price ? ` · ${product.price}` : ''}</p>
+        <p className="text-[12px] font-semibold text-ui-primary truncate">{product.title}</p>
+        <div className="mt-0.5 flex items-center gap-1 text-[11px] text-ui-muted">
+          <button
+            type="button"
+            onClick={() => navigateToSearchCategory({ category: product.category })}
+            className="truncate transition-colors hover:text-primary"
+          >
+            {categoryLabel}
+          </button>
+          {product.price ? <span className="shrink-0">· {product.price}</span> : null}
+        </div>
       </div>
       <button
         type="button"
@@ -131,7 +157,7 @@ function AIOrderCard({ order }: { order: AIOrderSummary }) {
   return (
     <div className="space-y-1 rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] p-5">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[12px] font-bold text-ui-primary truncate flex-1">{order.assetName}</p>
+        <p className="text-[12px] font-semibold text-ui-primary truncate flex-1">{order.assetName}</p>
         <span className={`text-[11px] font-medium shrink-0 ${statusColor[order.status] ?? 'text-ui-muted'}`}>
           {order.status}
         </span>
@@ -141,7 +167,7 @@ function AIOrderCard({ order }: { order: AIOrderSummary }) {
           {order.role === 'seller' ? 'Sale' : 'Purchase'}
         </span>
         <span>·</span>
-        <span className="text-ui-primary font-bold">{order.totalValue} {order.currencySymbol}</span>
+        <span className="text-ui-primary font-semibold">{order.totalValue} {order.currencySymbol}</span>
       </div>
     </div>
   );
@@ -161,13 +187,13 @@ function AIDisputeCard({ dispute }: { dispute: AIDisputeSuggestion }) {
   return (
     <div className="space-y-2 rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] p-5">
       <div className="flex items-center justify-between">
-        <span className={`text-[12px] font-bold uppercase tracking-wider ${verdictColor[dispute.verdict] ?? 'text-ui-secondary'}`}>
+        <span className={`text-[12px] font-semibold uppercase tracking-wider ${verdictColor[dispute.verdict] ?? 'text-ui-secondary'}`}>
           {verdictLabel[dispute.verdict]}
         </span>
         <span className="text-[11px] font-medium text-ui-muted">{Math.round(dispute.confidence * 100)}% confidence</span>
       </div>
       {(dispute.buyerScore != null || dispute.sellerScore != null) && (
-        <div className="flex gap-3 text-[11px] font-bold">
+        <div className="flex gap-3 text-[11px] font-semibold">
           <span className="text-blue-400">Buyer {dispute.buyerScore}</span>
           <span className="text-ui-muted">vs</span>
           <span className="text-[#2CC295]">Seller {dispute.sellerScore}</span>
@@ -184,13 +210,13 @@ function AIMintDraftCard({ draft }: { draft: any }) {
   };
   return (
     <div className="space-y-2 rounded-[24px] border border-[rgba(44,194,149,0.2)] bg-[rgba(44,194,149,0.08)] p-5">
-      <p className="text-[11px] font-bold text-primary uppercase tracking-wider">Mint Draft Ready</p>
-      {draft?.name && <p className="text-[13px] font-bold text-ui-primary">{draft.name}</p>}
+      <p className="text-[11px] font-semibold text-primary uppercase tracking-wider">Mint Draft Ready</p>
+      {draft?.name && <p className="text-[13px] font-semibold text-ui-primary">{draft.name}</p>}
       {draft?.description && <p className="text-[11px] text-ui-muted line-clamp-2">{draft.description}</p>}
       <button
         type="button"
         onClick={handleFill}
-        className="flex items-center justify-center gap-1 w-full text-[12px] px-4 py-2 mt-2 rounded-full bg-[#2CC295] text-black hover:bg-[#25a67d] transition-colors font-bold uppercase tracking-wider"
+        className="flex items-center justify-center gap-1 w-full text-[12px] px-4 py-2 mt-2 rounded-full bg-[#2CC295] text-black hover:bg-[#25a67d] transition-colors font-semibold uppercase tracking-wider"
       >
         Fill form <ChevronRight size={14} />
       </button>
@@ -201,30 +227,36 @@ function AIMintDraftCard({ draft }: { draft: any }) {
 function MarketAnalysisCard({ analysis }: { analysis: MarketAnalysis }) {
   return (
     <div className="space-y-3 rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] p-5">
-      <p className="text-[11px] font-bold text-ui-muted uppercase tracking-wider">{analysis.category}</p>
+      <button
+        type="button"
+        onClick={() => navigateToSearchCategory({ category: analysis.category })}
+        className="text-[11px] font-semibold uppercase tracking-wider text-ui-muted transition-colors hover:text-primary"
+      >
+        {getCategoryDisplayLabel(analysis.category)}
+      </button>
       <div className="grid grid-cols-2 gap-3 text-[11px]">
         <div className="p-3 bg-ui-input rounded-xl border-0">
           <p className="text-ui-muted uppercase mb-1">Avg Price</p>
-          <p className="text-ui-primary text-lg font-bold">${analysis.priceAverage.toLocaleString()}</p>
+          <p className="text-ui-primary text-lg font-semibold">${analysis.priceAverage.toLocaleString()}</p>
         </div>
         <div className="p-3 bg-ui-input rounded-xl border-0">
           <p className="text-ui-muted uppercase mb-1">Demand Score</p>
-          <p className="text-ui-primary text-lg font-bold">{analysis.demandScore}/100</p>
+          <p className="text-ui-primary text-lg font-semibold">{analysis.demandScore}/100</p>
         </div>
         <div className="p-3 bg-ui-input rounded-xl border-0">
           <p className="text-ui-muted uppercase mb-1">Sell-through</p>
-          <p className="text-ui-primary text-lg font-bold">{analysis.sellThroughRate}%</p>
+          <p className="text-ui-primary text-lg font-semibold">{analysis.sellThroughRate}%</p>
         </div>
         <div className="p-3 bg-ui-input rounded-xl border-0">
           <p className="text-ui-muted uppercase mb-1">Competitors</p>
-          <p className="text-ui-primary text-lg font-bold">{analysis.competitiveSellers}</p>
+          <p className="text-ui-primary text-lg font-semibold">{analysis.competitiveSellers}</p>
         </div>
       </div>
       {analysis.recommendations?.length > 0 && (
         <ul className="space-y-1.5 mt-2">
           {analysis.recommendations.slice(0, 3).map((r, i) => (
             <li key={i} className="text-[11px] text-ui-secondary flex gap-1.5">
-              <span className="text-primary shrink-0 font-bold">·</span> {r}
+              <span className="text-primary shrink-0 font-semibold">·</span> {r}
             </li>
           ))}
         </ul>
@@ -254,21 +286,21 @@ function AIClarificationCard({
 
   return (
     <div className="mx-2 mb-3 space-y-3 rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] p-5">
-      <p className="text-[13px] text-ui-primary font-bold">{question}</p>
+      <p className="text-[13px] text-ui-primary font-semibold">{question}</p>
       <div className="space-y-2">
         {options.map(opt => (
           <button
             key={opt}
             type="button"
             onClick={() => toggle(opt)}
-            className={`w-full text-left text-[12px] px-3 py-2.5 rounded-[12px] transition-colors flex items-center gap-2 ${
+            className={`w-full text-left text-[12px] px-4 py-3 rounded-full transition-colors flex items-center gap-2.5 border-0 ${AI_SIDEBAR_PILL_CLASS} ${
               selected.has(opt)
-                ? 'bg-[var(--t-surface-10)] text-ui-primary'
-                : 'bg-transparent text-ui-secondary hover:bg-[var(--t-surface-5)] hover:text-ui-primary'
+                ? 'bg-[var(--t-input-focus-bg)] text-ui-primary'
+                : 'text-ui-secondary'
             }`}
           >
-            <span className={`w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors border ${selected.has(opt) ? 'bg-ui-primary border-ui-primary' : 'border-[var(--t-border-subtle)] bg-transparent'}`}>
-              {selected.has(opt) && <span className="text-[var(--t-page-bg)] text-[10px] font-bold">✓</span>}
+            <span className={`flex h-5 w-5 items-center justify-center rounded-full shrink-0 transition-colors ${selected.has(opt) ? 'bg-ui-primary text-[var(--t-page-bg)]' : 'bg-[var(--t-surface-20)] text-transparent'}`}>
+              {selected.has(opt) && <span className="text-[var(--t-page-bg)] text-[10px] font-semibold">✓</span>}
             </span>
             {opt}
           </button>
@@ -278,7 +310,7 @@ function AIClarificationCard({
         type="button"
         disabled={selected.size === 0}
         onClick={() => onSubmit([...selected])}
-        className="w-full text-[12px] font-bold uppercase tracking-wider py-2.5 rounded-full bg-ui-primary text-[var(--t-page-bg)] hover:opacity-80 transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
+        className="w-full text-[12px] font-semibold uppercase tracking-wider py-2.5 rounded-full bg-ui-primary text-[var(--t-page-bg)] hover:opacity-80 transition-colors disabled:opacity-35 disabled:cursor-not-allowed"
       >
         Confirm
       </button>
@@ -287,17 +319,20 @@ function AIClarificationCard({
 }
 
 // ─── Loading dots ─────────────────────────────────────────────────────────────
-function ThinkingDots() {
+function AISidebarLoadingState() {
   return (
-    <div className="flex justify-start mb-2">
-      <div className="w-full max-w-[96%] px-4 py-3 rounded-[14px] rounded-bl-[4px] bg-transparent flex gap-1 items-center">
-        {[0, 1, 2].map(i => (
-          <span
-            key={i}
-            className="w-1.5 h-1.5 rounded-full bg-ui-muted animate-bounce"
-            style={{ animationDelay: `${i * 0.15}s` }}
-          />
-        ))}
+    <div className="mb-3 flex justify-start">
+      <div className="w-full max-w-[96%] rounded-[24px] bg-[var(--t-surface-5)] px-4 py-4">
+        <StudioLoadingIndicator
+          layout="stacked"
+          tone="primary"
+          size={24}
+          label="Orina AI is thinking..."
+          subLabel="Preparing the next response"
+          className="items-start justify-start text-left"
+          labelClassName="text-sm font-medium text-ui-primary"
+          subLabelClassName="text-xs text-ui-secondary"
+        />
       </div>
     </div>
   );
@@ -357,7 +392,7 @@ function clearStoredConversationId(addr: string | undefined, conversationId: str
 }
 
 export function AISidebar({ activePage, onClose }: AISidebarProps) {
-  const { address } = useAccount();
+  const { address } = useEffectiveViewer();
 
   // Auto-detect seller vs buyer context from active page
   // Seller pages: minting, assets, orders (as seller), insights, messages
@@ -380,15 +415,45 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
   });
   const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [sessionRestored, setSessionRestored] = useState(false);
+  const [animatedAiEntryId, setAnimatedAiEntryId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
+  const handleViewProduct = useCallback((product: AIProductResult) => {
+    const syncedAsset = getMarketplaceCatalogAssetById(product.id, loadMarketplaceCatalogSync());
+
+    if (syncedAsset) {
+      dispatchAppNavigation({
+        assetId: syncedAsset.id,
+        fromPage: activePage,
+      });
+      onClose();
+      return;
+    }
+
+    navigateToSearchResults({
+      query: product.title,
+      category: product.category,
+    });
+    onClose();
+  }, [activePage, onClose]);
+
   // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [entries, isLoading]);
+
+  useEffect(() => {
+    if (!animatedAiEntryId) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setAnimatedAiEntryId((currentId) => (currentId === animatedAiEntryId ? null : currentId));
+    }, 900);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [animatedAiEntryId]);
 
   // ── Auto-restore last session on mount (once per address) ─────────────────
   useEffect(() => {
@@ -410,10 +475,16 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
         id: m.id,
         role: m.senderType === 'ai_agent' ? 'ai' : 'user',
         text: m.content,
+        products: m.metadata?.products,
+        orders: m.metadata?.orders,
+        dispute: (m.metadata?.disputeSuggestion ?? m.metadata?.dispute) as AIDisputeSuggestion | undefined,
+        draft: m.metadata?.draft,
+        marketAnalysis: m.metadata?.marketAnalysis,
         timestamp: new Date(m.timestamp).getTime(),
       }));
       setConversationId(savedConvId);
       setEntries(rebuilt);
+      setAnimatedAiEntryId(null);
     }).catch(() => { /* silently ignore restore errors */ });
   }, [address, sessionRestored]);
 
@@ -436,18 +507,21 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
 
     if (!messageText && images.length === 0) return;
     if (!address) {
-        setEntries(prev => [...prev, {
-        id: createRuntimeId(),
+      const fallbackUserId = createRuntimeId();
+      const fallbackAiId = createRuntimeId();
+      setEntries(prev => [...prev, {
+        id: fallbackUserId,
         role: 'user',
         text: messageText || '🖼️ [image]',
         timestamp: Date.now(),
       }, {
-        id: createRuntimeId(),
+        id: fallbackAiId,
         role: 'ai',
         text: 'Please connect your wallet to use ORINA AI.',
         action: 'error_fallback',
         timestamp: Date.now() + 1,
       }]);
+      setAnimatedAiEntryId(fallbackAiId);
       setInput('');
       setPendingImages([]);
       return;
@@ -499,7 +573,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
       action: response.action,
       products: response.products,
       orders: response.orders,
-      dispute: response.dispute,
+      dispute: response.disputeSuggestion ?? response.dispute,
       draft: response.draft,
       marketAnalysis: response.marketAnalysis,
       clarificationQuestion: response.clarificationQuestion,
@@ -507,6 +581,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
       timestamp: Date.now(),
     };
     setEntries(prev => [...prev, aiEntry]);
+    setAnimatedAiEntryId(aiEntry.id);
   }, [input, pendingImages, address, conversationId, agentContext, activePage]);
 
   // ── Clarification submit ────────────────────────────────────────────────────
@@ -543,10 +618,16 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
       id: m.id,
       role: m.senderType === 'ai_agent' ? 'ai' : 'user',
       text: m.content,
+      products: m.metadata?.products,
+      orders: m.metadata?.orders,
+      dispute: (m.metadata?.disputeSuggestion ?? m.metadata?.dispute) as AIDisputeSuggestion | undefined,
+      draft: m.metadata?.draft,
+      marketAnalysis: m.metadata?.marketAnalysis,
       timestamp: new Date(m.timestamp).getTime(),
     }));
     setConversationId(convId);
     setEntries(rebuilt);
+    setAnimatedAiEntryId(null);
     setView('chat');
     // Persist the loaded conversation as the active session
     persistConversationId(address, convId);
@@ -568,6 +649,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
     setConversationId(newId);
     setEntries([]);
     setPendingImages([]);
+    setAnimatedAiEntryId(null);
     setView('chat');
     // Update localStorage so next open restores this new conversation
     persistConversationId(address, newId);
@@ -599,9 +681,69 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
         duration: isFullscreen ? 0.18 : 0.16,
         ease: [0.22, 1, 0.36, 1],
       }}
-      className={isFullscreen ? "fixed inset-0 z-[60] p-4 sm:p-6 md:p-8 flex items-center justify-center pointer-events-none" : "fixed right-0 top-0 h-[100dvh] w-[344px] z-[60] p-[10px] pointer-events-none"}
+      className={isFullscreen ? "fixed inset-0 z-[60] p-4 sm:p-6 md:p-8 flex items-center justify-center pointer-events-none" : "fixed right-0 top-0 h-[100dvh] w-[344px] z-[60] p-2.5 pointer-events-none"}
       style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden' }}
     >
+      <style>{`
+        .ai-sidebar-opaque-shell {
+          background: rgb(18, 18, 18);
+        }
+
+        [data-theme="light"] .ai-sidebar-opaque-shell {
+          background: #fcfdff;
+        }
+
+        .ai-user-chat-bubble {
+          background: #111111;
+          color: #ffffff;
+        }
+
+        [data-theme="dark"] .ai-user-chat-bubble {
+          background: rgba(255, 255, 255, 0.08);
+          color: rgba(248, 250, 252, 0.98);
+        }
+
+        .ai-response-text {
+          display: block;
+        }
+
+        .ai-response-text-reveal {
+          display: block;
+          will-change: clip-path, opacity, transform;
+          animation: ai-response-fade-in 220ms ease-out both, ai-response-type-reveal 540ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        @keyframes ai-response-fade-in {
+          from {
+            opacity: 0;
+            transform: translateY(4px);
+          }
+
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes ai-response-type-reveal {
+          from {
+            clip-path: inset(0 100% 0 0);
+          }
+
+          to {
+            clip-path: inset(0 0 0 0);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .ai-response-text-reveal {
+            animation: none;
+            clip-path: none;
+            opacity: 1;
+            transform: none;
+          }
+        }
+      `}</style>
       {isFullscreen && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -612,7 +754,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
         />
       )}
       <div
-        className={`relative h-full ${isFullscreen ? 'w-full max-w-6xl' : 'w-full'} rounded-[24px] bg-[var(--color-ai-sidebar-shell)] flex flex-col border border-[var(--t-border-subtle)] overflow-hidden shadow-2xl pointer-events-auto`}
+        className={`ai-sidebar-opaque-shell relative h-full ${isFullscreen ? 'w-full max-w-6xl' : 'w-full -translate-y-[1px]'} rounded-[24px] flex flex-col overflow-hidden pointer-events-auto`}
         style={{ contain: 'layout paint' }}
       >
       {/* Header */}
@@ -621,7 +763,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
           <AIFlowerIcon className="h-[20px] w-[20px] object-contain" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-ui-primary uppercase tracking-wider">ORINA AI</p>
+          <p className="text-sm font-semibold text-ui-primary uppercase tracking-wider">ORINA AI</p>
           <p className="text-xs text-ui-muted truncate capitalize">{contextLabel(agentContext, activePage)}</p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -662,14 +804,14 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
               initial={isFullscreen ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className={`${isFullscreen ? 'w-[320px] shrink-0 border-r border-[var(--t-border-subtle)] bg-[var(--color-ai-sidebar-panel)]' : 'absolute inset-0 z-10 bg-[var(--color-ai-sidebar-shell)]'} flex flex-col overflow-hidden`}
+              className={`${isFullscreen ? 'w-[320px] shrink-0 border-r border-[var(--t-border-subtle)] bg-transparent' : 'absolute inset-0 z-10 bg-transparent'} flex flex-col overflow-hidden`}
             >
               <div className="p-5 border-b border-[var(--t-border-subtle)] flex items-center justify-between shrink-0">
-                <span className="text-[12px] font-bold text-ui-muted uppercase tracking-wider">History</span>
+                <span className="text-[12px] font-semibold text-ui-muted uppercase tracking-wider">History</span>
                 <button
                 type="button"
                 onClick={startNewChat}
-                className="text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-ui-primary text-[var(--t-page-bg)] hover:opacity-80 transition-colors"
+                className="text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-full bg-ui-primary text-[var(--t-page-bg)] hover:opacity-80 transition-colors"
               >
                 + New chat
               </button>
@@ -686,7 +828,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
                       className={`w-full text-left p-4 rounded-[24px] ${conv.conversationId === conversationId ? 'bg-[var(--t-input-focus-bg)] border-[#2CC295]/50' : 'bg-[var(--t-surface-5)] hover:bg-[var(--t-surface-hover)] border-[var(--t-border-subtle)]'} transition-colors group flex items-start gap-3 border`}
                     >
                       <div className="flex-1 min-w-0">
-                        <p className={`text-[13px] font-bold truncate ${conv.conversationId === conversationId ? 'text-[#2CC295]' : 'text-ui-primary'}`}>{conv.title}</p>
+                        <p className={`text-[13px] font-semibold truncate ${conv.conversationId === conversationId ? 'text-[#2CC295]' : 'text-ui-primary'}`}>{conv.title}</p>
                         <p className="text-[12px] text-ui-secondary truncate mt-1">{conv.lastMessage}</p>
                         <p className="text-[11px] text-ui-muted mt-1.5 font-medium uppercase tracking-wider">
                           {new Date(conv.lastAt).toLocaleDateString()}
@@ -724,7 +866,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
             >
               {entries.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6 mt-8">
-                  <div className="w-[48px] h-[48px] rounded-full flex items-center justify-center border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] text-ui-primary">
+                  <div className="w-[48px] h-[48px] rounded-full flex items-center justify-center bg-[var(--t-surface-5)] text-ui-primary">
                     <AIFlowerIcon className="w-[32px] h-[32px] opacity-60 object-contain" />
                   </div>
                   <p className="text-[13px] text-ui-muted">
@@ -767,7 +909,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
                         key={text}
                         type="button"
                         onClick={() => sendMessage(text)}
-                        className="text-left text-[12px] font-medium px-4 py-2.5 rounded-[12px] bg-[var(--t-surface-5)] border border-[var(--t-border-subtle)] hover:bg-[var(--t-input-focus-bg)] text-ui-secondary hover:text-ui-primary transition-colors"
+                        className={`text-left text-[12px] font-medium px-4 py-2.5 rounded-full ${AI_SIDEBAR_PILL_CLASS}`}
                       >
                         {text}
                       </button>
@@ -778,14 +920,14 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
 
               {entries.map(entry => (
                 <div key={entry.id}>
-                  <ChatBubble entry={entry} />
+                  <ChatBubble entry={entry} animateResponse={entry.role === 'ai' && entry.id === animatedAiEntryId} />
                   {/* Structured content under AI messages */}
                   {entry.role === 'ai' && (
                     <div className="ml-8 space-y-1.5 mb-2">
                       {entry.products && entry.products.length > 0 && (
                         <div className="space-y-1.5">
                           {entry.products.map(p => (
-                            <AIProductCard key={p.id} product={p} onView={() => {}} />
+                            <AIProductCard key={p.id} product={p} onView={handleViewProduct} />
                           ))}
                         </div>
                       )}
@@ -804,7 +946,7 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
                 </div>
               ))}
 
-              {isLoading && <ThinkingDots />}
+              {isLoading && <AISidebarLoadingState />}
 
               {/* Clarification card */}
               {pendingClarification && (
@@ -838,7 +980,9 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
 
             {/* Input area */}
             <div className="p-4 pt-0 border-t-0 shrink-0 bg-transparent mb-1">
-              <div className="flex items-end gap-2 bg-[var(--color-ai-sidebar-input)] rounded-[24px] px-2 py-2 transition-colors">
+              <div
+                className="chat-composer-shell flex min-h-[66px] max-h-[300px] items-end gap-2 overflow-hidden rounded-[26px] px-3 py-2.5 transition-[background-color,border-color,box-shadow] duration-150 ease-out"
+              >
                 <input
                   ref={imageInputRef}
                   type="file"
@@ -850,36 +994,34 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
                 <button
                   type="button"
                   onClick={() => imageInputRef.current?.click()}
-                  className="w-7 h-7 flex items-center justify-center shrink-0 rounded-lg text-ui-muted hover:text-ui-primary transition-colors mb-[1px]"
+                  className="mb-[2px] flex h-8 w-8 items-center justify-center shrink-0 rounded-lg text-ui-muted transition-colors hover:text-ui-primary"
                   title="Upload image"
                 >
-                  <Plus size={18} />
+                  <Plus size={19} />
                 </button>
                 <BorderlessTextarea
                   id="ai-chat-input"
                   ref={inputRef}
                   rows={1}
+                  autoResize
+                  baseAutoHeight={24}
+                  maxAutoHeight={252}
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  onInput={(e) => {
-                    const target = e.target as HTMLTextAreaElement;
-                    target.style.height = 'auto';
-                    target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
-                  }}
                   placeholder={agentContext === 'seller' ? 'Ask about listings, orders...' : 'Search products, ask questions...'}
-                  className="flex-1 resize-none bg-transparent text-[14px] font-medium text-ui-primary placeholder:text-ui-muted overflow-y-auto leading-relaxed py-1.5 px-1 self-center"
+                  className="min-w-0 flex-1 resize-none bg-transparent px-1 py-1.5 text-[14px] font-medium leading-relaxed text-ui-primary placeholder:text-ui-muted overflow-y-auto"
                   disabled={isLoading}
-                  style={{ minHeight: '22px', maxHeight: '120px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  style={{ minHeight: '24px', maxHeight: '252px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 />
-                <div className="flex items-center gap-2 shrink-0 mb-[1px]">
+                <div className="mb-[2px] flex items-center gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => sendMessage()}
                     disabled={isLoading || (!input.trim() && pendingImages.length === 0)}
-                    className="w-7 h-7 flex flex-col items-center justify-center shrink-0 rounded-full bg-ui-primary hover:opacity-80 text-[var(--t-page-bg)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+                    className="chat-send-button"
                   >
-                    <ArrowUp size={15} strokeWidth={3} />
+                    <ArrowUp size={16} strokeWidth={3} />
                   </button>
                 </div>
               </div>

@@ -17,7 +17,7 @@ import { RPC_URLS } from '@/config/contracts';
 const config = createConfig({
   chains: [bsc, bscTestnet, sepolia, mainnet],
   connectors: [
-    injected({ shimDisconnect: true }), // MetaMask/Injected wallets don't support real disconnect; shim enables reliable app-level disconnect
+    injected({ shimDisconnect: true }), // Keep a generic fallback for other EIP-1193 browser wallets.
   ],
   transports: {
     [bsc.id]: http(RPC_URLS[56]),

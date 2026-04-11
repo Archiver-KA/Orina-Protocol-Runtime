@@ -25,6 +25,7 @@ export function PriceRangeSlider({
   }, [value]);
 
   const getPercentage = (val: number) => {
+    if (max <= min) return 0;
     return ((val - min) / (max - min)) * 100;
   };
 
@@ -73,72 +74,106 @@ export function PriceRangeSlider({
   const maxPercent = getPercentage(localValue[1]);
 
   return (
-    <div className="px-2">
+    <div className="space-y-4 px-1">
+      <div className="flex items-center justify-between rounded-[24px] border border-ui-border-subtle bg-ui-input px-4 py-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-muted">Selected Range</p>
+          <p className="mt-1 text-sm font-semibold text-ui-primary">
+            {localValue[0].toFixed(2)} - {localValue[1].toFixed(2)} ETH
+          </p>
+        </div>
+        <span className="rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-ui-secondary">
+          Live
+        </span>
+      </div>
+
       {/* Track */}
-      <div 
+      <div
         ref={trackRef}
-        className="h-1 bg-[var(--t-surface-10)] rounded-full relative cursor-pointer"
+        className="relative cursor-pointer rounded-full bg-[var(--t-surface-10)] h-2"
       >
         {/* Active range */}
         <div
-          className="absolute h-full bg-[#2CC295] rounded-full"
+          className="absolute h-full rounded-full bg-[#2CC295]"
           style={{
             left: `${minPercent}%`,
             right: `${100 - maxPercent}%`,
           }}
-        ></div>
+        />
 
         {/* Min thumb */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full border-2 border-[#2CC295] shadow-lg cursor-pointer hover:scale-110 transition-transform"
-          style={{ left: `${minPercent}%`, marginLeft: '-8px' }}
+          className="absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border-2 border-[#2CC295] bg-[var(--t-card-bg)] shadow-[0_12px_28px_-18px_rgba(44,194,149,0.55)] cursor-grab transition-transform hover:scale-110 active:cursor-grabbing"
+          style={{ left: `${minPercent}%`, marginLeft: '-10px' }}
           onMouseDown={handleMouseDown('min')}
-        ></div>
+        />
 
         {/* Max thumb */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full border-2 border-[#2CC295] shadow-lg cursor-pointer hover:scale-110 transition-transform"
-          style={{ left: `${maxPercent}%`, marginLeft: '-8px' }}
+          className="absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border-2 border-[#2CC295] bg-[var(--t-card-bg)] shadow-[0_12px_28px_-18px_rgba(44,194,149,0.55)] cursor-grab transition-transform hover:scale-110 active:cursor-grabbing"
+          style={{ left: `${maxPercent}%`, marginLeft: '-10px' }}
           onMouseDown={handleMouseDown('max')}
-        ></div>
+        />
       </div>
 
       {/* Value displays */}
-      <div className="flex justify-between mt-4">
-        <input
-          type="number"
-          inputMode="decimal"
-          value={localValue[0].toFixed(2)}
-          onChange={(e) => {
-            const val = parseFloat(e.target.value) || min;
-            const newMin = Math.max(min, Math.min(val, localValue[1] - step));
-            const newValue: [number, number] = [newMin, localValue[1]];
-            setLocalValue(newValue);
-            onChange(newValue);
-          }}
-          onKeyDown={preventInvalidNumberKeyDown}
-          step={step}
-          min={min}
-          max={localValue[1] - step}
-          className="bg-ui-input border border-ui-border-subtle rounded px-3 py-1.5 text-xs text-ui-primary w-20 placeholder:text-ui-muted focus:border-[#2CC295] focus:ring-1 focus:ring-[#2CC295] outline-none"
-        />
-        <input
-          type="number"
-          inputMode="decimal"
-          value={localValue[1].toFixed(2)}
-          onChange={(e) => {
-            const val = parseFloat(e.target.value) || max;
-            const newMax = Math.min(max, Math.max(val, localValue[0] + step));
-            const newValue: [number, number] = [localValue[0], newMax];
-            setLocalValue(newValue);
-            onChange(newValue);
-          }}
-          onKeyDown={preventInvalidNumberKeyDown}
-          step={step}
-          min={localValue[0] + step}
-          max={max}
-          className="bg-ui-input border border-ui-border-subtle rounded px-3 py-1.5 text-xs text-ui-primary w-20 placeholder:text-ui-muted focus:border-[#2CC295] focus:ring-1 focus:ring-[#2CC295] outline-none"
-        />
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-muted">
+            Min
+          </span>
+          <div className="relative">
+            <input
+              type="number"
+              inputMode="decimal"
+              value={localValue[0].toFixed(2)}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || min;
+                const newMin = Math.max(min, Math.min(val, localValue[1] - step));
+                const newValue: [number, number] = [newMin, localValue[1]];
+                setLocalValue(newValue);
+                onChange(newValue);
+              }}
+              onKeyDown={preventInvalidNumberKeyDown}
+              step={step}
+              min={min}
+              max={localValue[1] - step}
+              aria-label="Minimum price"
+              className="h-[44px] w-full rounded-full border border-ui-border-subtle bg-ui-input px-4 pr-12 text-sm font-medium text-ui-primary placeholder:text-ui-muted focus:border-[#2CC295] focus:ring-2 focus:ring-[#2CC295]/18 outline-none"
+            />
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-[0.14em] text-ui-muted">
+              ETH
+            </span>
+          </div>
+        </label>
+        <label className="block">
+          <span className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-muted">
+            Max
+          </span>
+          <div className="relative">
+            <input
+              type="number"
+              inputMode="decimal"
+              value={localValue[1].toFixed(2)}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || max;
+                const newMax = Math.min(max, Math.max(val, localValue[0] + step));
+                const newValue: [number, number] = [localValue[0], newMax];
+                setLocalValue(newValue);
+                onChange(newValue);
+              }}
+              onKeyDown={preventInvalidNumberKeyDown}
+              step={step}
+              min={localValue[0] + step}
+              max={max}
+              aria-label="Maximum price"
+              className="h-[44px] w-full rounded-full border border-ui-border-subtle bg-ui-input px-4 pr-12 text-sm font-medium text-ui-primary placeholder:text-ui-muted focus:border-[#2CC295] focus:ring-2 focus:ring-[#2CC295]/18 outline-none"
+            />
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-[0.14em] text-ui-muted">
+              ETH
+            </span>
+          </div>
+        </label>
       </div>
     </div>
   );

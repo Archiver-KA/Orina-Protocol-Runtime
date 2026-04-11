@@ -3,7 +3,9 @@ import { Calendar, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { ProtocolChainBanner } from '@/app/components/ui/protocol-chain-banner';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
+import { useAccessMode } from '@/hooks/useAccessMode';
 import { useProtocolChain } from '@/hooks/useProtocolChain';
+import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 
 interface DurationPickerProps {
   defaultDays?: number;
@@ -20,7 +22,9 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
   });
   const modalRef = useRef<HTMLDivElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
+  const access = useAccessMode();
   const protocolChain = useProtocolChain();
+  const { requireWalletActionAsync } = useRequireWalletAction();
 
   const DAY_MS = 24 * 60 * 60 * 1000;
   const startOfDay = (date: Date) => {
@@ -61,13 +65,28 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
     setDays(Math.max(1, diffDays));
   };
 
-  const handleConfirm = () => {
-    onConfirm(effectiveDays, targetDate);
+  const handleConfirm = async () => {
+    const continueConfirm = async () => {
+      await onConfirm(effectiveDays, targetDate);
+    };
+
+    if (!(await requireWalletActionAsync({
+      capability: 'protocol_order_write',
+      actionLabel: 'seller confirm the delivery time',
+      fallbackPage: 'orders',
+      onSecurityCheckConfirmed: continueConfirm,
+    }))) {
+      return;
+    }
+
+    await continueConfirm();
   };
 
   const primaryLabel = !protocolChain.isConnected
     ? 'Connect Wallet'
-    : !protocolChain.isOnProtocolChain
+    : access.isAuthPending
+      ? 'Unlock Wallet'
+      : !protocolChain.isOnProtocolChain
       ? 'Switch Network'
       : 'Sign';
 
@@ -131,7 +150,7 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
       >
         <div className="studio-glass-header px-6 md:px-8 py-6 border-b border-[rgba(255,255,255,0.06)] flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-2xl font-bold text-white">Set Delivery Time</h3>
+            <h3 className="text-2xl font-semibold text-white">Set Delivery Time</h3>
             <p className="text-sm text-zinc-400 mt-1">
               Confirm order duration and estimated delivery target date.
             </p>
@@ -144,7 +163,7 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
           <div className="space-y-4">
             <div ref={calendarRef} className="studio-glass-surface rounded-2xl border-0 bg-[rgba(255,255,255,0.02)] p-3">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-lg font-bold text-white">{formatMonthYear(currentMonth)}</p>
+                <p className="text-lg font-semibold text-white">{formatMonthYear(currentMonth)}</p>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
@@ -173,7 +192,7 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
 
               <div className="grid grid-cols-7 gap-1 text-center mb-1">
                 {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => (
-                  <div key={d} className="text-[10px] font-bold text-zinc-500 uppercase py-1">
+                  <div key={d} className="text-[10px] font-semibold text-zinc-500 uppercase py-1">
                     {d}
                   </div>
                 ))}
@@ -227,13 +246,13 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
             />
 
             <div className="studio-glass-surface rounded-2xl border-0 bg-[rgba(255,255,255,0.02)] p-4">
-              <p className="text-[10px] font-bold tracking-[0.18em] text-zinc-500 uppercase mb-3">
+              <p className="text-[10px] font-semibold tracking-[0.18em] text-zinc-500 uppercase mb-3">
                 Order Summary
               </p>
 
               <div className="studio-glass-subsurface mb-3 rounded-xl border border-[rgba(255,255,255,0.06)] overflow-hidden">
                 <div className="studio-glass-subsurface px-3 py-2.5 bg-[rgba(255,255,255,0.02)] border-b border-[rgba(255,255,255,0.06)]">
-                  <p className="text-[10px] font-bold tracking-[0.18em] text-zinc-500 uppercase">
+                  <p className="text-[10px] font-semibold tracking-[0.18em] text-zinc-500 uppercase">
                     Delivery Duration
                   </p>
                 </div>
@@ -241,8 +260,8 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
                 <div className="grid grid-cols-[1fr_auto_1.2fr] items-stretch gap-0">
                   <div className="studio-glass-subsurface px-3 py-3 flex items-center justify-between bg-[rgba(255,255,255,0.02)]">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">Days</p>
-                      <p className="text-xl font-bold text-white mt-1">{effectiveDays}</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Days</p>
+                      <p className="text-xl font-semibold text-white mt-1">{effectiveDays}</p>
                     </div>
                     <div className="flex flex-col gap-1">
                       <button
@@ -266,10 +285,10 @@ export function DurationPicker({ defaultDays = 7, onConfirm, onCancel }: Duratio
 
                   <div className="px-3 py-3 flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] leading-none whitespace-nowrap text-zinc-500">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] leading-none whitespace-nowrap text-zinc-500">
                         Target Date
                       </p>
-                      <p className="text-lg font-bold text-white mt-1">{formatTargetDate(targetDate)}</p>
+                      <p className="text-lg font-semibold text-white mt-1">{formatTargetDate(targetDate)}</p>
                     </div>
                     <div className="studio-glass-secondary duration-picker-hover-secondary w-9 h-9 rounded-xl border border-white/10 bg-white/5 inline-flex items-center justify-center text-zinc-300 transition-all">
                       <Calendar size={16} />

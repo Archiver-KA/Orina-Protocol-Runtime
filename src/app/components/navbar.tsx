@@ -1,5 +1,5 @@
 import { Search } from 'lucide-react';
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NotificationCenter } from '@/app/components/notifications/notification-center';
 import { WalletConnectButton } from '@/app/components/wallet-connect-button';
@@ -28,6 +28,11 @@ interface NavbarProps {
   onToggleAI?: () => void;
   aiActive?: boolean;
 }
+
+type IdleSchedulerWindow = Window & {
+  requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+  cancelIdleCallback?: (handle: number) => void;
+};
 
 const PRIMARY_NAV_LINKS = [
   { id: 'marketplace', label: 'Marketplace' },
@@ -60,19 +65,34 @@ function formatHistoryQuery(query: string): string {
   return normalized.matchedBy === 'raw_fallback' ? trimmed : normalized.categoryLabel;
 }
 
+function scheduleDeferredNavbarWork(task: () => void) {
+  if (typeof window === 'undefined') return () => undefined;
+
+  const idleWindow = window as IdleSchedulerWindow;
+  if (typeof idleWindow.requestIdleCallback === 'function') {
+    const handle = idleWindow.requestIdleCallback(task, { timeout: 1200 });
+    return () => idleWindow.cancelIdleCallback?.(handle);
+  }
+
+  const handle = window.setTimeout(task, 180);
+  return () => window.clearTimeout(handle);
+}
+
 export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, onToggleAI, aiActive }: NavbarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [marketplaceCategories, setMarketplaceCategories] = useState<string[]>(() =>
-    loadMarketplaceCatalogSync().map((asset) => asset.category)
-  );
-  const [collectionCategories, setCollectionCategories] = useState<string[]>(() =>
-    loadRuntimeCollections().map((collection) => collection.category)
-  );
+  const [searchDataReady, setSearchDataReady] = useState(false);
+  const [marketplaceCategories, setMarketplaceCategories] = useState<string[]>([]);
+  const [collectionCategories, setCollectionCategories] = useState<string[]>([]);
   const [taxonomyVersion, setTaxonomyVersion] = useState(0);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const shouldWarmSearchData = isSearchOpen || activePage === 'marketplace' || activePage === 'search';
+  const warmSearchData = useCallback(() => {
+    if (searchDataReady) return;
+    setSearchDataReady(true);
+  }, [searchDataReady]);
 
   const popularCategoryEntries = useMemo(() => {
     const liveCounts = buildCategoryCounts([...marketplaceCategories, ...collectionCategories]);
@@ -112,9 +132,17 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
   };
 
   useEffect(() => {
+    if (!shouldWarmSearchData || searchDataReady) return;
+    return scheduleDeferredNavbarWork(() => {
+      setSearchDataReady(true);
+    });
+  }, [searchDataReady, shouldWarmSearchData]);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
+        warmSearchData();
         searchInputRef.current?.focus();
         setIsSearchOpen(true);
       }
@@ -122,7 +150,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [warmSearchData]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -137,36 +165,68 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
   }, []);
 
   useEffect(() => {
+    if (!searchDataReady) return;
+
+    let cancelled = false;
     const syncCatalog = () => {
-      setMarketplaceCategories(loadMarketplaceCatalogSync().map((asset) => asset.category));
+      const nextCategories = loadMarketplaceCatalogSync().map((asset) => asset.category);
+      startTransition(() => {
+        if (!cancelled) {
+          setMarketplaceCategories(nextCategories);
+        }
+      });
     };
 
     const syncCollections = () => {
-      setCollectionCategories(loadRuntimeCollections().map((collection) => collection.category));
+      const nextCategories = loadRuntimeCollections().map((collection) => collection.category);
+      startTransition(() => {
+        if (!cancelled) {
+          setCollectionCategories(nextCategories);
+        }
+      });
     };
 
     syncCatalog();
     syncCollections();
-    void hydrateMarketplaceCatalogFromSupabase().then(syncCatalog);
+    void hydrateMarketplaceCatalogFromSupabase().then(() => {
+      if (!cancelled) {
+        syncCatalog();
+      }
+    });
     window.addEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
     window.addEventListener(COLLECTIONS_SYNC_EVENT, syncCollections as EventListener);
     return () => {
+      cancelled = true;
       window.removeEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
       window.removeEventListener(COLLECTIONS_SYNC_EVENT, syncCollections as EventListener);
     };
-  }, []);
+  }, [searchDataReady]);
 
   useEffect(() => {
+    if (!searchDataReady) return;
+
+    let cancelled = false;
     const syncTaxonomy = () => {
-      setTaxonomyVersion((value) => value + 1);
+      startTransition(() => {
+        if (!cancelled) {
+          setTaxonomyVersion((value) => value + 1);
+        }
+      });
     };
 
-    void hydrateTaxonomyFromSupabase().catch(() => undefined);
+    void hydrateTaxonomyFromSupabase()
+      .then(() => {
+        if (!cancelled) {
+          syncTaxonomy();
+        }
+      })
+      .catch(() => undefined);
     window.addEventListener(TAXONOMY_SYNC_EVENT, syncTaxonomy as EventListener);
     return () => {
+      cancelled = true;
       window.removeEventListener(TAXONOMY_SYNC_EVENT, syncTaxonomy as EventListener);
     };
-  }, []);
+  }, [searchDataReady]);
 
   useEffect(() => {
     if (!isSearchOpen) return;
@@ -205,7 +265,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
           </button>
         )}
 
-        <div className="flex items-center gap-1 rounded-full border border-white/8 bg-white/[0.03] p-1">
+        <div className="flex items-center gap-1 rounded-full bg-white/[0.03] p-1">
           {PRIMARY_NAV_LINKS.map((item) => {
             const isActive = activePage === item.id;
             return (
@@ -216,7 +276,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
                 className={`rounded-full px-3 py-2 text-[13px] font-medium leading-none transition-all ${
                   isActive
                     ? 'bg-white/[0.08] text-white'
-                    : 'text-ui-secondary hover:bg-white/[0.04] hover:text-ui-primary'
+                    : 'text-[rgba(226,232,240,0.97)] hover:bg-[rgba(255,255,255,0.05)] hover:text-white'
                 }`}
                 style={{ fontFamily: "'Space Grotesk', var(--font-sans)" }}
               >
@@ -245,7 +305,10 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onFocus={() => setIsSearchOpen(true)}
+              onFocus={() => {
+                warmSearchData();
+                setIsSearchOpen(true);
+              }}
               placeholder="Search assets, collections, or categories..."
               className="w-full h-full rounded-full border-0 bg-transparent pl-10 pr-4 text-[13px] leading-[17px] font-normal text-ui-secondary outline-none placeholder:text-ui-muted"
               style={{ fontFamily: "'Space Grotesk', var(--font-sans)" }}
@@ -260,7 +323,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
-              className="absolute top-full mt-2 w-full dropdown-panel rounded-[24px] overflow-hidden z-50"
+              className="nativebar-search-dropdown absolute top-full mt-2 w-full dropdown-panel rounded-[24px] overflow-hidden z-50"
               style={{
                 background: 'rgba(18, 18, 18, 1)',
                 backdropFilter: 'blur(20px) saturate(140%)',
@@ -276,7 +339,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
                     <button
                       key={item.query}
                       onClick={() => handleSuggestionClick(item.query)}
-                      className="w-full flex items-center justify-between px-4 py-3 rounded-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors text-left group"
+                      className="group w-full flex items-center justify-between px-4 py-3 rounded-[12px] hover:bg-[rgba(255,255,255,0.05)] transition-colors text-left"
                       type="button"
                     >
                       <div className="flex items-center">

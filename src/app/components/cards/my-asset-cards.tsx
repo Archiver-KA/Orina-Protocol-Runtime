@@ -1,5 +1,6 @@
-import React from "react";
+import type { MouseEvent, ReactNode } from "react";
 import {
+  ArrowRightLeft,
   Eye,
   Grid3x3,
   Package,
@@ -7,7 +8,8 @@ import {
   ShoppingCart,
   Sparkles,
 } from "lucide-react";
-import { StudioPanel } from "@/app/components/ui/studio-panel";
+import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
+import { StudioActionButton } from "@/app/components/ui/studio-action-button";
 import { getCategoryDisplayLabel } from "@/utils/taxonomy";
 
 export type MyAssetRwa = {
@@ -34,6 +36,9 @@ export type MyAssetReceipt = {
   purchaseDate: string;
   seller: string;
   blockchain: string;
+  linkedAssetId?: string;
+  mintTxHash?: string;
+  chainId?: number;
 };
 
 export type MyAssetNft = {
@@ -49,13 +54,93 @@ export type MyAssetNft = {
 };
 
 const cardShellClass =
-  "my-asset-card-shell group flex h-full flex-col overflow-hidden rounded-[24px] bg-[var(--t-surface-2)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(0,0,0,0.16)]";
-const mediaChipClass =
-  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] backdrop-blur-md";
+  "market-card-shell card-hover-shell card-hover-grid my-asset-card-shell group flex h-full flex-col overflow-hidden rounded-[32px] text-left";
+const infoAreaClass =
+  "market-card-info-area my-asset-info-area flex flex-1 flex-col px-5 pb-5 pt-4";
 const metricLabelClass =
-  "text-[10px] font-bold uppercase tracking-[0.08em] text-ui-muted";
-const metricValueClass = "text-[13px] font-semibold text-ui-primary";
-const metricAccentValueClass = "text-[13px] font-semibold text-primary";
+  "text-[9px] font-semibold uppercase tracking-[0.14em] text-ui-muted";
+const detailValueClass = "mt-1 text-[13px] font-semibold leading-[1.35] text-ui-primary";
+
+function coerceText(value: unknown, fallback = ""): string {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+  if (value === null || value === undefined) return fallback;
+  const normalized = String(value).trim();
+  return normalized || fallback;
+}
+
+function formatDisplayDate(value: string): string {
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return value;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  }).format(new Date(timestamp));
+}
+
+function getRwaStatusTone(statusLabel: string): "success" | "warning" | "danger" | "neutral" {
+  const normalized = statusLabel.trim().toLowerCase();
+
+  if (normalized === "active") return "success";
+  if (normalized === "pending indexing" || normalized === "minting" || normalized === "processing") {
+    return "warning";
+  }
+  if (normalized === "paused" || normalized === "delisted" || normalized === "inactive") {
+    return "danger";
+  }
+  return "neutral";
+}
+
+function AssetTypeBadge({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "rwa" | "receipt" | "nft";
+}) {
+  const className =
+    tone === "rwa"
+      ? "border-[#2CC295]/18 bg-[#2CC295]/10 text-[#2CC295]"
+      : tone === "receipt"
+        ? "border-violet-400/20 bg-violet-500/14 text-violet-300"
+        : "border-fuchsia-400/20 bg-fuchsia-500/14 text-fuchsia-300";
+
+  return (
+    <div
+      className={`absolute left-3 top-3 inline-flex items-center rounded-full border px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] backdrop-blur-md ${className}`}
+    >
+      {label}
+    </div>
+  );
+}
+
+function AssetStateBadge({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "success" | "warning" | "danger" | "neutral";
+}) {
+  const className =
+    tone === "success"
+      ? "border-[#2CC295]/20 bg-[#2CC295]/14 text-[#7ae6c5]"
+      : tone === "warning"
+        ? "border-orange-400/20 bg-orange-500/14 text-orange-300"
+        : tone === "danger"
+          ? "border-red-400/20 bg-red-500/14 text-red-300"
+          : "border-white/12 bg-black/35 text-white/80";
+
+  return (
+    <div
+      className={`absolute right-3 top-3 inline-flex items-center rounded-full border px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] backdrop-blur-md ${className}`}
+    >
+      {label}
+    </div>
+  );
+}
 
 function AssetCardMedia({
   image,
@@ -64,35 +149,103 @@ function AssetCardMedia({
 }: {
   image: string;
   alt: string;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }) {
   return (
-    <div className="relative h-[200px] overflow-hidden bg-black">
-      <img
+    <div className="relative h-[240px] overflow-hidden bg-[var(--t-surface-10)]">
+      <ImageWithFallback
         src={image}
         alt={alt}
-        className="h-full w-full object-cover"
-        style={{ filter: "brightness(1.08) contrast(1.06)", opacity: 1 }}
+        className="card-hover-media h-full w-full object-cover"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+      <div className="card-hover-overlay absolute inset-0 bg-gradient-to-t from-black/28 via-transparent to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-[132px] bg-[linear-gradient(180deg,rgba(6,8,11,0)_0%,rgba(6,8,11,0.08)_28%,rgba(6,8,11,0.46)_100%)]" />
       {children}
     </div>
   );
 }
 
-function AssetMetricRow({
+function AssetValuePanel({
   label,
   value,
+  subValue,
   accent = false,
 }: {
   label: string;
-  value: React.ReactNode;
+  value: ReactNode;
+  subValue?: ReactNode;
   accent?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-1.5">
-      <span className={metricLabelClass}>{label}</span>
-      <span className={accent ? metricAccentValueClass : metricValueClass}>{value}</span>
+    <div className="shrink-0">
+      <p className={metricLabelClass}>{label}</p>
+      <p
+        className={`card-price-value mt-1 text-[24px] font-semibold leading-none ${
+          accent ? "card-price-value-accent" : ""
+        }`}
+      >
+        {value}
+      </p>
+      {subValue ? <p className="mt-1.5 text-[10px] text-ui-muted">{subValue}</p> : null}
+    </div>
+  );
+}
+
+function AssetDetailStack({
+  rows,
+}: {
+  rows: Array<{ label: string; value: ReactNode; accent?: boolean }>;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="space-y-3">
+        {rows.map((row) => (
+          <div key={row.label} className="min-w-0">
+            <p className={metricLabelClass}>{row.label}</p>
+            <p
+              className={`${detailValueClass} truncate ${
+                row.accent ? "text-primary" : "text-ui-primary"
+              }`}
+            >
+              {row.value}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AssetContent({
+  title,
+  subtitle,
+  valuePanel,
+  detailRows,
+  footer,
+}: {
+  title: string;
+  subtitle?: string;
+  valuePanel: ReactNode;
+  detailRows: Array<{ label: string; value: ReactNode; accent?: boolean }>;
+  footer: ReactNode;
+}) {
+  return (
+    <div className={infoAreaClass}>
+      <div className="min-w-0">
+        <h3 className="line-clamp-2 text-[17px] font-semibold leading-[1.18] text-ui-primary">
+          {title}
+        </h3>
+        {subtitle ? (
+          <p className="mt-2 line-clamp-1 text-[12px] text-ui-secondary">{subtitle}</p>
+        ) : null}
+      </div>
+
+      <div className="card-value-row mt-auto">
+        {valuePanel}
+        <AssetDetailStack rows={detailRows} />
+      </div>
+
+      <div className="mt-4 flex items-center gap-3">{footer}</div>
     </div>
   );
 }
@@ -102,19 +255,20 @@ function AssetActionButton({
   onClick,
   variant = "secondary",
 }: {
-  children: React.ReactNode;
-  onClick: () => void;
-  variant?: "secondary" | "primary";
+  children: ReactNode;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+  variant?: "primary" | "secondary";
 }) {
-  const className =
-    variant === "primary"
-      ? "h-12 flex-1 rounded-full border border-[#2CC295] bg-[#2CC295]/10 px-4 text-sm font-bold text-primary transition-colors hover:bg-[#2CC295]/16"
-      : "h-12 flex-1 rounded-full border border-ui-border-subtle bg-white/[0.03] px-4 text-sm font-bold text-ui-primary transition-colors hover:bg-white/[0.06]";
-
   return (
-    <button onClick={onClick} className={className}>
+    <StudioActionButton
+      type="button"
+      variant={variant}
+      size="md"
+      onClick={onClick}
+      className="min-h-12 flex-1 text-[13px]"
+    >
       {children}
-    </button>
+    </StudioActionButton>
   );
 }
 
@@ -125,56 +279,38 @@ export function MyAssetRwaCard({
   asset: MyAssetRwa;
   onManage: (asset: MyAssetRwa) => void;
 }) {
-  const isActive = asset.status.toLowerCase() === "active";
+  const statusLabel = coerceText(asset.status, "Unknown");
+  const mintedDate = formatDisplayDate(asset.mintedDate);
+  const availabilityValue = `${asset.availableAmount} / ${asset.totalAmount}`;
 
   return (
-    <StudioPanel className={cardShellClass}>
+    <div className={cardShellClass}>
       <AssetCardMedia image={asset.image} alt={asset.name}>
-        <div
-          className={`${mediaChipClass} absolute left-3 top-3 border-[#2CC295]/20 bg-[#2CC295]/18 text-primary`}
-        >
-          <Sparkles size={10} />
-          RWA Minted
-        </div>
-        <div
-          className={`${mediaChipClass} absolute right-3 top-3 ${
-            isActive
-              ? "border-[#2CC295]/20 bg-[#2CC295]/22 text-primary"
-              : "border-red-400/20 bg-red-500/18 text-red-300"
-          }`}
-        >
-          {asset.status}
-        </div>
+        <AssetTypeBadge label="RWA" tone="rwa" />
+        <AssetStateBadge
+          label={statusLabel}
+          tone={getRwaStatusTone(statusLabel)}
+        />
       </AssetCardMedia>
 
-      <div className="my-asset-info-area flex flex-1 flex-col px-5 pb-5 pt-5">
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-ui-muted">
-          {getCategoryDisplayLabel(asset.category)}
-        </p>
-        <h3 className="mb-4 line-clamp-2 text-[16px] leading-[1.35] font-bold text-ui-primary md:text-[18px] md:leading-[1.3]">
-          {asset.name}
-        </h3>
-
-        <div className="space-y-0.5">
-          <AssetMetricRow
-            label="Available / Total"
-            value={`${asset.availableAmount} / ${asset.totalAmount}`}
-          />
-          <AssetMetricRow label="Min Price" value={asset.minPrice} accent />
-          <AssetMetricRow label="Minted" value={asset.mintedDate} />
-        </div>
-
-        <div className="mt-auto pt-6">
-          <button
-            onClick={() => onManage(asset)}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-ui-border-subtle bg-white/[0.03] px-5 text-sm font-bold text-ui-primary transition-colors hover:bg-white/[0.06]"
-          >
+      <AssetContent
+        title={asset.name}
+        subtitle={getCategoryDisplayLabel(asset.category)}
+        valuePanel={
+          <AssetValuePanel label="Min Price" value={asset.minPrice} />
+        }
+        detailRows={[
+          { label: "Minted", value: mintedDate },
+          { label: "Available", value: availabilityValue },
+        ]}
+        footer={
+          <AssetActionButton onClick={() => onManage(asset)}>
             <Eye size={14} />
             Manage Asset
-          </button>
-        </div>
-      </div>
-    </StudioPanel>
+          </AssetActionButton>
+        }
+      />
+    </div>
   );
 }
 
@@ -185,50 +321,42 @@ export function MyAssetReceiptCard({
   asset: MyAssetReceipt;
   onOpen: (receiptId: string) => void;
 }) {
+  const handleCardClick = () => onOpen(asset.id);
+
   return (
-    <StudioPanel
-      onClick={() => onOpen(asset.id)}
-      className={`${cardShellClass} cursor-pointer`}
-    >
+    <div onClick={handleCardClick} className={`${cardShellClass} cursor-pointer`}>
       <AssetCardMedia image={asset.image} alt={asset.name}>
-        <div
-          className={`${mediaChipClass} absolute left-3 top-3 border-violet-400/20 bg-violet-500/18 text-violet-300`}
-        >
-          <Package size={10} />
-          Receipt NFT
-        </div>
-        <div className="absolute inset-x-0 bottom-0 inline-flex h-5 items-center gap-2 bg-black/75 px-[19px]">
-          <span className="h-2 w-2 rounded-full bg-orange-400" />
-          <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-orange-300">
-            Non-Transferable
-          </span>
-        </div>
+        <AssetTypeBadge label="Receipt" tone="receipt" />
+        <AssetStateBadge label="Non-Transferable" tone="warning" />
       </AssetCardMedia>
 
-      <div className="my-asset-info-area flex flex-1 flex-col px-5 pb-5 pt-5">
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-ui-muted">
-          {getCategoryDisplayLabel(asset.category)}
-        </p>
-        <h3 className="mb-4 line-clamp-2 text-[16px] leading-[1.35] font-bold text-ui-primary md:text-[18px] md:leading-[1.3]">
-          {asset.name}
-        </h3>
-
-        <div className="space-y-0.5">
-          <AssetMetricRow label="Order ID" value={asset.orderId} />
-          <AssetMetricRow label="Purchase Date" value={asset.purchaseDate} />
-          <AssetMetricRow label="Seller" value={asset.seller} />
-        </div>
-
-        <div className="mt-auto flex items-end justify-between gap-4 pt-6">
-          <div>
-            <p className={`${metricLabelClass} mb-1`}>Purchase Value</p>
-            <p className="text-[22px] font-bold leading-[1.2] text-ui-primary">
-              {asset.purchaseValue}
-            </p>
-          </div>
-        </div>
-      </div>
-    </StudioPanel>
+      <AssetContent
+        title={asset.name}
+        valuePanel={
+          <AssetValuePanel
+            label="Purchase Value"
+            value={asset.purchaseValue}
+            subValue={`Receipt #${asset.orderId}`}
+          />
+        }
+        detailRows={[
+          { label: "Order ID", value: asset.orderId },
+          { label: "Purchase Date", value: formatDisplayDate(asset.purchaseDate) },
+        ]}
+        footer={
+          <AssetActionButton
+            onClick={(event) => {
+              event.stopPropagation();
+              handleCardClick();
+            }}
+            variant="secondary"
+          >
+            <Eye size={14} />
+            View Receipt
+          </AssetActionButton>
+        }
+      />
+    </div>
   );
 }
 
@@ -242,49 +370,42 @@ export function MyAssetNftCard({
   onListForSale: (asset: MyAssetNft) => void;
 }) {
   return (
-    <StudioPanel className={cardShellClass}>
+    <div className={cardShellClass}>
       <AssetCardMedia image={asset.image} alt={asset.name}>
-        <div
-          className={`${mediaChipClass} absolute left-3 top-3 border-fuchsia-400/20 bg-fuchsia-500/18 text-fuchsia-300`}
-        >
-          <ShoppingBag size={10} />
-          Digital NFT
-        </div>
-        <div className="absolute inset-x-0 bottom-0 inline-flex h-5 items-center gap-2 bg-black/75 px-[19px]">
-          <span className={`h-2 w-2 rounded-full ${asset.transferable ? "bg-[#2CC295]" : "bg-orange-400"}`} />
-          <span
-            className={`text-[11px] font-bold uppercase tracking-[0.1em] ${
-              asset.transferable ? "text-primary" : "text-orange-300"
-            }`}
-          >
-            {asset.transferable ? "Transferable" : "Non-Transferable"}
-          </span>
-        </div>
+        <AssetTypeBadge label="NFT" tone="nft" />
+        <AssetStateBadge
+          label={asset.transferable ? "Transferable" : "Non-Transferable"}
+          tone={asset.transferable ? "success" : "warning"}
+        />
       </AssetCardMedia>
 
-      <div className="my-asset-info-area flex flex-1 flex-col px-5 pb-5 pt-5">
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-ui-muted">
-          {getCategoryDisplayLabel(asset.category)}
-        </p>
-        <h3 className="mb-4 line-clamp-2 text-[16px] leading-[1.35] font-bold text-ui-primary md:text-[18px] md:leading-[1.3]">
-          {asset.name}
-        </h3>
-
-        <div className="space-y-0.5">
-          <AssetMetricRow label="Current Price" value={asset.currentPrice} accent />
-          <AssetMetricRow label="Floor Price" value={asset.floorPrice} />
-        </div>
-
-        <div className="mt-auto flex gap-3 pt-6">
-          <AssetActionButton variant="primary" onClick={() => onTransfer(asset)}>
-            Transfer
-          </AssetActionButton>
-          <AssetActionButton onClick={() => onListForSale(asset)}>
-            List for Sale
-          </AssetActionButton>
-        </div>
-      </div>
-    </StudioPanel>
+      <AssetContent
+        title={asset.name}
+        subtitle={asset.collection}
+        valuePanel={
+          <AssetValuePanel label="Current Price" value={asset.currentPrice} />
+        }
+        detailRows={[
+          { label: "Floor Price", value: asset.floorPrice },
+          {
+            label: "Transfer",
+            value: asset.transferable ? "Allowed" : "Locked",
+          },
+        ]}
+        footer={
+          <>
+            <AssetActionButton variant="primary" onClick={() => onTransfer(asset)}>
+              <ArrowRightLeft size={14} />
+              Transfer
+            </AssetActionButton>
+            <AssetActionButton onClick={() => onListForSale(asset)}>
+              <ShoppingCart size={14} />
+              List for Sale
+            </AssetActionButton>
+          </>
+        }
+      />
+    </div>
   );
 }
 

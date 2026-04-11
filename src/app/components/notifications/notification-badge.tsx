@@ -42,7 +42,7 @@ export function NotificationBadge({
         className={`
           ${sizeClasses[size]}
           ${variantClasses[variant]}
-          font-bold 
+          font-semibold 
           rounded-full 
           flex items-center justify-center
           leading-none

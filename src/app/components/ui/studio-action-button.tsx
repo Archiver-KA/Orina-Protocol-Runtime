@@ -20,28 +20,35 @@ export function StudioActionButton({
   rightIcon,
   ...props
 }: StudioActionButtonProps) {
+  const classNameString = typeof className === 'string' ? className : '';
+  const hasCustomSurfaceOverride = /(^|\s)!?(?:bg-|border-|shadow-|backdrop-blur|\[background:|\[border:)/.test(classNameString);
+
   const sizeClass =
     size === 'icon'
-      ? 'w-10 h-10 p-0 rounded-full'
+      ? 'h-11 w-11 p-0'
       : size === 'lg'
-        ? 'px-6 py-3 text-sm rounded-full'
+        ? 'min-h-12 px-6 py-3 text-[13px]'
         : size === 'sm'
-      ? 'px-3 py-1.5 text-xs rounded-full'
-      : 'px-4 py-2 text-xs rounded-full';
+      ? 'min-h-8 px-3 py-1.5 text-[11px]'
+      : 'min-h-11 px-4 py-2 text-[12px]';
 
   const variantClass =
     variant === 'primary'
-      ? 'bg-[var(--color-button-primary-bg)] hover:bg-[var(--color-button-primary-bg-hover)] text-[var(--color-button-primary-fg)] border-0'
+      ? 'border border-transparent bg-[var(--color-button-primary-bg)] text-[var(--color-button-primary-fg)] shadow-[0_18px_35px_-24px_rgba(0,0,0,0.55)] hover:bg-[var(--color-button-primary-bg-hover)]'
       : variant === 'danger'
-        ? 'bg-red-500 hover:bg-red-600 text-white border-0'
+        ? 'border border-transparent bg-[#E05252] text-white shadow-[0_18px_35px_-24px_rgba(224,82,82,0.48)] hover:bg-[#C64343]'
       : variant === 'ghost'
-        ? 'bg-transparent border-0 text-[var(--color-button-ghost-fg)] hover:text-[var(--color-button-ghost-fg-hover)] hover:bg-[var(--t-surface-5)]'
-        : 'bg-[var(--color-button-secondary-bg)] border border-ui-border-subtle text-ui-primary hover:bg-[var(--color-button-secondary-bg-hover)] backdrop-blur-[10px]';
+        ? hasCustomSurfaceOverride
+          ? 'studio-action-button--ghost border border-transparent bg-transparent text-[var(--color-button-ghost-fg)] hover:bg-[var(--t-surface-5)] hover:text-[var(--color-button-ghost-fg-hover)]'
+          : 'studio-action-button--ghost ui-ghost-button border border-transparent'
+        : hasCustomSurfaceOverride
+          ? 'studio-action-button--secondary border border-[var(--color-button-secondary-border)] bg-[var(--color-button-secondary-bg)] text-ui-primary hover:bg-[var(--color-button-secondary-bg-hover)] backdrop-blur-[10px]'
+          : 'studio-action-button--secondary ui-secondary-button border';
 
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center gap-2 font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35',
+        'studio-action-button inline-flex items-center justify-center gap-2 rounded-full font-semibold tracking-[-0.01em] transition-[background-color,border-color,color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35',
         sizeClass,
         variantClass,
         className

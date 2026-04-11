@@ -43,7 +43,7 @@ export function StudioDataTableHeadCell({
   ...props
 }: ThHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <th className={cn('px-6 py-4 font-bold', className)} {...props}>
+    <th className={cn('px-6 py-4 font-semibold', className)} {...props}>
       {children}
     </th>
   );

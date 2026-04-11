@@ -30,7 +30,7 @@ export function ReputationDisplay({
         <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800`}>
           <span className="text-lg">{levelInfo.icon}</span>
           <div>
-            <p className={`text-xs font-bold ${levelInfo.color}`}>
+            <p className={`text-xs font-semibold ${levelInfo.color}`}>
               {levelInfo.name}
             </p>
           </div>
@@ -39,14 +39,14 @@ export function ReputationDisplay({
         {/* Score */}
         <div className="flex items-center gap-1">
           <Shield size={14} className="text-[#2CC295]" />
-          <span className="text-sm font-bold text-white">{score.overallScore}</span>
+          <span className="text-sm font-semibold text-white">{score.overallScore}</span>
         </div>
 
         {/* Rating */}
         {score.metrics.totalReviews > 0 && (
           <div className="flex items-center gap-1">
             <Star size={14} className="text-yellow-400 fill-yellow-400" />
-            <span className="text-sm font-bold text-white">
+            <span className="text-sm font-semibold text-white">
               {score.metrics.averageRating.toFixed(1)}
             </span>
             <span className="text-xs text-zinc-500">
@@ -61,7 +61,7 @@ export function ReputationDisplay({
             {badges.slice(0, 3).map(badge => (
               <span
                 key={badge.id}
-                className={`px-1.5 py-0.5 text-xs font-bold rounded ${badge.color}`}
+                className={`px-1.5 py-0.5 text-xs font-semibold rounded ${badge.color}`}
                 title={badge.description}
               >
                 {badge.icon}
@@ -91,7 +91,7 @@ export function ReputationDisplay({
         <div className="flex items-center gap-4">
           <div className="text-5xl">{levelInfo.icon}</div>
           <div>
-            <h3 className={`text-2xl font-bold ${levelInfo.color}`}>
+            <h3 className={`text-2xl font-semibold ${levelInfo.color}`}>
               {levelInfo.name}
             </h3>
             <p className="text-sm text-zinc-500">
@@ -104,7 +104,7 @@ export function ReputationDisplay({
         <div className="text-right">
           <div className="flex items-center gap-2 mb-1">
             <Shield size={20} className="text-[#2CC295]" />
-            <span className="text-3xl font-bold text-white">
+            <span className="text-3xl font-semibold text-white">
               {score.overallScore}
             </span>
           </div>
@@ -116,7 +116,7 @@ export function ReputationDisplay({
       <div className="mb-6">
         <div className="flex items-center justify-between text-xs mb-2">
           <span className="text-zinc-500">Progress to next level</span>
-          <span className="text-white font-bold">
+          <span className="text-white font-semibold">
             {score.overallScore}/{levelInfo.maxScore + 1}
           </span>
         </div>
@@ -135,7 +135,7 @@ export function ReputationDisplay({
         <div className="text-center p-3 bg-zinc-900/50 rounded-lg">
           <div className="flex items-center justify-center gap-1 mb-1">
             <Star size={16} className="text-yellow-400" />
-            <span className="text-xl font-bold text-white">
+            <span className="text-xl font-semibold text-white">
               {score.metrics.averageRating > 0 ? score.metrics.averageRating.toFixed(1) : 'N/A'}
             </span>
           </div>
@@ -147,7 +147,7 @@ export function ReputationDisplay({
         <div className="text-center p-3 bg-zinc-900/50 rounded-lg">
           <div className="flex items-center justify-center gap-1 mb-1">
             <TrendingUp size={16} className="text-[#2CC295]" />
-            <span className="text-xl font-bold text-white">
+            <span className="text-xl font-semibold text-white">
               {score.metrics.completionRate.toFixed(0)}%
             </span>
           </div>
@@ -159,7 +159,7 @@ export function ReputationDisplay({
         <div className="text-center p-3 bg-zinc-900/50 rounded-lg">
           <div className="flex items-center justify-center gap-1 mb-1">
             <AlertCircle size={16} className="text-blue-400" />
-            <span className="text-xl font-bold text-white">
+            <span className="text-xl font-semibold text-white">
               {score.metrics.disputeRate.toFixed(1)}%
             </span>
           </div>
@@ -172,7 +172,7 @@ export function ReputationDisplay({
       {/* Trust Badges */}
       {showBadges && badges.length > 0 && (
         <div>
-          <p className="text-xs text-zinc-500 mb-3 uppercase tracking-wider font-bold">
+          <p className="text-xs text-zinc-500 mb-3 uppercase tracking-wider font-semibold">
             Trust Badges
           </p>
           <div className="flex flex-wrap gap-2">
@@ -183,7 +183,7 @@ export function ReputationDisplay({
                 title={badge.description}
               >
                 <span>{badge.icon}</span>
-                <span className="text-xs font-bold">{badge.name}</span>
+                <span className="text-xs font-semibold">{badge.name}</span>
               </div>
             ))}
           </div>

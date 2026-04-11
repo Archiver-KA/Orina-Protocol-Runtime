@@ -85,7 +85,7 @@ export function AddAssetToCollectionModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="studio-form-backdrop fixed inset-0 z-[145] flex items-center justify-center bg-black/70 p-4 backdrop-blur-[10px]"
+        className="studio-portal-backdrop fixed inset-0 z-[145] flex items-center justify-center bg-black/72 p-4 backdrop-blur-[12px]"
         onClick={(event) => {
           if (event.target === event.currentTarget) onClose();
         }}
@@ -98,11 +98,11 @@ export function AddAssetToCollectionModal({
           className="relative z-[1] w-full max-w-xl"
           onClick={(event) => event.stopPropagation()}
         >
-          <StudioModalPanel className="studio-form-modal max-w-xl">
+          <StudioModalPanel className="studio-portal-modal max-w-xl rounded-[36px]">
             <StudioModalHeader className="border-b-0 pb-3">
               <div className="mb-3 flex items-start justify-between">
                 <div>
-                  <h2 className="mb-1 text-lg font-bold tracking-tight text-ui-primary">Add Asset to Collection</h2>
+                  <h2 className="mb-1 text-lg font-semibold tracking-tight text-ui-primary">Add Asset to Collection</h2>
                   <p className="text-[10px] uppercase tracking-widest text-ui-muted">
                     Assign owned or listed assets to a collection you created
                   </p>
@@ -113,21 +113,21 @@ export function AddAssetToCollectionModal({
 
             <StudioModalBody className="space-y-5 pt-0">
               {emptyCollections ? (
-                <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-8 text-center">
+                <div className="studio-portal-surface rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-8 text-center">
                   <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-primary">
                     <FolderPlus size={24} />
                   </div>
-                  <h3 className="text-lg font-bold text-ui-primary">No collections yet</h3>
+                  <h3 className="text-lg font-semibold text-ui-primary">No collections yet</h3>
                   <p className="mt-2 text-sm text-ui-secondary">
                     Create your first collection before adding assets to it.
                   </p>
                 </div>
               ) : emptyAssets ? (
-                <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-8 text-center">
+                <div className="studio-portal-surface rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-8 text-center">
                   <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-primary">
                     <Layers3 size={24} />
                   </div>
-                  <h3 className="text-lg font-bold text-ui-primary">No eligible assets found</h3>
+                  <h3 className="text-lg font-semibold text-ui-primary">No eligible assets found</h3>
                   <p className="mt-2 text-sm text-ui-secondary">
                     Eligible assets come from your owned assets and listings tied to the active wallet.
                   </p>
@@ -135,7 +135,7 @@ export function AddAssetToCollectionModal({
               ) : (
                 <>
                   <div>
-                    <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-ui-muted">Collection</p>
+                    <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-ui-muted">Collection</p>
                     <CustomDropdown
                       options={collectionOptions}
                       defaultValue={selectedCollectionId}
@@ -146,7 +146,7 @@ export function AddAssetToCollectionModal({
                   </div>
 
                   <div>
-                    <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-ui-muted">Asset</p>
+                    <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-ui-muted">Asset</p>
                     <CustomDropdown
                       options={assetDropdownOptions}
                       defaultValue={selectedAssetId}
@@ -157,9 +157,9 @@ export function AddAssetToCollectionModal({
                   </div>
 
                   {selectedAsset ? (
-                    <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4">
+                    <div className="studio-portal-surface rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4">
                       <div className="flex items-center gap-4">
-                        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[18px] bg-black/10">
+                        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[20px] bg-[var(--t-surface-10)]">
                           <ImageWithFallback
                             src={selectedAsset.image}
                             alt={selectedAsset.name}
@@ -167,15 +167,15 @@ export function AddAssetToCollectionModal({
                           />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-ui-muted">
+                          <p className="text-[10px] font-medium uppercase tracking-widest text-ui-muted">
                             {selectedAsset.category}
                           </p>
-                          <h3 className="mt-1 line-clamp-2 text-base font-bold text-ui-primary">
+                          <h3 className="mt-1 line-clamp-2 text-base font-semibold text-ui-primary">
                             {selectedAsset.name}
                           </h3>
                           <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-ui-secondary">
                             <span>{selectedAsset.price}</span>
-                            <span className="rounded-full bg-[var(--t-surface-10)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-ui-muted">
+                            <span className="rounded-full bg-[var(--t-surface-10)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
                               {selectedAsset.sourceLabel}
                             </span>
                             {selectedAsset.blockchain ? <span>{selectedAsset.blockchain}</span> : null}
@@ -199,7 +199,7 @@ export function AddAssetToCollectionModal({
                 onClick={onClose}
                 variant="secondary"
                 size="lg"
-                className="studio-form-secondary flex-1 text-sm font-bold tracking-tight"
+                className="studio-portal-secondary flex-1 text-sm font-semibold tracking-[-0.01em]"
               >
                 Cancel
               </StudioActionButton>
@@ -209,7 +209,7 @@ export function AddAssetToCollectionModal({
                   onClick={onCreateCollection}
                   variant="primary"
                   size="lg"
-                  className="flex-1 text-sm font-bold tracking-tight shadow-lg shadow-[#2CC295]/20"
+                  className="flex-1 text-sm font-semibold tracking-[-0.01em]"
                 >
                   Create Collection
                 </StudioActionButton>
@@ -222,7 +222,7 @@ export function AddAssetToCollectionModal({
                   }}
                   variant="primary"
                   size="lg"
-                  className="flex-1 text-sm font-bold tracking-tight shadow-lg shadow-[#2CC295]/20"
+                  className="flex-1 text-sm font-semibold tracking-[-0.01em]"
                   disabled={!selectedCollection || !selectedAsset || alreadyIncluded}
                 >
                   Add to Collection

@@ -10,7 +10,7 @@
  *   Sig 3: Buyer re-accepts seller's revised estDeliverySeconds → payOrder() verifies on-chain only when seller changed time
  */
 
-import { CONTRACTS, ACTIVE_CHAIN_ID } from './contracts';
+import { LIVE_PROTOCOL_CHAIN_ID, LIVE_PROTOCOL_CONTRACTS } from '@/utils/protocolNetwork';
 
 // ── EIP-712 Domain ────────────────────────────────────────────
 // Must match: EIP712("MarketplaceATP", VERSION) in Solidity
@@ -30,7 +30,10 @@ export function getOrderEip712Domain(
   } as const;
 }
 
-export const EIP712_DOMAIN = getOrderEip712Domain(ACTIVE_CHAIN_ID, CONTRACTS.MARKETPLACE_ATP);
+export const EIP712_DOMAIN = getOrderEip712Domain(
+  LIVE_PROTOCOL_CHAIN_ID,
+  LIVE_PROTOCOL_CONTRACTS.MARKETPLACE_ATP,
+);
 
 // ── EIP-712 Types ─────────────────────────────────────────────
 // Must match:
@@ -79,8 +82,8 @@ export function getDisputeAgreementDomain(
 }
 
 export const DISPUTE_AGREEMENT_DOMAIN = getDisputeAgreementDomain(
-  ACTIVE_CHAIN_ID,
-  CONTRACTS.DISPUTE_MANAGER,
+  LIVE_PROTOCOL_CHAIN_ID,
+  LIVE_PROTOCOL_CONTRACTS.DISPUTE_MANAGER,
 );
 
 export const DISPUTE_AGREEMENT_TYPES = {

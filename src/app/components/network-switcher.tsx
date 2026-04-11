@@ -203,7 +203,7 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
                       isSelected
                         ? 'border-[#2CC295]/28 bg-[rgba(44,194,149,0.08)]'
                         : 'border-[var(--t-border-subtle)] bg-[var(--t-surface-2)]'
-                    } ${!isSelected ? 'hover:border-[#2CC295]/18 hover:bg-[var(--t-surface-hover)]' : ''} ${
+                    } ${!isSelected ? 'hover:bg-[var(--t-surface-hover)]' : ''} ${
                       !isLive ? 'opacity-80' : ''
                     }`}
                   >
@@ -244,8 +244,8 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
         onClick={() => setIsOpen((value) => !value)}
         className={`sidebar-btn group relative flex items-center rounded-[16px] border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35 ${
           sidebarCollapsed
-            ? 'mx-auto h-11 w-11 justify-center border-[var(--t-border-subtle)] bg-[var(--t-surface-2)] text-ui-secondary hover:border-[var(--t-border-medium)] hover:bg-[var(--t-surface-hover)] hover:text-ui-primary'
-            : 'w-full justify-between gap-3 border-[var(--t-border-subtle)] bg-[var(--t-surface-2)] px-3 py-3 text-ui-secondary hover:border-[var(--t-border-medium)] hover:bg-[var(--t-surface-hover)] hover:text-ui-primary'
+            ? 'mx-auto h-11 w-11 justify-center border-[var(--t-border-subtle)] bg-[var(--t-surface-2)] text-ui-secondary hover:bg-[var(--t-surface-hover)] hover:text-ui-primary'
+            : 'w-full justify-between gap-3 border-[var(--t-border-subtle)] bg-[var(--t-surface-2)] px-3 py-3 text-ui-secondary hover:bg-[var(--t-surface-hover)] hover:text-ui-primary'
         }`}
         title={sidebarCollapsed ? activeNetwork.shortLabel : undefined}
       >

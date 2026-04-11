@@ -7,6 +7,7 @@ import { ImageUpload, UploadedImage } from '@/app/components/image-upload';
 import { StudioFieldHint, StudioFieldLabel, StudioInputField, StudioTextareaField } from '@/app/components/ui/studio-form-fields';
 import { StudioModalBody, StudioModalCloseButton, StudioModalFooter, StudioModalHeader, StudioModalPanel } from '@/app/components/ui/studio-modal';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
+import { buildEditProfileUpdates } from '@/app/components/profile/edit-profile-modal.utils';
 
 interface EditProfileModalProps {
   profile: UserProfile;
@@ -16,7 +17,7 @@ interface EditProfileModalProps {
 
 export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalProps) {
   const [displayName, setDisplayName] = useState(profile.displayName || '');
-  const [username, setUsername] = useState(profile.username);
+  const [username, setUsername] = useState(profile.username || '');
   const [email, setEmail] = useState(profile.email || '');
   const [bio, setBio] = useState(profile.bio || '');
   const [twitter, setTwitter] = useState(profile.socialLinks?.twitter || '');
@@ -28,6 +29,8 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
 
   // Prevent body scroll when modal is open
   useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
@@ -38,21 +41,25 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    onSave({
-      displayName: displayName.trim() || undefined,
-      username: username.trim(),
-      email: email.trim().toLowerCase() || undefined,
-      bio: bio.trim() || undefined,
-      // Include IPFS uploaded images
-      avatarUrl: avatarImage?.url || profile.avatarUrl,
-      bannerUrl: bannerImage?.url || profile.bannerUrl,
-      socialLinks: {
-        twitter: twitter.trim() || undefined,
-        discord: discord.trim() || undefined,
-        telegram: telegram.trim() || undefined,
-        website: website.trim() || undefined,
-      },
-    });
+    onSave(
+      buildEditProfileUpdates(
+        profile,
+        {
+          displayName,
+          username,
+          email,
+          bio,
+          twitter,
+          discord,
+          telegram,
+          website,
+        },
+        {
+          avatarImage,
+          bannerImage,
+        },
+      ),
+    );
   };
 
   if (typeof document === 'undefined') return null;
@@ -82,7 +89,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
               <StudioModalHeader className="p-6 md:p-8 border-b-0 pb-3 md:pb-4">
                 <div className="flex items-start justify-between mb-3 md:mb-4">
                   <div>
-                    <h2 className="text-lg font-bold text-ui-primary tracking-tight mb-1">Edit Profile</h2>
+                    <h2 className="text-lg font-semibold text-ui-primary tracking-tight mb-1">Edit Profile</h2>
                     <p className="text-[10px] text-ui-muted uppercase tracking-widest">
                       Update your public profile and social links
                     </p>
@@ -108,7 +115,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                     onUploadError={(error) => {
                       console.error('Banner upload error:', error);
                     }}
-                    currentImageUrl={bannerImage?.url || profile.bannerUrl}
+                    currentImageUrl={bannerImage?.url || profile.bannerUrl || profile.banner}
                     label="Profile Banner"
                     description="Recommended: 1500x500px"
                     showPreview={true}
@@ -129,7 +136,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                     onUploadError={(error) => {
                       console.error('Avatar upload error:', error);
                     }}
-                    currentImageUrl={avatarImage?.url || profile.avatarUrl}
+                    currentImageUrl={avatarImage?.url || profile.avatarUrl || profile.avatar}
                     label="Profile Picture"
                     description="Recommended: 400x400px"
                     showPreview={true}
@@ -139,7 +146,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
 
                 {/* Display Name */}
                 <div>
-                  <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
+                  <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-semibold">
                     Display Name
                   </StudioFieldLabel>
                   <StudioInputField
@@ -157,7 +164,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
 
                 {/* Username */}
                 <div>
-                  <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
+                  <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-semibold">
                     Username
                   </StudioFieldLabel>
                   <StudioInputField
@@ -177,7 +184,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
 
                 {/* Email */}
                 <div>
-                  <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
+                  <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-semibold">
                     Email
                   </StudioFieldLabel>
                   <StudioInputField
@@ -196,7 +203,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
 
                 {/* Bio */}
                 <div>
-                  <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
+                  <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-semibold">
                     Bio
                   </StudioFieldLabel>
                   <StudioTextareaField
@@ -214,12 +221,12 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
 
                 {/* Social Links */}
                 <div className="space-y-4 pt-4 border-t border-ui-border-subtle">
-                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-ui-muted">
+                  <h3 className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">
                     Social Links
                   </h3>
 
                   <div>
-                    <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
+                    <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-semibold">
                       Twitter
                     </StudioFieldLabel>
                   <StudioInputField
@@ -233,7 +240,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                   </div>
 
                   <div>
-                    <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
+                    <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-semibold">
                       Discord
                     </StudioFieldLabel>
                   <StudioInputField
@@ -247,7 +254,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                   </div>
 
                   <div>
-                    <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
+                    <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-semibold">
                       Telegram
                     </StudioFieldLabel>
                   <StudioInputField
@@ -261,7 +268,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                   </div>
 
                   <div>
-                    <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
+                    <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-semibold">
                       Website
                     </StudioFieldLabel>
                   <StudioInputField
@@ -283,7 +290,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                   onClick={onClose}
                   variant="secondary"
                   size="lg"
-                  className="studio-form-secondary flex-1 text-sm font-bold tracking-tight"
+                  className="studio-form-secondary flex-1 text-sm font-semibold tracking-tight"
                 >
                   Cancel
                 </StudioActionButton>
@@ -291,7 +298,7 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
                   type="submit"
                   variant="primary"
                   size="lg"
-                  className="flex-1 text-sm font-bold tracking-tight shadow-lg shadow-[#2CC295]/20"
+                  className="flex-1 text-sm font-semibold tracking-tight shadow-lg shadow-[#2CC295]/20"
                   leftIcon={<Upload size={16} />}
                 >
                   Save Profile
@@ -304,5 +311,5 @@ export function EditProfileModal({ profile, onClose, onSave }: EditProfileModalP
     </AnimatePresence>
   );
 
-  return createPortal(modalContent, document.body);
+  return <>{createPortal(modalContent, document.body)}</>;
 }

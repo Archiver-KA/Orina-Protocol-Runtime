@@ -2,23 +2,23 @@ import { useMemo } from 'react';
 import { useProtocolNetworkRouter } from '@/contexts/ProtocolNetworkContext';
 
 export function useProtocolDataNetwork() {
-  const { selectedChainId, selectedContracts, selectedNetwork } = useProtocolNetworkRouter();
+  const { liveChainId, liveContracts, liveNetwork } = useProtocolNetworkRouter();
 
   return useMemo(() => {
-    const chainId = selectedChainId ?? null;
-    const contracts = selectedContracts ?? null;
+    const chainId = liveChainId ?? null;
+    const contracts = liveContracts ?? null;
     const isSupported = Boolean(
       chainId
       && contracts
-      && selectedNetwork.status === 'live',
+      && liveNetwork.status === 'live',
     );
 
     return {
       chainId,
       contracts,
       isSupported,
-      networkKey: selectedNetwork.key,
-      networkLabel: selectedNetwork.label,
+      networkKey: liveNetwork.key,
+      networkLabel: liveNetwork.label,
       assetAddress: contracts?.ORINA_RWA,
       disputeManagerAddress: contracts?.DISPUTE_MANAGER,
       feeManagerAddress: contracts?.FEE_MANAGER,
@@ -28,5 +28,5 @@ export function useProtocolDataNetwork() {
       shippingRegistryAddress: contracts?.SHIPPING_REGISTRY,
       unitRegistryAddress: contracts?.UNIT_REGISTRY,
     };
-  }, [selectedChainId, selectedContracts, selectedNetwork.key, selectedNetwork.label, selectedNetwork.status]);
+  }, [liveChainId, liveContracts, liveNetwork.key, liveNetwork.label, liveNetwork.status]);
 }

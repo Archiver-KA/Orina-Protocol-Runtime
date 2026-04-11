@@ -44,8 +44,8 @@ export function StudioModalPanel({ className, children, ...props }: StudioModalP
   return (
     <div
       className={cn(
-        'studio-modal-theme w-full max-h-[90vh] overflow-hidden flex flex-col rounded-[24px] text-ui-secondary',
-        'bg-ui-card border border-ui-border-subtle backdrop-blur-[20px] shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)]',
+        'studio-modal-theme ui-card-surface w-full max-h-[90vh] overflow-hidden flex flex-col rounded-[24px] text-ui-secondary',
+        'bg-ui-card backdrop-blur-[20px] shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)]',
         className
       )}
       {...props}

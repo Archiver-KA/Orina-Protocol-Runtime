@@ -64,7 +64,7 @@ export function StudioTimelineItem({
       {...props}
     >
       <div className={cn('absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full', dotClass)} />
-      <p className={cn('text-xs font-bold', titleClass)}>{title}</p>
+      <p className={cn('text-xs font-semibold', titleClass)}>{title}</p>
       {description ? <p className="text-[10px] text-ui-muted mt-1">{description}</p> : null}
       {timestamp ? <p className="text-[9px] font-mono text-ui-muted mt-1">{timestamp}</p> : null}
     </div>

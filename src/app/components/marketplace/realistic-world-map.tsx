@@ -16,11 +16,9 @@ import { Clock, Star } from 'lucide-react';
 interface MarketplaceAsset {
   id: number;
   name: string;
-  collection: string;
+  categoryLabel: string;
   price: string;
   usdPrice: string;
-  rarity: string;
-  rarityColor: string;
   image: string;
   latitude: number;
   longitude: number;
@@ -34,6 +32,18 @@ interface MarketplaceAsset {
 
 interface RealisticWorldMapProps {
   filteredAssets: MarketplaceAsset[];
+  totalListings: number;
+  verifiedCount: number;
+  viewState: {
+    longitude: number;
+    latitude: number;
+    zoom: number;
+  };
+  onViewStateChange: (viewState: {
+    longitude: number;
+    latitude: number;
+    zoom: number;
+  }) => void;
   onAssetClick: (asset: MarketplaceAsset) => void;
   selectedAssetId: number | null;
   onMarkerClick: (assetId: number) => void;
@@ -43,6 +53,10 @@ interface RealisticWorldMapProps {
 
 export function RealisticWorldMap({
   filteredAssets,
+  totalListings,
+  verifiedCount,
+  viewState,
+  onViewStateChange,
   onAssetClick,
   selectedAssetId,
   onMarkerClick,
@@ -51,24 +65,21 @@ export function RealisticWorldMap({
 }: RealisticWorldMapProps) {
   const [hoveredAsset, setHoveredAsset] = useState<number | null>(null);
   const [mapStyle, setMapStyle] = useState<'default' | 'satellite'>('default');
-  const [viewState, setViewState] = useState({
-    longitude: 0,
-    latitude: 20,
-    zoom: 2,
-  });
   const mapRef = useRef<MapRef>(null);
 
   const toggleMapStyle = useCallback(() => {
     setMapStyle((prev) => (prev === 'default' ? 'satellite' : 'default'));
   }, []);
 
-  const handleMove = useCallback((evt: any) => {
-    setViewState({
-      longitude: evt.viewState.longitude,
-      latitude: evt.viewState.latitude,
-      zoom: evt.viewState.zoom,
-    });
-  }, []);
+  const handleMove = useCallback(
+    (nextViewState: { longitude: number; latitude: number; zoom: number }) => {
+      onViewStateChange(nextViewState);
+    },
+    [onViewStateChange]
+  );
+
+  const mapControlButtonClass =
+    'flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(18,19,23,0.78)] text-[rgba(226,232,240,0.92)] backdrop-blur-[10px] shadow-[0_10px_24px_-18px_rgba(0,0,0,0.42)] transition-colors hover:bg-[rgba(18,19,23,0.92)] hover:text-white select-none';
 
   // Get map style URLs
   const getMapStyles = () => {
@@ -108,86 +119,52 @@ export function RealisticWorldMap({
     }
   };
 
-  // Get rarity style helper
-  const getRarityStyle = (rarity: string) => {
-    const r = rarity.toLowerCase();
-    if (r.includes('legend'))
-      return {
-        text: 'text-[#2CC295]',
-        border: 'border-[#2CC295]/20',
-        label: 'LEGEN',
-      };
-    if (r.includes('epic'))
-      return {
-        text: 'text-purple-400',
-        border: 'border-purple-400/20',
-        label: 'EPIC',
-      };
-    if (r.includes('rare'))
-      return {
-        text: 'text-blue-400',
-        border: 'border-blue-400/20',
-        label: 'RARE',
-      };
-    return {
-      text: 'text-zinc-400',
-      border: 'border-zinc-400/20',
-      label: 'COMMON',
-    };
-  };
-
   return (
     <div className="relative h-full w-full overflow-hidden bg-transparent">
-      {/* Stats Info - Expandable on Hover */}
-      <div className="absolute left-4 top-4 z-20 group pointer-events-auto">
-        <div className="flex items-center gap-2 rounded-lg border border-[#27272a] bg-[#18181b] px-3 py-2 transition-all duration-300 hover:px-4 hover:gap-3 select-none">
-          {/* Asset Count - Always Visible */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className="w-2 h-2 rounded-full bg-[#2CC295]"></div>
-            <span className="text-sm font-bold text-white">
-              {filteredAssets.length}
-            </span>
-            <span className="text-xs text-zinc-400">Assets</span>
+      {/* Compact Stats Bar */}
+      <div className="absolute left-4 top-4 z-20 pointer-events-auto">
+        <div className="flex items-center gap-3 rounded-full bg-[rgba(18,19,23,0.82)] px-4 py-3 backdrop-blur-[12px] shadow-[0_18px_34px_-22px_rgba(0,0,0,0.58)] select-none">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="h-2.5 w-2.5 rounded-full bg-[#2CC295]" />
+            <span className="text-[13px] font-semibold text-white">{filteredAssets.length.toLocaleString()}</span>
+            <span className="text-[13px] text-[rgba(203,213,225,0.9)]">Assets</span>
           </div>
-
-          {/* Expanded Stats - Show on Hover */}
-          <div className="flex items-center gap-3 max-w-0 overflow-hidden opacity-0 transition-all duration-300 group-hover:max-w-xs group-hover:opacity-100">
-            <div className="h-4 w-px bg-[#27272a]"></div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Clock size={12} className="text-zinc-500" />
-              <span className="text-sm font-bold text-white">43,266</span>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Star size={12} className="text-zinc-500" />
-              <span className="text-sm font-bold text-white">16,069</span>
-            </div>
+          <div className="h-4 w-px bg-white/10" />
+          <div className="flex items-center gap-2 shrink-0">
+            <Clock size={13} className="text-[rgba(148,163,184,0.82)]" />
+            <span className="text-[13px] font-semibold text-white">{totalListings.toLocaleString()}</span>
+          </div>
+          <div className="h-4 w-px bg-white/10" />
+          <div className="flex items-center gap-2 shrink-0">
+            <Star size={13} className="text-[rgba(148,163,184,0.82)]" />
+            <span className="text-[13px] font-semibold text-white">{verifiedCount.toLocaleString()}</span>
           </div>
         </div>
       </div>
 
-      {/* Map Style Toggle - Only Control */}
+      {/* Map Controls */}
       <div className="absolute right-4 top-4 z-20 pointer-events-auto flex flex-col gap-2">
         <button
           onClick={toggleMapStyle}
-          className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#27272a] bg-[#18181b] transition-colors hover:border-[#2CC295]/50 hover:bg-zinc-800 select-none"
+          className={mapControlButtonClass}
           title="Toggle Map Style"
         >
-          <Layers size={18} className="text-zinc-400" />
+          <Layers size={18} />
         </button>
 
         {/* Verified Filter Toggle */}
         <button
           onClick={() => onToggleVerified?.(!verifiedOnly)}
-          className={`relative flex h-10 w-10 items-center justify-center rounded-lg border transition-all select-none ${
+          className={`relative flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-[10px] shadow-[0_10px_24px_-18px_rgba(0,0,0,0.42)] transition-all select-none ${
             verifiedOnly
-              ? 'border-[#2CC295]/60 bg-[#2CC295]/10 shadow-[0_0_12px_rgba(44,194,149,0.25)]'
-              : 'border-[#27272a] bg-[#18181b] hover:border-[#2CC295]/50 hover:bg-zinc-800'
+              ? 'bg-[#2CC295]/14 text-[#2CC295] shadow-[0_14px_28px_-18px_rgba(44,194,149,0.35)]'
+              : 'bg-[rgba(18,19,23,0.78)] text-[rgba(226,232,240,0.92)] hover:bg-[rgba(18,19,23,0.92)] hover:text-white'
           }`}
           title={verifiedOnly ? 'Showing Verified Only' : 'Show Verified Assets'}
         >
-          <ShieldCheck size={18} className={`transition-colors ${verifiedOnly ? 'text-[#2CC295]' : 'text-zinc-400'}`} />
+          <ShieldCheck size={18} className="transition-colors" />
           {verifiedOnly && (
-            <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#2CC295] border-2 border-[#18181b]" />
+            <div className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-[#2CC295] border-2 border-[rgba(18,19,23,0.92)]" />
           )}
         </button>
       </div>
@@ -195,8 +172,7 @@ export function RealisticWorldMap({
       {/* Map */}
       <Map
         ref={mapRef}
-        center={[viewState.longitude, viewState.latitude]}
-        zoom={viewState.zoom}
+        viewState={viewState}
         styles={getMapStyles()}
         onMove={handleMove}
       >
@@ -204,7 +180,6 @@ export function RealisticWorldMap({
         {filteredAssets.map((asset) => {
           const isHovered = hoveredAsset === asset.id;
           const isSelected = selectedAssetId === asset.id;
-          const rarityStyle = getRarityStyle(asset.rarity);
 
           return (
             <Marker
@@ -241,11 +216,8 @@ export function RealisticWorldMap({
 
                   {/* Point Marker */}
                   <div
-                    className={`h-3 w-3 rounded-full border-2 transition-colors ${
-                      asset.verified
-                        ? 'bg-[#2CC295] border-[#2CC295] shadow-lg shadow-[#2CC295]/50'
-                        : 'bg-zinc-700 border-zinc-500'
-                    }`}
+                    className="rounded-full border border-[#2CC295] bg-[#2CC295] shadow-lg shadow-[#2CC295]/50 transition-colors"
+                    style={{ width: '9.6px', height: '9.6px', borderWidth: '1.6px' }}
                   />
                 </div>
 
@@ -261,13 +233,7 @@ export function RealisticWorldMap({
                   >
                     {/* Glass Card Container */}
                     <div
-                      className="w-[140px] rounded-xl p-2 border shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200"
-                      style={{
-                        background: '#141417',
-                        borderColor: 'rgba(44, 194, 149, 0.3)',
-                        boxShadow:
-                          '0 10px 30px -10px rgba(44, 194, 149, 0.4), 0 0 20px rgba(44, 194, 149, 0.2)',
-                      }}
+                      className="w-[148px] animate-in rounded-[20px] border border-ui-border-subtle bg-ui-card p-2 font-[var(--font-sans)] shadow-[0_10px_30px_-10px_rgba(44,194,149,0.4),0_0_20px_rgba(44,194,149,0.2)] backdrop-blur-[20px] fade-in slide-in-from-bottom-2 duration-200"
                     >
                       {/* Image */}
                       <div className="relative mb-2 aspect-square overflow-hidden rounded-lg">
@@ -277,16 +243,16 @@ export function RealisticWorldMap({
                           src={asset.image}
                         />
 
-                        {/* Rarity Badge - Top Right */}
+                        {/* Category Badge - Top Right */}
                         <div
-                          className={`absolute right-1 top-1 bg-black/90 px-1 py-0.5 rounded text-[7px] font-bold ${rarityStyle.text} border ${rarityStyle.border}`}
+                          className="absolute right-1 top-1 inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-2 py-0.5 text-[7px] font-semibold uppercase tracking-[0.12em] text-ui-secondary backdrop-blur-md"
                         >
-                          {rarityStyle.label}
+                          {asset.categoryLabel}
                         </div>
 
                         {/* Verified Badge - Top Left */}
                         {asset.verified && (
-                          <div className="absolute left-1 top-1 flex items-center gap-0.5 rounded border border-[#2CC295]/20 bg-black/90 px-1 py-0.5 text-[7px] font-bold text-[#2CC295]">
+                          <div className="absolute left-1 top-1 flex items-center gap-0.5 rounded border border-[#2CC295]/20 bg-black/90 px-1 py-0.5 text-[7px] font-semibold text-[#2CC295]">
                             <svg
                               className="h-2 w-2"
                               fill="currentColor"
@@ -303,22 +269,11 @@ export function RealisticWorldMap({
                       </div>
 
                       {/* Card Content */}
-                      <div className="px-1 mb-2">
-                        <h4 className="text-white text-[10px] font-bold truncate leading-tight">
+                      <div className="mb-1.5 px-1">
+                        <h4 className="truncate text-[10px] font-semibold leading-tight tracking-tight text-ui-primary">
                           {asset.name}
                         </h4>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <svg
-                            className="h-[10px] w-[10px] text-[#2CC295]"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
-                          </svg>
-                          <span className="text-white text-[10px] font-bold">
-                            {asset.price}
-                          </span>
-                        </div>
+                        <p className="mt-1 text-[10px] font-semibold leading-tight text-ui-primary">{asset.price}</p>
                       </div>
                     </div>
                   </div>

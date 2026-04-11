@@ -66,7 +66,7 @@ export function StarRating({ rating, size = 18, interactive = false, onChange, s
       })}
 
       {showLabel && (
-        <span className={`ml-2 text-sm font-bold ${getRatingColor(rating)}`}>
+        <span className={`ml-2 text-sm font-semibold ${getRatingColor(rating)}`}>
           {getRatingLabel(rating)}
         </span>
       )}

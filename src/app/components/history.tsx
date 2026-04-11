@@ -188,7 +188,7 @@ export function History() {
                 >
                   <ChevronLeft size={16} />
                 </StudioActionButton>
-                <span className="text-xs font-bold text-white px-2">Page 1 of 124</span>
+                <span className="text-xs font-semibold text-white px-2">Page 1 of 124</span>
                 <StudioActionButton
                   variant="secondary"
                   size="sm"
@@ -217,7 +217,7 @@ function TransactionRow({ transaction }: { transaction: typeof transactions[0] }
             <Icon size={18} />
           </div>
           <div>
-            <p className="text-sm font-bold text-white">{transaction.type}</p>
+            <p className="text-sm font-semibold text-white">{transaction.type}</p>
             <p className="text-[10px] text-zinc-500">{transaction.blockchain}</p>
           </div>
         </div>
@@ -234,7 +234,7 @@ function TransactionRow({ transaction }: { transaction: typeof transactions[0] }
             </div>
           ) : (
             <div className="w-9 h-9 rounded-full bg-zinc-800 border border-[#27272a] flex items-center justify-center">
-              <span className="text-[10px] text-zinc-500 font-bold">BTC</span>
+              <span className="text-[10px] text-zinc-500 font-semibold">BTC</span>
             </div>
           )}
           <div>
@@ -247,20 +247,20 @@ function TransactionRow({ transaction }: { transaction: typeof transactions[0] }
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-zinc-500 w-8">From</span>
-            <span className={`text-xs font-mono ${transaction.from === 'You' ? 'text-[#2CC295] font-bold' : 'text-zinc-400'}`}>
+            <span className={`text-xs font-mono ${transaction.from === 'You' ? 'text-[#2CC295] font-semibold' : 'text-zinc-400'}`}>
               {transaction.from}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-zinc-500 w-8">To</span>
-            <span className={`text-xs font-mono ${transaction.to === 'You' ? 'text-[#2CC295] font-bold' : 'text-zinc-400'}`}>
+            <span className={`text-xs font-mono ${transaction.to === 'You' ? 'text-[#2CC295] font-semibold' : 'text-zinc-400'}`}>
               {transaction.to}
             </span>
           </div>
         </div>
       </td>
       <td className="px-6 py-5">
-        <p className="text-sm font-bold text-white">{transaction.value}</p>
+        <p className="text-sm font-semibold text-white">{transaction.value}</p>
         <p className="text-[10px] text-zinc-500">{transaction.usdValue}</p>
       </td>
       <td className="px-6 py-5">
@@ -268,7 +268,7 @@ function TransactionRow({ transaction }: { transaction: typeof transactions[0] }
         <p className="text-[10px] text-zinc-600">{transaction.date}</p>
       </td>
       <td className="px-6 py-5 text-right">
-        <a className="inline-flex items-center gap-1 text-xs font-bold text-zinc-500 hover:text-[#2CC295] transition-colors" href="#">
+        <a className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-500 hover:text-[#2CC295] transition-colors" href="#">
           Explorer <ExternalLink size={12} />
         </a>
       </td>

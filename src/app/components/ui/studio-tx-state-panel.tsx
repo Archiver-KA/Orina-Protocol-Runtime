@@ -60,7 +60,7 @@ export function StudioTxStatePanel({
       <div className="flex items-start gap-3">
         {tones.icon}
         <div className="flex-1 min-w-0">
-          <h3 className={cn('text-sm font-bold mb-1', tones.title)}>{title}</h3>
+          <h3 className={cn('text-sm font-semibold mb-1', tones.title)}>{title}</h3>
           {description ? <p className={cn('text-xs', tones.desc)}>{description}</p> : null}
 
           {hash && variant !== 'error' ? (

@@ -5,18 +5,19 @@
  * Hỗ trợ Grid/List view, filtering, và search
  */
 
-import { Search, Filter, Grid, List, Map as MapIcon, TrendingUp, Clock, Star, ShieldCheck } from 'lucide-react';
-import { useState, useMemo, useEffect } from 'react';
+import { Search, Grid, List, Map as MapIcon } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, lazy } from 'react';
 import { toast } from 'sonner';
-import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
 import { SearchResultCard } from './search-result-card';
 import { ProfileSearchCard } from './profile-search-card';
 import { CollectionCard } from './collection-card';
 import { AssetDetailsModal } from './asset-details-modal';
 import { CollectionDetailsModal } from '@/app/components/collections/collection-details-modal';
+import { EmptyStateCard } from '@/app/components/ui/empty-state-card';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
-import { RealisticWorldMap } from './marketplace/realistic-world-map';
-import { useAccount } from 'wagmi';
+import { ProgressiveMarketplaceMapSurface } from '@/app/components/marketplace/progressive-marketplace-map-surface';
+import { StudioPillGroup, StudioPillButton } from '@/app/components/ui/studio-pill-group';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { loadFavorites, toggleFavorite } from '@/utils/favoritesUtils';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { REPUTATION_SYNC_EVENT } from '@/utils/profileReputationSync';
@@ -34,10 +35,10 @@ import {
 import { MarketplaceAsset } from '@/app/types/asset';
 import type { CollectionSummary } from '@/types/collection';
 import {
+  adjustMarketplaceAssetLikeCount,
   getMarketplaceCatalogAssetById,
   getMarketplaceCatalogBlockchains,
   getMarketplaceCatalogCategories,
-  getMarketplaceCatalogStatistics,
   hydrateMarketplaceCatalogFromSupabase,
   loadMarketplaceCatalogSync,
   MARKETPLACE_CATALOG_SYNC_EVENT,
@@ -54,9 +55,44 @@ import {
   TAXONOMY_SYNC_EVENT,
 } from '@/utils/taxonomy';
 
+let realisticWorldMapPromise: Promise<typeof import('./marketplace/realistic-world-map')> | null = null;
+
+function preloadRealisticWorldMap() {
+  realisticWorldMapPromise ??= import('./marketplace/realistic-world-map');
+  return realisticWorldMapPromise;
+}
+
+const RealisticWorldMap = lazy(async () => {
+  const module = await preloadRealisticWorldMap();
+  return { default: module.RealisticWorldMap };
+});
+
+const MARKETPLACE_VIEW_MODE_KEY = 'orina_marketplace_view_mode';
+
+function readInitialMarketplaceViewMode(): 'grid' | 'list' | 'map' {
+  if (typeof window === 'undefined') return 'grid';
+
+  const storedValue = window.localStorage.getItem(MARKETPLACE_VIEW_MODE_KEY);
+  if (storedValue === 'grid' || storedValue === 'list' || storedValue === 'map') {
+    return storedValue;
+  }
+
+  return 'grid';
+}
+
 interface MarketplaceProps {
   onNavigateToPage?: (page: string) => void;
+  onNavigateToAsset?: (assetId: string, fromPage?: string) => void;
+  onNavigateToCollection?: (collectionId: string, fromPage?: string) => void;
   onNavigateToUserProfile?: (walletAddress: string) => void;
+  onNavigateToUserReviews?: (walletAddress: string) => void;
+  onNavigateToMessages?: (walletAddress: string) => void;
+  navigationRequest?: {
+    category: string;
+    subcategory?: string;
+    requestKey: string;
+  } | null;
+  onConsumeNavigationRequest?: (requestKey: string) => void;
 }
 
 type MarketplaceBlockchainDropdownOption = {
@@ -130,27 +166,57 @@ function getMarketplaceCatalogBlockchainOption(
   }
 }
 
-export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: MarketplaceProps) {
-  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>('map');
+export function Marketplace({
+  onNavigateToPage,
+  onNavigateToAsset,
+  onNavigateToCollection,
+  onNavigateToUserProfile,
+  onNavigateToUserReviews,
+  onNavigateToMessages,
+  navigationRequest,
+  onConsumeNavigationRequest,
+}: MarketplaceProps) {
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>(() => readInitialMarketplaceViewMode());
   const [contentMode, setContentMode] = useState<'assets' | 'profiles' | 'collections'>('assets');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedBlockchain, setSelectedBlockchain] = useState<string>('all');
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [marketplaceMapViewState, setMarketplaceMapViewState] = useState({
+    longitude: 0,
+    latitude: 20,
+    zoom: 2,
+  });
   const [likedAssets, setLikedAssets] = useState<Set<string>>(new Set());
   const [likedCollections, setLikedCollections] = useState<Set<string>>(new Set());
   const [selectedAsset, setSelectedAsset] = useState<MarketplaceAsset | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
+  const [mapEngineRequested, setMapEngineRequested] = useState(false);
   const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
   const [sellerProfiles, setSellerProfiles] = useState(() => loadSellerDirectorySync({ marketplaceAssets: loadMarketplaceCatalogSync() }));
   const [runtimeCollections, setRuntimeCollections] = useState<CollectionSummary[]>(() => loadRuntimeCollections());
   const [taxonomyVersion, setTaxonomyVersion] = useState(0);
-  const { address } = useAccount();
+  const { address } = useEffectiveViewer();
   const { requireWalletAction } = useRequireWalletAction(onNavigateToPage);
 
-  const stats = useMemo(() => getMarketplaceCatalogStatistics(marketplaceAssets), [marketplaceAssets]);
+  const requestMapEngine = useCallback(() => {
+    setMapEngineRequested((current) => {
+      if (!current) {
+        void preloadRealisticWorldMap();
+      }
+      return true;
+    });
+  }, []);
+
+  const handleSetViewMode = (nextMode: 'grid' | 'list' | 'map') => {
+    if (nextMode === 'map') {
+      void preloadRealisticWorldMap();
+    }
+    setViewMode(nextMode);
+  };
+
   const assetCategoryOptions = useMemo(
     () => {
       const liveValues = new Set(getMarketplaceCatalogCategories(marketplaceAssets));
@@ -227,6 +293,15 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
   }, []);
 
   useEffect(() => {
+    if (!selectedAsset) return;
+
+    const nextSelectedAsset = getMarketplaceCatalogAssetById(selectedAsset.id, marketplaceAssets);
+    if (nextSelectedAsset && nextSelectedAsset !== selectedAsset) {
+      setSelectedAsset(nextSelectedAsset);
+    }
+  }, [marketplaceAssets, selectedAsset]);
+
+  useEffect(() => {
     const syncTaxonomy = () => {
       setTaxonomyVersion((value) => value + 1);
     };
@@ -237,6 +312,23 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
       window.removeEventListener(TAXONOMY_SYNC_EVENT, syncTaxonomy as EventListener);
     };
   }, []);
+
+  useEffect(() => {
+    if (!navigationRequest) return;
+
+    const normalizedCategory = normalizeCategoryFilterValue(
+      navigationRequest.category,
+      navigationRequest.subcategory,
+    );
+
+    setContentMode('assets');
+    setSearchQuery('');
+    setSelectedBlockchain('all');
+    setVerifiedOnly(false);
+    setSelectedCategory(normalizedCategory || 'all');
+
+    onConsumeNavigationRequest?.(navigationRequest.requestKey);
+  }, [navigationRequest, onConsumeNavigationRequest]);
 
   useEffect(() => {
     const syncLikes = () => {
@@ -292,6 +384,17 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
       setSelectedCategory('all');
     }
   }, [assetCategoryOptions, blockchainOptions, collectionCategoryOptions, contentMode, selectedBlockchain, selectedCategory]);
+
+  useEffect(() => {
+    if (contentMode !== 'assets' || viewMode !== 'map') {
+      setVerifiedOnly(false);
+    }
+  }, [contentMode, viewMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(MARKETPLACE_VIEW_MODE_KEY, viewMode);
+  }, [viewMode]);
 
   // Filter assets
   const filteredAssets = useMemo(() => {
@@ -373,11 +476,9 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
           {
             id: parseInt(asset.id.replace(/\D/g, '')) || index,
             name: asset.name,
-            collection: getCategoryDisplayLabel(asset.category),
+            categoryLabel: getCategoryDisplayLabel(asset.category),
             price: asset.price,
             usdPrice: asset.priceUSD || '$0',
-            rarity: asset.verified ? 'Legendary' : 'Common',
-            rarityColor: asset.verified ? 'text-primary' : 'text-ui-secondary',
             image: asset.image,
             latitude: coordinates.lat,
             longitude: coordinates.lng,
@@ -402,6 +503,7 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
       return;
     }
     const isFav = await toggleFavorite(address, assetId);
+    adjustMarketplaceAssetLikeCount(assetId, isFav ? 1 : -1);
     setLikedAssets(prev => {
       const next = new Set(prev);
       if (isFav) next.add(assetId);
@@ -426,6 +528,10 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
   };
 
   const handleAssetClick = (assetId: string) => {
+    if (onNavigateToAsset) {
+      onNavigateToAsset(assetId, 'marketplace');
+      return;
+    }
     const asset = getMarketplaceCatalogAssetById(assetId, marketplaceAssets);
     if (asset) {
       setSelectedAsset(asset);
@@ -448,254 +554,256 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
   };
 
   const handleCollectionClick = (collectionId: string) => {
+    if (onNavigateToCollection) {
+      onNavigateToCollection(collectionId, 'marketplace');
+      return;
+    }
     setSelectedCollectionId(collectionId);
     setIsCollectionModalOpen(true);
   };
 
   const handleNavigateToSeller = (sellerAddress: string) => {
-    if (onNavigateToPage) {
-      onNavigateToPage('seller');
-    }
+    onNavigateToUserProfile?.(sellerAddress);
   };
 
+  const handleNavigateToSellerReviews = (sellerAddress: string) => {
+    onNavigateToUserReviews?.(sellerAddress);
+  };
+
+  const handleNavigateToSellerMessages = (sellerAddress: string) => {
+    onNavigateToMessages?.(sellerAddress);
+  };
+
+  const verifiedAssetCount = useMemo(
+    () => marketplaceAssets.filter((asset) => asset.verified).length,
+    [marketplaceAssets]
+  );
   return (
     <div className="marketplace-page-theme h-full flex flex-col bg-ui-page overflow-hidden relative">
-      <style>{`
-        div::-webkit-scrollbar { width: 4px; }
-        div::-webkit-scrollbar-track { background: transparent; }
-        div::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
-      `}</style>
-
       {/* Main Content */}
-      <div className={`flex-1 relative flex flex-col ${viewMode === 'map' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-        {/* Secondary Header - View Mode, Stats & Filters */}
-        <div className={`relative z-10 px-6 py-3 ${viewMode === 'map' ? 'mb-0' : 'mb-6'}`}>
-          <div className="rounded-[24px] bg-[var(--t-card-bg)] border-0 backdrop-blur-[10px] px-3 py-2">
-            <div className="flex items-center gap-4">
-              {/* Left: View Mode */}
-              <div className="flex items-center gap-[2px] bg-[rgba(255,255,255,0.03)] p-1 rounded-[16px] border-0 w-fit shrink-0">
-                <button
-                  onClick={() => {
-                    setContentMode('assets');
-                  }}
-                  className={`
-                    flex items-center justify-center px-3 py-2 rounded-[12px] text-xs font-bold transition-all
-                    ${contentMode === 'assets' ? 'bg-[rgba(255,255,255,0.08)] text-ui-primary' : 'text-ui-muted hover:text-ui-secondary'}
-                  `}
+      <div className="flex-1 relative flex flex-col overflow-hidden">
+        <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col px-6 py-3 lg:px-8">
+          <div className="flex flex-col gap-3 px-1 xl:flex-row xl:items-center">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <StudioPillGroup className="rounded-full bg-[var(--t-surface-2)] shadow-none">
+                <StudioPillButton
+                  onClick={() => setContentMode('assets')}
+                  active={contentMode === 'assets'}
+                  className={contentMode === 'assets' ? 'rounded-full bg-[var(--t-card-bg)] px-4 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-4 py-2.5 text-ui-muted hover:text-ui-primary'}
                 >
                   Assets
-                </button>
-                <button
+                </StudioPillButton>
+                <StudioPillButton
                   onClick={() => {
                     setContentMode('profiles');
-                    if (viewMode === 'map') setViewMode('grid');
+                    if (viewMode === 'map') handleSetViewMode('grid');
                   }}
-                  className={`
-                    flex items-center justify-center px-3 py-2 rounded-[12px] text-xs font-bold transition-all
-                    ${contentMode === 'profiles' ? 'bg-[rgba(255,255,255,0.08)] text-ui-primary' : 'text-ui-muted hover:text-ui-secondary'}
-                  `}
+                  active={contentMode === 'profiles'}
+                  className={contentMode === 'profiles' ? 'rounded-full bg-[var(--t-card-bg)] px-4 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-4 py-2.5 text-ui-muted hover:text-ui-primary'}
                 >
                   Profiles
-                </button>
-                <button
+                </StudioPillButton>
+                <StudioPillButton
                   onClick={() => {
                     setContentMode('collections');
-                    if (viewMode === 'map') setViewMode('grid');
+                    if (viewMode === 'map') handleSetViewMode('grid');
                   }}
-                  className={`
-                    flex items-center justify-center px-3 py-2 rounded-[12px] text-xs font-bold transition-all
-                    ${contentMode === 'collections' ? 'bg-[rgba(255,255,255,0.08)] text-ui-primary' : 'text-ui-muted hover:text-ui-secondary'}
-                  `}
+                  active={contentMode === 'collections'}
+                  className={contentMode === 'collections' ? 'rounded-full bg-[var(--t-card-bg)] px-4 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-4 py-2.5 text-ui-muted hover:text-ui-primary'}
                 >
                   Collections
-                </button>
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`
-                    flex items-center justify-center p-2 rounded-[12px] transition-all
-                    ${viewMode === 'grid'
-                      ? 'bg-[rgba(255,255,255,0.08)] text-ui-primary'
-                      : 'text-ui-muted hover:text-ui-secondary'
-                    }
-                  `}
+                </StudioPillButton>
+              </StudioPillGroup>
+
+              <StudioPillGroup className="rounded-full bg-[var(--t-surface-2)] shadow-none">
+                <StudioPillButton
+                  onClick={() => handleSetViewMode('grid')}
+                  active={viewMode === 'grid'}
+                  className={viewMode === 'grid' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-3 py-2.5 text-ui-muted hover:text-ui-primary'}
                 >
                   <Grid size={16} />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`
-                    flex items-center justify-center p-2 rounded-[12px] transition-all
-                    ${viewMode === 'list'
-                      ? 'bg-[rgba(255,255,255,0.08)] text-ui-primary'
-                      : 'text-ui-muted hover:text-ui-secondary'
-                    }
-                  `}
+                </StudioPillButton>
+                <StudioPillButton
+                  onClick={() => handleSetViewMode('list')}
+                  active={viewMode === 'list'}
+                  className={viewMode === 'list' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-3 py-2.5 text-ui-muted hover:text-ui-primary'}
                 >
                   <List size={16} />
-                </button>
-                <button
-                  onClick={() => setViewMode('map')}
-                  disabled={contentMode !== 'assets'}
-                  className={`
-                    flex items-center justify-center p-2 rounded-[12px] transition-all
-                    ${viewMode === 'map'
-                      ? 'bg-[rgba(255,255,255,0.08)] text-ui-primary'
-                      : 'text-ui-muted hover:text-ui-secondary'
+                </StudioPillButton>
+                <StudioPillButton
+                  onClick={() => handleSetViewMode('map')}
+                  onPointerEnter={() => {
+                    if (contentMode === 'assets') {
+                      void preloadRealisticWorldMap();
                     }
-                    ${contentMode !== 'assets' ? 'opacity-40 cursor-not-allowed' : ''}
-                  `}
+                  }}
+                  onFocus={() => {
+                    if (contentMode === 'assets') {
+                      void preloadRealisticWorldMap();
+                    }
+                  }}
+                  active={viewMode === 'map'}
+                  disabled={contentMode !== 'assets'}
+                  className={`${viewMode === 'map' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-3 py-2.5 text-ui-muted hover:text-ui-primary'} ${contentMode !== 'assets' ? 'cursor-not-allowed opacity-40' : ''}`}
                 >
                   <MapIcon size={16} />
-                </button>
-              </div>
+                </StudioPillButton>
+              </StudioPillGroup>
+            </div>
 
-              {/* Center: Filters */}
-              <div className="flex-1 flex items-center gap-3 min-w-0">
-                {/* Search */}
-                <div className="relative flex-1 max-w-[500px]">
-                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-muted" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={
-                      contentMode === 'profiles'
-                        ? 'Search profiles...'
-                        : contentMode === 'collections'
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 xl:flex-nowrap">
+              <div className="relative min-w-[280px] flex-[1.25]">
+                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-ui-muted" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={
+                    contentMode === 'profiles'
+                      ? 'Search profiles...'
+                      : contentMode === 'collections'
                         ? 'Search collections...'
                         : 'Search assets...'
-                    }
-                    className="w-full pl-9 pr-3 py-2.5 bg-ui-input border border-ui-border-subtle rounded-full text-sm text-ui-primary placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295] focus:ring-2 focus:ring-[#2CC295]/25 transition-all"
-                  />
-                </div>
+                  }
+                  className="h-[44px] w-full rounded-full border border-ui-border-subtle bg-ui-input pl-11 pr-4 text-sm text-ui-primary placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295] focus:ring-2 focus:ring-[#2CC295]/20 transition-all"
+                />
+              </div>
 
-                {/* Category */}
-                <div className="w-[210px] shrink-0">
-                  <CustomDropdown
-                    defaultValue={selectedCategory}
-                    onChange={setSelectedCategory}
-                    options={[
-                      { value: 'all', label: 'All Categories' },
-                      ...visibleCategoryOptions
-                    ]}
-                    variant="compact"
-                    className={contentMode === 'profiles' ? 'opacity-50 pointer-events-none' : ''}
-                  />
-                </div>
+              <div className={`min-w-[188px] flex-[0.78] xl:max-w-[212px] ${contentMode === 'profiles' ? 'opacity-50 pointer-events-none' : ''}`}>
+                <CustomDropdown
+                  defaultValue={selectedCategory}
+                  onChange={setSelectedCategory}
+                  options={[
+                    { value: 'all', label: 'All Categories' },
+                    ...visibleCategoryOptions
+                  ]}
+                  variant="compact"
+                  className="w-full"
+                  triggerClassName="h-[44px] text-[13px]"
+                  menuMinWidth={228}
+                />
+              </div>
 
-                {/* Blockchain */}
-                <div className="w-[210px] shrink-0">
-                  <CustomDropdown
-                    defaultValue={selectedBlockchain}
-                    onChange={setSelectedBlockchain}
+              <div className={`min-w-[188px] flex-[0.78] xl:max-w-[212px] ${contentMode !== 'assets' ? 'opacity-50 pointer-events-none' : ''}`}>
+                <CustomDropdown
+                  defaultValue={selectedBlockchain}
+                  onChange={setSelectedBlockchain}
                     options={blockchainOptions}
                     variant="compact"
-                    className={contentMode !== 'assets' ? 'opacity-50 pointer-events-none' : ''}
+                    className="w-full"
+                    triggerClassName="h-[44px] text-[13px]"
+                    menuMinWidth={228}
                   />
                 </div>
+            </div>
+          </div>
 
-                {/* Verified Toggle */}
-                <div className="flex items-center gap-2 shrink-0 pr-1">
-                  <ShieldCheck size={16} className={`transition-colors ${verifiedOnly ? 'text-primary' : 'text-ui-muted'}`} />
-                  <span className={`text-xs font-bold transition-colors ${verifiedOnly ? 'text-primary' : 'text-ui-muted'}`}>Verified</span>
-                  <ToggleSwitch
-                    checked={verifiedOnly}
-                    onChange={setVerifiedOnly}
+          <div className="min-h-0 flex-1 pt-7">
+            {viewMode !== 'map' && (
+              <div
+                className="scrollbar-hidden h-full overflow-y-auto px-1 pb-6 pt-2"
+                style={{ scrollbarGutter: 'stable both-edges' }}
+              >
+                {(contentMode === 'assets' && filteredAssets.length === 0) || (contentMode === 'profiles' && filteredProfiles.length === 0) || (contentMode === 'collections' && filteredCollections.length === 0) ? (
+                  <EmptyStateCard
+                    icon={<Search size={30} className="text-ui-muted" />}
+                    title={contentMode === 'assets' ? 'No assets found' : contentMode === 'profiles' ? 'No profiles found' : 'No collections found'}
+                    description="Try adjusting your filters, search terms, or content mode to reveal more live marketplace results."
+                    className="rounded-[32px] py-20"
                   />
-                </div>
+                ) : (
+                  <div className={`
+                    ${contentMode === 'profiles'
+                      ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'
+                      : contentMode === 'collections'
+                      ? viewMode === 'grid'
+                        ? 'grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3'
+                        : 'space-y-4'
+                      : viewMode === 'grid'
+                      ? 'grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                      : 'space-y-4'
+                    }
+                  `}>
+                    {contentMode === 'assets' ? (
+                      filteredAssets.map((asset) => (
+                        <SearchResultCard
+                          key={asset.id}
+                          asset={asset}
+                          viewMode={viewMode}
+                          onLike={handleLike}
+                          onClick={handleAssetClick}
+                          isLiked={likedAssets.has(asset.id)}
+                        />
+                      ))
+                    ) : (
+                      contentMode === 'profiles' ? (
+                        filteredProfiles.map((profile) => (
+                          <ProfileSearchCard
+                            key={profile.address}
+                            profile={profile}
+                            viewMode={viewMode === 'list' ? 'list' : 'grid'}
+                            onViewProfile={handleProfileClick}
+                            onFollowChange={handleProfileFollowChange}
+                          />
+                        ))
+                      ) : (
+                        filteredCollections.map((collection) => (
+                          <CollectionCard
+                            key={collection.id}
+                            collection={collection}
+                            viewMode={viewMode}
+                            onLike={handleCollectionLike}
+                            onClick={handleCollectionClick}
+                            isLiked={likedCollections.has(collection.id)}
+                          />
+                        ))
+                      )
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
-        </div>
+            )}
 
-        {viewMode !== 'map' && <div className="px-8 pb-8">
-        {/* Results: Grid/List/Map View */}
-        {(contentMode === 'assets' && filteredAssets.length === 0) || (contentMode === 'profiles' && filteredProfiles.length === 0) || (contentMode === 'collections' && filteredCollections.length === 0) ? (
-          <div className="flex flex-col items-center justify-center py-20 px-8">
-            <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center mb-6 border border-[#27272a]">
-              <Search size={40} className="text-ui-muted" />
-            </div>
-            <h3 className="text-xl font-bold text-ui-primary mb-2">
-              {contentMode === 'assets' ? 'No assets found' : contentMode === 'profiles' ? 'No profiles found' : 'No collections found'}
-            </h3>
-            <p className="text-sm text-ui-muted text-center max-w-md">
-              Try adjusting your filters to see more results.
-            </p>
-          </div>
-        ) : (
-          <div className={`
-            ${contentMode === 'profiles'
-              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'
-              : contentMode === 'collections'
-              ? viewMode === 'grid'
-                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-                : 'space-y-4'
-              : viewMode === 'grid'
-              ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
-              : 'space-y-4'
-            }
-          `}>
-            {contentMode === 'assets' ? (
-              filteredAssets.map((asset) => (
-                <SearchResultCard
-                  key={asset.id}
-                  asset={asset}
-                  viewMode={viewMode}
-                  onLike={handleLike}
-                  onClick={handleAssetClick}
-                  isLiked={likedAssets.has(asset.id)}
-                />
-              ))
-            ) : (
-              contentMode === 'profiles' ? (
-                filteredProfiles.map((profile) => (
-                  <ProfileSearchCard
-                    key={profile.address}
-                    profile={profile}
-                    viewMode={viewMode === 'list' ? 'list' : 'grid'}
-                    onViewProfile={handleProfileClick}
-                    onFollowChange={handleProfileFollowChange}
+            {viewMode === 'map' && contentMode === 'assets' && (
+              <div className="h-full overflow-hidden rounded-[32px] bg-[var(--t-surface-2)] shadow-[0_24px_60px_-42px_rgba(0,0,0,0.34)]">
+                <ProgressiveMarketplaceMapSurface
+                  mapEngineRequested={mapEngineRequested}
+                  onRequestMapEngine={requestMapEngine}
+                  filteredAssets={mapAssets}
+                  totalListings={marketplaceAssets.length}
+                  verifiedCount={verifiedAssetCount}
+                  verifiedOnly={verifiedOnly}
+                  onToggleVerified={setVerifiedOnly}
+                >
+                  <RealisticWorldMap
+                    filteredAssets={mapAssets}
+                    totalListings={marketplaceAssets.length}
+                    verifiedCount={verifiedAssetCount}
+                    viewState={marketplaceMapViewState}
+                    onViewStateChange={setMarketplaceMapViewState}
+                    onAssetClick={(mapAsset) => {
+                      const asset = filteredAssets.find(
+                        (a, index) => (parseInt(a.id.replace(/\D/g, '')) || index) === mapAsset.id
+                      );
+                      if (asset) {
+                        if (onNavigateToAsset) {
+                          onNavigateToAsset(asset.id, 'marketplace');
+                          return;
+                        }
+                        setSelectedAsset(asset);
+                        setIsModalOpen(true);
+                      }
+                    }}
+                    selectedAssetId={null}
+                    onMarkerClick={() => {}}
+                    verifiedOnly={verifiedOnly}
+                    onToggleVerified={setVerifiedOnly}
                   />
-                ))
-              ) : (
-                filteredCollections.map((collection) => (
-                  <CollectionCard
-                    key={collection.id}
-                    collection={collection}
-                    viewMode={viewMode}
-                    onLike={handleCollectionLike}
-                    onClick={handleCollectionClick}
-                    isLiked={likedCollections.has(collection.id)}
-                  />
-                ))
-              )
+                </ProgressiveMarketplaceMapSurface>
+              </div>
             )}
           </div>
-        )}
-        </div>}
-
-        {viewMode === 'map' && contentMode === 'assets' && (
-          <div className="flex-1 min-h-0 px-2.5 pb-0 pt-3">
-            <div className="h-full rounded-t-[24px] overflow-hidden">
-              <RealisticWorldMap
-                filteredAssets={mapAssets}
-                onAssetClick={(mapAsset) => {
-                  const asset = filteredAssets.find(
-                    (a, index) => (parseInt(a.id.replace(/\D/g, '')) || index) === mapAsset.id
-                  );
-                  if (asset) {
-                    setSelectedAsset(asset);
-                    setIsModalOpen(true);
-                  }
-                }}
-                selectedAssetId={null}
-                onMarkerClick={(id) => {}}
-                verifiedOnly={verifiedOnly}
-                onToggleVerified={setVerifiedOnly}
-              />
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Product Modal */}
@@ -704,6 +812,8 @@ export function Marketplace({ onNavigateToPage, onNavigateToUserProfile }: Marke
           asset={selectedAsset}
           onClose={() => setIsModalOpen(false)}
           onNavigateToSeller={handleNavigateToSeller}
+          onNavigateToSellerReviews={handleNavigateToSellerReviews}
+          onNavigateToSellerMessages={handleNavigateToSellerMessages}
         />
       )}
 

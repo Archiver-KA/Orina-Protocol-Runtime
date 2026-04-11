@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Key, Copy, Trash2, Eye, EyeOff, Plus, Check, Shield, Activity, TrendingUp, Clock, ChevronDown, ChevronUp } from 'lucide-react';
-import { APIKey, APIKeyPermission } from '@/app/types/api-key';
-import { APIKeyManager } from '@/utils/apiKeyManager';
+import { Key, Copy, Trash2, Plus, Check, Shield, Activity, Clock, ChevronUp } from 'lucide-react';
+import { toast } from 'sonner';
+import { APIKey, APIKeyGenerateOptions, APIKeyPermission } from '@/app/types/api-key';
+import { APIKeysClient } from '@/utils/apiKeysClient';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { copyToClipboard } from '@/utils/clipboard';
 import { Checkbox } from '@/app/components/ui/checkbox';
@@ -14,57 +15,47 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [generatedKey, setGeneratedKey] = useState<APIKey | null>(null);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
   const [runtimeError, setRuntimeError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [revokingKeyId, setRevokingKeyId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load keys without initializing demo data
-    // User starts with 0 keys and creates their own
-    loadKeys();
+    void loadKeys();
   }, [walletAddress]);
 
-  const loadKeys = () => {
+  const loadKeys = async () => {
+    setIsLoading(true);
     try {
-      const keys = APIKeyManager.getKeysForWallet(walletAddress);
+      const keys = await APIKeysClient.list(walletAddress);
       setApiKeys(keys);
       setRuntimeError('');
     } catch (error) {
       console.error('[APIKeysSettings] Failed to load keys:', error);
       setApiKeys([]);
-      setRuntimeError('Unable to read saved API keys from local storage.');
+      setRuntimeError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load your saved API keys right now.',
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleCopyKey = async (key: string, keyId: string) => {
-    const success = await copyToClipboard(key);
-    if (success) {
-      setCopiedKey(keyId);
-      setTimeout(() => setCopiedKey(null), 2000);
-    }
-  };
-
-  const toggleKeyVisibility = (keyId: string) => {
-    setRevealedKeys(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(keyId)) {
-        newSet.delete(keyId);
-      } else {
-        newSet.add(keyId);
-      }
-      return newSet;
-    });
-  };
-
-  const handleRevokeKey = (keyId: string) => {
+  const handleRevokeKey = async (keyId: string) => {
     if (confirm('Are you sure you want to revoke this API key? This action cannot be undone.')) {
-      APIKeyManager.revokeKey(walletAddress, keyId);
-      loadKeys();
+      setRevokingKeyId(keyId);
+      try {
+        await APIKeysClient.revoke(walletAddress, keyId);
+        toast.success('API key revoked');
+        await loadKeys();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Unable to revoke the API key');
+      } finally {
+        setRevokingKeyId(null);
+      }
     }
-  };
-
-  const maskKey = (key: string) => {
-    return `${key.slice(0, 15)}${'•'.repeat(20)}${key.slice(-4)}`;
   };
 
   const formatDate = (dateString: string | null) => {
@@ -84,31 +75,44 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
   };
 
   const getPermissionBadgeColor = (permission: APIKeyPermission) => {
-    const colors = {
+    const colors: Record<APIKeyPermission, string> = {
       read: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
       write: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
       mint: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-      delete: 'bg-red-500/10 text-red-400 border-red-500/20'
+      delete: 'bg-red-500/10 text-red-400 border-red-500/20',
     };
     return colors[permission];
   };
 
   const totalRequests = apiKeys.reduce((sum, key) => sum + key.usageStats.totalRequests, 0);
-  const avgSuccessRate = apiKeys.length > 0
-    ? apiKeys.reduce((sum, key) => sum + key.usageStats.successRate, 0) / apiKeys.length
-    : 0;
+  const activeKeysCount = apiKeys.filter((key) => key.isActive).length;
+  const revokedKeysCount = apiKeys.filter((key) => !key.isActive).length;
+
+  const handleGenerateKey = async (options: APIKeyGenerateOptions) => {
+    setIsSubmitting(true);
+    try {
+      const nextKey = await APIKeysClient.generate(walletAddress, options);
+      setGeneratedKey(nextKey);
+      toast.success('API key created');
+      await loadKeys();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to create API key');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-[10px] font-bold text-ui-muted uppercase tracking-widest flex items-center gap-3">
+          <h3 className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest flex items-center gap-3">
             <Key className="text-[#2CC295]" size={18} />
-            API Keys for AI Agents
+            API Keys
           </h3>
           <p className="text-sm text-ui-muted mt-2">
-            Enable AI agents to manage your marketplace listings automatically
+            Create keys for apps and automations that need access to your marketplace tools.
           </p>
         </div>
         <button
@@ -116,7 +120,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
             setShowCreateForm(!showCreateForm);
             setGeneratedKey(null);
           }}
-          className="px-4 py-2 bg-[#2CC295] hover:bg-[#25a67d] text-black font-bold text-xs rounded-full transition-colors flex items-center gap-2"
+          className="px-4 py-2 bg-[#2CC295] hover:bg-[#25a67d] text-black font-semibold text-xs rounded-full transition-colors flex items-center gap-2"
         >
           {showCreateForm ? (
             <>
@@ -141,11 +145,10 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
       {/* Expandable Create Form */}
       {showCreateForm && (
         <CreateAPIKeyForm
-          walletAddress={walletAddress}
           generatedKey={generatedKey}
-          onGenerate={(key) => setGeneratedKey(key)}
+          isSubmitting={isSubmitting}
+          onGenerate={handleGenerateKey}
           onDone={() => {
-            loadKeys();
             setShowCreateForm(false);
             setGeneratedKey(null);
           }}
@@ -160,46 +163,52 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
       {apiKeys.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-[var(--t-surface-2)] rounded-xl p-4">
-            <div className="flex items-center gap-2 text-ui-secondary text-xs font-bold uppercase mb-2">
+            <div className="flex items-center gap-2 text-ui-secondary text-xs font-semibold uppercase mb-2">
               <Activity size={12} />
               Total Requests
             </div>
-            <div className="text-2xl font-bold text-ui-primary">{totalRequests.toLocaleString()}</div>
+            <div className="text-2xl font-semibold text-ui-primary">{totalRequests.toLocaleString()}</div>
             <div className="text-[10px] text-ui-muted mt-1">Last 30 days</div>
           </div>
 
           <div className="bg-[var(--t-surface-2)] rounded-xl p-4">
-            <div className="flex items-center gap-2 text-ui-secondary text-xs font-bold uppercase mb-2">
-              <TrendingUp size={12} />
-              Success Rate
-            </div>
-            <div className="text-2xl font-bold text-ui-primary">{avgSuccessRate.toFixed(1)}%</div>
-            <div className="text-[10px] text-ui-muted mt-1">Average across all keys</div>
-          </div>
-
-          <div className="bg-[var(--t-surface-2)] rounded-xl p-4">
-            <div className="flex items-center gap-2 text-ui-secondary text-xs font-bold uppercase mb-2">
+            <div className="flex items-center gap-2 text-ui-secondary text-xs font-semibold uppercase mb-2">
               <Shield size={12} />
               Active Keys
             </div>
-            <div className="text-2xl font-bold text-ui-primary">{apiKeys.filter(k => k.isActive).length}</div>
-            <div className="text-[10px] text-ui-muted mt-1">Out of {apiKeys.length} total</div>
+            <div className="text-2xl font-semibold text-ui-primary">{activeKeysCount}</div>
+            <div className="text-[10px] text-ui-muted mt-1">Ready for use</div>
+          </div>
+
+          <div className="bg-[var(--t-surface-2)] rounded-xl p-4">
+            <div className="flex items-center gap-2 text-ui-secondary text-xs font-semibold uppercase mb-2">
+              <Clock size={12} />
+              Revoked
+            </div>
+            <div className="text-2xl font-semibold text-ui-primary">{revokedKeysCount}</div>
+            <div className="text-[10px] text-ui-muted mt-1">Shown for history</div>
           </div>
         </div>
       )}
 
       {/* API Keys List */}
       <div className="space-y-4">
-        {apiKeys.length === 0 ? (
+        {isLoading && apiKeys.length === 0 ? (
+          <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-8 text-center">
+            <div className="w-8 h-8 border-4 border-ui-border-subtle border-t-[#2CC295] rounded-full animate-spin mx-auto mb-3" />
+            <h4 className="text-ui-primary font-semibold mb-2">Loading API Keys</h4>
+            <p className="text-sm text-ui-muted">Fetching your latest API keys and activity.</p>
+          </div>
+        ) : apiKeys.length === 0 ? (
           <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-8 text-center">
             <Key className="mx-auto text-ui-muted mb-3" size={32} />
-            <h4 className="text-ui-primary font-bold mb-2">No API Keys Yet</h4>
+            <h4 className="text-ui-primary font-semibold mb-2">No API Keys Yet</h4>
             <p className="text-sm text-ui-muted mb-4">
-              Generate your first API key to start automating your marketplace management
+              Create your first API key to connect apps and automations to Orina.
             </p>
             <button
               onClick={() => setShowCreateForm(true)}
-              className="px-4 py-2 bg-[var(--t-surface-5)] border border-ui-border-subtle hover:bg-[var(--t-surface-10)] text-ui-primary rounded-full text-xs font-bold transition-colors"
+              className="ui-secondary-button px-4 py-2 rounded-full text-xs font-semibold transition-colors"
             >
               Create First Key
             </button>
@@ -208,55 +217,40 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
           apiKeys.map((apiKey) => (
             <div
               key={apiKey.id}
-              className={`bg-zinc-900/30 border rounded-xl p-5 transition-all ${
+              className={`rounded-xl border p-5 transition-all ${
                 apiKey.isActive 
-                  ? 'border-[#27272a] hover:border-[#2CC295]/30' 
-                  : 'border-zinc-800 opacity-50'
+                  ? 'border-ui-border-subtle bg-[var(--t-surface-2)] hover:border-[#2CC295]/30' 
+                  : 'border-ui-border-subtle bg-[var(--t-surface-2)] opacity-70'
               }`}
             >
               {/* Key Header */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <h4 className="text-white font-bold">{apiKey.name}</h4>
+                    <h4 className="text-ui-primary font-semibold">{apiKey.name}</h4>
                     {!apiKey.isActive && (
-                      <span className="text-[10px] bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded uppercase font-bold">
+                      <span className="text-[10px] bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded uppercase font-semibold">
                         Revoked
                       </span>
                     )}
                   </div>
                   
                   {/* Key Display */}
-                  <div className="flex items-center gap-2 mb-3">
-                    <code className="text-xs text-zinc-400 font-mono bg-zinc-950 px-3 py-1.5 rounded border border-[#27272a]">
-                      {revealedKeys.has(apiKey.id) ? apiKey.key : maskKey(apiKey.key)}
+                  <div className="mb-3">
+                    <code className="block text-xs text-ui-secondary font-mono bg-[var(--t-surface-5)] px-3 py-1.5 rounded border border-ui-border-subtle">
+                      {apiKey.keyPreview || 'Hidden after creation'}
                     </code>
-                    <button
-                      onClick={() => toggleKeyVisibility(apiKey.id)}
-                      className="p-1.5 hover:bg-zinc-800 rounded transition-colors text-zinc-400 hover:text-white"
-                      title={revealedKeys.has(apiKey.id) ? 'Hide key' : 'Reveal key'}
-                    >
-                      {revealedKeys.has(apiKey.id) ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
-                    <button
-                      onClick={() => handleCopyKey(apiKey.key, apiKey.id)}
-                      className="p-1.5 hover:bg-zinc-800 rounded transition-colors text-zinc-400 hover:text-[#2CC295]"
-                      title="Copy key"
-                    >
-                      {copiedKey === apiKey.id ? (
-                        <Check size={14} className="text-[#2CC295]" />
-                      ) : (
-                        <Copy size={14} />
-                      )}
-                    </button>
+                    <p className="mt-2 text-[10px] text-ui-muted">
+                      The full key is only shown once when it is created.
+                    </p>
                   </div>
 
                   {/* Permissions */}
                   <div className="flex items-center gap-2 flex-wrap">
-                    {apiKey.permissions.map((permission) => (
+                    {apiKey.permissions.map((permission: APIKeyPermission) => (
                       <span
                         key={permission}
-                        className={`text-[10px] font-bold px-2 py-1 rounded border uppercase ${getPermissionBadgeColor(permission)}`}
+                        className={`text-[10px] font-semibold px-2 py-1 rounded border uppercase ${getPermissionBadgeColor(permission)}`}
                       >
                         {permission}
                       </span>
@@ -266,8 +260,9 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
 
                 {apiKey.isActive && (
                   <button
-                    onClick={() => handleRevokeKey(apiKey.id)}
-                    className="p-2 hover:bg-zinc-800 rounded transition-colors text-zinc-400 hover:text-red-400"
+                    onClick={() => void handleRevokeKey(apiKey.id)}
+                    disabled={revokingKeyId === apiKey.id}
+                    className="p-2 hover:bg-[var(--t-surface-5)] rounded transition-colors text-ui-muted hover:text-red-400 disabled:opacity-50"
                     title="Revoke key"
                   >
                     <Trash2 size={16} />
@@ -276,10 +271,10 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
               </div>
 
               {/* Key Stats */}
-              <div className="grid grid-cols-4 gap-4 pt-4 border-t border-[#27272a]">
+              <div className="grid grid-cols-4 gap-4 pt-4 border-t border-ui-border-subtle">
                 <div>
-                  <div className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Created</div>
-                  <div className="text-xs text-white font-bold">
+                  <div className="text-[10px] text-ui-muted uppercase font-semibold mb-1">Created</div>
+                  <div className="text-xs text-ui-primary font-semibold">
                     {new Date(apiKey.createdAt).toLocaleDateString('en-US', { 
                       month: 'short', 
                       day: 'numeric',
@@ -288,20 +283,22 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Last Used</div>
-                  <div className="text-xs text-white font-bold">{formatDate(apiKey.lastUsedAt)}</div>
+                  <div className="text-[10px] text-ui-muted uppercase font-semibold mb-1">Last Used</div>
+                  <div className="text-xs text-ui-primary font-semibold">{formatDate(apiKey.lastUsedAt)}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Requests</div>
-                  <div className="text-xs text-white font-bold">{apiKey.usageStats.totalRequests.toLocaleString()}</div>
+                  <div className="text-[10px] text-ui-muted uppercase font-semibold mb-1">Requests</div>
+                  <div className="text-xs text-ui-primary font-semibold">{apiKey.usageStats.totalRequests.toLocaleString()}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Success Rate</div>
-                  <div className="text-xs text-white font-bold">{apiKey.usageStats.successRate.toFixed(1)}%</div>
+                  <div className="text-[10px] text-ui-muted uppercase font-semibold mb-1">Status</div>
+                  <div className="text-xs text-ui-primary font-semibold">
+                    {apiKey.isActive ? 'Active' : 'Revoked'}
+                  </div>
                 </div>
               </div>
 
-              {apiKey.expiresAt && (
+              {apiKey.expiresAt && apiKey.isActive && (
                 <div className="mt-3 flex items-center gap-2 text-[10px] text-yellow-400">
                   <Clock size={10} />
                   Expires on {new Date(apiKey.expiresAt).toLocaleDateString('en-US', { 
@@ -311,6 +308,13 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
                   })}
                 </div>
               )}
+
+              {!apiKey.isActive && apiKey.revokedAt ? (
+                <div className="mt-3 flex items-center gap-2 text-[10px] text-ui-muted">
+                  <Clock size={10} />
+                  Revoked {formatDate(apiKey.revokedAt)}
+                </div>
+              ) : null}
             </div>
           ))
         )}
@@ -321,15 +325,15 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
 
 // Create API Key Form Component
 function CreateAPIKeyForm({ 
-  walletAddress, 
   generatedKey, 
+  isSubmitting,
   onGenerate, 
   onDone,
   onCancel
 }: { 
-  walletAddress: string;
   generatedKey: APIKey | null;
-  onGenerate: (key: APIKey) => void;
+  isSubmitting: boolean;
+  onGenerate: (options: APIKeyGenerateOptions) => Promise<void>;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -352,19 +356,17 @@ function CreateAPIKeyForm({
     });
   };
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!keyName.trim()) {
-      alert('Please enter a key name');
+      toast.error('Please enter a key name');
       return;
     }
 
-    const newKey = APIKeyManager.generateKey(walletAddress, {
+    await onGenerate({
       name: keyName.trim(),
       permissions: Array.from(permissions),
-      expiresInDays: expiresInDays || undefined
+      expiresInDays: expiresInDays || undefined,
     });
-
-    onGenerate(newKey);
   };
 
   const handleCopy = async () => {
@@ -387,12 +389,12 @@ function CreateAPIKeyForm({
         <>
           {/* Header */}
           <div className="p-6 border-b border-[var(--t-border-subtle)] bg-[var(--t-surface-2)]">
-            <h3 className="text-xl font-bold text-ui-primary flex items-center gap-2">
+            <h3 className="text-xl font-semibold text-ui-primary flex items-center gap-2">
               <Key className="text-[#2CC295]" size={20} />
               Generate New API Key
             </h3>
             <p className="text-sm text-ui-muted mt-1">
-              Create a new API key for AI agent integration
+              Create a new API key for apps and automations
             </p>
           </div>
 
@@ -400,7 +402,7 @@ function CreateAPIKeyForm({
           <div className="p-6 space-y-6">
             {/* Key Name */}
             <div>
-              <label className="block text-xs font-bold text-ui-muted uppercase mb-2">
+              <label className="block text-xs font-semibold text-ui-muted uppercase mb-2">
                 Key Name
               </label>
               <input
@@ -414,7 +416,7 @@ function CreateAPIKeyForm({
 
             {/* Permissions */}
             <div>
-              <label className="block text-xs font-bold text-ui-muted uppercase mb-3">
+              <label className="block text-xs font-semibold text-ui-muted uppercase mb-3">
                 Permissions
               </label>
               <div className="space-y-2">
@@ -430,7 +432,7 @@ function CreateAPIKeyForm({
                       className="bg-[var(--t-surface-10)]"
                     />
                     <div className="flex-1">
-                      <div className="text-sm font-bold text-ui-primary capitalize">{permission}</div>
+                      <div className="text-sm font-semibold text-ui-primary capitalize">{permission}</div>
                       <div className="text-xs text-ui-muted">
                         {permission === 'read' && 'View assets, orders, and analytics (required)'}
                         {permission === 'write' && 'Update asset details and prices'}
@@ -445,7 +447,7 @@ function CreateAPIKeyForm({
 
             {/* Expiration */}
             <div>
-              <label className="block text-xs font-bold text-ui-muted uppercase mb-2">
+              <label className="block text-xs font-semibold text-ui-muted uppercase mb-2">
                 Expiration (Optional)
               </label>
               <CustomDropdown
@@ -459,7 +461,7 @@ function CreateAPIKeyForm({
                   { label: '1 year', value: '365' }
                 ]}
                 value={expiresInDays?.toString() || ''}
-                onChange={(value) => setExpiresInDays(value ? parseInt(value) : null)}
+                onChange={(value: string) => setExpiresInDays(value ? parseInt(value, 10) : null)}
                 placeholder="Select expiration"
                 triggerClassName="h-[42px] rounded-lg bg-[var(--t-surface-5)] border border-ui-border-subtle hover:bg-[var(--t-surface-10)]"
               />
@@ -470,16 +472,17 @@ function CreateAPIKeyForm({
           <div className="p-6 border-t border-[var(--t-border-subtle)] flex items-center gap-3">
             <button
               onClick={onCancel}
-              className="flex-1 px-4 py-2.5 bg-[var(--t-surface-2)] border border-ui-border-subtle text-ui-primary rounded-lg text-sm font-bold hover:bg-[var(--t-surface-5)] transition-colors"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-2.5 bg-[var(--t-surface-2)] border border-ui-border-subtle text-ui-primary rounded-lg text-sm font-semibold hover:bg-[var(--t-surface-5)] transition-colors"
             >
               Cancel
             </button>
             <button
-              onClick={handleGenerate}
-              disabled={!keyName.trim()}
-              className="flex-1 px-4 py-2.5 bg-[#2CC295] text-black rounded-lg text-sm font-bold hover:bg-[#2CC295]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => void handleGenerate()}
+              disabled={!keyName.trim() || isSubmitting}
+              className="flex-1 px-4 py-2.5 bg-[#2CC295] text-black rounded-lg text-sm font-semibold hover:bg-[#2CC295]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Generate Key
+              {isSubmitting ? 'Generating...' : 'Generate Key'}
             </button>
           </div>
         </>
@@ -490,22 +493,22 @@ function CreateAPIKeyForm({
             <div className="w-12 h-12 rounded-full bg-[#2CC295]/10 border border-[#2CC295]/20 flex items-center justify-center mb-4">
               <Check className="text-[#2CC295]" size={24} />
             </div>
-            <h3 className="text-xl font-bold text-ui-primary">API Key Generated!</h3>
+            <h3 className="text-xl font-semibold text-ui-primary">API Key Generated!</h3>
             <p className="text-sm text-ui-muted mt-1">
-              Copy and save this key securely. You won't be able to see it again.
+              Copy and store this key now. After you close this panel, it will stay hidden.
             </p>
           </div>
 
           {/* Generated Key Display */}
           <div className="p-6 space-y-4">
             <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-lg p-4">
-              <div className="text-xs font-bold text-ui-muted uppercase mb-2">Your API Key</div>
+              <div className="text-xs font-semibold text-ui-muted uppercase mb-2">Your API Key</div>
               <code className="text-sm text-ui-primary font-mono break-all block mb-3">
                 {generatedKey.key}
               </code>
               <button
                 onClick={handleCopy}
-                className="w-full px-4 py-2 bg-[var(--t-surface-5)] border border-ui-border-subtle text-ui-primary rounded-lg text-xs font-bold hover:border-[#2CC295]/50 transition-colors flex items-center justify-center gap-2"
+                className="w-full px-4 py-2 bg-[var(--t-surface-5)] border border-ui-border-subtle text-ui-primary rounded-lg text-xs font-semibold hover:border-[#2CC295]/50 transition-colors flex items-center justify-center gap-2"
               >
                 {copied ? (
                   <>
@@ -536,7 +539,7 @@ function CreateAPIKeyForm({
           <div className="p-6 border-t border-[var(--t-border-subtle)]">
             <button
               onClick={handleDone}
-              className="w-full px-4 py-2.5 bg-[#2CC295] text-black rounded-lg text-sm font-bold hover:bg-[#2CC295]/90 transition-colors"
+              className="w-full px-4 py-2.5 bg-[#2CC295] text-black rounded-lg text-sm font-semibold hover:bg-[#2CC295]/90 transition-colors"
             >
               Done
             </button>

@@ -31,7 +31,7 @@ export function MintingDraftsList({
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-ui-input text-ui-muted">
           <FileStack size={26} />
         </div>
-        <h3 className="mt-5 text-xl font-bold text-ui-primary">No drafts saved yet</h3>
+        <h3 className="mt-5 text-xl font-semibold text-ui-primary">No drafts saved yet</h3>
         <p className="mt-2 text-sm text-ui-muted">
           Save an in-progress RWA or NFT here to continue editing later.
         </p>
@@ -65,18 +65,18 @@ export function MintingDraftsList({
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+              <span className="rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-primary">
                 {draft.assetType}
               </span>
-              <span className="rounded-full bg-ui-input px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-ui-secondary">
+              <span className="rounded-full bg-ui-input px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-ui-secondary">
                 {draft.category || 'uncategorized'}
               </span>
-              <span className="rounded-full bg-ui-input px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-ui-secondary">
+              <span className="rounded-full bg-ui-input px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-ui-secondary">
                 {draft.completeness}% complete
               </span>
             </div>
 
-            <h3 className="mt-3 truncate text-lg font-bold text-ui-primary">
+            <h3 className="mt-3 truncate text-lg font-semibold text-ui-primary">
               {draft.name || `${draft.assetType} Untitled Draft`}
             </h3>
             <p className="mt-1 line-clamp-2 text-sm text-ui-muted">

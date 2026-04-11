@@ -18,7 +18,7 @@ import {
   getGeoLabelAtIndex,
   getPreferredDeliveryAddress,
   loadGeoCountries,
-  loadGeoPlaces,
+  loadGeoPlacesForLevel,
   loadUserDeliveryAddresses,
   resolveCountryByCode,
 } from '@/utils/deliveryAddressUtils';
@@ -276,7 +276,7 @@ export function MintingDeliverySection({
         if (index > 0 && !parentId) break;
 
         try {
-          nextOptions[index] = await loadGeoPlaces(selectedCountry.code, parentId);
+          nextOptions[index] = await loadGeoPlacesForLevel(selectedCountry, index, parentId);
         } catch (error) {
           nextOptions[index] = [];
           nextErrors[index] = toUserMessage(error, 'Failed to load regions for this level.');
@@ -373,7 +373,7 @@ export function MintingDeliverySection({
     clearGeoAddressCaches();
     try {
       const parentId = index === 0 ? null : otherDraft.geoPath[index - 1]?.placeId || null;
-      const next = await loadGeoPlaces(selectedCountry.code, parentId);
+      const next = await loadGeoPlacesForLevel(selectedCountry, index, parentId);
       setLevelOptions((prev) => ({ ...prev, [index]: next }));
       setLevelErrors((prev) => {
         const updated = { ...prev };
@@ -453,7 +453,7 @@ export function MintingDeliverySection({
     <div className="rounded-[20px] bg-[var(--t-surface-5)] p-5 space-y-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h3 className="text-base font-bold text-ui-primary">Delivery Address</h3>
+          <h3 className="text-base font-semibold text-ui-primary">Delivery Address</h3>
           <p className="text-xs text-ui-muted mt-1">
             Use the saved shipping address from Settings or provide a one-time override for this mint.
           </p>
@@ -477,7 +477,7 @@ export function MintingDeliverySection({
           {defaultAddress ? (
             <>
               <div className="rounded-2xl bg-[var(--t-surface-2)] px-4 py-4">
-                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-ui-muted mb-2">
+                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-ui-muted mb-2">
                   <MapPin size={14} className="text-[#2CC295]" />
                   Normalized Preview
                 </div>
@@ -544,7 +544,6 @@ export function MintingDeliverySection({
               {selectedCountry
                 ? geoLevels.map((level, index) => {
                     const options = (levelOptions[index] || [])
-                      .filter((place) => place.placeKind === level.kind)
                       .map((place) => ({
                         id: place.id,
                         label: place.name,
@@ -626,7 +625,7 @@ export function MintingDeliverySection({
           </div>
 
           <div className="rounded-2xl bg-[var(--t-surface-2)] px-4 py-4">
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-ui-muted mb-2">
+            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-ui-muted mb-2">
               <MapPin size={14} className="text-[#2CC295]" />
               Normalized Preview
             </div>

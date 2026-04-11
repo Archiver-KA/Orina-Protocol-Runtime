@@ -111,11 +111,11 @@ function getPaymentTokenSymbol(address: string | null | undefined): string | nul
 
 function formatClientError(error: AIM2MClientError, context: 'load' | 'save' | 'generate' | 'invite' | 'accept'): string {
   const prefix = {
-    load: 'Unable to load delegated AI wallet settings.',
-    save: 'Unable to save delegated AI wallet settings.',
-    generate: 'Unable to generate a managed delegate.',
-    invite: 'Unable to create a delegate enroll code.',
-    accept: 'Unable to accept the delegate enroll code.',
+    load: 'Unable to load AI wallet settings.',
+    save: 'Unable to save AI wallet settings.',
+    generate: 'Unable to prepare the AI signer.',
+    invite: 'Unable to create an invite code.',
+    accept: 'Unable to accept the invite code.',
   }[context];
   const suffix = error.requestPath ? ` (${error.requestPath}${error.status ? ` · HTTP ${error.status}` : ''})` : '';
   return `${prefix} ${error.message}${suffix}`;
@@ -141,24 +141,24 @@ function buildSteps(configured: boolean, walletReady: boolean, cycleCanRestart: 
     {
       id: 'configure',
       label: 'Configure',
-      description: 'Choose scope, token, limits, and cycle duration. The managed AI signer is provisioned automatically during deploy.',
+      description: 'Choose the rules, token, limits, and duration for this setup.',
       status: configured ? 'complete' : current === 'configure' ? 'current' : 'locked',
     },
     {
       label: 'Deploy AI wallet',
-      description: 'Root deploy transaction creates the cycle and wallet together in one immutable step.',
+      description: 'Create the AI wallet and lock in the current rules in one step.',
       status: walletReady ? 'complete' : current === 'deploy_ai_wallet' ? 'current' : 'locked',
     },
     {
       id: 'prefund_activate',
       label: 'Optional Fund',
-      description: requiresFunding ? 'Optional after deployment. Only fund the wallet when the cycle needs buy-side token spending.' : 'Optional. Seller-side signing and minting flows can stay unfunded.',
+      description: requiresFunding ? 'Optional after setup. Add funds only when this wallet needs buying power.' : 'Optional. Minting and signing can run without adding funds.',
       status: walletReady ? 'complete' : 'locked',
     },
     {
       id: 'revoke_close',
       label: 'Revoke / Close',
-      description: 'Root can revoke or close the cycle only after idle funds sweep back to the root wallet.',
+      description: 'End this setup after unused balance returns to your main wallet.',
       status: cycleCanRestart ? 'complete' : walletReady ? 'current' : 'locked',
     },
   ];
@@ -285,7 +285,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
       delegateAddress: activeSession.delegate,
       mode: 'generated',
       status: 'verified',
-      label: 'Managed signer',
+      label: 'AI signer',
       managedByServer: true,
       createdAt: activeSession.validFrom ? new Date(Number(activeSession.validFrom) * 1000).toISOString() : new Date().toISOString(),
       verifiedAt: activeSession.validFrom ? new Date(Number(activeSession.validFrom) * 1000).toISOString() : new Date().toISOString(),
@@ -303,12 +303,12 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
   const runtimeStatusLabel = useMemo(() => {
     if (walletState.closed) return 'Closed';
     if (walletState.initialized && walletState.isActive) return 'Active';
-    if (walletState.initialized && !walletState.isActive) return 'Expired / awaiting closeout';
-    if (deployWalletMutation.isPending || deployWalletMutation.isConfirming) return 'Deploying';
-    if (sessionStatus === 'active') return 'Awaiting wallet materialization';
+    if (walletState.initialized && !walletState.isActive) return 'Expired / ready to close';
+    if (deployWalletMutation.isPending || deployWalletMutation.isConfirming) return 'Creating';
+    if (sessionStatus === 'active') return 'Preparing wallet';
     if (sessionStatus === 'revoked') return 'Revoked';
-    if (cycleCanRestart) return 'Ready for renewal';
-    return requiresFundingVault ? 'Awaiting deploy / optional fund' : 'Awaiting deploy';
+    if (cycleCanRestart) return 'Ready to start again';
+    return requiresFundingVault ? 'Ready to create / optional funding' : 'Ready to create';
   }, [walletState.closed, walletState.initialized, walletState.isActive, deployWalletMutation.isPending, deployWalletMutation.isConfirming, sessionStatus, cycleCanRestart, requiresFundingVault]);
   const steps = useMemo(() => buildSteps(configReady, walletReady, cycleCanRestart, requiresFundingVault), [configReady, walletReady, cycleCanRestart, requiresFundingVault]);
   const showConfigurePanels = enabled && !policyLocked;
@@ -320,16 +320,16 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
     if (selectedDelegate) {
       items.push({
         id: 'delegate',
-        label: 'Managed AI signer ready',
-        detail: `${selectedDelegate.label || 'Managed delegate'} · ${selectedDelegate.delegateAddress}`,
+        label: 'AI signer ready',
+        detail: `${selectedDelegate.label || 'AI signer'} · ${selectedDelegate.delegateAddress}`,
         timestamp: selectedDelegate.verifiedAt,
         status: 'success',
       });
     } else if (enabled && !policyLocked) {
       items.push({
         id: 'delegate-pending',
-        label: 'Managed AI signer pending',
-        detail: 'The managed signer will be provisioned automatically inside the deploy flow.',
+        label: 'AI signer pending',
+        detail: 'The AI signer will be prepared automatically when you create the wallet.',
         timestamp: null,
         status: 'pending',
       });
@@ -346,8 +346,8 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
     if (flowSessionNonce !== undefined) {
       items.push({
         id: `session-${flowSessionNonce.toString()}`,
-        label: 'On-chain session',
-        detail: `Nonce ${flowSessionNonce.toString()} · status ${sessionStatus}`,
+        label: 'Current setup',
+        detail: `Setup ${flowSessionNonce.toString()} · status ${sessionStatus}`,
         timestamp: flowSession ? new Date(Number(flowSession.validFrom) * 1000).toISOString() : null,
         status: sessionStatus === 'active' ? 'success' : 'pending',
       });
@@ -408,7 +408,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
         if (!cancelled) {
           setLoading(false);
           setRefreshing(false);
-          setRuntimeError(hasRemoteConfig ? '' : 'AI M2M settings service is not configured in this environment.');
+          setRuntimeError(hasRemoteConfig ? '' : 'AI wallet settings are not available in this environment.');
         }
         return;
       }
@@ -464,17 +464,17 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
 
   useEffect(() => {
     if (!deployWalletMutation.isConfirmed || submittedSessionNonce === undefined || !predictedWalletAddress) return;
-    setStatusMessage(`AI wallet cycle ${submittedSessionNonce.toString()} is active at ${predictedWalletAddress}. Funding stays optional unless buy-side spending is required.`);
+    setStatusMessage(`AI wallet ${submittedSessionNonce.toString()} is live. Add funds only if this setup needs buying power.`);
   }, [deployWalletMutation.isConfirmed, predictedWalletAddress, submittedSessionNonce]);
 
   useEffect(() => {
     if (!revokeWalletMutation.isConfirmed || !deployedWalletAddress) return;
-    setStatusMessage(`Cycle revoked. Idle funds from ${deployedWalletAddress} were swept to the root wallet before closeout.`);
+    setStatusMessage('AI wallet ended. Any unused balance was returned to your main wallet.');
   }, [revokeWalletMutation.isConfirmed, deployedWalletAddress]);
 
   useEffect(() => {
     if (!closeExpiredWalletMutation.isConfirmed || !deployedWalletAddress) return;
-    setStatusMessage(`Expired cycle closed. Idle funds from ${deployedWalletAddress} were swept back to the root wallet.`);
+    setStatusMessage('Expired AI wallet closed. Any unused balance was returned to your main wallet.');
   }, [closeExpiredWalletMutation.isConfirmed, deployedWalletAddress]);
 
   useEffect(() => {
@@ -605,33 +605,33 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
     }
     setDelegates(nextDelegates);
     setSelectedDelegateId(response.data.delegate.id);
-    setStatusMessage(`Managed AI signer ${response.data.delegate.delegateAddress} is ready for the next deploy.`);
+    setStatusMessage('AI signer is ready for setup.');
     return response.data.delegate;
   };
 
   const handleCreateOnchainSession = async () => {
     if (policyLocked && !sessionReady) {
-      setRuntimeError('The current cycle is locked. Revoke or close the active cycle before deploying a new AI wallet.');
+      setRuntimeError('This setup is locked. End the current AI wallet before starting a new one.');
       return;
     }
     if (!enabled) {
-      setRuntimeError('Enable delegated AI wallet and complete the configuration before deploying.');
+      setRuntimeError('Turn on AI wallet automation and finish setup before creating the wallet.');
       return;
     }
     if (!configReady) {
-      setRuntimeError('Complete the required scope, token, cap, and duration fields before deploying the AI wallet cycle.');
+      setRuntimeError('Complete the required actions, token, limits, and duration before continuing.');
       return;
     }
     if (sessionPreview.nextSessionNonce === undefined || walletExpiry === undefined || !paymentTokenAddress) {
-      setRuntimeError('Deployment preview is not ready yet. Retry in a moment.');
+      setRuntimeError('The wallet preview is still loading. Try again in a moment.');
       return;
     }
     if (deployedWalletAddress) {
-      setRuntimeError(`An AI wallet already exists for session nonce ${flowSessionNonce?.toString() || sessionPreview.nextSessionNonce.toString()}: ${deployedWalletAddress}`);
+      setRuntimeError(`An AI wallet is already active for this setup: ${deployedWalletAddress}`);
       return;
     }
     if (normalizedAllowlist.length > 1) {
-      setRuntimeError('On-chain v1 only supports zero or one counterparty allowlist entry.');
+      setRuntimeError('You can add only one allowed wallet right now.');
       return;
     }
 
@@ -649,7 +649,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
       const parsedMaxPerOrder = requiresFundingVault ? parseUnits(maxPerOrder.trim(), decimals) : 0n;
       const parsedMaxTotal = requiresFundingVault ? parseUnits(maxTotal.trim(), decimals) : 0n;
       if (requiresFundingVault && (parsedMaxPerOrder <= 0n || parsedMaxTotal <= 0n)) {
-        setRuntimeError('Buy-enabled cycles require positive Max Per Order and Max Total.');
+        setRuntimeError('Buying access needs positive per-order and total limits.');
         return;
       }
 
@@ -669,11 +669,11 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
         maxTotal: parsedMaxTotal,
         counterpartyAllowlistHash,
       });
-      setStatusMessage(`Deploy transaction submitted for AI wallet cycle ${sessionPreview.nextSessionNonce.toString()}. This transaction provisions the managed signer, commits the immutable policy, and deploys the wallet in one step.`);
+      setStatusMessage('Setup submitted. This creates your AI wallet and locks in the current rules in one step.');
     } catch (error) {
       setSubmittedSessionNonce(undefined);
       setPendingMirrorDelegateId(null);
-      setRuntimeError(error instanceof Error ? error.message : 'Unable to deploy the AI wallet cycle.');
+      setRuntimeError(error instanceof Error ? error.message : 'Unable to create the AI wallet right now.');
     }
   };
 
@@ -684,12 +684,12 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-[10px] font-bold text-ui-muted uppercase tracking-widest flex items-center gap-3">
+        <h3 className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest flex items-center gap-3">
           <WalletCards className="text-[#2CC295]" size={18} />
-          AI Wallet M2M
+          AI Wallet Automation
         </h3>
         <p className="text-sm text-ui-muted mt-2">
-          Configure one immutable AI wallet cycle, deploy it from the root wallet, optionally prefund it for buy-side spending, and close it only after idle funds sweep back home.
+          Set up one protected AI wallet, create it from your main wallet, add funds only if needed, and end it after unused balance comes back home.
         </p>
       </div>
 
@@ -697,16 +697,16 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
         <StudioNoticePanel variant="neutral" title={loading ? 'Loading AI wallet settings' : 'Refreshing AI wallet settings'} compact>
           <div className="flex items-center gap-2">
             <StudioLoadingIndicator size={14} tone="muted" />
-            <span>Fetching protected AI wallet configuration and runtime snapshot.</span>
+            <span>Loading your protected AI wallet settings and current status.</span>
           </div>
         </StudioNoticePanel>
       ) : null}
 
       {!m2mOnchainReady ? (
-        <StudioNoticePanel variant="warning" title="On-chain M2M deployment is not configured in this environment">
+        <StudioNoticePanel variant="warning" title="AI wallet setup is not available in this environment yet">
           <div className="space-y-1">
-            <p>`DelegationManager`: {M2M_CONTRACTS.DELEGATION_MANAGER ?? 'not configured'}</p>
-            <p>`AIWalletFactoryV2`: {M2M_CONTRACTS.AI_WALLET_FACTORY_V2 ?? 'not configured'}</p>
+            <p>Setup contract: {M2M_CONTRACTS.DELEGATION_MANAGER ?? 'not configured'}</p>
+            <p>Wallet factory: {M2M_CONTRACTS.AI_WALLET_FACTORY_V2 ?? 'not configured'}</p>
           </div>
         </StudioNoticePanel>
       ) : null}
@@ -722,7 +722,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
               onClick={() => {
                 dispatchBridgeSecurityCheckRequest({
                   title: 'Unlock AI Wallet Settings',
-                  description: 'AI wallet configuration needs a one-time wallet security check before Orina can load or update delegated wallet settings.',
+                  description: 'AI wallet settings need a one-time wallet security check before Orina can load or update them.',
                   surfaceLabel: 'AI wallet settings',
                   confirmLabel: 'Unlock AI Wallet',
                   helpText: 'This signature unlocks protected AI wallet controls in Orina. No gas fee, transaction, or token approval is involved.',
@@ -730,7 +730,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
                   successDescription: 'Retry the AI wallet action to continue.',
                 }, walletAddress);
               }}
-              className="rounded-full bg-[#2CC295] px-4 py-2 text-sm font-bold text-black"
+              className="rounded-full bg-[#2CC295] px-4 py-2 text-sm font-semibold text-black"
             >
               Unlock AI Wallet
             </button>
@@ -739,15 +739,15 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
       ) : null}
 
       {runtimeError ? <StudioNoticePanel variant="error" title="Runtime Error">{runtimeError}</StudioNoticePanel> : null}
-      {statusMessage ? <StudioNoticePanel variant="info" title="M2M Status">{statusMessage}</StudioNoticePanel> : null}
+      {statusMessage ? <StudioNoticePanel variant="info" title="AI Wallet Update">{statusMessage}</StudioNoticePanel> : null}
       {policyLocked ? (
-        <StudioNoticePanel variant="warning" title="Cycle Locked">
-          This AI wallet cycle is immutable after deployment. Scope, limits, duration, and the managed AI signer stay locked until root closeout sweeps idle funds back to the root wallet.
+        <StudioNoticePanel variant="warning" title="Setup Locked">
+          This AI wallet setup stays fixed after it goes live. The rules remain locked until the setup ends and unused balance returns to your main wallet.
         </StudioNoticePanel>
       ) : null}
       {cycleCanRestart ? (
-        <StudioNoticePanel variant="info" title="Cycle Ready For Renewal">
-          The previous delegate cycle has ended and idle funds are back on the root wallet. You can start a new AI wallet cycle now.
+        <StudioNoticePanel variant="info" title="Ready To Start Again">
+          The previous AI wallet has ended and unused balance is back on your main wallet. You can start a new setup now.
         </StudioNoticePanel>
       ) : null}
 
@@ -755,10 +755,10 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <h4 className="text-ui-primary font-bold">Enable delegated AI wallet</h4>
-              {enabled ? <span className="text-xs bg-[#2CC295]/10 text-[#2CC295] border border-[#2CC295]/20 px-2 py-0.5 rounded uppercase font-bold">Active</span> : null}
+              <h4 className="text-ui-primary font-semibold">Enable AI wallet automation</h4>
+              {enabled ? <span className="text-xs bg-[#2CC295]/10 text-[#2CC295] border border-[#2CC295]/20 px-2 py-0.5 rounded uppercase font-semibold">Active</span> : null}
             </div>
-            <p className="text-sm text-ui-muted mt-1">Direct delegate transactions, forced redeploy on expiry, and root fallback preserved.</p>
+            <p className="text-sm text-ui-muted mt-1">Let AI use a protected wallet flow while your main wallet stays in control.</p>
           </div>
           <button
             onClick={() => {
@@ -777,12 +777,12 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
         <div className="space-y-4">
           <div className="bg-[var(--t-surface-2)] rounded-xl p-5 space-y-5">
             <div>
-              <h4 className="text-ui-primary font-bold">Configure</h4>
-              <p className="text-sm text-ui-muted mt-1">Choose the immutable cycle policy. Deploy commits it on-chain and provisions the internal AI signer automatically in one root transaction.</p>
+              <h4 className="text-ui-primary font-semibold">Set Rules</h4>
+              <p className="text-sm text-ui-muted mt-1">Choose the rules for this setup. Your AI wallet is created and locked in when you deploy it.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-ui-muted uppercase mb-2">Payment Token</label>
+                <label className="block text-xs font-semibold text-ui-muted uppercase mb-2">Payment Token</label>
                 <CustomDropdown
                   variant="compact"
                   options={Object.entries(PAYMENT_TOKENS).map(([symbol, address]) => ({ value: address, label: `${symbol} · ${address}` }))}
@@ -792,7 +792,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-ui-muted uppercase mb-2">Cycle Duration</label>
+                <label className="block text-xs font-semibold text-ui-muted uppercase mb-2">Cycle Duration</label>
                 <CustomDropdown
                   variant="compact"
                   options={[
@@ -808,7 +808,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-ui-muted uppercase mb-2">Delegated Action Scope</label>
+              <label className="block text-xs font-semibold text-ui-muted uppercase mb-2">Allowed Actions</label>
               <div className="space-y-2">
                 {ACTION_ORDER.map((action) => {
                   const checked = normalizedActions.includes(action);
@@ -816,7 +816,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
                     <label key={action} className={`flex items-start gap-3 p-4 rounded-lg cursor-pointer ${checked ? 'bg-[#2CC295]/10' : 'bg-[var(--t-surface-5)] hover:bg-[var(--t-surface-10)]'}`}>
                       <Checkbox checked={checked} onCheckedChange={(value) => handleToggleAction(action, value === true)} disabled={policyLocked} className="mt-0.5" />
                       <div className="flex-1">
-                        <div className="text-sm font-bold text-ui-primary capitalize">{action.replace('_', ' ')}</div>
+                        <div className="text-sm font-semibold text-ui-primary capitalize">{action.replace('_', ' ')}</div>
                         <div className="text-xs text-ui-muted mt-0.5">{M2M_ACTION_DESCRIPTIONS[action]}</div>
                       </div>
                     </label>
@@ -825,30 +825,30 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><label className="block text-xs font-bold text-ui-muted uppercase mb-2">Max Per Order</label><input type="text" value={maxPerOrder} onChange={(e) => setMaxPerOrder(e.target.value)} placeholder={requiresFundingVault ? '1000' : 'Not used for current scope'} disabled={policyLocked || !requiresFundingVault} className="w-full bg-[var(--t-surface-5)] rounded-lg px-4 py-2.5 text-ui-primary text-sm disabled:opacity-60 disabled:cursor-not-allowed" /></div>
-              <div><label className="block text-xs font-bold text-ui-muted uppercase mb-2">Max Total</label><input type="text" value={maxTotal} onChange={(e) => setMaxTotal(e.target.value)} placeholder={requiresFundingVault ? '5000' : 'Not used for current scope'} disabled={policyLocked || !requiresFundingVault} className="w-full bg-[var(--t-surface-5)] rounded-lg px-4 py-2.5 text-ui-primary text-sm disabled:opacity-60 disabled:cursor-not-allowed" /></div>
+              <div><label className="block text-xs font-semibold text-ui-muted uppercase mb-2">Max Per Order</label><input type="text" value={maxPerOrder} onChange={(e) => setMaxPerOrder(e.target.value)} placeholder={requiresFundingVault ? '1000' : 'Not used for current scope'} disabled={policyLocked || !requiresFundingVault} className="w-full bg-[var(--t-surface-5)] rounded-lg px-4 py-2.5 text-ui-primary text-sm disabled:opacity-60 disabled:cursor-not-allowed" /></div>
+              <div><label className="block text-xs font-semibold text-ui-muted uppercase mb-2">Max Total</label><input type="text" value={maxTotal} onChange={(e) => setMaxTotal(e.target.value)} placeholder={requiresFundingVault ? '5000' : 'Not used for current scope'} disabled={policyLocked || !requiresFundingVault} className="w-full bg-[var(--t-surface-5)] rounded-lg px-4 py-2.5 text-ui-primary text-sm disabled:opacity-60 disabled:cursor-not-allowed" /></div>
             </div>
-            <div><label className="block text-xs font-bold text-ui-muted uppercase mb-2">Counterparty Allowlist</label><textarea rows={3} value={counterpartyText} onChange={(e) => setCounterpartyText(e.target.value)} placeholder="One wallet address per line" disabled={policyLocked} className="w-full bg-[var(--t-surface-5)] rounded-lg px-4 py-2.5 text-ui-primary text-sm resize-none disabled:opacity-60 disabled:cursor-not-allowed" /></div>
+            <div><label className="block text-xs font-semibold text-ui-muted uppercase mb-2">Allowed Wallet</label><textarea rows={3} value={counterpartyText} onChange={(e) => setCounterpartyText(e.target.value)} placeholder="Add one wallet address per line" disabled={policyLocked} className="w-full bg-[var(--t-surface-5)] rounded-lg px-4 py-2.5 text-ui-primary text-sm resize-none disabled:opacity-60 disabled:cursor-not-allowed" /></div>
             <div className="rounded-lg border border-[#2CC295]/20 bg-[#2CC295]/5 px-4 py-3 text-xs text-ui-muted">
-              There is no separate Save Policy step. The enforceable policy is committed on-chain only when the root wallet deploys the AI wallet cycle.
+              There is no separate save step. Your current rules are locked in when you create the AI wallet.
             </div>
           </div>
 
           <div className="bg-[var(--t-surface-2)] rounded-xl p-5 space-y-4">
             <div>
-              <h4 className="text-ui-primary font-bold">Deploy AI Wallet</h4>
-              <p className="text-sm text-ui-muted mt-1">One root transaction provisions the internal AI signer, commits the immutable policy, and deploys the deterministic AI wallet in the same step.</p>
+              <h4 className="text-ui-primary font-semibold">Create AI Wallet</h4>
+              <p className="text-sm text-ui-muted mt-1">Create the wallet and lock in the current rules in one action from your main wallet.</p>
             </div>
             <div className="rounded-lg bg-[var(--t-surface-5)] px-4 py-4 text-sm text-ui-muted space-y-2">
-              <p>Next cycle nonce: {sessionPreview.nextSessionNonce !== undefined ? sessionPreview.nextSessionNonce.toString() : 'n/a'}</p>
-              <p>Delegated scope: {actionSummary}</p>
+              <p>Next setup number: {sessionPreview.nextSessionNonce !== undefined ? sessionPreview.nextSessionNonce.toString() : 'n/a'}</p>
+              <p>Allowed actions: {actionSummary}</p>
               <p>Duration: {expiryDays} day{Number(expiryDays) === 1 ? '' : 's'}</p>
-              <p>AI wallet: {cycleWalletAddress || 'n/a'}</p>
+              <p>Wallet: {cycleWalletAddress || 'n/a'}</p>
             </div>
-            <button onClick={handleDeployWallet} disabled={!configReady || !m2mOnchainReady || saving || busyAction !== null || deployWalletMutation.isPending || deployWalletMutation.isConfirming || Boolean(deployedWalletAddress)} className="w-full px-4 py-2.5 rounded-full bg-[#2CC295] text-black text-sm font-bold disabled:opacity-50">
-              {busyAction === 'generate' || saving ? 'Preparing...' : deployWalletMutation.isPending || deployWalletMutation.isConfirming ? 'Deploying...' : deployedWalletAddress ? 'Wallet Deployed' : 'Deploy AI Wallet'}
+            <button onClick={handleDeployWallet} disabled={!configReady || !m2mOnchainReady || saving || busyAction !== null || deployWalletMutation.isPending || deployWalletMutation.isConfirming || Boolean(deployedWalletAddress)} className="w-full px-4 py-2.5 rounded-full bg-[#2CC295] text-black text-sm font-semibold disabled:opacity-50">
+              {busyAction === 'generate' || saving ? 'Preparing...' : deployWalletMutation.isPending || deployWalletMutation.isConfirming ? 'Creating...' : deployedWalletAddress ? 'AI Wallet Ready' : 'Create AI Wallet'}
             </button>
-            {(deployWalletMutation.hash || flowSessionNonce !== undefined || cycleWalletAddress) ? <div className="text-xs text-ui-muted space-y-1">{flowSessionNonce !== undefined ? <p>Cycle nonce: {flowSessionNonce.toString()} · Status: {sessionStatus}</p> : null}{cycleWalletAddress ? <p>Wallet: {cycleWalletAddress}</p> : null}{deployWalletMutation.hash ? <p>Tx: {formatHash(deployWalletMutation.hash)}</p> : null}</div> : null}
+            {(deployWalletMutation.hash || flowSessionNonce !== undefined || cycleWalletAddress) ? <div className="text-xs text-ui-muted space-y-1">{flowSessionNonce !== undefined ? <p>Setup number: {flowSessionNonce.toString()} · Status: {sessionStatus}</p> : null}{cycleWalletAddress ? <p>Wallet: {cycleWalletAddress}</p> : null}{deployWalletMutation.hash ? <p>Transaction: {formatHash(deployWalletMutation.hash)}</p> : null}</div> : null}
           </div>
         </div>
       ) : null}
@@ -857,41 +857,41 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div className="bg-[var(--t-surface-2)] rounded-xl p-5 space-y-4">
             <div>
-              <h4 className="text-ui-primary font-bold">Revoke / Close</h4>
-              <p className="text-sm text-ui-muted mt-1">Root can end the cycle only by sweeping idle funds first, then revoking or closing the expired wallet.</p>
+              <h4 className="text-ui-primary font-semibold">End Or Reset</h4>
+              <p className="text-sm text-ui-muted mt-1">You can end this setup after unused balance returns to your main wallet.</p>
             </div>
             <div className="rounded-lg bg-[var(--t-surface-5)] px-4 py-4 text-sm text-ui-muted space-y-2">
-              <p>AI wallet: {cycleWalletAddress || 'n/a'}</p>
-              <p>Cycle status: {runtimeStatusLabel}</p>
-              <p>Idle balance: {tokenBalanceFormatted || '0'} {getPaymentTokenSymbol(paymentToken) || ''}</p>
-              <p>Wallet expiry: {walletExpiry !== undefined ? new Date(Number(walletExpiry) * 1000).toLocaleString() : 'n/a'}</p>
+              <p>Wallet: {cycleWalletAddress || 'n/a'}</p>
+              <p>Status: {runtimeStatusLabel}</p>
+              <p>Unused balance: {tokenBalanceFormatted || '0'} {getPaymentTokenSymbol(paymentToken) || ''}</p>
+              <p>Ends: {walletExpiry !== undefined ? new Date(Number(walletExpiry) * 1000).toLocaleString() : 'n/a'}</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <button onClick={async () => { try { setRuntimeError(''); setStatusMessage(''); await revokeWalletMutation.revokeWallet(); } catch (error) { setRuntimeError(error instanceof Error ? error.message : 'Unable to revoke the AI wallet cycle.'); } }} disabled={!deployedWalletAddress || sessionStatus !== 'active' || revokeWalletMutation.isPending || revokeWalletMutation.isConfirming} className="w-full px-4 py-2.5 rounded-full bg-[#F5B942] text-black text-sm font-bold disabled:opacity-50">
-                {revokeWalletMutation.isPending || revokeWalletMutation.isConfirming ? 'Revoking...' : 'Revoke + Sweep'}
+              <button onClick={async () => { try { setRuntimeError(''); setStatusMessage(''); await revokeWalletMutation.revokeWallet(); } catch (error) { setRuntimeError(error instanceof Error ? error.message : 'Unable to revoke the AI wallet cycle.'); } }} disabled={!deployedWalletAddress || sessionStatus !== 'active' || revokeWalletMutation.isPending || revokeWalletMutation.isConfirming} className="w-full px-4 py-2.5 rounded-full bg-[#F5B942] text-black text-sm font-semibold disabled:opacity-50">
+                {revokeWalletMutation.isPending || revokeWalletMutation.isConfirming ? 'Ending...' : 'End And Return Balance'}
               </button>
-              <button onClick={async () => { try { setRuntimeError(''); setStatusMessage(''); await closeExpiredWalletMutation.closeExpiredWallet(); } catch (error) { setRuntimeError(error instanceof Error ? error.message : 'Unable to close the expired AI wallet cycle.'); } }} disabled={!deployedWalletAddress || sessionStatus !== 'expired' || walletState.closed === true || closeExpiredWalletMutation.isPending || closeExpiredWalletMutation.isConfirming} className="w-full px-4 py-2.5 rounded-full border border-ui-border-subtle text-ui-primary text-sm font-bold disabled:opacity-50">
-                {closeExpiredWalletMutation.isPending || closeExpiredWalletMutation.isConfirming ? 'Closing...' : 'Close Expired Cycle'}
+              <button onClick={async () => { try { setRuntimeError(''); setStatusMessage(''); await closeExpiredWalletMutation.closeExpiredWallet(); } catch (error) { setRuntimeError(error instanceof Error ? error.message : 'Unable to close the expired AI wallet cycle.'); } }} disabled={!deployedWalletAddress || sessionStatus !== 'expired' || walletState.closed === true || closeExpiredWalletMutation.isPending || closeExpiredWalletMutation.isConfirming} className="w-full px-4 py-2.5 rounded-full border border-ui-border-subtle text-ui-primary text-sm font-semibold disabled:opacity-50">
+                {closeExpiredWalletMutation.isPending || closeExpiredWalletMutation.isConfirming ? 'Closing...' : 'Close Expired Wallet'}
               </button>
             </div>
-            {(revokeWalletMutation.hash || closeExpiredWalletMutation.hash || deployedWalletAddress) ? <div className="text-xs text-ui-muted space-y-1">{deployedWalletAddress ? <p>Wallet runtime: {deployedWalletAddress}</p> : null}{revokeWalletMutation.hash ? <p>Revoke tx: {formatHash(revokeWalletMutation.hash)}</p> : null}{closeExpiredWalletMutation.hash ? <p>Close tx: {formatHash(closeExpiredWalletMutation.hash)}</p> : null}</div> : null}
+            {(revokeWalletMutation.hash || closeExpiredWalletMutation.hash || deployedWalletAddress) ? <div className="text-xs text-ui-muted space-y-1">{deployedWalletAddress ? <p>Wallet: {deployedWalletAddress}</p> : null}{revokeWalletMutation.hash ? <p>End transaction: {formatHash(revokeWalletMutation.hash)}</p> : null}{closeExpiredWalletMutation.hash ? <p>Close transaction: {formatHash(closeExpiredWalletMutation.hash)}</p> : null}</div> : null}
           </div>
 
           <div className="bg-[var(--t-surface-2)] rounded-xl p-5 space-y-4">
             <div>
-              <h4 className="text-ui-primary font-bold">Optional Fund</h4>
-              <p className="text-sm text-ui-muted mt-1">Optional after deployment. Send tokens only when this cycle needs buy-side spending. Setup is already complete once the wallet is deployed.</p>
+              <h4 className="text-ui-primary font-semibold">Optional Funding</h4>
+              <p className="text-sm text-ui-muted mt-1">Send funds only if this setup needs buying power. Minting and signing can work without a balance.</p>
             </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="rounded-lg border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4"><div className="text-xs font-bold uppercase tracking-widest text-ui-muted mb-2">Fund Address</div><div className="text-sm text-ui-primary break-all">{runtimeWalletAddress || 'Configure the cycle to derive the deterministic wallet'}</div></div>
-                <div className="rounded-lg border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4"><div className="text-xs font-bold uppercase tracking-widest text-ui-muted mb-2">Vault Balance</div><div className="text-lg font-bold text-ui-primary">{tokenBalanceFormatted || '0'} {getPaymentTokenSymbol(paymentToken) || ''}</div></div>
-                <div className="rounded-lg border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4"><div className="text-xs font-bold uppercase tracking-widest text-ui-muted mb-2">Runtime</div><div className="text-sm text-ui-primary">{runtimeStatusLabel}</div></div>
+                <div className="rounded-lg border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4"><div className="text-xs font-semibold uppercase tracking-widest text-ui-muted mb-2">Send Funds To</div><div className="text-sm text-ui-primary break-all">{runtimeWalletAddress || 'Finish setup to see the wallet address'}</div></div>
+                <div className="rounded-lg border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4"><div className="text-xs font-semibold uppercase tracking-widest text-ui-muted mb-2">Current Balance</div><div className="text-lg font-semibold text-ui-primary">{tokenBalanceFormatted || '0'} {getPaymentTokenSymbol(paymentToken) || ''}</div></div>
+                <div className="rounded-lg border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4"><div className="text-xs font-semibold uppercase tracking-widest text-ui-muted mb-2">Status</div><div className="text-sm text-ui-primary">{runtimeStatusLabel}</div></div>
             </div>
           </div>
         </div>
       ) : null}
 
-      <StudioNoticePanel variant="neutral" title="Protocol Guardrails">
+      <StudioNoticePanel variant="neutral" title="Important Rules">
         <ul className="space-y-1">
           {M2M_PROTOCOL_GUARDRAILS.map((item) => <li key={item}>{item}</li>)}
         </ul>

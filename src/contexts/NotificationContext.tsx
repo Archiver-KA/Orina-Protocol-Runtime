@@ -37,7 +37,17 @@ interface NotificationContextType {
   updatePreferences: (preferences: Partial<NotificationPreferences>) => void;
 }
 
-const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
+declare global {
+  var __orinaNotificationContext: React.Context<NotificationContextType | undefined> | undefined;
+}
+
+const NotificationContext = globalThis.__orinaNotificationContext
+  ?? createContext<NotificationContextType | undefined>(undefined);
+
+if (!globalThis.__orinaNotificationContext) {
+  NotificationContext.displayName = 'NotificationContext';
+  globalThis.__orinaNotificationContext = NotificationContext;
+}
 
 function areNotificationsEquivalent(a: AppNotification[], b: AppNotification[]): boolean {
   if (a === b) return true;

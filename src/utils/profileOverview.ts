@@ -1,5 +1,5 @@
-import { OrderState } from '@/config/contracts';
 import { formatOrderGrossPrice } from '@/utils/orderDisplay';
+import { isOrderCompleted } from '@/utils/orderSemantics';
 import type { MyAssetRwa } from '@/app/components/cards/my-asset-cards';
 import type { MarketplaceAsset } from '@/app/types/asset';
 import type { OrderUiRecord } from '@/types/order';
@@ -155,7 +155,7 @@ export function buildProfileTopProducts(
 
   for (const order of orders) {
     const isSellerOrder = normalizeAddress(order.seller) === normalizedProfile;
-    const isFinalized = order.finalized || order.state === OrderState.FINALIZED;
+    const isFinalized = isOrderCompleted(order);
     if (!isSellerOrder || !isFinalized) continue;
 
     const key = order.assetId.toString();

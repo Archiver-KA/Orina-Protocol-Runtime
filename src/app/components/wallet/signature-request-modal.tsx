@@ -1,4 +1,6 @@
 import { SignatureRequestData } from '@/types/wallet';
+import { StudioActionButton } from '@/app/components/ui/studio-action-button';
+import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 
 interface SignatureRequestModalProps {
   data: SignatureRequestData;
@@ -10,6 +12,8 @@ interface SignatureRequestModalProps {
 export function SignatureRequestModal({ data, isSigning = false, onSign, onCancel }: SignatureRequestModalProps) {
   const { origin, action, message } = data;
   const isAuthSession = action === 'Authenticate Session';
+  const panelSurfaceClass = 'rounded-[28px] border border-ui-border-subtle bg-[var(--t-surface-5)]';
+  const insetSurfaceClass = 'rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)]';
 
   // Format message for display
   const messageJson = isAuthSession
@@ -51,118 +55,118 @@ export function SignatureRequestModal({ data, isSigning = false, onSign, onCance
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-      style={{
-        background: 'radial-gradient(circle at center, rgba(10, 10, 11, 0.8) 0%, rgba(0, 0, 0, 0.95) 100%)',
-        backdropFilter: 'blur(20px)',
-      }}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4 backdrop-blur-[14px]"
     >
-      <div
-        className="studio-modal-theme w-full max-w-[440px] rounded-[2.5rem] border border-ui-border-subtle overflow-hidden flex flex-col relative"
-        style={{
-          background: 'var(--t-card-bg)',
-          backdropFilter: 'blur(30px)',
-          boxShadow: '0 32px 64px -16px rgba(0,0,0,0.6)',
-        }}
-      >
+      <div className="studio-modal-theme studio-glass-modal relative flex w-full max-w-[460px] flex-col overflow-hidden rounded-[32px] border border-ui-border-subtle shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)]">
+        <div className="absolute right-5 top-5 z-10">
+          <StudioModalCloseButton onClick={onCancel} disabled={isSigning} className="rounded-full disabled:cursor-not-allowed disabled:opacity-50" />
+        </div>
+
         {/* Header with Avatar */}
-        <div className="p-10 pb-6 flex flex-col items-center text-center">
+        <div className="px-8 pb-6 pt-8 text-center">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1">
+            <span
+              className="material-symbols-outlined text-[14px] text-[#2CC295]"
+              style={{ fontVariationSettings: '"FILL" 1' }}
+            >
+              shield
+            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#2CC295]">
+              Wallet Signature
+            </span>
+          </div>
           <div className="relative mb-5">
-            <div className="w-24 h-24 rounded-full p-1 bg-gradient-to-b from-[#2CC295]/40 to-transparent">
-              <div className="w-full h-full rounded-full overflow-hidden border-2 border-[#1c1c1f]">
+            <div className="h-24 w-24 rounded-full border border-[#2CC295]/20 bg-[linear-gradient(180deg,rgba(44,194,149,0.18),rgba(44,194,149,0.02))] p-1">
+              <div className="h-full w-full overflow-hidden rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)]">
                 <img
                   alt="User Avatar"
-                  className="w-full h-full object-cover"
+                  className="h-full w-full object-cover"
                   src="https://lh3.googleusercontent.com/aida-public/AB6AXuBV9LOw8mk_TRIqixi4KjeUkaV2fnnryXRsltc2ukfEYdSAq_611pibGjXTRn9UjB6CpAODr4k8ggAFl75uyt_aPiE4EFaP85X1UDQrmwvg1db3D5t3RzL4hLx2_p8h6jFSiYDvTBRp2b22xUOzH-N3oxuoNXN2kcX-yMOKNqd_50XmvYQ1sxBFYcrSllCqomCWbwDBt0J_Pcy8XabqldGZs0xDZUUhlYiWA-jrRWb6aQosFCILH8I1Q-2LeQncxx8X83IORmdjPKyQ"
                 />
               </div>
             </div>
-            <div className="absolute bottom-0 right-0 bg-[#2CC295] rounded-full w-9 h-9 border-4 border-[#141417] flex items-center justify-center shadow-lg">
+            <div className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full border-4 border-[var(--t-surface-1)] bg-[#2CC295] shadow-lg">
               <span
-                className="material-symbols-outlined text-black text-[20px] font-bold"
+                className="material-symbols-outlined text-black text-[20px] font-semibold"
                 style={{ fontVariationSettings: '"FILL" 1' }}
               >
                 shield
               </span>
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-1.5 tracking-tight">Signature Required</h2>
-          <p className="text-zinc-500 text-sm font-medium">{isAuthSession ? 'Sign to authenticate your wallet session (no transaction, no gas)' : 'Verify the transaction details below'}</p>
+          <h2 className="mb-1.5 text-2xl font-semibold tracking-tight text-ui-primary">Signature Required</h2>
+          <p className="mx-auto max-w-[320px] text-sm font-medium text-ui-secondary">
+            {isAuthSession
+              ? 'Sign once to authenticate your wallet session. This does not send a transaction and does not use gas.'
+              : 'Review the request details below before signing with your wallet.'}
+          </p>
         </div>
 
         {/* Transaction Details */}
-        <div className="px-10 space-y-5">
-          <div
-            className="rounded-3xl p-6 space-y-4"
-            style={{
-              background: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              backdropFilter: 'blur(12px)',
-            }}
-          >
+        <div className="space-y-5 px-8">
+          <div className={`${panelSurfaceClass} space-y-4 p-5`}>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-[0.15em]">Origin</span>
-              <span className="text-sm font-semibold text-white flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-zinc-800/50 flex items-center justify-center border border-white/5">
-                  <span className="material-symbols-outlined text-zinc-400 text-[14px]">language</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-ui-muted">Origin</span>
+              <span className="flex items-center gap-2 text-sm font-semibold text-ui-primary">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)]">
+                  <span className="material-symbols-outlined text-[14px] text-ui-muted">language</span>
                 </div>
                 {origin}
               </span>
             </div>
-            <div className="flex items-center justify-between border-t border-white/5 pt-4">
-              <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-[0.15em]">Action</span>
-              <span className="text-sm font-bold text-[#2CC295]">{action}</span>
+            <div className="flex items-center justify-between border-t border-ui-border-subtle pt-4">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-ui-muted">Action</span>
+              <span className="text-sm font-semibold text-[#2CC295]">{action}</span>
             </div>
           </div>
 
           {/* Message Section */}
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-[0.15em]">Message</span>
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/5">
-                <span className="text-[9px] text-zinc-400 font-mono font-bold uppercase tracking-wider">{isAuthSession ? 'MESSAGE SIGN' : 'EIP-712'}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-ui-muted">Message</span>
+              <div className="flex items-center gap-1.5 rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)] px-2 py-1">
+                <span className="text-[9px] font-mono font-semibold uppercase tracking-wider text-ui-secondary">
+                  {isAuthSession ? 'MESSAGE SIGN' : 'EIP-712'}
+                </span>
               </div>
             </div>
-            <div
-              className="rounded-2xl p-5 h-44 overflow-y-auto custom-scrollbar font-mono text-[11px] text-zinc-400 leading-relaxed"
-              style={{
-                background: 'var(--t-input-bg)',
-                border: '1px solid var(--t-border-subtle)',
-              }}
-            >
+            <div className={`${insetSurfaceClass} h-44 overflow-y-auto p-5 font-mono text-[11px] leading-relaxed text-ui-secondary custom-scrollbar`}>
               <pre className="whitespace-pre-wrap">{messageJson}</pre>
             </div>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="p-10 pt-8 grid grid-cols-2 gap-4">
-          <button
+        <div className="grid grid-cols-2 gap-3 border-t border-ui-border-subtle p-8 pt-6">
+          <StudioActionButton
+            type="button"
             onClick={onCancel}
             disabled={isSigning}
-            className="py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-2xl transition-all border border-white/10 text-[13px] uppercase tracking-wider"
+            variant="secondary"
+            size="lg"
+            className="disabled:cursor-not-allowed disabled:opacity-50"
           >
             Cancel
-          </button>
-          <button
+          </StudioActionButton>
+          <StudioActionButton
+            type="button"
             onClick={onSign}
             disabled={isSigning}
-            className="py-4 bg-[#2CC295] hover:bg-[#34d3a3] disabled:bg-[#2CC295]/70 disabled:cursor-not-allowed text-black font-extrabold rounded-2xl transition-all text-[13px] uppercase tracking-widest"
-            style={{
-              boxShadow: '0 0 20px rgba(44, 194, 149, 0.3), 0 0 40px rgba(44, 194, 149, 0.1)',
-            }}
+            variant="primary"
+            size="lg"
+            className="disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {isSigning ? 'Open MetaMask...' : 'Sign'}
-          </button>
+            {isSigning ? 'Open Wallet...' : isAuthSession ? 'Authenticate' : 'Sign Message'}
+          </StudioActionButton>
         </div>
 
         {/* Progress Indicator */}
         <div className="flex justify-center pb-6">
           <div className="flex gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-white/10"></div>
-            <div className="w-4 h-1.5 rounded-full bg-[#2CC295]/60"></div>
-            <div className="w-1.5 h-1.5 rounded-full bg-white/10"></div>
-            <div className="w-1.5 h-1.5 rounded-full bg-white/10"></div>
+            <div className="h-1.5 w-1.5 rounded-full bg-ui-border-subtle"></div>
+            <div className="h-1.5 w-4 rounded-full bg-[#2CC295]/70"></div>
+            <div className="h-1.5 w-1.5 rounded-full bg-ui-border-subtle"></div>
+            <div className="h-1.5 w-1.5 rounded-full bg-ui-border-subtle"></div>
           </div>
         </div>
       </div>

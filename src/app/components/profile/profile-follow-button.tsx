@@ -14,10 +14,10 @@ export function ProfileFollowButton({
   return (
     <button
       className={cn(
-        'inline-flex h-[38px] min-w-[84px] items-center justify-center rounded-full border px-4 text-[12px] font-bold leading-none transition-colors backdrop-blur-md',
+        'inline-flex h-10 min-w-[96px] items-center justify-center rounded-full border px-4 text-[12px] font-semibold leading-none tracking-[-0.01em] transition-[background-color,border-color,color,box-shadow]',
         following
-          ? 'border-[rgba(44,194,149,0.28)] bg-[rgba(44,194,149,0.14)] text-[var(--color-primary-custom)] hover:bg-[rgba(44,194,149,0.2)]'
-          : 'border-white/75 bg-white/95 text-[#0b0d12] hover:bg-white',
+          ? 'border-[rgba(44,194,149,0.24)] bg-[rgba(44,194,149,0.12)] text-[var(--color-primary-custom)] hover:bg-[rgba(44,194,149,0.18)]'
+          : 'ui-secondary-button',
         className
       )}
       {...props}

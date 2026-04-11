@@ -10,7 +10,7 @@ export function StudioFieldLabel({
   return (
     <label
       className={cn(
-        'block text-[10px] font-bold text-ui-muted mb-2 uppercase tracking-widest',
+        'block text-[10px] font-semibold text-ui-muted mb-2 uppercase tracking-widest',
         className
       )}
       {...props}

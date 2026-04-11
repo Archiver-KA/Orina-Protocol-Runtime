@@ -70,7 +70,7 @@ export function StudioNoticePanel({
       <div className="flex items-start gap-3">
         {icon ?? tone.icon}
         <div className="flex-1 min-w-0">
-          {title ? <h3 className={cn('font-bold mb-1', compact ? 'text-xs' : 'text-sm', tone.title)}>{title}</h3> : null}
+          {title ? <h3 className={cn('font-semibold mb-1', compact ? 'text-xs' : 'text-sm', tone.title)}>{title}</h3> : null}
           {children ? (
             <div className={cn(compact ? 'text-xs leading-relaxed' : 'text-xs', tone.body)}>{children}</div>
           ) : null}

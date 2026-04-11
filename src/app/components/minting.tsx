@@ -1,4 +1,4 @@
-import { Sparkles, AlertCircle, Heart, Loader2, Image as ImageIcon, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { Sparkles, AlertCircle, Heart, Loader2, Image as ImageIcon, ChevronLeft, ChevronRight, Plus, Trash2, ExternalLink } from 'lucide-react';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { PillSegmentedToggle } from '@/app/components/pill-segmented-toggle';
 import { StandardToggle } from '@/app/components/standard-toggle';
@@ -6,12 +6,14 @@ import { ImageUpload, UploadedImage } from '@/app/components/image-upload';
 import { MultiImageUpload } from '@/app/components/multi-image-upload';
 import { MintingDeliverySection, type MintingDeliveryState } from '@/app/components/minting-delivery-section';
 import { MintingDraftsList } from '@/app/components/minting-drafts-list';
-import { useEffect, useState } from 'react';
-import { useAccount, usePublicClient } from 'wagmi';
+import { StudioActionButton } from '@/app/components/ui/studio-action-button';
+import { useEffect, useMemo, useState } from 'react';
+import { usePublicClient } from 'wagmi';
 import { toast } from 'sonner';
 import { useMintAsset } from '@/hooks/useAssets';
 import { useAllUnits } from '@/hooks/useUnits';
-import { AssetType } from '@/config/contracts';
+import { AssetType, EXPLORER_URLS } from '@/config/contracts';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { useTheme } from '@/app/contexts/ThemeContext';
 import { preventInvalidNumberKeyDown } from '@/utils/numericInput';
@@ -20,6 +22,7 @@ import type { AssetDeliverySnapshot, AssetDetails, AssetLocationSnapshot } from 
 import type { MyAssetNft, MyAssetRwa } from '@/app/components/cards/my-asset-cards';
 import { shortenAddress } from '@/utils/profileUtils';
 import { upsertRuntimeMintedAsset, type RuntimeMintedAssetRecord } from '@/utils/runtimeMintedAssets';
+import { syncRuntimeMintedAssetToMarketplace } from '@/utils/assetMetadataSync';
 import {
   createMintingDraftId,
   deleteMintingDraft,
@@ -30,13 +33,20 @@ import {
   type MintingDraftMedia,
   type MintingDraftRecord,
 } from '@/utils/mintingDrafts';
-import { getCategoryDisplayLabel, normalizeCategoryFilterValue } from '@/utils/taxonomy';
+import {
+  getCategoryDisplayLabel,
+  getTaxonomyCategoryOptions,
+  hydrateTaxonomyFromSupabase,
+  normalizeCategoryFilterValue,
+  TAXONOMY_SYNC_EVENT,
+} from '@/utils/taxonomy';
 import { getUnitDisplayLabel } from '@/utils/onchainNormalization';
 import { ORINA_RWA_ABI } from '@/config/abis';
 import { decodeEventLog } from 'viem';
 import { useProtocolNetworkRouter } from '@/contexts/ProtocolNetworkContext';
 import { PROTOCOL_NETWORK_OPTIONS } from '@/utils/protocolNetwork';
 import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
+import { dispatchAppNavigation, navigateToMarketplaceCategory } from '@/utils/appNavigation';
 
 function createMintingAttributeId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -80,6 +90,17 @@ type PendingRuntimeMintDraft = {
   deliverySnapshot?: AssetDeliverySnapshot;
   assetLocationSnapshot?: AssetLocationSnapshot;
   requestedAt: number;
+};
+
+type MintSuccessState = {
+  assetId: string;
+  assetName: string;
+  assetType: 'RWA' | 'NFT';
+  hash: `0x${string}`;
+  chainId: number | null;
+  marketplaceSynced: boolean;
+  category?: string;
+  subcategory?: string;
 };
 
 type ReceiptLogLike = {
@@ -335,7 +356,7 @@ function buildRuntimeMintedAssetRecord(
           type: 'RWA',
           category: categorySlug,
           image,
-          status: 'Paused',
+          status: 'Pending Indexing',
           availableAmount: totalAmountNumber,
           totalAmount: totalAmountNumber,
           minPrice: currentPrice,
@@ -402,6 +423,7 @@ export function Minting() {
   const [priceCurrency, setPriceCurrency] = useState('ETH');
   const [draftCategory, setDraftCategory] = useState(assetType === 'RWA' ? 'physical_goods' : 'digital_assets');
   const [draftSubcategory, setDraftSubcategory] = useState('');
+  const [taxonomyVersion, setTaxonomyVersion] = useState(0);
   const [expiryType, setExpiryType] = useState<'Expiry' | 'Non-Expiry'>('Expiry');
   const [expiryDays, setExpiryDays] = useState('30');
   const [uploadedMedia, setUploadedMedia] = useState<UploadedImage | null>(null);
@@ -415,6 +437,7 @@ export function Minting() {
   const [deliverySectionVersion, setDeliverySectionVersion] = useState(0);
   const [deliveryValidationAttempt, setDeliveryValidationAttempt] = useState(0);
   const [pendingRuntimeMintDraft, setPendingRuntimeMintDraft] = useState<PendingRuntimeMintDraft | null>(null);
+  const [lastMintSuccess, setLastMintSuccess] = useState<MintSuccessState | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
 
   // ── On-chain unit data ─────────────────────────────────────────
@@ -422,7 +445,7 @@ export function Minting() {
   const selectedUnit = allUnits.find((u) => String(u.id) === unitId) ?? allUnits[0];
 
 
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useEffectiveViewer();
   const { selectedNetwork, selectedNetworkKey, syncNetworkFromValue } = useProtocolNetworkRouter();
   const { assetAddress, chainId } = useProtocolDataNetwork();
   const blockchain = selectedNetwork.label;
@@ -430,6 +453,28 @@ export function Minting() {
   const { theme } = useTheme();
   const { mintAsset, hash, isPending, isConfirming, isConfirmed, error, reset } = useMintAsset();
   const { requireWalletActionAsync } = useRequireWalletAction();
+  const selectedMintCategory = useMemo(
+    () => normalizeCategoryFilterValue(draftCategory, draftSubcategory),
+    [draftCategory, draftSubcategory],
+  );
+  const mintCategoryLabel = useMemo(
+    () => getCategoryDisplayLabel(selectedMintCategory, draftSubcategory || undefined),
+    [draftSubcategory, selectedMintCategory],
+  );
+  const mintCategoryOptions = useMemo(() => {
+    const taxonomyOptions = getTaxonomyCategoryOptions();
+    if (!selectedMintCategory) return taxonomyOptions;
+    if (taxonomyOptions.some((option) => option.value === selectedMintCategory)) {
+      return taxonomyOptions;
+    }
+    return [
+      ...taxonomyOptions,
+      {
+        value: selectedMintCategory,
+        label: getCategoryDisplayLabel(selectedMintCategory, draftSubcategory || undefined),
+      },
+    ];
+  }, [draftSubcategory, selectedMintCategory, taxonomyVersion]);
 
   const syncMintingDrafts = async () => {
     const drafts = await loadMintingDrafts(address);
@@ -459,6 +504,7 @@ export function Minting() {
     setDeliverySectionVersion((current) => current + 1);
     setDeliveryValidationAttempt(0);
     setPendingRuntimeMintDraft(null);
+    setLastMintSuccess(null);
     setAmountError(null);
     reset();
   };
@@ -646,13 +692,55 @@ export function Minting() {
         }
         if (cancelled) return;
 
-        upsertRuntimeMintedAsset(
-          buildRuntimeMintedAssetRecord(pendingRuntimeMintDraft, hash, mintedAssetId, assetAddress),
-          {
-            chainId,
-            assetContract: assetAddress,
-          },
+        const runtimeRecord = buildRuntimeMintedAssetRecord(
+          pendingRuntimeMintDraft,
+          hash,
+          mintedAssetId,
+          assetAddress,
         );
+
+        upsertRuntimeMintedAsset(runtimeRecord, {
+          chainId,
+          assetContract: assetAddress,
+        });
+
+        const marketplaceSync = await syncRuntimeMintedAssetToMarketplace(
+          runtimeRecord,
+          pendingRuntimeMintDraft.walletAddress,
+          chainId,
+        );
+
+        if (marketplaceSync.ok) {
+          upsertRuntimeMintedAsset(
+            {
+              ...runtimeRecord,
+              myAsset: runtimeRecord.assetType === 'RWA'
+                ? {
+                    ...runtimeRecord.myAsset,
+                    status: 'Active',
+                  }
+                : runtimeRecord.myAsset,
+            } as RuntimeMintedAssetRecord,
+            {
+              chainId,
+              assetContract: assetAddress,
+            },
+          );
+        } else {
+          toast.warning('Asset minted on-chain, but marketplace sync is still pending.');
+        }
+
+        setLastMintSuccess({
+          assetId: mintedAssetId.toString(),
+          assetName: pendingRuntimeMintDraft.name,
+          assetType: pendingRuntimeMintDraft.assetType,
+          hash,
+          chainId: chainId ?? null,
+          marketplaceSynced: marketplaceSync.ok,
+          category: pendingRuntimeMintDraft.category,
+          subcategory: pendingRuntimeMintDraft.subcategory,
+        });
+
         if (pendingRuntimeMintDraft.sourceDraftId) {
           void deleteMintingDraft(pendingRuntimeMintDraft.walletAddress, pendingRuntimeMintDraft.sourceDraftId);
         }
@@ -684,6 +772,18 @@ export function Minting() {
     };
     window.addEventListener('ai:mint-draft', handler);
     return () => window.removeEventListener('ai:mint-draft', handler);
+  }, []);
+
+  useEffect(() => {
+    const syncTaxonomy = () => {
+      setTaxonomyVersion((value) => value + 1);
+    };
+
+    void hydrateTaxonomyFromSupabase().catch(() => undefined);
+    window.addEventListener(TAXONOMY_SYNC_EVENT, syncTaxonomy as EventListener);
+    return () => {
+      window.removeEventListener(TAXONOMY_SYNC_EVENT, syncTaxonomy as EventListener);
+    };
   }, []);
 
   // ── Amount validation against UnitRegistry constraints ─────────
@@ -758,65 +858,75 @@ export function Minting() {
       }
     }
 
+    const continueMintAssets = async () => {
+      try {
+        setLastMintSuccess(null);
+        reset();
+        const resolvedUnitId = assetType === 'RWA' ? unitId : '0';
+        const resolvedExpiryDays = assetType === 'RWA' ? expiryDays : expiryDays.trim();
+        const expiryTimestamp =
+          resolvedExpiryDays && Number(resolvedExpiryDays) > 0
+            ? BigInt(Math.floor(Date.now() / 1000) + Number(resolvedExpiryDays) * 24 * 60 * 60)
+            : BigInt(0);
+
+        setPendingRuntimeMintDraft({
+          walletAddress: address,
+          assetType,
+          sourceDraftId: editingDraftId,
+          category: draftCategory,
+          subcategory: draftSubcategory || undefined,
+          name: assetName.trim(),
+          description: description.trim(),
+          blockchain,
+          unitId: resolvedUnitId,
+          unitName: selectedUnit?.name,
+          unitLabel: selectedUnit?.label,
+          totalAmount,
+          price,
+          priceCurrency,
+          images:
+            assetType === 'RWA'
+              ? uploadedImages.map((image) => image.url).filter(Boolean)
+              : uploadedMedia?.url
+                ? [uploadedMedia.url]
+                : [],
+          configurableAttributes: previewConfigurableAttributes,
+          deliverySnapshot: assetType === 'RWA' ? buildMintDeliverySnapshot(mintingDeliveryState) : undefined,
+          assetLocationSnapshot: assetType === 'RWA' ? mintingDeliveryState?.locationSnapshot : undefined,
+          requestedAt: Date.now(),
+        });
+        await mintAsset(
+          BigInt(resolvedUnitId),
+          BigInt(totalAmount),
+          expiryTimestamp,
+          assetType === 'RWA' ? AssetType.RWA : AssetType.NFT,
+        );
+      } catch (err) {
+        setPendingRuntimeMintDraft(null);
+        console.error('Minting failed:', err);
+      }
+    };
+
     if (!(await requireWalletActionAsync({
       capability: 'protocol_mint_write',
       actionLabel: 'mint assets',
       fallbackPage: 'minting',
+      onSecurityCheckConfirmed: continueMintAssets,
     }))) {
       return;
     }
 
-    try {
-      reset();
-      const resolvedUnitId = assetType === 'RWA' ? unitId : '0';
-      const resolvedExpiryDays = assetType === 'RWA' ? expiryDays : expiryDays.trim();
-      const expiryTimestamp =
-        resolvedExpiryDays && Number(resolvedExpiryDays) > 0
-          ? BigInt(Math.floor(Date.now() / 1000) + Number(resolvedExpiryDays) * 24 * 60 * 60)
-          : BigInt(0);
-
-      setPendingRuntimeMintDraft({
-        walletAddress: address,
-        assetType,
-        sourceDraftId: editingDraftId,
-        category: draftCategory,
-        subcategory: draftSubcategory || undefined,
-        name: assetName.trim(),
-        description: description.trim(),
-        blockchain,
-        unitId: resolvedUnitId,
-        unitName: selectedUnit?.name,
-        unitLabel: selectedUnit?.label,
-        totalAmount,
-        price,
-        priceCurrency,
-        images:
-          assetType === 'RWA'
-            ? uploadedImages.map((image) => image.url).filter(Boolean)
-            : uploadedMedia?.url
-              ? [uploadedMedia.url]
-              : [],
-        configurableAttributes: previewConfigurableAttributes,
-        deliverySnapshot: assetType === 'RWA' ? buildMintDeliverySnapshot(mintingDeliveryState) : undefined,
-        assetLocationSnapshot: assetType === 'RWA' ? mintingDeliveryState?.locationSnapshot : undefined,
-        requestedAt: Date.now(),
-      });
-      await mintAsset(
-        BigInt(resolvedUnitId),
-        BigInt(totalAmount),
-        expiryTimestamp,
-        assetType === 'RWA' ? AssetType.RWA : AssetType.NFT,
-      );
-    } catch (err) {
-      setPendingRuntimeMintDraft(null);
-      console.error('Minting failed:', err);
-    }
+    await continueMintAssets();
   };
 
   const getStatusMessage = () => {
     if (isPending) return 'Waiting for wallet confirmation...';
     if (isConfirming) return 'Transaction confirming on blockchain...';
-    if (isConfirmed) return 'Asset minted successfully!';
+    if (lastMintSuccess) {
+      return lastMintSuccess.marketplaceSynced
+        ? 'Asset minted successfully!'
+        : 'Asset minted on-chain. Marketplace sync is still pending.';
+    }
     if (error) {
       // Format error message to be user-friendly
       const errorMsg = error.message || String(error);
@@ -846,10 +956,14 @@ export function Minting() {
   };
 
   const statusMessage = getStatusMessage();
+  const statusHash = lastMintSuccess?.hash ?? hash;
+  const lastMintExplorerUrl = lastMintSuccess?.hash
+    ? `${EXPLORER_URLS[lastMintSuccess.chainId ?? 97] ?? EXPLORER_URLS[97]}/tx/${lastMintSuccess.hash}`
+    : null;
   const studioCardClass = 'bg-ui-card rounded-[24px] p-6 backdrop-blur-[10px]';
   const mintingInputToneClass = 'text-ui-secondary';
-  const studioInputClass = `w-full bg-[var(--t-surface-5)] rounded-lg px-4 py-3 text-[14px] leading-[18px] font-bold ${mintingInputToneClass} focus:bg-[var(--t-surface-10)] focus:outline-none focus:ring-2 focus:ring-[#2CC295]/20 shadow-none`;
-  const mintingSelectTriggerClass = `minting-neutral-select-trigger !h-[49px] !rounded-lg !border-0 !shadow-none !px-4 !text-[14px] !leading-[18px] !font-bold !text-ui-secondary hover:!bg-[var(--t-surface-10)]`;
+  const studioInputClass = `w-full bg-[var(--t-surface-5)] rounded-lg px-4 py-3 text-[14px] leading-[18px] font-semibold ${mintingInputToneClass} focus:bg-[var(--t-surface-10)] focus:outline-none focus:ring-2 focus:ring-[#2CC295]/20 shadow-none`;
+  const mintingSelectTriggerClass = `minting-neutral-select-trigger !h-[49px] !rounded-lg !border-0 !shadow-none !px-4 !text-[14px] !leading-[18px] !font-semibold !text-ui-secondary hover:!bg-[var(--t-surface-10)]`;
   const mintingNeutralTriggerStyle = theme === 'light' ? { background: 'var(--t-surface-5)' } : undefined;
   const previewConfigurableAttributes = configurableAttributes
     .map((group) => ({
@@ -999,14 +1113,22 @@ export function Minting() {
           {/* Header */}
           <header className="mb-8">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-ui-primary">Asset Creation</h1>
+              <div className="flex flex-col gap-3">
+                <h1 className="text-2xl font-semibold text-ui-primary">Asset Creation</h1>
                 <p className="text-sm text-ui-muted mt-1">
                   Design, mint and deploy your Web3 assets across multiple chains.
                 </p>
+                {workspaceMode === 'Create' && (
+                  <PillSegmentedToggle
+                    options={['RWA', 'NFT']}
+                    value={assetType}
+                    onChange={(value: string) => handleAssetTypeChange(value as 'RWA' | 'NFT')}
+                    className="w-full sm:w-[220px]"
+                  />
+                )}
               </div>
 
-              <div className="w-full space-y-3 lg:max-w-[460px]">
+              <div className="w-full lg:max-w-[560px]">
                 <div className="w-full border-b border-[var(--color-panel-border)]">
                   <div className="flex gap-1">
                     {MINTING_WORKSPACE_TABS.map((tab) => (
@@ -1014,7 +1136,7 @@ export function Minting() {
                         key={tab}
                         type="button"
                         onClick={() => setWorkspaceMode(tab)}
-                        className={`relative flex-1 px-6 py-3 text-sm font-bold transition-all ${
+                        className={`relative flex-1 px-6 py-3 text-sm font-semibold transition-all ${
                           workspaceMode === tab
                             ? 'text-primary'
                             : 'text-ui-secondary hover:text-ui-primary'
@@ -1028,20 +1150,10 @@ export function Minting() {
                     ))}
                   </div>
                 </div>
-                {workspaceMode === 'Create' && (
-                  <div className="flex w-full justify-end">
-                    <PillSegmentedToggle
-                      options={['RWA', 'NFT']}
-                      value={assetType}
-                      onChange={(value) => handleAssetTypeChange(value as 'RWA' | 'NFT')}
-                      className="w-1/2"
-                    />
-                  </div>
-                )}
               </div>
             </div>
             {workspaceMode === 'Create' && editingDraftId && (
-              <div className="mt-4 inline-flex items-center rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest text-primary">
+              <div className="mt-4 inline-flex items-center rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-primary">
                 Editing Draft
               </div>
             )}
@@ -1053,7 +1165,7 @@ export function Minting() {
                 <div className="flex items-start gap-3">
                   <Sparkles className="mt-0.5 text-primary" size={18} />
                   <div className="flex-1">
-                    <p className="mb-1 text-sm font-bold text-ui-primary">Saved Drafts</p>
+                    <p className="mb-1 text-sm font-semibold text-ui-primary">Saved Drafts</p>
                     <p className="text-xs text-ui-secondary">
                       Resume any in-progress RWA or NFT, or remove drafts you no longer need.
                     </p>
@@ -1069,8 +1181,8 @@ export function Minting() {
           ) : (
             <>
           {/* Transaction Status Banner */}
-          {(isPending || isConfirming || isConfirmed || error) && (
-            <div className={`mb-6 p-4 rounded-xl border ${isConfirmed
+          {(isPending || isConfirming || lastMintSuccess || error) && (
+            <div className={`mb-6 p-4 rounded-xl border ${lastMintSuccess
                 ? 'bg-[#2CC295]/10 border-[#2CC295]/30'
                 : error
                   ? 'bg-red-500/10 border-red-500/30'
@@ -1079,20 +1191,68 @@ export function Minting() {
               <div className="flex items-center gap-3">
                 {isPending || isConfirming ? (
                   <Loader2 className="animate-spin text-blue-400" size={20} />
-                ) : isConfirmed ? (
+                ) : lastMintSuccess ? (
                   <Sparkles className="text-primary" size={20} />
                 ) : (
                   <AlertCircle className="text-red-400" size={20} />
                 )}
                 <div className="flex-1">
-                  <p className={`font-bold text-sm ${isConfirmed ? 'text-primary' : error ? 'text-red-400' : 'text-blue-400'
+                  <p className={`font-semibold text-sm ${lastMintSuccess ? 'text-primary' : error ? 'text-red-400' : 'text-blue-400'
                     }`}>
                     {statusMessage}
                   </p>
-                  {hash && (
+                  {statusHash && (
                     <p className="text-xs text-ui-muted mt-1 font-mono">
-                      Tx: {hash.slice(0, 10)}...{hash.slice(-8)}
+                      Tx: {statusHash.slice(0, 10)}...{statusHash.slice(-8)}
                     </p>
+                  )}
+                  {lastMintSuccess && (
+                    <>
+                      <p className="mt-2 text-xs text-ui-secondary">
+                        {lastMintSuccess.assetName} (asset #{lastMintSuccess.assetId}) is now available from your wallet assets.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-3">
+                        <StudioActionButton
+                          type="button"
+                          variant="secondary"
+                          size="md"
+                          className="min-h-10"
+                          onClick={() => dispatchAppNavigation({ page: 'assets' })}
+                        >
+                          <Sparkles size={14} />
+                          View Assets
+                        </StudioActionButton>
+                        {lastMintExplorerUrl && (
+                          <StudioActionButton
+                            type="button"
+                            variant="secondary"
+                            size="md"
+                            className="min-h-10"
+                            onClick={() => window.open(lastMintExplorerUrl, '_blank', 'noopener,noreferrer')}
+                          >
+                            <ExternalLink size={14} />
+                            View Tx
+                          </StudioActionButton>
+                        )}
+                        {lastMintSuccess.category && (
+                          <StudioActionButton
+                            type="button"
+                            variant="secondary"
+                            size="md"
+                            className="min-h-10"
+                            onClick={() =>
+                              navigateToMarketplaceCategory({
+                                category: lastMintSuccess.category || '',
+                                subcategory: lastMintSuccess.subcategory,
+                              })
+                            }
+                          >
+                            <Sparkles size={14} />
+                            Open {getCategoryDisplayLabel(lastMintSuccess.category, lastMintSuccess.subcategory)}
+                          </StudioActionButton>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -1104,7 +1264,7 @@ export function Minting() {
             <div className="flex items-start gap-3">
               <Sparkles className="text-primary mt-0.5" size={18} />
               <div className="flex-1">
-                <p className="font-bold text-sm text-ui-primary mb-1">
+                <p className="font-semibold text-sm text-ui-primary mb-1">
                   {assetType === 'RWA' ? 'Real World Asset (RWA)' : 'NFT Asset (Digital)'}
                 </p>
                 <p className="text-xs text-ui-secondary">
@@ -1124,8 +1284,8 @@ export function Minting() {
               {/* Step 1: Media Upload */}
               <div className={`${studioCardClass} relative z-30`}>
                 <div className="flex items-center gap-3 mb-6">
-                  <span className="w-7 h-7 bg-[#2CC295]/20 text-primary rounded-full flex items-center justify-center text-xs font-bold border border-[#2CC295]/20">1</span>
-                  <h2 className="text-lg font-bold text-ui-primary">Media Upload</h2>
+                  <span className="w-7 h-7 bg-[#2CC295]/20 text-primary rounded-full flex items-center justify-center text-xs font-semibold border border-[#2CC295]/20">1</span>
+                  <h2 className="text-lg font-semibold text-ui-primary">Media Upload</h2>
                 </div>
                 {assetType === 'RWA' ? (
                   <MultiImageUpload
@@ -1161,12 +1321,12 @@ export function Minting() {
               {/* Step 2: Metadata Input */}
               <div className={studioCardClass}>
                 <div className="flex items-center gap-3 mb-6">
-                  <span className="w-7 h-7 shrink-0 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">2</span>
-                  <h2 className="text-lg font-bold text-ui-primary">Metadata Input</h2>
+                  <span className="w-7 h-7 shrink-0 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-semibold border border-ui-border-subtle">2</span>
+                  <h2 className="text-lg font-semibold text-ui-primary">Metadata Input</h2>
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Asset Name</label>
+                    <label className="block text-xs font-semibold text-ui-muted uppercase tracking-widest mb-2">Asset Name</label>
                     <input
                       className={studioInputClass}
                       placeholder="e.g. Genesis Cyber-Samurai #01"
@@ -1176,13 +1336,57 @@ export function Minting() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Description</label>
+                    <label className="block text-xs font-semibold text-ui-muted uppercase tracking-widest mb-2">Description</label>
                     <textarea
                       className={`${studioInputClass} h-32 resize-none`}
                       placeholder="Provide a detailed description of your asset..."
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                     />
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-ui-muted uppercase tracking-widest mb-2">Category</label>
+                      <CustomDropdown
+                        defaultValue={selectedMintCategory}
+                        onChange={setDraftCategory}
+                        options={mintCategoryOptions}
+                        variant="compact"
+                        className="w-full"
+                        placeholder="Select taxonomy category"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-ui-muted uppercase tracking-widest mb-2">Subcategory</label>
+                      <input
+                        className={studioInputClass}
+                        placeholder="Optional subcategory"
+                        type="text"
+                        value={draftSubcategory}
+                        onChange={(e) => setDraftSubcategory(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-3 rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-4 py-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ui-muted">Marketplace Route</p>
+                      <p className="mt-1 text-sm font-semibold text-ui-primary">{mintCategoryLabel}</p>
+                    </div>
+                    <StudioActionButton
+                      type="button"
+                      variant="secondary"
+                      size="md"
+                      className="min-h-10"
+                      onClick={() =>
+                        navigateToMarketplaceCategory({
+                          category: selectedMintCategory,
+                          subcategory: draftSubcategory || undefined,
+                        })
+                      }
+                    >
+                      <ExternalLink size={14} />
+                      Open In Marketplace
+                    </StudioActionButton>
                   </div>
                 </div>
               </div>
@@ -1191,9 +1395,9 @@ export function Minting() {
                 <div className={studioCardClass}>
                   <div className="flex items-start justify-between gap-4 mb-6">
                     <div className="flex items-center gap-3">
-                      <span className="w-7 h-7 shrink-0 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">3</span>
+                      <span className="w-7 h-7 shrink-0 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-semibold border border-ui-border-subtle">3</span>
                       <div>
-                        <h2 className="text-lg font-bold text-ui-primary">Attributes</h2>
+                        <h2 className="text-lg font-semibold text-ui-primary">Attributes</h2>
                         <p className="text-xs text-ui-muted mt-1">
                           Add offchain options like size, grade, warehouse or packaging for buyers to choose during checkout.
                         </p>
@@ -1202,7 +1406,7 @@ export function Minting() {
                     <button
                       type="button"
                       onClick={addConfigurableAttributeGroup}
-                      className="h-10 px-4 rounded-full bg-[#2CC295]/10 text-primary text-xs font-bold inline-flex items-center gap-2 hover:bg-[#2CC295]/15 transition-colors"
+                      className="h-10 px-4 rounded-full bg-[#2CC295]/10 text-primary text-xs font-semibold inline-flex items-center gap-2 hover:bg-[#2CC295]/15 transition-colors"
                     >
                       <Plus size={14} />
                       Add Attribute
@@ -1222,7 +1426,7 @@ export function Minting() {
                         <div key={group.id} className="rounded-2xl bg-[var(--t-surface-5)] p-4 space-y-4">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">
+                              <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest">
                                 Attribute Group {index + 1}
                               </p>
                               <p className="text-[10px] text-ui-muted mt-1">
@@ -1241,7 +1445,7 @@ export function Minting() {
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Label</label>
+                              <label className="block text-xs font-semibold text-ui-muted uppercase tracking-widest mb-2">Label</label>
                               <input
                                 className={studioInputClass}
                                 type="text"
@@ -1251,7 +1455,7 @@ export function Minting() {
                               />
                             </div>
                             <div>
-                              <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Help Text</label>
+                              <label className="block text-xs font-semibold text-ui-muted uppercase tracking-widest mb-2">Help Text</label>
                               <input
                                 className={studioInputClass}
                                 type="text"
@@ -1267,7 +1471,7 @@ export function Minting() {
                               <button
                                 type="button"
                                 onClick={() => updateConfigurableAttributeGroup(group.id, { selectionMode: 'single' })}
-                                className={`h-8 px-4 rounded-full text-xs font-bold transition-colors ${
+                                className={`h-8 px-4 rounded-full text-xs font-semibold transition-colors ${
                                   group.selectionMode === 'single'
                                     ? 'bg-[#2CC295] text-black'
                                     : 'text-ui-secondary hover:text-ui-primary'
@@ -1278,7 +1482,7 @@ export function Minting() {
                               <button
                                 type="button"
                                 onClick={() => updateConfigurableAttributeGroup(group.id, { selectionMode: 'multi' })}
-                                className={`h-8 px-4 rounded-full text-xs font-bold transition-colors ${
+                                className={`h-8 px-4 rounded-full text-xs font-semibold transition-colors ${
                                   group.selectionMode === 'multi'
                                     ? 'bg-[#2CC295] text-black'
                                     : 'text-ui-secondary hover:text-ui-primary'
@@ -1291,7 +1495,7 @@ export function Minting() {
                             <button
                               type="button"
                               onClick={() => updateConfigurableAttributeGroup(group.id, { required: !group.required })}
-                              className={`h-8 px-4 rounded-full text-xs font-bold transition-colors ${
+                              className={`h-8 px-4 rounded-full text-xs font-semibold transition-colors ${
                                 group.required
                                   ? 'bg-[#2CC295]/12 text-primary'
                                   : 'bg-ui-card text-ui-secondary hover:text-ui-primary'
@@ -1303,13 +1507,13 @@ export function Minting() {
 
                           <div className="space-y-3">
                             <div className="flex items-center justify-between gap-3">
-                              <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest">
+                              <label className="block text-xs font-semibold text-ui-muted uppercase tracking-widest">
                                 Buyer Options
                               </label>
                               <button
                                 type="button"
                                 onClick={() => addConfigurableAttributeOption(group.id)}
-                                className="text-xs font-bold text-primary inline-flex items-center gap-1.5 hover:opacity-80"
+                                className="text-xs font-semibold text-primary inline-flex items-center gap-1.5 hover:opacity-80"
                               >
                                 <Plus size={12} />
                                 Add Option
@@ -1351,13 +1555,13 @@ export function Minting() {
               <div className={`${studioCardClass} relative z-[60]`}>
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div className="flex items-center gap-3">
-                    <span className="w-7 h-7 shrink-0 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">
+                    <span className="w-7 h-7 shrink-0 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-semibold border border-ui-border-subtle">
                       {assetType === 'RWA' ? '4' : '3'}
                     </span>
-                    <h2 className="text-lg font-bold text-ui-primary">Collection Settings</h2>
+                    <h2 className="text-lg font-semibold text-ui-primary">Collection Settings</h2>
                   </div>
                   <div className="w-full md:w-[calc(50%-0.5rem)] md:max-w-none shrink-0">
-                    <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Blockchain</label>
+                    <label className="block text-xs font-semibold text-ui-muted uppercase tracking-widest mb-2">Blockchain</label>
                     <CustomDropdown
                       variant="compact"
                       defaultValue={selectedNetworkKey}
@@ -1380,7 +1584,7 @@ export function Minting() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Price */}
                   <div>
-                    <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Price</label>
+                    <label className="block text-xs font-semibold text-ui-muted uppercase tracking-widest mb-2">Price</label>
                     <div className="minting-price-group relative w-full h-[49px] overflow-hidden">
                       <input
                         type="number"
@@ -1391,7 +1595,7 @@ export function Minting() {
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
                         onKeyDown={preventInvalidNumberKeyDown}
-                        className="w-full h-[49px] px-4 py-3 pr-[120px] rounded-none text-[14px] leading-[18px] font-bold text-ui-secondary placeholder:text-ui-muted outline-none transition-none"
+                        className="w-full h-[49px] px-4 py-3 pr-[120px] rounded-none text-[14px] leading-[18px] font-semibold text-ui-secondary placeholder:text-ui-muted outline-none transition-none"
                         style={{
                           boxSizing: 'border-box',
                           background: 'transparent',
@@ -1409,7 +1613,7 @@ export function Minting() {
                           openOnHover
                           variant="compact"
                           className="w-full h-full overflow-visible"
-                          triggerClassName="minting-price-token-trigger !h-full !rounded-none !border-0 !shadow-none !px-4 !text-[15px] !leading-[22px] !font-bold font-sans !bg-transparent !text-ui-secondary hover:!bg-ui-input-focus"
+                          triggerClassName="minting-price-token-trigger !h-full !rounded-none !border-0 !shadow-none !px-4 !text-[15px] !leading-[22px] !font-semibold font-sans !bg-transparent !text-ui-secondary hover:!bg-ui-input-focus"
                           menuClassName="mt-1 rounded-[16px] z-[9999]"
                         />
                       </div>
@@ -1418,7 +1622,7 @@ export function Minting() {
 
                   {assetType === 'RWA' && (
                     <div>
-                      <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">
+                      <label className="block text-xs font-semibold text-ui-muted uppercase tracking-widest mb-2">
                         Unit
                         {isOnChain && (
                           <span className="ml-2 text-[9px] text-[#2CC295] font-normal normal-case tracking-normal">● on-chain</span>
@@ -1452,7 +1656,7 @@ export function Minting() {
                   )}
 
                   <div>
-                    <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Total Amount</label>
+                    <label className="block text-xs font-semibold text-ui-muted uppercase tracking-widest mb-2">Total Amount</label>
                     <input
                       className={`${studioInputClass} ${amountError ? 'border-red-400/60 focus:border-red-400' : ''}`}
                       placeholder={selectedUnit ? `Min: ${selectedUnit.minAmount.toString()}, step: ${selectedUnit.step.toString()}` : 'e.g. 1000'}
@@ -1480,7 +1684,7 @@ export function Minting() {
                   {/* Expiry Type Toggle - Only for RWA */}
                   {assetType === 'RWA' && (
                     <div>
-                      <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">Expiry Type</label>
+                      <label className="block text-xs font-semibold text-ui-muted uppercase tracking-widest mb-2">Expiry Type</label>
                       <StandardToggle
                         options={['Expiry', 'Non-Expiry']}
                         value={expiryType}
@@ -1496,7 +1700,7 @@ export function Minting() {
                   {/* Expiry Days */}
                   {(assetType === 'NFT' || expiryType === 'Expiry') && (
                     <div>
-                      <label className="block text-xs font-bold text-ui-muted uppercase tracking-widest mb-2">
+                      <label className="block text-xs font-semibold text-ui-muted uppercase tracking-widest mb-2">
                         Expiry (Days){assetType === 'NFT' ? ' - Optional' : ''}
                       </label>
                       <input
@@ -1519,10 +1723,10 @@ export function Minting() {
               {/* Step 4: Mint Button */}
               <div className={`${studioCardClass} relative z-[10]`}>
                 <div className="flex items-center gap-3 mb-6">
-                  <span className="w-7 h-7 shrink-0 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-bold border border-ui-border-subtle">
+                  <span className="w-7 h-7 shrink-0 bg-ui-input text-ui-secondary rounded-full flex items-center justify-center text-xs font-semibold border border-ui-border-subtle">
                     {assetType === 'RWA' ? '5' : '4'}
                   </span>
-                  <h2 className="text-lg font-bold text-ui-primary">Mint Asset</h2>
+                  <h2 className="text-lg font-semibold text-ui-primary">Mint Asset</h2>
                 </div>
                 {assetType === 'RWA' && (
                   <MintingDeliverySection
@@ -1536,14 +1740,14 @@ export function Minting() {
                 <div className={`grid gap-3 ${assetType === 'RWA' ? 'mt-6 md:grid-cols-[220px_minmax(0,1fr)]' : 'md:grid-cols-[220px_minmax(0,1fr)]'}`}>
                   <button
                     type="button"
-                    className="h-[45px] rounded-full border border-ui-border-subtle bg-ui-input px-6 text-sm font-bold text-ui-primary transition-all hover:bg-ui-input-focus disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="h-[45px] rounded-full border border-ui-border-subtle bg-ui-input px-6 text-sm font-semibold text-ui-primary transition-all hover:bg-ui-input-focus disabled:opacity-60 disabled:cursor-not-allowed"
                     onClick={handleSaveDraft}
                     disabled={isPending || isConfirming}
                   >
                     {editingDraftId ? 'Update Draft' : 'Save Draft'}
                   </button>
                   <button
-                    className="h-[45px] rounded-full bg-[#2CC295] px-6 text-sm font-bold text-black transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="h-[45px] rounded-full bg-[#2CC295] px-6 text-sm font-semibold text-black transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                     onClick={handleMint}
                     disabled={isPending || isConfirming}
                   >
@@ -1571,8 +1775,8 @@ export function Minting() {
                 {/* Live Preview */}
                 <div className="bg-ui-card border border-ui-border-subtle rounded-2xl p-6">
                   <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xs font-bold text-ui-muted uppercase tracking-widest">Live Preview</h3>
-                    <span className="px-3 py-1 bg-ui-input backdrop-blur-md text-primary border border-[#2CC295]/30 rounded-full text-[10px] font-bold uppercase">
+                    <h3 className="text-xs font-semibold text-ui-muted uppercase tracking-widest">Live Preview</h3>
+                    <span className="px-3 py-1 bg-ui-input backdrop-blur-md text-primary border border-[#2CC295]/30 rounded-full text-[10px] font-semibold uppercase">
                       {assetType}
                     </span>
                   </div>
@@ -1638,7 +1842,7 @@ export function Minting() {
                     <div className="p-5">
                       <div className="flex justify-between items-start mb-4">
                         <div>
-                          <h4 className="text-ui-primary font-bold">{assetName || 'Genesis Asset'}</h4>
+                          <h4 className="text-ui-primary font-semibold">{assetName || 'Genesis Asset'}</h4>
                           <p className="text-[10px] text-ui-muted uppercase">Collection Name</p>
                         </div>
                         <Heart className="text-ui-muted" size={18} />
@@ -1646,21 +1850,21 @@ export function Minting() {
                       <div className="flex justify-between items-end">
                         <div>
                           <p className="text-[10px] text-ui-muted uppercase mb-1">Price</p>
-                          <p className="text-ui-primary font-mono font-bold">{price ? `${price} ${priceCurrency}` : `0.00 ${priceCurrency}`}</p>
+                          <p className="text-ui-primary font-mono font-semibold">{price ? `${price} ${priceCurrency}` : `0.00 ${priceCurrency}`}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-[10px] text-ui-muted uppercase mb-1">Rarity</p>
-                          <span className="text-[10px] px-2 py-0.5 bg-[#2CC295]/10 text-primary rounded-full font-bold">Common</span>
+                          <span className="text-[10px] px-2 py-0.5 bg-[#2CC295]/10 text-primary rounded-full font-semibold">Common</span>
                         </div>
                       </div>
                       {assetType === 'RWA' && previewConfigurableAttributes.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-ui-border-subtle space-y-2.5">
-                          <p className="text-[10px] text-ui-muted uppercase tracking-widest font-bold">Attributes</p>
+                          <p className="text-[10px] text-ui-muted uppercase tracking-widest font-semibold">Attributes</p>
                           {previewConfigurableAttributes.map((group) => (
                             <div key={group.id} className="rounded-xl bg-ui-card px-3 py-2.5">
                               <div className="flex items-center justify-between gap-2">
-                                <p className="text-xs font-bold text-ui-primary">{group.label}</p>
-                                <span className="text-[9px] font-bold uppercase tracking-widest text-ui-muted">
+                                <p className="text-xs font-semibold text-ui-primary">{group.label}</p>
+                                <span className="text-[9px] font-semibold uppercase tracking-widest text-ui-muted">
                                   {group.required ? 'Required' : 'Optional'}
                                 </span>
                               </div>

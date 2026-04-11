@@ -6,7 +6,7 @@ import {
 } from '@/utils/supabaseAuthClaimBridge';
 
 /**
- * Headers for authenticated IPFS uploads (Edge requires H1 bridge JWT, not anon-only).
+ * Headers for authenticated IPFS uploads.
  */
 export async function getIpfsUploadAuthHeaders(walletAddress: string): Promise<Record<string, string>> {
   const w = String(walletAddress || '').trim();
@@ -29,7 +29,7 @@ export async function getIpfsUploadAuthHeaders(walletAddress: string): Promise<R
       },
     });
     if (!token) {
-      throw new Error('Sign in with your wallet (wallet auth message) to upload files.');
+      throw new Error('Please confirm your wallet once in Orina before uploading files.');
     }
     return {
       Authorization: `Bearer ${token}`,
@@ -39,7 +39,7 @@ export async function getIpfsUploadAuthHeaders(walletAddress: string): Promise<R
 
   const token = getSupabaseBridgeAccessToken();
   if (!token) {
-    throw new Error('Sign in with your wallet (wallet auth message) to upload files.');
+    throw new Error('Please confirm your wallet once in Orina before uploading files.');
   }
 
   return {

@@ -2,7 +2,7 @@
  * RuntimeStatusPanel — Router-aware runtime diagnostics
  * =====================================================
  * Mirrors the previous runtime panel but binds explorer/chain labels
- * to the selected protocol network instead of the static default chain.
+ * to the canonical live protocol deployment instead of browsing selection.
  */
 
 import { useEffect, useState, type ReactNode } from 'react';
@@ -53,7 +53,7 @@ function SectionHeader({ icon, label }: { icon: ReactNode; label: string }) {
   return (
     <div className="flex items-center gap-2 mb-3">
       {icon}
-      <span className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">{label}</span>
+      <span className="text-[10px] font-medium text-ui-muted uppercase tracking-widest">{label}</span>
     </div>
   );
 }
@@ -82,7 +82,7 @@ function ProbeRow({
       </div>
       <div className="flex items-center gap-1 shrink-0">
         {value && (
-          <span className={`text-[10px] font-mono font-bold ${statusText(status)}`}>{value}</span>
+          <span className={`text-[10px] font-mono font-semibold ${statusText(status)}`}>{value}</span>
         )}
         {href && (
           <a href={href} target="_blank" rel="noopener noreferrer" className="opacity-50 hover:opacity-100">
@@ -159,7 +159,7 @@ export function RuntimeStatusPanel() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Activity className="text-[#2CC295]" size={20} />
-          <h3 className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">
+          <h3 className="text-[10px] font-medium text-ui-muted uppercase tracking-widest">
             Protocol Runtime Status
           </h3>
         </div>

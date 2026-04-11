@@ -22,16 +22,21 @@ export function useWalletSecurityPrompt() {
     }, confirmHandler);
   }, [openSecurityCheckModal]);
 
-  const promptProtocolSecurityCheck = useCallback((actionLabel: string) => {
+  const promptProtocolSecurityCheck = useCallback((actionLabel: string, onConfirm?: unknown) => {
+    const confirmHandler =
+      typeof onConfirm === 'function'
+        ? (onConfirm as WalletModalConfirmHandler)
+        : undefined;
+
     openSecurityCheckModal({
       title: 'Security Check Required',
-      description: `Before ${actionLabel}, confirm a one-time wallet signature to unlock protected protocol actions.`,
+      description: `Before ${actionLabel}, confirm a one-time wallet signature to unlock secure wallet actions.`,
       surfaceLabel: actionLabel,
       confirmLabel: 'Continue to MetaMask',
-      helpText: `This only verifies your wallet session in Orina. After signing, click again to ${actionLabel}.`,
+      helpText: `This only confirms it's you in Orina. After signing, Orina will continue to ${actionLabel} automatically.`,
       successMessage: 'Security check complete.',
       successDescription: `You can now continue to ${actionLabel}.`,
-    });
+    }, confirmHandler);
   }, [openSecurityCheckModal]);
 
   return {

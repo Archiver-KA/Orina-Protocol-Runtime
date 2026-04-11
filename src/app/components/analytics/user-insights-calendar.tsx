@@ -165,19 +165,19 @@ function CalendarDayHoverPreview({
   onOpenOrder?: (event: UserAnalyticsEvent) => void;
 }) {
   return (
-    <div className="w-[280px] overflow-hidden rounded-[20px] bg-[var(--t-dropdown-glass-bg)] shadow-[0_24px_48px_rgba(0,0,0,0.42)] backdrop-blur-[18px]">
+    <div className="w-[280px] overflow-hidden rounded-[20px] border border-[var(--t-border-subtle)] bg-[var(--t-dropdown-glass-bg)] backdrop-blur-[18px]">
       <div className="px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-ui-muted">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ui-muted">
               {formatDayHeader(day.timestamp)}
             </p>
-            <p className="mt-1 text-sm font-bold text-ui-primary">
-              {day.totalCount} milestone{day.totalCount === 1 ? '' : 's'}
+            <p className="mt-1 text-sm font-semibold text-ui-primary">
+              {day.totalCount} update{day.totalCount === 1 ? '' : 's'}
             </p>
           </div>
           {day.actionableCount > 0 ? (
-            <span className="shrink-0 rounded-full bg-[#F7DC7F]/15 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#F7DC7F]">
+            <span className="shrink-0 rounded-full bg-[#F7DC7F]/15 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#F7DC7F]">
               {day.actionableCount} action
             </span>
           ) : null}
@@ -209,13 +209,13 @@ function CalendarDayHoverPreview({
                     style={{ backgroundColor: event.phaseColor }}
                   />
                   <span
-                    className="text-[10px] font-bold uppercase tracking-[0.14em]"
+                    className="text-[10px] font-semibold uppercase tracking-[0.14em]"
                     style={{ color: event.phaseColor }}
                   >
                     {event.phaseShortLabel}
                   </span>
                   {event.viewerCanAct && event.status !== 'completed' ? (
-                    <span className="rounded-full bg-[#F7DC7F]/15 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-[#F7DC7F]">
+                    <span className="rounded-full bg-[#F7DC7F]/15 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.12em] text-[#F7DC7F]">
                       My Action
                     </span>
                   ) : null}
@@ -223,7 +223,7 @@ function CalendarDayHoverPreview({
                 <p className="mt-2 text-[12px] font-semibold leading-5 text-ui-primary">{event.title}</p>
                 <p className="mt-1 text-[10px] text-ui-muted">Order #{event.orderId}</p>
               </div>
-              <span className="shrink-0 text-[10px] font-bold text-ui-muted">
+              <span className="shrink-0 text-[10px] font-semibold text-ui-muted">
                 {formatEventTime(event.timestamp)}
               </span>
             </div>
@@ -231,8 +231,8 @@ function CalendarDayHoverPreview({
         ))}
       </div>
 
-      <div className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-ui-muted">
-        Click day to inspect timeline
+      <div className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-ui-muted">
+        Select a day to review details
       </div>
     </div>
   );
@@ -295,13 +295,13 @@ export function UserInsightsCalendar({ events, onOpenOrder }: UserInsightsCalend
     <article className="bg-ui-card rounded-[24px] p-6 relative overflow-hidden">
       <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
         <div>
-          <h3 className="text-[12px] uppercase tracking-wider font-bold text-ui-primary">Order Lifecycle Calendar</h3>
+          <h3 className="text-[12px] uppercase tracking-wider font-semibold text-ui-primary">Order Calendar</h3>
           <p className="text-[11px] text-ui-muted mt-1 max-w-[520px]">
-            Each day groups lifecycle milestones by phase. Click a day to inspect the exact order flow and jump into Orders.
+            Each day groups order updates by status. Select a day to inspect the timeline and jump into Orders.
           </p>
         </div>
-        <div className="rounded-full border border-ui-border-subtle bg-ui-input/70 px-3 py-2 text-[10px] uppercase tracking-[0.16em] font-bold text-ui-muted">
-          {filteredCount} mapped milestone{filteredCount === 1 ? '' : 's'}
+        <div className="rounded-full border border-ui-border-subtle bg-ui-input/70 px-3 py-2 text-[10px] uppercase tracking-[0.16em] font-semibold text-ui-muted">
+          {filteredCount} recorded update{filteredCount === 1 ? '' : 's'}
         </div>
       </div>
 
@@ -314,7 +314,7 @@ export function UserInsightsCalendar({ events, onOpenOrder }: UserInsightsCalend
               setScope(option.value);
               setSelectedDayKey(null);
             }}
-            className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] transition-colors ${
+            className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors ${
               scope === option.value
                 ? 'border-[#2CC295]/40 bg-[#2CC295]/12 text-[#2CC295]'
                 : 'border-ui-border-subtle bg-ui-input/70 text-ui-muted hover:text-ui-primary'
@@ -326,7 +326,7 @@ export function UserInsightsCalendar({ events, onOpenOrder }: UserInsightsCalend
       </div>
 
       <div className="mb-4 flex items-center justify-between">
-        <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-ui-muted">{monthLabel}</div>
+        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ui-muted">{monthLabel}</div>
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -355,7 +355,7 @@ export function UserInsightsCalendar({ events, onOpenOrder }: UserInsightsCalend
 
       <div className="grid grid-cols-7 gap-2">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((label) => (
-          <span key={label} className="h-[22px] text-[9px] font-bold uppercase text-[#52525B] flex items-center justify-center">
+          <span key={label} className="h-[22px] text-[9px] font-semibold uppercase text-[#52525B] flex items-center justify-center">
             {label}
           </span>
         ))}
@@ -377,12 +377,12 @@ export function UserInsightsCalendar({ events, onOpenOrder }: UserInsightsCalend
                   : 'bg-[var(--t-surface-2)] hover:bg-[rgba(255,255,255,0.04)]'
               } ${!cell.isCurrentMonth ? 'opacity-40' : ''}`}
             >
-              <p className={`absolute left-3 top-3 text-[11px] font-bold ${cell.isCurrentMonth ? 'text-ui-primary' : 'text-ui-muted'}`}>
+              <p className={`absolute left-3 top-3 text-[11px] font-semibold ${cell.isCurrentMonth ? 'text-ui-primary' : 'text-ui-muted'}`}>
                 {cell.day}
               </p>
 
               {cell.totalCount > 0 ? (
-                <span className="absolute right-3 top-3 rounded-full bg-ui-input/90 px-2 py-0.5 text-[10px] font-bold text-ui-primary">
+                <span className="absolute right-3 top-3 rounded-full bg-ui-input/90 px-2 py-0.5 text-[10px] font-semibold text-ui-primary">
                   {cell.totalCount}
                 </span>
               ) : null}
@@ -394,13 +394,13 @@ export function UserInsightsCalendar({ events, onOpenOrder }: UserInsightsCalend
                       {visibleGroups.map((group) => (
                         <div
                           key={`${cell.key}-${group.phase}`}
-                          className="flex min-w-0 items-center justify-center rounded-[8px] text-[9px] font-bold leading-none"
+                          className="flex min-w-0 items-center justify-center rounded-[8px] text-[9px] font-semibold leading-none"
                           style={{
                             backgroundColor: `${group.color}24`,
                             boxShadow: `inset 0 0 0 1px ${group.color}33`,
                             color: group.color,
                           }}
-                          aria-label={`${group.count} ${group.label} milestones`}
+                          aria-label={`${group.count} ${group.label} updates`}
                         >
                           {group.count}
                         </div>
@@ -447,7 +447,7 @@ export function UserInsightsCalendar({ events, onOpenOrder }: UserInsightsCalend
             >
               <div className="flex items-center gap-2.5 border-b border-[var(--t-border-subtle)] p-5 shrink-0">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-ui-primary uppercase tracking-wider">Day Timeline</p>
+                  <p className="text-sm font-semibold text-ui-primary uppercase tracking-wider">Day Timeline</p>
                   <p className="text-xs text-ui-muted truncate">{formatDayHeader(selectedDay.timestamp)}</p>
                 </div>
                 <button
@@ -466,13 +466,13 @@ export function UserInsightsCalendar({ events, onOpenOrder }: UserInsightsCalend
               >
                 <div className="rounded-[24px] bg-[rgba(255,255,255,0.02)] border border-[var(--t-border-subtle)] backdrop-blur-[10px] p-5">
                   <p className="text-[11px] text-ui-muted leading-5">
-                    {selectedDay.totalCount} milestone{selectedDay.totalCount === 1 ? '' : 's'} across {selectedDay.groups.length} lifecycle phase{selectedDay.groups.length === 1 ? '' : 's'}.
+                    {selectedDay.totalCount} update{selectedDay.totalCount === 1 ? '' : 's'} across {selectedDay.groups.length} order stage{selectedDay.groups.length === 1 ? '' : 's'}.
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {selectedDay.groups.map((group) => (
                       <span
                         key={`summary-${group.phase}`}
-                        className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em]"
+                        className="rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
                         style={{
                           color: group.color,
                           backgroundColor: `${group.color}1A`,
@@ -498,7 +498,7 @@ export function UserInsightsCalendar({ events, onOpenOrder }: UserInsightsCalend
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2 mb-2">
                             <span
-                              className="rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.14em]"
+                              className="rounded-full px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.14em]"
                               style={{
                                 color: event.phaseColor,
                                 backgroundColor: `${event.phaseColor}1A`,
@@ -506,17 +506,17 @@ export function UserInsightsCalendar({ events, onOpenOrder }: UserInsightsCalend
                             >
                               {event.phaseShortLabel}
                             </span>
-                            <span className="rounded-full bg-ui-card px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.14em] text-ui-muted">
+                            <span className="rounded-full bg-ui-card px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-ui-muted">
                               {getEventStatusLabel(event.status)}
                             </span>
                             {event.viewerCanAct && event.status !== 'completed' ? (
-                              <span className="rounded-full bg-[#F7DC7F]/15 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.14em] text-[#F7DC7F]">
+                              <span className="rounded-full bg-[#F7DC7F]/15 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-[#F7DC7F]">
                                 My Action
                               </span>
                             ) : null}
                           </div>
 
-                          <p className="text-sm font-bold text-ui-primary">{event.title}</p>
+                          <p className="text-sm font-semibold text-ui-primary">{event.title}</p>
                           <p className="text-[11px] text-ui-secondary mt-1 leading-5">{event.detail}</p>
                           <div className="mt-2 text-[10px] text-ui-muted">
                             Order #{event.orderId} • {formatEventTime(event.timestamp)}
@@ -525,8 +525,8 @@ export function UserInsightsCalendar({ events, onOpenOrder }: UserInsightsCalend
                       </div>
 
                       <div className="mt-4 flex items-center justify-between gap-3">
-                        <span className="text-[10px] uppercase tracking-[0.14em] font-bold text-ui-muted">
-                          {event.source === 'projection' ? 'On-chain event' : 'Lifecycle milestone'}
+                        <span className="text-[10px] uppercase tracking-[0.14em] font-semibold text-ui-muted">
+                          {event.source === 'projection' ? 'Recorded update' : 'Upcoming step'}
                         </span>
                         <button
                           type="button"

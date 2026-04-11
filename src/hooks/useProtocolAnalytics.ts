@@ -4,6 +4,7 @@ import { DISPUTE_MANAGER_ABI, MARKETPLACE_ABI } from '@/config/abis';
 import { OrderState } from '@/config/contracts';
 import type { OrderUiRecord } from '@/types/order';
 import { getOrderLifecycleLabel, getOrderLifecyclePhase, reconcileOrderFromChain, type MarketplaceOrderSnapshot } from '@/utils/orderLifecycle';
+import { isOrderCompleted, resolveOrderSemantics } from '@/utils/orderSemantics';
 import { fromProtocolOrderRow, type ProtocolOrderRow, type RuntimeOrderScope } from '@/utils/runtimeOrders';
 import { isSupabaseRestEnabled, restSelect } from '@/utils/supabaseRest';
 import { useProtocolDataNetwork } from './useProtocolDataNetwork';
@@ -196,8 +197,8 @@ function deriveTimelineEntries(order: OrderUiRecord): ProtocolTimelineEntry[] {
     entries.push({
       ...base,
       id: `${orderId}-locked`,
-      title: 'Escrow Locked',
-      detail: `Escrow locked for order #${orderId}.`,
+      title: 'Payment Locked',
+      detail: `Payment was locked for order #${orderId}.`,
       timestamp: paidAt,
       status: 'completed',
     });
@@ -215,18 +216,20 @@ function deriveTimelineEntries(order: OrderUiRecord): ProtocolTimelineEntry[] {
     });
   }
 
-  if (order.finalized || order.state === OrderState.FINALIZED) {
+  const semantics = resolveOrderSemantics(order);
+
+  if (semantics.isCompleted) {
     entries.push({
       ...base,
       id: `${orderId}-finalized`,
-      title: 'Order Finalized',
-      detail: `Settlement finalized for order #${orderId}.`,
+      title: 'Order Completed',
+      detail: `Order #${orderId} was completed.`,
       timestamp: order.updatedAt ?? Date.now(),
       status: 'completed',
     });
   }
 
-  if (order.state === OrderState.CANCELLED) {
+  if (semantics.isCancelled) {
     entries.push({
       ...base,
       id: `${orderId}-cancelled`,
@@ -241,8 +244,8 @@ function deriveTimelineEntries(order: OrderUiRecord): ProtocolTimelineEntry[] {
     entries.push({
       ...base,
       id: `${orderId}-seller-window`,
-      title: 'Seller Action Pending',
-      detail: `Seller must confirm, revise, or cancel order #${orderId}.`,
+      title: 'Waiting for Seller',
+      detail: `The seller still needs to confirm or update order #${orderId}.`,
       timestamp: toMs(order.proposedAt) + (24 * 60 * 60 * 1000),
       status: 'pending',
     });
@@ -252,8 +255,8 @@ function deriveTimelineEntries(order: OrderUiRecord): ProtocolTimelineEntry[] {
     entries.push({
       ...base,
       id: `${orderId}-buyer-window`,
-      title: 'Buyer Re-Sign Pending',
-      detail: `Buyer must re-sign or cancel order #${orderId}.`,
+      title: 'Waiting for Buyer',
+      detail: `The buyer still needs to confirm or cancel order #${orderId}.`,
       timestamp: toMs(order.payDeadline),
       status: 'pending',
     });
@@ -263,8 +266,8 @@ function deriveTimelineEntries(order: OrderUiRecord): ProtocolTimelineEntry[] {
     entries.push({
       ...base,
       id: `${orderId}-delivery-window`,
-      title: 'Agreed Delivery Ends',
-      detail: `Agreed delivery ends for order #${orderId}.`,
+      title: 'Delivery Window Ends',
+      detail: `The delivery window for order #${orderId} is about to end.`,
       timestamp: toMs(order.autoReleaseAt),
       status: 'future',
     });
@@ -274,8 +277,8 @@ function deriveTimelineEntries(order: OrderUiRecord): ProtocolTimelineEntry[] {
     entries.push({
       ...base,
       id: `${orderId}-buyer-window-dispute`,
-      title: 'Buyer Action Window',
-      detail: `Buyer can confirm delivery or dispute order #${orderId}.`,
+      title: 'Buyer Review Window',
+      detail: `The buyer can confirm delivery or open a dispute for order #${orderId}.`,
       timestamp: toMs(order.disputeDeadline ?? 0n),
       status: 'future',
     });
@@ -285,8 +288,8 @@ function deriveTimelineEntries(order: OrderUiRecord): ProtocolTimelineEntry[] {
     entries.push({
       ...base,
       id: `${orderId}-auto-finalize-ready`,
-      title: 'Auto Finalize Ready',
-      detail: `Order #${orderId} is waiting for protocol auto-finalization.`,
+      title: 'Ready to Complete',
+      detail: `Order #${orderId} is waiting for automatic completion.`,
       timestamp: Date.now(),
       status: 'pending',
     });
@@ -321,7 +324,7 @@ function buildChartPoints(orders: OrderUiRecord[], range: ProtocolTimeRange): Pr
 
   for (const order of orders) {
     const createdMs = toMs(order.proposedAt, order.createdAt ?? 0);
-    const finalizedMs = order.finalized || order.state === OrderState.FINALIZED ? (order.updatedAt ?? createdMs) : 0;
+    const finalizedMs = isOrderCompleted(order) ? (order.updatedAt ?? createdMs) : 0;
     const disputeMs = toMs(order.disputeOpenedAt);
 
     const createdIndex = Math.floor((createdMs - firstBucketStart) / bucketSize);
@@ -356,33 +359,29 @@ function buildProtocolSnapshot(
     || order.state === OrderState.PAID
     || order.state === OrderState.DISPUTED
   )).length;
-  const finalizedOrders = orders.filter((order) => order.finalized || order.state === OrderState.FINALIZED).length;
-  const disputedOrders = orders.filter((order) => order.state === OrderState.DISPUTED || order.disputed).length;
-  const awaitingAutoFinalize = orders.filter((order) => getOrderLifecyclePhase(order) === 'awaiting_auto_finalize').length;
-  const avgDeliveryHours = orders.length > 0
-    ? Math.round(orders.reduce((sum, order) => sum + bigintToNumber(order.estDeliverySeconds), 0) / orders.length / 3600)
-    : 0;
+  const finalizedOrders = orders.filter((order) => isOrderCompleted(order)).length;
+  const disputedOrders = orders.filter((order) => resolveOrderSemantics(order).isDisputed).length;
 
   const metrics: ProtocolMetricCard[] = [
     {
       label: 'Total Orders',
       value: orders.length,
-      helper: `Canonical protocol orders on ${networkLabel}`,
+      helper: `Tracked on ${networkLabel}`,
     },
     {
-      label: 'Active Escrows',
+      label: 'Open Orders',
       value: activeEscrows,
-      helper: 'Pending confirm, paid, or disputed',
+      helper: 'Still in progress',
     },
     {
-      label: 'Finalized',
+      label: 'Completed',
       value: finalizedOrders,
-      helper: 'Orders fully settled on-chain',
+      helper: 'Finished successfully',
     },
     {
-      label: 'Disputed',
+      label: 'Disputes',
       value: disputedOrders,
-      helper: `${awaitingAutoFinalize} currently inside buyer action window`,
+      helper: 'Need resolution',
     },
   ];
 
@@ -401,7 +400,7 @@ function buildProtocolSnapshot(
     };
     existing.orderCount += 1;
     existing.grossVolume += order.grossPrice;
-    if (order.finalized || order.state === OrderState.FINALIZED) existing.finalizedCount += 1;
+    if (isOrderCompleted(order)) existing.finalizedCount += 1;
     if (
       order.state === OrderState.PENDING_CONFIRM
       || order.state === OrderState.PAID

@@ -26,9 +26,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
         unstyled: true,
         classNames: {
           toast:
-            "group pointer-events-auto flex w-full max-w-md items-start gap-4 rounded-r-lg border border-[var(--t-border-subtle)] border-l-4 bg-[color:var(--color-sidebar-shell)] p-4 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.3),0_10px_10px_-5px_rgba(0,0,0,0.2)] backdrop-blur-[16px]",
+            "group pointer-events-auto flex w-full max-w-md items-start gap-4 rounded-[18px] border border-[var(--t-border-subtle)] border-l-4 bg-[color:var(--color-sidebar-shell)] p-4 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.3),0_10px_10px_-5px_rgba(0,0,0,0.2)] backdrop-blur-[16px]",
           content: "flex-1 min-w-0",
-          title: "text-sm font-bold text-ui-strong",
+          title: "text-sm font-semibold text-ui-strong",
           description: "mt-1 text-xs leading-relaxed text-ui-muted",
           icon: "mt-1 shrink-0",
           closeButton:

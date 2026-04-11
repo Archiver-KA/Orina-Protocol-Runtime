@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type Context } from "react";
 import { readWalletThemePreference, writeWalletThemePreference } from "@/utils/themePreferences";
 import { USER_SETTINGS_SYNC_EVENT } from "@/utils/userSettingsUtils";
 
@@ -12,24 +12,39 @@ interface ThemeContextValue {
   activeWalletAddress: string | null;
 }
 
-const ThemeContext = createContext<ThemeContextValue>({
+declare global {
+  var __orinaThemeContext: Context<ThemeContextValue> | undefined;
+}
+
+const defaultThemeContextValue: ThemeContextValue = {
   theme: "dark",
   toggleTheme: () => {},
   setTheme: () => {},
   applyThemeFromWallet: () => "dark",
   activeWalletAddress: null,
-});
+};
+
+const ThemeContext = globalThis.__orinaThemeContext
+  ?? createContext<ThemeContextValue>(defaultThemeContextValue);
+
+if (!globalThis.__orinaThemeContext) {
+  ThemeContext.displayName = 'ThemeContext';
+  globalThis.__orinaThemeContext = ThemeContext;
+}
 
 const cssVars: Record<Theme, Record<string, string>> = {
   dark: {
+    "--t-shell-surface": "rgba(21,21,21,0.92)",
     "--t-page-bg": "#0a0a0a",
     "--t-nav-bg": "rgba(18,18,18,0.74)",
     "--t-nav-border": "rgba(255,255,255,0.1)",
     "--t-nav-pill-bg": "rgba(255,255,255,0.06)",
     "--t-nav-pill-border": "transparent",
-    "--t-card-bg": "rgba(255,255,255,0.035)",
-    "--t-card-border": "transparent",
+    "--t-card-bg": "var(--t-shell-surface)",
     "--t-card-shadow": "none",
+    "--color-panel-bg": "var(--t-shell-surface)",
+    "--color-sidebar-shell": "var(--t-shell-surface)",
+    "--color-sidebar-footer": "var(--t-shell-surface)",
     "--t-surface-2": "rgba(255,255,255,0.02)",
     "--t-surface-5": "rgba(255,255,255,0.05)",
     "--t-surface-10": "rgba(255,255,255,0.1)",
@@ -64,14 +79,17 @@ const cssVars: Record<Theme, Record<string, string>> = {
     "--t-section-bg-alt": "rgba(255,255,255,0.02)",
   },
   light: {
+    "--t-shell-surface": "rgba(248,249,252,0.96)",
     "--t-page-bg": "#eef1f4",
     "--t-nav-bg": "rgba(255,255,255,0.8)",
     "--t-nav-border": "rgba(0,0,0,0.07)",
     "--t-nav-pill-bg": "rgba(0,0,0,0.04)",
     "--t-nav-pill-border": "transparent",
-    "--t-card-bg": "rgba(255,255,255,0.74)",
-    "--t-card-border": "transparent",
+    "--t-card-bg": "var(--t-shell-surface)",
     "--t-card-shadow": "none",
+    "--color-panel-bg": "var(--t-shell-surface)",
+    "--color-sidebar-shell": "var(--t-shell-surface)",
+    "--color-sidebar-footer": "var(--t-shell-surface)",
     "--t-surface-2": "rgba(0,0,0,0.02)",
     "--t-surface-5": "rgba(0,0,0,0.03)",
     "--t-surface-10": "rgba(0,0,0,0.05)",

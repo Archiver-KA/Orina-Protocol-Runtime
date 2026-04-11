@@ -32,6 +32,8 @@ export function MainContent() {
   } = useProtocolAnalytics(marketTimeRange);
 
   const statusHighlights = useMemo(() => lifecycleBreakdown.slice(0, 4), [lifecycleBreakdown]);
+  const visibleRecentEvents = useMemo(() => recentEvents.slice(0, 4), [recentEvents]);
+  const visibleUpcomingActions = useMemo(() => upcomingActions.slice(0, 4), [upcomingActions]);
 
   return (
     <section className="bg-ui-page h-full overflow-hidden relative">
@@ -39,16 +41,16 @@ export function MainContent() {
         <div className="p-8 relative z-10 space-y-6">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-ui-primary">Overview</h1>
+              <h1 className="text-2xl font-semibold text-ui-primary">Overview</h1>
               <p className="text-sm text-ui-muted mt-1">
-                Protocol analytics from canonical order projection and chain overlay on BSC Testnet.
+                A quick snapshot of orders, payments, and activity on BSC Testnet.
               </p>
             </div>
             <div className="flex bg-ui-pill p-1 rounded-full border border-ui-border-subtle">
               {(['24H', '7D', '30D'] as const).map((range) => (
                 <button
                   key={range}
-                  className={`px-4 py-1.5 text-xs font-bold transition-all ${
+                  className={`px-4 py-1.5 text-xs font-semibold transition-all ${
                     marketTimeRange === range
                       ? 'text-ui-primary bg-[rgba(255,255,255,0.08)] rounded-full'
                       : 'text-ui-muted hover:text-ui-secondary'
@@ -61,156 +63,169 @@ export function MainContent() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
             {metrics.map((metric) => (
-              <article key={metric.label} className="bg-ui-card rounded-[24px] p-6 min-h-[146px] flex flex-col justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-[12px] uppercase tracking-[0.12em] font-bold text-ui-muted">{metric.label}</span>
-                </div>
+              <article
+                key={metric.label}
+                className="bg-ui-card rounded-[24px] p-6 min-h-[152px] flex flex-col justify-between gap-5"
+              >
+                <span className="text-[12px] uppercase tracking-[0.12em] font-medium text-ui-muted">
+                  {metric.label}
+                </span>
                 <div>
-                  <p className="text-[30px] leading-[36px] font-black text-ui-primary">{metric.value}</p>
-                  <p className="text-[10px] uppercase tracking-[-0.02em] text-ui-muted">{metric.helper}</p>
+                  <p className="text-[30px] leading-[36px] font-semibold text-ui-primary">{metric.value}</p>
+                  <p className="mt-2 text-[12px] leading-5 text-ui-secondary max-w-[22ch]">{metric.helper}</p>
                 </div>
               </article>
             ))}
           </div>
 
           <MarketVolumeChart
-            title="Protocol Order Activity"
-            subtitle={orderCount > 0 ? `Created vs finalized orders across ${orderCount} canonical protocol orders` : 'No protocol orders indexed yet'}
+            title="Order Activity"
+            subtitle={orderCount > 0 ? `Created vs completed orders across ${orderCount} tracked orders` : 'No orders have been tracked yet'}
             primaryLabel="Created"
-            secondaryLabel="Finalized"
+            secondaryLabel="Completed"
             points={chartPoints}
-            emptyMessage="No protocol order activity found for the selected time window."
+            emptyMessage="No order activity was found for the selected time window."
           />
 
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] gap-6 items-start">
-            <article className="bg-ui-card rounded-[24px] p-6">
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="text-[12px] uppercase tracking-[0.12em] font-bold text-ui-primary">Payment Token Breakdown</h3>
-                  <p className="text-[10px] text-ui-muted mt-1">Gross tracked volume is shown per token, never merged across currencies.</p>
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)] gap-6 items-start">
+            <div className="space-y-6">
+              <article className="bg-ui-card rounded-[24px] p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 className="text-[12px] uppercase tracking-[0.12em] font-medium text-ui-primary">Order Volume by Token</h3>
+                    <p className="text-[10px] text-ui-muted mt-1">Tracked order value grouped by payment token.</p>
+                  </div>
+                  <Layers3 className="text-primary" size={16} />
                 </div>
-                <Layers3 className="text-primary" size={16} />
-              </div>
-              {tokenBreakdown.length === 0 ? (
-                <div className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-6 text-sm text-ui-muted">
-                  No canonical orders are available yet for protocol token analytics.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {tokenBreakdown.map((token) => (
-                    <div key={token.symbol} className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-bold text-ui-primary">{token.symbol}</p>
-                          <p className="text-[11px] text-ui-muted">
-                            {token.orderCount} order(s), {token.activeCount} active, {token.finalizedCount} finalized
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-ui-primary">
+                {tokenBreakdown.length === 0 ? (
+                  <div className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-6 text-sm text-ui-muted">
+                    No payment token activity has been recorded yet.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {tokenBreakdown.map((token) => (
+                      <div key={token.symbol} className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-semibold text-ui-primary">{token.symbol}</p>
+                            <p className="text-[11px] text-ui-muted mt-1">
+                              {token.orderCount} order{token.orderCount === 1 ? '' : 's'} tracked
+                            </p>
+                          </div>
+                          <p className="text-sm font-semibold text-ui-primary text-right whitespace-nowrap">
                             {formatTokenVolume(token.grossVolume, token.decimals, token.symbol)}
                           </p>
-                          <p className="text-[11px] text-ui-muted">{token.disputedCount} disputed</p>
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-ui-muted">
+                          <span>{token.finalizedCount} completed</span>
+                          <span className="h-1 w-1 rounded-full bg-ui-muted/70" />
+                          <span>{token.activeCount} open</span>
+                          {token.disputedCount > 0 ? (
+                            <>
+                              <span className="h-1 w-1 rounded-full bg-ui-muted/70" />
+                              <span>{token.disputedCount} dispute{token.disputedCount === 1 ? '' : 's'}</span>
+                            </>
+                          ) : null}
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </article>
+                    ))}
+                  </div>
+                )}
+              </article>
 
-            <article className="bg-ui-card rounded-[24px] p-6">
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="text-[12px] uppercase tracking-[0.12em] font-bold text-ui-primary">Lifecycle Breakdown</h3>
-                  <p className="text-[10px] text-ui-muted mt-1">Current protocol state distribution from chain-reconciled orders.</p>
+              <article className="bg-ui-card rounded-[24px] p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 className="text-[12px] uppercase tracking-[0.12em] font-medium text-ui-primary">Recent Order Updates</h3>
+                    <p className="text-[10px] text-ui-muted mt-1">Latest changes recorded for tracked orders.</p>
+                  </div>
+                  <Clock3 className="text-primary" size={16} />
                 </div>
-                <ShieldCheck className="text-primary" size={16} />
-              </div>
-              {statusHighlights.length === 0 ? (
-                <div className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-6 text-sm text-ui-muted">
-                  No lifecycle data is available yet.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {statusHighlights.map((item) => (
-                    <div key={item.phase} className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-4 flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-bold text-ui-primary">{item.label}</p>
-                        <p className="text-[11px] text-ui-muted">Current canonical phase</p>
+                {visibleRecentEvents.length === 0 ? (
+                  <div className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-6 text-sm text-ui-muted">
+                    No recent order updates are available yet.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {visibleRecentEvents.map((event) => (
+                      <div key={event.id} className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-semibold text-ui-primary">{event.title}</p>
+                            <p className="text-[11px] text-ui-secondary mt-1">{event.detail}</p>
+                          </div>
+                          <span className="text-[10px] uppercase tracking-[0.12em] font-medium text-primary whitespace-nowrap">
+                            {formatTimestamp(event.timestamp)}
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-2xl font-black text-ui-primary">{item.count}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </article>
-          </div>
+                    ))}
+                  </div>
+                )}
+              </article>
+            </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-            <article className="bg-ui-card rounded-[24px] p-6">
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="text-[12px] uppercase tracking-[0.12em] font-bold text-ui-primary">Recent Protocol Events</h3>
-                  <p className="text-[10px] text-ui-muted mt-1">Latest completed milestones from canonical orders.</p>
+            <div className="space-y-6">
+              <article className="bg-ui-card rounded-[24px] p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 className="text-[12px] uppercase tracking-[0.12em] font-medium text-ui-primary">Order Status Summary</h3>
+                    <p className="text-[10px] text-ui-muted mt-1">How current orders are split across each status.</p>
+                  </div>
+                  <ShieldCheck className="text-primary" size={16} />
                 </div>
-                <Clock3 className="text-primary" size={16} />
-              </div>
-              {recentEvents.length === 0 ? (
-                <div className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-6 text-sm text-ui-muted">
-                  No completed protocol events have been indexed yet.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {recentEvents.map((event) => (
-                    <div key={event.id} className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-4">
-                      <div className="flex items-center justify-between gap-4">
+                {statusHighlights.length === 0 ? (
+                  <div className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-6 text-sm text-ui-muted">
+                    No order status data is available yet.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {statusHighlights.map((item) => (
+                      <div key={item.phase} className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-4 flex items-center justify-between gap-4">
                         <div>
-                          <p className="text-sm font-bold text-ui-primary">{event.title}</p>
-                          <p className="text-[11px] text-ui-secondary mt-1">{event.detail}</p>
+                          <p className="text-sm font-semibold text-ui-primary">{item.label}</p>
+                          <p className="text-[11px] text-ui-muted">Orders in this status</p>
                         </div>
-                        <span className="text-[10px] uppercase tracking-[0.12em] font-bold text-primary whitespace-nowrap">
-                          {formatTimestamp(event.timestamp)}
-                        </span>
+                        <span className="text-2xl font-semibold text-ui-primary">{item.count}</span>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </article>
+                    ))}
+                  </div>
+                )}
+              </article>
 
-            <article className="bg-ui-card rounded-[24px] p-6">
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="text-[12px] uppercase tracking-[0.12em] font-bold text-ui-primary">Upcoming Protocol Actions</h3>
-                  <p className="text-[10px] text-ui-muted mt-1">Future deadlines and pending milestones derived from order lifecycle.</p>
+              <article className="bg-ui-card rounded-[24px] p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 className="text-[12px] uppercase tracking-[0.12em] font-medium text-ui-primary">Next Required Actions</h3>
+                    <p className="text-[10px] text-ui-muted mt-1">Upcoming deadlines and steps that still need attention.</p>
+                  </div>
+                  <TimerReset className="text-primary" size={16} />
                 </div>
-                <TimerReset className="text-primary" size={16} />
-              </div>
-              {upcomingActions.length === 0 ? (
-                <div className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-6 text-sm text-ui-muted">
-                  No pending protocol deadlines are currently tracked.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {upcomingActions.map((event) => (
-                    <div key={event.id} className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-bold text-ui-primary">{event.title}</p>
-                          <p className="text-[11px] text-ui-secondary mt-1">{event.detail}</p>
+                {visibleUpcomingActions.length === 0 ? (
+                  <div className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-6 text-sm text-ui-muted">
+                    No upcoming actions are waiting right now.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {visibleUpcomingActions.map((event) => (
+                      <div key={event.id} className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-semibold text-ui-primary">{event.title}</p>
+                            <p className="text-[11px] text-ui-secondary mt-1">{event.detail}</p>
+                          </div>
+                          <span className="text-[10px] uppercase tracking-[0.12em] font-medium text-[#F7DC7F] whitespace-nowrap">
+                            {formatTimestamp(event.timestamp)}
+                          </span>
                         </div>
-                        <span className="text-[10px] uppercase tracking-[0.12em] font-bold text-[#F7DC7F] whitespace-nowrap">
-                          {formatTimestamp(event.timestamp)}
-                        </span>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </article>
+                    ))}
+                  </div>
+                )}
+              </article>
+            </div>
           </div>
         </div>
       </div>

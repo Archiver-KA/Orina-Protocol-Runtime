@@ -128,13 +128,13 @@ export function CommandPalette({
                   <div className="py-2">
                     {/* Group by type */}
                     {searchQuery && (
-                      <div className="px-3 py-2 text-xs font-bold text-zinc-500 uppercase">
+                      <div className="px-3 py-2 text-xs font-semibold text-zinc-500 uppercase">
                         Results ({searchResults.length})
                       </div>
                     )}
                     
                     {!searchQuery && searchResults.length > 0 && (
-                      <div className="px-3 py-2 flex items-center gap-2 text-xs font-bold text-zinc-500 uppercase">
+                      <div className="px-3 py-2 flex items-center gap-2 text-xs font-semibold text-zinc-500 uppercase">
                         <Clock size={14} />
                         Recent
                       </div>

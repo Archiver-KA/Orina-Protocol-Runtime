@@ -45,7 +45,7 @@ export function ReputationModal({ score, ratings, onClose }: ReputationModalProp
               <Shield size={24} className="text-[#2CC295]" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Reputation Score</h2>
+              <h2 className="text-xl font-semibold text-white">Reputation Score</h2>
               <p className="text-sm text-zinc-500">Detailed trust & performance metrics</p>
             </div>
           </div>
@@ -64,7 +64,7 @@ export function ReputationModal({ score, ratings, onClose }: ReputationModalProp
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`
-                px-4 py-3 text-sm font-bold transition-colors relative
+                px-4 py-3 text-sm font-semibold transition-colors relative
                 ${activeTab === tab.id
                   ? 'text-[#2CC295]'
                   : 'text-zinc-500 hover:text-white'
@@ -124,7 +124,7 @@ function OverviewTab({
           <div className="flex items-center gap-4">
             <div className="text-6xl">{levelInfo.icon}</div>
             <div>
-              <h3 className={`text-3xl font-bold ${levelInfo.color}`}>
+              <h3 className={`text-3xl font-semibold ${levelInfo.color}`}>
                 {levelInfo.name}
               </h3>
               <p className="text-zinc-400 mt-1">
@@ -135,7 +135,7 @@ function OverviewTab({
           <div className="text-right">
             <div className="flex items-center gap-2 mb-1">
               <Shield size={24} className="text-[#2CC295]" />
-              <span className="text-4xl font-bold text-white">
+              <span className="text-4xl font-semibold text-white">
                 {score.overallScore}
               </span>
             </div>
@@ -147,7 +147,7 @@ function OverviewTab({
         <div>
           <div className="flex items-center justify-between text-sm mb-2">
             <span className="text-zinc-500">Progress to next level</span>
-            <span className="text-white font-bold">
+            <span className="text-white font-semibold">
               {Math.round(((score.overallScore - levelInfo.minScore) / (levelInfo.maxScore - levelInfo.minScore + 1)) * 100)}%
             </span>
           </div>
@@ -197,7 +197,7 @@ function OverviewTab({
       {/* Trust Badges */}
       {badges.length > 0 && (
         <div>
-          <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-3">
+          <h4 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
             Trust Badges
           </h4>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -207,7 +207,7 @@ function OverviewTab({
                 className={`p-4 rounded-xl ${badge.color} border border-zinc-800`}
               >
                 <div className="text-3xl mb-2">{badge.icon}</div>
-                <p className="font-bold text-sm mb-1">{badge.name}</p>
+                <p className="font-semibold text-sm mb-1">{badge.name}</p>
                 <p className="text-xs opacity-80">{badge.description}</p>
               </div>
             ))}
@@ -218,7 +218,7 @@ function OverviewTab({
       {/* Insights */}
       {insights.length > 0 && (
         <div>
-          <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-3">
+          <h4 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
             Reputation Insights
           </h4>
           <div className="space-y-2">
@@ -236,7 +236,7 @@ function OverviewTab({
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
                         insight.type === 'positive'
                           ? 'bg-green-500/20 text-green-400'
                           : insight.type === 'negative'
@@ -245,7 +245,7 @@ function OverviewTab({
                       }`}>
                         {insight.category}
                       </span>
-                      <span className={`text-xs font-bold ${
+                      <span className={`text-xs font-semibold ${
                         insight.impact === 'high'
                           ? 'text-orange-400'
                           : insight.impact === 'medium'
@@ -273,14 +273,14 @@ function OverviewTab({
           <div>
             <p className="text-sm text-zinc-500 mb-1">Your Score vs Platform Average</p>
             <div className="flex items-center gap-3">
-              <span className="text-2xl font-bold text-white">{comparison.userScore}</span>
+              <span className="text-2xl font-semibold text-white">{comparison.userScore}</span>
               <span className="text-zinc-500">vs</span>
-              <span className="text-lg font-bold text-zinc-400">{comparison.averageScore}</span>
+              <span className="text-lg font-semibold text-zinc-400">{comparison.averageScore}</span>
             </div>
           </div>
           <div className="text-right">
             <p className="text-sm text-zinc-500 mb-1">Top Percentile</p>
-            <span className="text-2xl font-bold text-[#2CC295]">{comparison.percentile}%</span>
+            <span className="text-2xl font-semibold text-[#2CC295]">{comparison.percentile}%</span>
           </div>
         </div>
       </div>
@@ -358,11 +358,11 @@ function BreakdownTab({ score }: { score: ReputationScore }) {
               <div className="flex items-center gap-3">
                 <Icon size={20} className={component.color} />
                 <div>
-                  <h4 className="font-bold text-white">{component.name}</h4>
+                  <h4 className="font-semibold text-white">{component.name}</h4>
                   <p className="text-xs text-zinc-500">{component.description}</p>
                 </div>
               </div>
-              <span className="text-2xl font-bold text-white">{component.score}</span>
+              <span className="text-2xl font-semibold text-white">{component.score}</span>
             </div>
             <div className="h-2 bg-zinc-900 rounded-full overflow-hidden">
               <motion.div
@@ -414,7 +414,7 @@ function RatingsTab({ ratings }: { ratings: Rating[] }) {
                 <Users size={18} className="text-zinc-600" />
               </div>
               <div>
-                <p className="font-bold text-white">@{rating.fromUsername}</p>
+                <p className="font-semibold text-white">@{rating.fromUsername}</p>
                 <p className="text-xs text-zinc-500">
                   {formatDistanceToNow(new Date(rating.timestamp), { addSuffix: true })}
                 </p>
@@ -423,7 +423,7 @@ function RatingsTab({ ratings }: { ratings: Rating[] }) {
             <div className="text-right">
               <div className="flex items-center gap-1 mb-1">
                 <Star size={16} className={`${getRatingColor(rating.overallRating)} fill-current`} />
-                <span className="font-bold text-white">{rating.overallRating.toFixed(1)}</span>
+                <span className="font-semibold text-white">{rating.overallRating.toFixed(1)}</span>
               </div>
               {rating.verified && (
                 <span className="text-xs px-2 py-0.5 rounded bg-[#2CC295]/10 text-[#2CC295]">
@@ -437,15 +437,15 @@ function RatingsTab({ ratings }: { ratings: Rating[] }) {
           <div className="grid grid-cols-3 gap-2 mb-3">
             <div className="text-center p-2 bg-zinc-900/50 rounded">
               <p className="text-xs text-zinc-500 mb-1">Communication</p>
-              <p className="text-sm font-bold text-white">{rating.communicationRating.toFixed(1)}</p>
+              <p className="text-sm font-semibold text-white">{rating.communicationRating.toFixed(1)}</p>
             </div>
             <div className="text-center p-2 bg-zinc-900/50 rounded">
               <p className="text-xs text-zinc-500 mb-1">Delivery</p>
-              <p className="text-sm font-bold text-white">{rating.deliveryRating.toFixed(1)}</p>
+              <p className="text-sm font-semibold text-white">{rating.deliveryRating.toFixed(1)}</p>
             </div>
             <div className="text-center p-2 bg-zinc-900/50 rounded">
               <p className="text-xs text-zinc-500 mb-1">Accuracy</p>
-              <p className="text-sm font-bold text-white">{rating.accuracyRating.toFixed(1)}</p>
+              <p className="text-sm font-semibold text-white">{rating.accuracyRating.toFixed(1)}</p>
             </div>
           </div>
 
@@ -501,7 +501,7 @@ function LevelsTab({
               <div className="flex items-center gap-4">
                 <div className="text-5xl">{level.icon}</div>
                 <div>
-                  <h3 className={`text-2xl font-bold ${level.color}`}>
+                  <h3 className={`text-2xl font-semibold ${level.color}`}>
                     {level.name}
                   </h3>
                   <p className="text-sm text-zinc-500">
@@ -510,7 +510,7 @@ function LevelsTab({
                 </div>
               </div>
               {isCurrent && (
-                <span className="px-3 py-1 bg-[#2CC295] text-black text-xs font-bold rounded-full">
+                <span className="px-3 py-1 bg-[#2CC295] text-black text-xs font-semibold rounded-full">
                   CURRENT
                 </span>
               )}
@@ -520,7 +520,7 @@ function LevelsTab({
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Benefits:</p>
+              <p className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">Benefits:</p>
               <ul className="space-y-1">
                 {level.benefits.map((benefit: string, i: number) => (
                   <li key={i} className="flex items-center gap-2 text-sm text-zinc-300">
@@ -555,11 +555,11 @@ function MetricCard({
     <div className="p-4 bg-[rgba(255,255,255,0.02)] border-0 rounded-xl">
       <div className="flex items-center gap-2 mb-2">
         <Icon size={16} className={iconColor} />
-        <span className="text-xs text-zinc-500 uppercase tracking-wider font-bold">
+        <span className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">
           {label}
         </span>
       </div>
-      <p className="text-2xl font-bold text-white mb-1">{value}</p>
+      <p className="text-2xl font-semibold text-white mb-1">{value}</p>
       <p className="text-xs text-zinc-500">{subtitle}</p>
     </div>
   );

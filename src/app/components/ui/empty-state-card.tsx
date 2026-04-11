@@ -21,7 +21,7 @@ export function EmptyStateCard({
       <div className="w-16 h-16 rounded-2xl bg-[var(--t-surface-5)] border border-ui-border-subtle flex items-center justify-center mx-auto mb-5">
         {icon}
       </div>
-      <h3 className="text-2xl font-bold text-ui-primary mb-2">{title}</h3>
+      <h3 className="text-2xl font-semibold text-ui-primary mb-2">{title}</h3>
       <p className="text-sm text-ui-secondary max-w-sm mx-auto">{description}</p>
       {action && <div className="mt-6">{action}</div>}
     </StudioPanel>

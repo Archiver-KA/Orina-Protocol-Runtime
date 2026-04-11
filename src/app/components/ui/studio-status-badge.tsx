@@ -44,7 +44,7 @@ export function StudioStatusBadge({
   return (
     <span
       className={cn(
-        'inline-flex items-center border-0 font-bold uppercase tracking-wide',
+        'inline-flex items-center border-0 font-semibold uppercase tracking-wide',
         sizeClass,
         variantClass,
         className

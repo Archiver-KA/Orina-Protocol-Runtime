@@ -30,6 +30,8 @@ const GUEST_ALLOWED_PAGES = new Set<AppPage>([
   'search',
   'community',
   'asset-details',
+  'collection-details',
+  'profile',
 ]);
 
 export function isGuestAccessMode(mode: AccessMode) {
@@ -54,6 +56,7 @@ export function pageToCapability(page: AppPage): AccessCapability | null {
     case 'search': return 'view_search';
     case 'community': return 'view_community';
     case 'asset-details': return 'view_asset_details';
+    case 'collection-details': return 'view_marketplace';
     case 'profile': return 'view_profile';
     case 'orders': return 'use_orders';
     case 'minting': return 'use_minting';
@@ -102,6 +105,7 @@ export function canUseCapability(mode: AccessMode, capability: AccessCapability)
     case 'view_search':
     case 'view_community':
     case 'view_asset_details':
+    case 'view_profile':
       return true;
     case 'favorite_write':
     case 'community_write':

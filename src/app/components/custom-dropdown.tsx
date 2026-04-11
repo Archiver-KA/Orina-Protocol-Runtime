@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChevronDown, Check, LucideIcon } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { cn } from '@/app/components/ui/utils';
 
 type DropdownOptionObject = {
   value: string;
@@ -26,6 +27,7 @@ interface CustomDropdownProps {
   openOnHover?: boolean;
   triggerStyle?: CSSProperties;
   disableDefaultTriggerTone?: boolean;
+  menuMinWidth?: number;
 }
 
 export function CustomDropdown({ 
@@ -43,6 +45,7 @@ export function CustomDropdown({
   openOnHover = true,
   triggerStyle,
   disableDefaultTriggerTone = false,
+  menuMinWidth,
 }: CustomDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selected, setSelected] = useState(defaultValue || defaultOption || '');
@@ -89,9 +92,14 @@ export function CustomDropdown({
       const rect = dropdownRef.current.getBoundingClientRect();
       const gap = 8;
       const menuHeight = menuRef.current?.offsetHeight ?? 0;
+      const viewportMaxWidth = Math.max(200, window.innerWidth - 16);
+      const desiredMenuWidth = Math.max(
+        rect.width,
+        menuMinWidth ?? (variant === 'compact' ? 220 : 240),
+      );
       let top = rect.bottom + gap;
       let left = rect.left;
-      const width = rect.width;
+      const width = Math.min(desiredMenuWidth, viewportMaxWidth);
 
       if (top + menuHeight > window.innerHeight - 8 && rect.top - menuHeight - gap >= 8) {
         top = rect.top - menuHeight - gap;
@@ -134,6 +142,18 @@ export function CustomDropdown({
   const selectedOption = options.find(opt => getValue(opt) === selected);
   const selectedOptionObject = selectedOption ? getOptionObject(selectedOption) : null;
   const selectedLabel = selectedOption ? getLabel(selectedOption) : (defaultOption || defaultValue || placeholder);
+  const triggerBaseClass =
+    'relative overflow-hidden w-full h-[48px] flex items-center justify-between gap-2 px-4 rounded-full text-sm font-medium tracking-[-0.01em] text-ui-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/24';
+  const compactToneClass = disableDefaultTriggerTone
+    ? ''
+    : 'bg-ui-input border border-ui-border-subtle hover:bg-ui-input-focus';
+  const defaultToneClass = disableDefaultTriggerTone
+    ? ''
+    : 'bg-[var(--t-surface-2)] border border-ui-border-subtle hover:bg-ui-input-focus';
+  const menuPanelClassName = cn(
+    'dropdown-panel rounded-[28px] border border-ui-border-subtle bg-[var(--t-card-bg)] p-1.5 overflow-hidden',
+    menuClassName
+  );
 
   const handleSelect = (option: DropdownOption) => {
     const value = getValue(option);
@@ -178,10 +198,6 @@ export function CustomDropdown({
 
   // Compact variant for Settings and Swap
   if (variant === 'compact') {
-    const compactToneClass = disableDefaultTriggerTone
-      ? ''
-      : 'bg-ui-input border border-ui-border-subtle hover:bg-ui-input-focus';
-
     return (
       <div
         ref={dropdownRef}
@@ -193,7 +209,7 @@ export function CustomDropdown({
         <button
           type="button"
           onClick={() => setIsOpen(openOnHover ? true : !isOpen)}
-          className={`relative overflow-hidden w-full h-[43px] flex items-center justify-between gap-2 px-4 rounded-full text-sm text-ui-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35 ${compactToneClass} ${triggerClassName || ''}`}
+          className={cn(triggerBaseClass, compactToneClass, triggerClassName)}
           style={triggerStyle}
         >
           <div className="relative z-10 min-w-0 flex items-center gap-2">
@@ -202,7 +218,7 @@ export function CustomDropdown({
             )}
             <span className="truncate">{selectedLabel}</span>
             {selectedOptionObject?.tag && (
-              <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-[0.5px] bg-[rgba(44,194,149,0.14)] text-[#2CC295]">
+              <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-[0.5px] bg-[rgba(44,194,149,0.14)] text-[#2CC295]">
                 {selectedOptionObject.tag}
               </span>
             )}
@@ -215,9 +231,7 @@ export function CustomDropdown({
 
         {/* Dropdown Menu - Compact Style with Style Guide specs */}
         {portalMenu(
-          <div 
-            className={`dropdown-panel rounded-[24px] overflow-hidden ${menuClassName || ''}`}
-          >
+          <div className={menuPanelClassName}>
             {options.map((option, index) => {
               const optionObject = getOptionObject(option);
               const value = optionObject.value;
@@ -230,10 +244,10 @@ export function CustomDropdown({
                   type="button"
                   key={`${value}-${index}`}
                   onClick={() => handleSelect(option)}
-                  className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors text-left ${
+                  className={`w-full flex items-center justify-between rounded-[20px] px-4 py-3 text-sm font-medium transition-colors text-left ${
                     isSelected 
                       ? hasVisualMeta
-                        ? 'bg-[rgba(44,194,149,0.16)] text-ui-primary'
+                        ? 'bg-[rgba(44,194,149,0.12)] text-ui-primary'
                         : 'bg-[var(--t-surface-10)] text-ui-primary'
                       : 'text-ui-secondary hover:bg-[var(--t-surface-5)] hover:text-ui-primary'
                   }`}
@@ -241,8 +255,8 @@ export function CustomDropdown({
                   <div className="min-w-0 flex items-center gap-2.5">
                     {optionObject.icon && <span className="shrink-0">{optionObject.icon}</span>}
                     <span className="truncate">{label}</span>
-                    {optionObject.tag && (
-                      <span className="shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.5px] bg-[rgba(44,194,149,0.14)] text-[#2CC295]">
+                  {optionObject.tag && (
+                      <span className="shrink-0 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.5px] bg-[rgba(44,194,149,0.14)] text-[#2CC295]">
                         {optionObject.tag}
                       </span>
                     )}
@@ -271,17 +285,17 @@ export function CustomDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(openOnHover ? true : !isOpen)}
-        className={`relative overflow-hidden w-full h-[43px] flex items-center justify-between gap-2 px-4 bg-[rgba(255,255,255,0.03)] rounded-full text-sm text-ui-secondary hover:text-ui-primary hover:bg-[rgba(255,255,255,0.05)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35 ${triggerClassName || ''}`}
+        className={cn(triggerBaseClass, defaultToneClass, triggerClassName)}
         style={triggerStyle}
       >
-        <div className="flex items-center gap-2 truncate relative z-10">
+        <div className="flex items-center gap-2 truncate relative z-10 min-w-0">
           {icon && (() => { const Icon = icon; return <Icon size={14} className="text-ui-muted flex-shrink-0" />; })()}
           {selectedOptionObject?.icon && (
             <span className="flex-shrink-0">{selectedOptionObject.icon}</span>
           )}
           <span className="truncate">{selectedLabel}</span>
           {selectedOptionObject?.tag && (
-            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-[0.5px] bg-[rgba(44,194,149,0.14)] text-[#2CC295]">
+            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-[0.5px] bg-[rgba(44,194,149,0.14)] text-[#2CC295]">
               {selectedOptionObject.tag}
             </span>
           )}
@@ -294,9 +308,7 @@ export function CustomDropdown({
 
       {/* Dropdown Menu - Style Guide compliant */}
       {portalMenu(
-        <div 
-          className={`dropdown-panel rounded-[24px] overflow-hidden ${menuClassName || ''}`}
-        >
+        <div className={menuPanelClassName}>
           {options.map((option, index) => {
             const optionObject = getOptionObject(option);
             const value = optionObject.value;
@@ -309,10 +321,10 @@ export function CustomDropdown({
                 type="button"
                 key={`${value}-${index}`}
                 onClick={() => handleSelect(option)}
-                className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors text-left ${
+                className={`w-full flex items-center justify-between rounded-[20px] px-4 py-3 text-sm font-medium transition-colors text-left ${
                   isSelected
                     ? hasVisualMeta
-                      ? 'bg-[rgba(44,194,149,0.16)] text-ui-primary'
+                      ? 'bg-[rgba(44,194,149,0.12)] text-ui-primary'
                       : 'bg-[var(--t-surface-10)] text-ui-primary'
                     : 'text-ui-secondary hover:bg-[var(--t-surface-5)] hover:text-ui-primary'
                 }`}
@@ -321,7 +333,7 @@ export function CustomDropdown({
                   {optionObject.icon && <span className="shrink-0">{optionObject.icon}</span>}
                   <span className="truncate">{label}</span>
                   {optionObject.tag && (
-                    <span className="shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.5px] bg-[rgba(44,194,149,0.14)] text-[#2CC295]">
+                    <span className="shrink-0 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.5px] bg-[rgba(44,194,149,0.14)] text-[#2CC295]">
                       {optionObject.tag}
                     </span>
                   )}

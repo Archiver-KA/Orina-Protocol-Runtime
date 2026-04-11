@@ -155,6 +155,13 @@ export async function restDelete<T = any>(table: string, query: string): Promise
   });
 }
 
+export async function restRpc<T = any>(fnName: string, args: Record<string, any> = {}): Promise<T> {
+  return requestJson<T>(`/rpc/${fnName}`, {
+    method: 'POST',
+    body: JSON.stringify(args),
+  });
+}
+
 export function isSupabaseWriteBlocked(error: unknown): boolean {
   if (!(error instanceof SupabaseRestError)) return false;
   return error.status === 401 || error.status === 403 || error.status === 42501;

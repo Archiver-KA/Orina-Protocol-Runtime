@@ -5,14 +5,14 @@ export function getSupabaseFunctionsNamespace(): string {
   return runtimeConfig.supabaseFunctionsNamespace;
 }
 
-export function getSupabaseFunctionsBaseUrl(): string {
-  const namespace = getSupabaseFunctionsNamespace();
+export function getSupabaseFunctionsBaseUrl(functionName?: string): string {
+  const namespace = String(functionName || '').trim() || getSupabaseFunctionsNamespace();
   if (!supabaseUrl || !namespace) return '';
   return `${supabaseUrl.replace(/\/+$/, '')}/functions/v1/${namespace}`;
 }
 
-export function getSupabaseFunctionUrl(path = ''): string {
-  const baseUrl = getSupabaseFunctionsBaseUrl();
+export function getSupabaseFunctionUrl(path = '', functionName?: string): string {
+  const baseUrl = getSupabaseFunctionsBaseUrl(functionName);
   if (!baseUrl) return '';
 
   const normalizedPath = String(path || '').replace(/^\/+/, '');

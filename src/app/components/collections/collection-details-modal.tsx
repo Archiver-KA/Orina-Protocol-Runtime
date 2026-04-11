@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Heart, Layers3, Pencil, Shield, Tag, Trash2, UserCheck, UserPlus } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { createPortal } from 'react-dom';
-import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
 import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
 import { AssetDetailsModal } from '@/app/components/asset-details-modal';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import {
   StudioModalBody,
@@ -39,6 +39,7 @@ import { getRuntimeMintedAssetDetailsById } from '@/utils/runtimeMintedAssets';
 import { getDeterministicOwnedAssetDetailsById } from '@/utils/testWalletAssetFixtures';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { getCategoryDisplayLabel } from '@/utils/taxonomy';
+import { navigateToMarketplaceCategory } from '@/utils/appNavigation';
 
 interface CollectionDetailsModalProps {
   isOpen: boolean;
@@ -94,7 +95,7 @@ export function CollectionDetailsModal({
   collectionId,
   onClose,
 }: CollectionDetailsModalProps) {
-  const { address } = useAccount();
+  const { address } = useEffectiveViewer();
   const { requireWalletActionAsync } = useRequireWalletAction();
   const [collection, setCollection] = useState<ReturnType<typeof loadCollectionDetailsById> | null>(null);
   const [isFavorited, setIsFavorited] = useState(false);
@@ -200,48 +201,58 @@ export function CollectionDetailsModal({
   const handleSaveCollection = async (draft: CollectionDraft) => {
     if (!address || !collection) return;
 
+    const continueSaveCollection = async () => {
+      const updated = updateCollection(address, collection.id, draft);
+      if (!updated) {
+        toast.error('Unable to update collection');
+        return;
+      }
+
+      toast.success(`Updated collection "${updated.name}"`);
+      setIsEditorOpen(false);
+      refreshCollection();
+    };
+
     const allowed = await requireWalletActionAsync({
       capability: 'protocol_asset_write',
       actionLabel: 'edit this collection',
       fallbackPage: 'assets',
+      onSecurityCheckConfirmed: continueSaveCollection,
     });
     if (!allowed) return;
 
-    const updated = updateCollection(address, collection.id, draft);
-    if (!updated) {
-      toast.error('Unable to update collection');
-      return;
-    }
-
-    toast.success(`Updated collection "${updated.name}"`);
-    setIsEditorOpen(false);
-    refreshCollection();
+    await continueSaveCollection();
   };
 
   const handleAddAsset = async (targetCollectionId: string, assetId: string) => {
     if (!address || !collection) return;
 
+    const continueAddAsset = async () => {
+      const updated = addAssetToCollection(address, targetCollectionId, assetId);
+      if (!updated) {
+        toast.error('Unable to add asset to collection');
+        return;
+      }
+
+      const addedAsset = assetOptions.find((asset) => asset.id === assetId);
+      toast.success(
+        addedAsset
+          ? `Added "${addedAsset.name}" to "${updated.name}"`
+          : `Added asset to "${updated.name}"`
+      );
+      setIsAddAssetOpen(false);
+      refreshCollection();
+    };
+
     const allowed = await requireWalletActionAsync({
       capability: 'protocol_asset_write',
       actionLabel: 'add an asset to this collection',
       fallbackPage: 'assets',
+      onSecurityCheckConfirmed: continueAddAsset,
     });
     if (!allowed) return;
 
-    const updated = addAssetToCollection(address, targetCollectionId, assetId);
-    if (!updated) {
-      toast.error('Unable to add asset to collection');
-      return;
-    }
-
-    const addedAsset = assetOptions.find((asset) => asset.id === assetId);
-    toast.success(
-      addedAsset
-        ? `Added "${addedAsset.name}" to "${updated.name}"`
-        : `Added asset to "${updated.name}"`
-    );
-    setIsAddAssetOpen(false);
-    refreshCollection();
+    await continueAddAsset();
   };
 
   const handleRemoveAsset = (assetId: string) => {
@@ -267,23 +278,28 @@ export function CollectionDetailsModal({
     const shouldDelete = window.confirm(`Delete collection "${collection.name}"? This cannot be undone.`);
     if (!shouldDelete) return;
 
+    const continueDeleteCollection = async () => {
+      const removed = deleteCollection(address, collection.id);
+      if (!removed) {
+        toast.error('Unable to delete collection');
+        return;
+      }
+
+      toast.success(`Deleted collection "${collection.name}"`);
+      setIsEditorOpen(false);
+      setIsAddAssetOpen(false);
+      onClose();
+    };
+
     const allowed = await requireWalletActionAsync({
       capability: 'protocol_asset_write',
       actionLabel: 'delete this collection',
       fallbackPage: 'assets',
+      onSecurityCheckConfirmed: continueDeleteCollection,
     });
     if (!allowed) return;
 
-    const removed = deleteCollection(address, collection.id);
-    if (!removed) {
-      toast.error('Unable to delete collection');
-      return;
-    }
-
-    toast.success(`Deleted collection "${collection.name}"`);
-    setIsEditorOpen(false);
-    setIsAddAssetOpen(false);
-    onClose();
+    await continueDeleteCollection();
   };
 
   const handleOpenAssetDetails = (asset: (typeof collection.assets)[number]) => {
@@ -298,7 +314,7 @@ export function CollectionDetailsModal({
     setSelectedAsset(resolvedAsset);
   };
 
-  const actionButtonClass = 'text-sm font-bold tracking-tight';
+  const actionButtonClass = 'text-sm font-semibold tracking-tight';
 
   return createPortal(
     <>
@@ -324,8 +340,8 @@ export function CollectionDetailsModal({
               <StudioModalHeader className="border-b-0 pb-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-ui-muted">Collection Detail</p>
-                    <h2 className="mt-1 text-lg font-bold tracking-tight text-ui-primary">{collection.name}</h2>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">Collection Detail</p>
+                    <h2 className="mt-1 text-lg font-semibold tracking-tight text-ui-primary">{collection.name}</h2>
                   </div>
                   <StudioModalCloseButton onClick={onClose} />
                 </div>
@@ -340,9 +356,13 @@ export function CollectionDetailsModal({
                   />
                   <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.38)_0%,rgba(0,0,0,0.08)_38%,rgba(0,0,0,0.15)_58%,rgba(0,0,0,0.88)_100%)]" />
 
-                  <div className="absolute left-5 top-5 inline-flex items-center rounded-full border border-white/18 bg-black/50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white backdrop-blur-md">
+                  <button
+                    type="button"
+                    onClick={() => navigateToMarketplaceCategory({ category: collection.category })}
+                    className="absolute left-5 top-5 inline-flex items-center rounded-full border border-white/18 bg-black/50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-white backdrop-blur-md transition-colors hover:bg-black/65"
+                  >
                     {getCategoryDisplayLabel(collection.category)}
-                  </div>
+                  </button>
 
                   <button
                     type="button"
@@ -361,7 +381,7 @@ export function CollectionDetailsModal({
                       <span className="text-white/55">{ownerHandle}</span>
                     </div>
 
-                    <h3 className="mt-4 text-[34px] font-extrabold leading-none tracking-[-0.03em] text-white">
+                    <h3 className="mt-4 text-[34px] font-semibold leading-none tracking-[-0.03em] text-white">
                       {collection.name}
                     </h3>
                     <p className="mt-3 max-w-3xl text-sm leading-6 text-white/78">
@@ -373,7 +393,7 @@ export function CollectionDetailsModal({
                         {collection.tags.map((tag) => (
                           <span
                             key={tag}
-                            className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/30 px-3 py-1 text-[11px] font-medium text-white/80 backdrop-blur-sm"
+                            className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/30 px-3 py-1 text-[11px] font-semibold text-white/80 backdrop-blur-sm"
                           >
                             <Tag size={12} />
                             #{tag}
@@ -389,7 +409,7 @@ export function CollectionDetailsModal({
                     <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-5">
                       <div className="flex flex-wrap items-center justify-between gap-4">
                         <div>
-                          <h3 className="text-base font-bold text-ui-primary">Collection Assets</h3>
+                          <h3 className="text-base font-semibold text-ui-primary">Collection Assets</h3>
                           <p className="mt-1 text-sm text-ui-secondary">
                             {collection.assets.length} asset{collection.assets.length === 1 ? '' : 's'} currently assigned to this collection.
                           </p>
@@ -399,7 +419,7 @@ export function CollectionDetailsModal({
                             type="button"
                             variant="primary"
                             size="lg"
-                            className={`${actionButtonClass} shadow-lg shadow-[#2CC295]/20`}
+                            className={`${actionButtonClass} `}
                             onClick={() => setIsAddAssetOpen(true)}
                           >
                             Add Asset
@@ -409,10 +429,7 @@ export function CollectionDetailsModal({
 
                       {collection.assets.length === 0 ? (
                         <div className="mt-6 rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-2)] p-8 text-center">
-                          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-primary">
-                            <Layers3 size={24} />
-                          </div>
-                          <h4 className="text-base font-bold text-ui-primary">No assets yet</h4>
+                          <h4 className="text-base font-semibold text-ui-primary">No assets yet</h4>
                           <p className="mt-2 text-sm text-ui-secondary">
                             {isOwner
                               ? 'Start curating this collection by adding assets from your wallet or marketplace listings.'
@@ -437,10 +454,17 @@ export function CollectionDetailsModal({
                                   />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-[10px] font-bold uppercase tracking-widest text-ui-muted">
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      navigateToMarketplaceCategory({ category: asset.category });
+                                    }}
+                                    className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted transition-colors hover:text-primary"
+                                  >
                                     {getCategoryDisplayLabel(asset.category)}
-                                  </p>
-                                  <h4 className="mt-1 line-clamp-2 text-base font-bold text-ui-primary">
+                                  </button>
+                                  <h4 className="mt-1 line-clamp-2 text-base font-semibold text-ui-primary">
                                     {asset.name}
                                   </h4>
                                   <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ui-secondary">
@@ -460,7 +484,7 @@ export function CollectionDetailsModal({
                                     type="button"
                                     variant="secondary"
                                     size="md"
-                                    className="shrink-0 text-xs font-bold"
+                                    className="shrink-0 text-xs font-semibold"
                                     leftIcon={<Trash2 size={14} />}
                                     onClick={(event) => {
                                       event.stopPropagation();
@@ -480,26 +504,26 @@ export function CollectionDetailsModal({
 
                   <div className="space-y-4">
                     <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-5">
-                      <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-ui-muted">Collection Stats</h3>
+                      <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ui-secondary">Collection Stats</h3>
                       <div className="mt-4 grid grid-cols-2 gap-3">
                         {[
-                          { label: 'Items', value: String(collection.itemCount), accent: 'text-ui-primary' },
+                          { label: 'Items', value: String(collection.itemCount), accent: 'text-ui-strong' },
                           { label: 'Floor', value: collection.floorPrice, accent: 'text-primary' },
-                          { label: 'Volume', value: collection.volume, accent: 'text-ui-primary' },
-                          { label: 'Followers', value: String(collection.followerCount), accent: 'text-ui-primary' },
+                          { label: 'Volume', value: collection.volume, accent: 'text-ui-strong' },
+                          { label: 'Followers', value: String(collection.followerCount), accent: 'text-ui-strong' },
                         ].map((stat) => (
                           <div key={stat.label} className="rounded-[18px] bg-[var(--t-surface-2)] p-4">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ui-muted">{stat.label}</p>
-                            <p className={`mt-2 text-lg font-bold ${stat.accent}`}>{stat.value}</p>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ui-muted">{stat.label}</p>
+                            <p className={`mt-2 text-lg font-semibold ${stat.accent}`}>{stat.value}</p>
                           </div>
                         ))}
                       </div>
                     </div>
 
                     <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-5">
-                      <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-ui-muted">Collection Owner</h3>
+                      <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ui-muted">Collection Owner</h3>
                       <div className="mt-4 rounded-[18px] bg-[var(--t-surface-2)] p-4">
-                        <p className="text-sm font-bold text-ui-primary">{ownerDisplayName}</p>
+                        <p className="text-sm font-semibold text-ui-primary">{ownerDisplayName}</p>
                         <p className="mt-1 text-xs text-ui-secondary">{ownerHandle}</p>
                         <p className="mt-3 text-xs leading-5 text-ui-secondary">
                           {isOwner
@@ -510,7 +534,7 @@ export function CollectionDetailsModal({
                     </div>
 
                     <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-5">
-                      <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-ui-muted">Actions</h3>
+                      <h3 className="text-[11px] font-semibold uppercase tracking-[0.15em] text-ui-muted">Actions</h3>
                       <div className="mt-4 space-y-3">
                         {isOwner ? (
                           <>
@@ -518,7 +542,7 @@ export function CollectionDetailsModal({
                               type="button"
                               variant="primary"
                               size="lg"
-                              className={`${actionButtonClass} w-full shadow-lg shadow-[#2CC295]/20`}
+                              className={`${actionButtonClass} w-full `}
                               leftIcon={<Pencil size={16} />}
                               onClick={() => setIsEditorOpen(true)}
                             >
@@ -550,7 +574,7 @@ export function CollectionDetailsModal({
                             type="button"
                             variant={isFollowing ? 'secondary' : 'primary'}
                             size="lg"
-                            className={`${actionButtonClass} w-full ${isFollowing ? 'studio-form-secondary' : 'shadow-lg shadow-[#2CC295]/20'}`}
+                            className={`${actionButtonClass} w-full ${isFollowing ? 'studio-form-secondary' : ''}`}
                             leftIcon={isFollowing ? <UserCheck size={16} /> : <UserPlus size={16} />}
                             onClick={handleToggleFollow}
                           >

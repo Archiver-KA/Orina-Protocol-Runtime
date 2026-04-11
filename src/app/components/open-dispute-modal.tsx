@@ -7,6 +7,7 @@ import { MultiImageUpload } from '@/app/components/multi-image-upload';
 import { UploadedImage } from '@/app/components/image-upload';
 import { AssetThumb } from '@/app/components/asset-thumb';
 import { ProtocolChainBanner } from '@/app/components/ui/protocol-chain-banner';
+import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 import { useProtocolChain } from '@/hooks/useProtocolChain';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
@@ -37,12 +38,12 @@ interface OpenDisputeModalProps {
 }
 
 const DISPUTE_REASONS = [
-  { id: 'not_received', label: 'Product not received' },
-  { id: 'wrong_item', label: 'Wrong item delivered' },
-  { id: 'damaged', label: 'Product damaged or defective' },
-  { id: 'not_as_described', label: 'Not as described in listing' },
-  { id: 'counterfeit', label: 'Suspected counterfeit' },
-  { id: 'missing_parts', label: 'Missing parts or incomplete' },
+  { id: 'not_received', label: 'Asset not received' },
+  { id: 'wrong_item', label: 'Wrong asset delivered' },
+  { id: 'damaged', label: 'Asset damaged or defective' },
+  { id: 'not_as_described', label: 'Asset not as described' },
+  { id: 'counterfeit', label: 'Suspected counterfeit asset' },
+  { id: 'missing_parts', label: 'Missing parts or incomplete asset' },
   { id: 'other', label: 'Other issues' },
 ];
 
@@ -83,27 +84,32 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
       return;
     }
 
+    const continueOpenDispute = async () => {
+      const evidenceUrls = uploadedEvidence.map((file) => file.url);
+      try {
+        setIsSubmitting(true);
+        await onConfirm(selectedReasons, comment, evidenceUrls);
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
+
     if (
       !(await requireWalletActionAsync({
         capability: 'protocol_dispute_write',
         actionLabel: 'open disputes',
         fallbackPage: 'orders',
+        onSecurityCheckConfirmed: continueOpenDispute,
       }))
     ) {
       return;
     }
 
-    const evidenceUrls = uploadedEvidence.map((file) => file.url);
-    try {
-      setIsSubmitting(true);
-      await onConfirm(selectedReasons, comment, evidenceUrls);
-    } finally {
-      setIsSubmitting(false);
-    }
+    await continueOpenDispute();
   };
 
   const primaryLabel = isSubmitting
-    ? 'Open MetaMask...'
+    ? 'Open Wallet...'
     : !protocolChain.isConnected
       ? 'Connect Wallet'
       : !protocolChain.isOnProtocolChain
@@ -134,16 +140,16 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
             <div className="studio-portal-header shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <h2 className="text-lg font-bold text-white tracking-tight truncate">Open Dispute</h2>
+                  <h2 className="text-lg font-semibold text-white tracking-tight truncate">Open Dispute</h2>
                   <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5">
                     Escrow freeze and arbiter review for order #{order.orderId.toString()}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="studio-portal-chip h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
+                  <span className="studio-portal-chip h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-semibold text-zinc-400 uppercase tracking-widest">
                     Order #{order.orderId.toString().slice(-6)}
                   </span>
-                  <span className="h-7 px-3 inline-flex items-center bg-orange-500/15 rounded-full border border-orange-500/30 text-[9px] font-bold text-orange-400 uppercase tracking-widest">
+                  <span className="h-7 px-3 inline-flex items-center bg-orange-500/15 rounded-full border border-orange-500/30 text-[9px] font-semibold text-orange-400 uppercase tracking-widest">
                     Dispute
                   </span>
                   <StudioModalCloseButton onClick={onCancel} disabled={isSubmitting} />
@@ -162,14 +168,14 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
                       <div className="flex items-center gap-4">
                         <AssetThumb
                           src={order.assetImage}
-                          alt="Product"
+                          alt="Asset"
                           className="w-16 h-16 rounded-xl bg-zinc-800 border border-[#27272a] shrink-0"
                         />
                         <div className="min-w-0">
-                          <p className="text-base font-bold text-white leading-tight truncate">{order.assetName}</p>
+                          <p className="text-base font-semibold text-white leading-tight truncate">{order.assetName}</p>
                           <p className="mt-1 text-[10px] text-zinc-500 uppercase tracking-widest">
                             Qty
-                            <span className="ml-2 text-white font-bold">{quantityLabel}</span>
+                            <span className="ml-2 text-white font-semibold">{quantityLabel}</span>
                           </p>
                           <p className="mt-2 text-[11px] text-zinc-400">{grossPriceLabel}</p>
                         </div>
@@ -178,8 +184,8 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
 
                     {hasOrderShippingDetails(shippingDetails) ? (
                       <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
-                        <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Shipping Snapshot</h4>
-                        {shippingDetails.methodLabel ? <p className="text-xs font-bold text-orange-300">{shippingDetails.methodLabel}</p> : null}
+                        <h4 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Shipping Snapshot</h4>
+                        {shippingDetails.methodLabel ? <p className="text-xs font-semibold text-orange-300">{shippingDetails.methodLabel}</p> : null}
                         {shippingDetails.recipientName ? <p className="text-xs text-white">{shippingDetails.recipientName}</p> : null}
                         {shippingDetails.address ? <p className="text-[11px] text-zinc-400 leading-relaxed">{shippingDetails.address}</p> : null}
                         {shippingDetails.phone ? <p className="text-[10px] text-zinc-500">{shippingDetails.phone}</p> : null}
@@ -193,16 +199,17 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
 
                     {/* Dispute Reasons */}
                     <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-4">
-                      <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                      <h4 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">
                         Select Reason(s) <span className="text-orange-400">*</span>
                       </h4>
                       <div className="grid grid-cols-1 gap-2.5">
                         {DISPUTE_REASONS.map((reason) => (
                           <button
                             key={reason.id}
+                            type="button"
                             onClick={() => handleReasonToggle(reason.id)}
                             className={`
-                              flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left
+                              flex items-center gap-3 rounded-full border px-4 py-3 transition-all text-left
                               ${
                                 selectedReasons.includes(reason.id)
                                   ? 'bg-orange-500/10 border-orange-500/40 text-white'
@@ -228,7 +235,7 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
 
                     {/* Description */}
                     <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
-                      <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                      <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">
                         Detailed Description <span className="text-orange-400">*</span>
                       </label>
                       <textarea
@@ -259,7 +266,7 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
 
                     {/* Evidence Upload */}
                     <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
-                      <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Evidence (Photos)</h4>
+                      <h4 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Evidence (Photos)</h4>
                       <MultiImageUpload
                         walletAddress={address}
                         value={uploadedEvidence}
@@ -273,7 +280,7 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
                     <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
                       <div className="flex items-start gap-2 mb-3">
                         <AlertTriangle className="text-yellow-500 shrink-0 mt-0.5" size={16} />
-                        <p className="text-[10px] font-bold text-yellow-500 uppercase tracking-widest">Dispute Process</p>
+                        <p className="text-[10px] font-semibold text-yellow-500 uppercase tracking-widest">Dispute Process</p>
                       </div>
                       <ul className="text-xs text-zinc-400 space-y-1.5 leading-relaxed">
                         <li className="flex items-start gap-2">
@@ -291,27 +298,33 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
                       </ul>
                       {isSubmitting ? (
                         <p className="mt-3 text-[11px] text-orange-400 leading-relaxed">
-                          Waiting for MetaMask confirmation...
+                          Waiting for wallet confirmation...
                         </p>
                       ) : null}
                     </div>
 
                     {/* Actions */}
                     <div className="grid grid-cols-2 gap-3 pt-1">
-                      <button
+                      <StudioActionButton
+                        type="button"
                         onClick={onCancel}
                         disabled={isSubmitting}
-                        className="studio-portal-secondary h-12 px-6 bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] text-white font-bold text-base rounded-full transition-colors"
+                        variant="secondary"
+                        size="lg"
+                        className="studio-portal-secondary flex-1 text-base text-ui-primary"
                       >
                         Cancel
-                      </button>
-                      <button
+                      </StudioActionButton>
+                      <StudioActionButton
+                        type="button"
                         onClick={handleSubmit}
                         disabled={selectedReasons.length === 0 || !comment.trim() || isSubmitting}
-                        className="h-12 px-6 bg-orange-500 hover:bg-orange-600 text-black font-bold text-base rounded-full transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-orange-500"
+                        variant="primary"
+                        size="lg"
+                        className="flex-1 bg-orange-500 text-base text-black shadow-lg shadow-orange-500/20 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-orange-500"
                       >
                         {primaryLabel}
-                      </button>
+                      </StudioActionButton>
                     </div>
                   </div>
                 </div>

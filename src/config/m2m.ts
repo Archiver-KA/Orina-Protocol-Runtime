@@ -1,5 +1,6 @@
 import { CONTRACTS, PAYMENT_TOKENS } from '@/config/contracts';
 import type { AIM2MAction } from '@/app/types/ai-m2m-wallet';
+import { LIVE_PROTOCOL_CONTRACTS } from '@/utils/protocolNetwork';
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
 
@@ -24,22 +25,22 @@ export const M2M_FEATURES = {
 } as const;
 
 export const M2M_ACTION_DESCRIPTIONS: Record<AIM2MAction, string> = {
-  buy: 'Delegated createOrderFor + payOrderFor using a prefunded payer vault.',
-  mint: 'Delegated mintAssetFor while keeping the root seller canonical.',
-  sign_order: 'Delegated sellerConfirmFor for pre-dispute seller-side order progression.',
+  buy: 'Buy items using the AI wallet balance.',
+  mint: 'Create listings while keeping your main seller wallet in control.',
+  sign_order: 'Confirm seller-side order steps before a dispute starts.',
 };
 
 export const M2M_PROTOCOL_GUARDRAILS = [
-  'Root wallet remains the canonical buyer or seller for all ATP state.',
-  'Delegate expiry or revoke never removes the root wallet direct-action fallback.',
-  'AI wallet deployment commits the session policy on-chain in one step and locks the cycle.',
-  'One root wallet can only keep one active AI wallet cycle until revoke or expiry closeout finishes.',
-  'Idle funds sweep back to the root wallet before revoke or expiry closes the cycle.',
+  'Your main wallet stays the official buyer or seller.',
+  'Ending the AI setup never removes your main wallet as a direct backup.',
+  'Creating the AI wallet locks in the rules for the current setup.',
+  'Only one AI wallet setup can stay active at a time for each main wallet.',
+  'Any unused balance returns to your main wallet before the setup closes.',
 ] as const;
 
 export const M2M_REQUIRED_CORE_CONTRACTS = {
-  MARKETPLACE_ATP: CONTRACTS.MARKETPLACE_ATP,
-  PAYMENT_GATEWAY: CONTRACTS.PAYMENT_GATEWAY,
+  MARKETPLACE_ATP: LIVE_PROTOCOL_CONTRACTS.MARKETPLACE_ATP,
+  PAYMENT_GATEWAY: LIVE_PROTOCOL_CONTRACTS.PAYMENT_GATEWAY,
 } as const;
 
 export const M2M_DEFAULT_PAYMENT_TOKEN = PAYMENT_TOKENS.USDT;

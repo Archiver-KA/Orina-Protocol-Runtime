@@ -250,7 +250,7 @@ export function ImageUpload({
   return (
     <div className={className}>
       {label && (
-        <label className="block text-sm font-bold text-ui-muted mb-2 uppercase tracking-wider">
+        <label className="block text-sm font-semibold text-ui-muted mb-2 uppercase tracking-wider">
           {label}
         </label>
       )}
@@ -318,7 +318,7 @@ export function ImageUpload({
               {/* Error badge only - success badge removed to keep avatar/banner layout centered */}
               {uploadStatus === 'error' && (
                 <div className="absolute top-2 right-2">
-                  <div className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                  <div className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
                     <AlertCircle size={12} />
                     Failed
                   </div>

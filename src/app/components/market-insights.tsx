@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { CalendarRange, Download, Flag, Layers3, Wallet } from 'lucide-react';
-import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 import { MarketVolumeChart } from '@/app/components/market-volume-chart';
 import { UserInsightsCalendar } from '@/app/components/analytics/user-insights-calendar';
 import { exportAnalytics, type TimeRange, useAnalytics } from '@/hooks/useAnalytics';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import type { OrderNavigationRequest } from '@/types/orderNavigation';
 
 interface MarketInsightsProps {
@@ -17,7 +17,7 @@ function shortenAddress(address?: string) {
 }
 
 export function MarketInsights({ onOpenOrderRequest }: MarketInsightsProps) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useEffectiveViewer();
   const [timeRange, setTimeRange] = useState<TimeRange>('30D');
   const analytics = useAnalytics(timeRange);
 
@@ -32,9 +32,9 @@ export function MarketInsights({ onOpenOrderRequest }: MarketInsightsProps) {
             <div className="w-16 h-16 rounded-[20px] bg-ui-input mx-auto flex items-center justify-center mb-5">
               <Wallet className="text-ui-muted" size={28} />
             </div>
-            <h1 className="text-2xl font-bold text-ui-primary">User Insights</h1>
+            <h1 className="text-2xl font-semibold text-ui-primary">Insights</h1>
             <p className="text-sm text-ui-muted mt-2 max-w-[520px] mx-auto">
-              Connect your wallet to inspect your on-chain order history, lifecycle milestones, and canonical delivery windows.
+              Connect your wallet to review your order history, recent updates, and delivery windows.
             </p>
           </div>
         </div>
@@ -48,9 +48,9 @@ export function MarketInsights({ onOpenOrderRequest }: MarketInsightsProps) {
         <div className="w-full max-w-[1280px] mx-auto px-6 py-8">
           <div className="rounded-[28px] border border-ui-border-subtle bg-ui-card px-8 py-14 text-center">
             <div className="w-12 h-12 border-4 border-ui-border-subtle border-t-[#2CC295] rounded-full animate-spin mx-auto mb-5"></div>
-            <h1 className="text-2xl font-bold text-ui-primary">Loading User Insights</h1>
+            <h1 className="text-2xl font-semibold text-ui-primary">Loading Insights</h1>
             <p className="text-sm text-ui-muted mt-2 max-w-[520px] mx-auto">
-              Syncing canonical order activity from chain overlay and Supabase projections for {shortenAddress(address)}.
+              Loading recent order activity for {shortenAddress(address)}.
             </p>
           </div>
         </div>
@@ -67,9 +67,9 @@ export function MarketInsights({ onOpenOrderRequest }: MarketInsightsProps) {
       <div className="w-full max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-6 sm:py-8 space-y-4 sm:space-y-6">
         <header className="flex flex-wrap items-end justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-ui-primary">User Insights</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-ui-primary">Insights</h1>
             <p className="text-sm text-ui-muted mt-1">
-              Lifecycle calendar and milestone mapping for {shortenAddress(address)}. Colors and phases mirror the Orders page.
+              Review recent order updates and activity for {shortenAddress(address)}. Colors match the Orders page.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -78,7 +78,7 @@ export function MarketInsights({ onOpenOrderRequest }: MarketInsightsProps) {
                 <button
                   key={range}
                   onClick={() => setTimeRange(range)}
-                  className={`px-4 py-1.5 text-xs font-bold transition-all ${
+                  className={`px-4 py-1.5 text-xs font-semibold transition-all ${
                     timeRange === range
                       ? 'text-ui-primary bg-[rgba(255,255,255,0.08)] rounded-full'
                       : 'text-ui-muted hover:text-ui-secondary'
@@ -102,40 +102,40 @@ export function MarketInsights({ onOpenOrderRequest }: MarketInsightsProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
           {analytics.metrics ? (
             <>
-              <article className="bg-ui-card rounded-[24px] p-6 min-h-[180px]">
-                <p className="text-[12px] uppercase tracking-wider font-bold text-ui-muted">Total Orders</p>
-                <p className="text-[32px] leading-[38px] font-extrabold text-ui-primary mt-4">{analytics.metrics.totalOrders}</p>
-                <p className="text-[11px] text-ui-muted mt-2">
+              <article className="bg-ui-card rounded-[24px] p-5 min-h-[142px] flex flex-col justify-between">
+                <p className="text-[12px] uppercase tracking-wider font-medium text-ui-muted">Total Orders</p>
+                <p className="mt-3 text-[30px] leading-[34px] font-semibold text-ui-primary">{analytics.metrics.totalOrders}</p>
+                <p className="mt-2 text-[11px] text-ui-muted">
                   {analytics.metrics.asBuyerCount} buyer flow, {analytics.metrics.asSellerCount} seller flow
                 </p>
               </article>
-              <article className="bg-ui-card rounded-[24px] p-6 min-h-[180px]">
-                <p className="text-[12px] uppercase tracking-wider font-bold text-ui-muted">Open Workflow</p>
-                <p className="text-[32px] leading-[38px] font-extrabold text-ui-primary mt-4">{analytics.metrics.activeOrders}</p>
-                <p className="text-[11px] text-ui-muted mt-2">
-                  {analytics.metrics.upcomingActions} milestone{analytics.metrics.upcomingActions === 1 ? '' : 's'} currently tracked
+              <article className="bg-ui-card rounded-[24px] p-5 min-h-[142px] flex flex-col justify-between">
+                <p className="text-[12px] uppercase tracking-wider font-medium text-ui-muted">Open Workflow</p>
+                <p className="mt-3 text-[30px] leading-[34px] font-semibold text-ui-primary">{analytics.metrics.activeOrders}</p>
+                <p className="mt-2 text-[11px] text-ui-muted">
+                  {analytics.metrics.upcomingActions} step{analytics.metrics.upcomingActions === 1 ? '' : 's'} awaiting attention
                 </p>
               </article>
-              <article className="bg-ui-card rounded-[24px] p-6 min-h-[180px]">
-                <p className="text-[12px] uppercase tracking-wider font-bold text-ui-muted">Finalized</p>
-                <p className="text-[32px] leading-[38px] font-extrabold text-ui-primary mt-4">{analytics.metrics.finalizedOrders}</p>
-                <p className="text-[11px] text-ui-muted mt-2">{analytics.metrics.cancelledOrders} cancelled order(s)</p>
+              <article className="bg-ui-card rounded-[24px] p-5 min-h-[142px] flex flex-col justify-between">
+                <p className="text-[12px] uppercase tracking-wider font-medium text-ui-muted">Finalized</p>
+                <p className="mt-3 text-[30px] leading-[34px] font-semibold text-ui-primary">{analytics.metrics.finalizedOrders}</p>
+                <p className="mt-2 text-[11px] text-ui-muted">{analytics.metrics.cancelledOrders} cancelled order(s)</p>
               </article>
-              <article className="bg-ui-card rounded-[24px] p-6 min-h-[180px]">
-                <p className="text-[12px] uppercase tracking-wider font-bold text-ui-muted">Disputed</p>
-                <p className="text-[32px] leading-[38px] font-extrabold text-ui-primary mt-4">{analytics.metrics.disputedOrders}</p>
-                <p className="text-[11px] text-ui-muted mt-2">Current or historical dispute workflow in your order set</p>
+              <article className="bg-ui-card rounded-[24px] p-5 min-h-[142px] flex flex-col justify-between">
+                <p className="text-[12px] uppercase tracking-wider font-medium text-ui-muted">Disputed</p>
+                <p className="mt-3 text-[30px] leading-[34px] font-semibold text-ui-primary">{analytics.metrics.disputedOrders}</p>
+                <p className="mt-2 text-[11px] text-ui-muted">Current or historical dispute workflow in your order set</p>
               </article>
             </>
           ) : (
             <article className="bg-ui-card rounded-[24px] p-6 col-span-full text-sm text-ui-muted">
-              No user analytics are available yet for this wallet.
+              No analytics are available yet for this wallet.
             </article>
           )}
         </div>
 
         <MarketVolumeChart
-          title="User Order Activity"
+          title="Order Activity"
           subtitle="Created vs finalized orders for the selected wallet"
           primaryLabel="Created"
           secondaryLabel="Finalized"
@@ -159,38 +159,38 @@ export function MarketInsights({ onOpenOrderRequest }: MarketInsightsProps) {
           <div className="space-y-4 sm:space-y-6">
             <article className="bg-ui-card rounded-[24px] p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[12px] font-bold uppercase tracking-wider text-ui-primary">Calendar Mapping</h3>
+                <h3 className="text-[12px] font-medium uppercase tracking-wider text-ui-primary">How To Read This</h3>
                 <CalendarRange className="text-primary" size={16} />
               </div>
               <div className="space-y-3 text-[11px] text-ui-secondary leading-5">
                 <p>
-                  Each colored block in the calendar maps to the same lifecycle phase used in Orders: new, seller confirm,
-                  buyer re-sign, delivery window, buyer action window, dispute, finalized, and cancelled.
+                  Each color matches the same order status you already see in Orders, from new and confirmed through delivery,
+                  disputes, completion, and cancellation.
                 </p>
                 <p>
-                  Click any active day to open the milestone drawer, then use <span className="font-bold text-ui-primary">Open In Orders</span> to jump straight into the matching order.
+                  Select any active day to review the updates, then use <span className="font-semibold text-ui-primary">Open In Orders</span> to jump to the matching order.
                 </p>
               </div>
             </article>
 
             <article className="bg-ui-card rounded-[24px] p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[12px] font-bold uppercase tracking-wider text-ui-primary">Lifecycle Breakdown</h3>
+                <h3 className="text-[12px] font-medium uppercase tracking-wider text-ui-primary">Status Breakdown</h3>
                 <Layers3 className="text-primary" size={16} />
               </div>
               {lifecycleRows.length === 0 ? (
                 <div className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-6 text-sm text-ui-muted">
-                  No lifecycle state is currently available for this wallet.
+                  No order status is available for this wallet yet.
                 </div>
               ) : (
                 <div className="space-y-3">
                   {lifecycleRows.map((row) => (
                     <div key={row.phase} className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-4 flex items-center justify-between gap-4">
                       <div>
-                        <p className="text-sm font-bold text-ui-primary">{row.label}</p>
-                        <p className="text-[11px] text-ui-muted">Current canonical lifecycle phase</p>
+                        <p className="text-sm font-semibold text-ui-primary">{row.label}</p>
+                        <p className="text-[11px] text-ui-muted">Current order stage</p>
                       </div>
-                      <span className="text-2xl font-black text-ui-primary">{row.count}</span>
+                      <span className="text-2xl font-semibold text-ui-primary">{row.count}</span>
                     </div>
                   ))}
                 </div>
@@ -199,7 +199,7 @@ export function MarketInsights({ onOpenOrderRequest }: MarketInsightsProps) {
 
             <article className="bg-ui-card rounded-[24px] p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[12px] font-bold uppercase tracking-wider text-ui-primary">Payment Tokens Tracked</h3>
+                <h3 className="text-[12px] font-medium uppercase tracking-wider text-ui-primary">Payment Tokens</h3>
                 <Flag className="text-primary" size={16} />
               </div>
               {paymentBuckets.length === 0 ? (
@@ -211,12 +211,12 @@ export function MarketInsights({ onOpenOrderRequest }: MarketInsightsProps) {
                   {paymentBuckets.map((bucket) => (
                     <div key={bucket.symbol} className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-4 flex items-center justify-between gap-4">
                       <div>
-                        <p className="text-sm font-bold text-ui-primary">{bucket.symbol}</p>
+                        <p className="text-sm font-semibold text-ui-primary">{bucket.symbol}</p>
                         <p className="text-[11px] text-ui-muted">
                           {bucket.orderCount} order(s), {bucket.finalizedCount} finalized
                         </p>
                       </div>
-                      <span className="text-sm font-bold text-ui-primary">
+                      <span className="text-sm font-semibold text-ui-primary">
                         {formatUnits(bucket.grossVolume, bucket.decimals)} {bucket.symbol}
                       </span>
                     </div>
@@ -226,16 +226,16 @@ export function MarketInsights({ onOpenOrderRequest }: MarketInsightsProps) {
             </article>
 
             <article className="bg-ui-card rounded-[24px] p-6">
-              <h3 className="text-[12px] font-bold uppercase tracking-wider text-ui-primary mb-4">Insights</h3>
+              <h3 className="text-[12px] font-medium uppercase tracking-wider text-ui-primary mb-4">Highlights</h3>
               {analytics.insights.length === 0 ? (
                 <div className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-6 text-sm text-ui-muted">
-                  No narrative insights are available yet.
+                  No highlights are available yet.
                 </div>
               ) : (
                 <div className="space-y-3">
                   {analytics.insights.map((insight) => (
                     <div key={insight.title} className="rounded-[18px] border border-ui-border-subtle bg-ui-input/60 px-4 py-4">
-                      <p className="text-sm font-bold text-ui-primary">{insight.title}</p>
+                      <p className="text-sm font-semibold text-ui-primary">{insight.title}</p>
                       <p className="text-[11px] text-ui-secondary mt-1">{insight.message}</p>
                     </div>
                   ))}

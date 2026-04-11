@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
 import {
   Bell,
@@ -27,11 +26,11 @@ import {
   type DeliveryAddressBlockHandle,
 } from '@/app/components/settings/delivery-address-block';
 import { ImageUpload, type UploadedImage } from '@/app/components/image-upload';
-import { RuntimeStatusPanel } from '@/app/components/runtime-status-panel-router';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
 import { StudioFieldHint, StudioFieldLabel, StudioInputField, StudioTextareaField } from '@/app/components/ui/studio-form-fields';
 import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
 import { useTheme } from '@/app/contexts/ThemeContext';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { useWalletModalContext } from '@/contexts/WalletModalContext';
 import { type AccountSecuritySidebarStatus, useAccountSecuritySidebar } from '@/hooks/useAccountSecuritySidebar';
 import type { UserProfile } from '@/types/profile';
@@ -205,7 +204,7 @@ function buildSecurityScoreSnapshot(params: {
 }
 
 export function Settings() {
-  const { address } = useAccount();
+  const { address } = useEffectiveViewer();
   const { theme, setTheme: setRuntimeTheme } = useTheme();
   const { openSecurityCheckModal } = useWalletModalContext();
   const [settings, setSettings] = useState<UserAppSettings>(DEFAULT_USER_APP_SETTINGS);
@@ -578,13 +577,13 @@ export function Settings() {
 
       {/* Main Content - with relative positioning for footer */}
       <div className="flex-1 min-w-0 p-2.5 pr-0 overflow-hidden">
-        <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] relative flex flex-col overflow-hidden">
+        <div className="surface-primary-shell h-full rounded-[24px] relative flex flex-col overflow-hidden">
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           <div className="p-8 pb-32 relative z-10 max-w-5xl mx-auto">
             {/* Header */}
             <header className="mb-10">
-              <h1 className="text-2xl font-bold text-ui-strong">Settings</h1>
+              <h1 className="text-2xl font-semibold text-ui-strong">Settings</h1>
               <p className="text-sm text-ui-muted mt-1">Configure account, privacy, notification, and runtime preferences</p>
             </header>
 
@@ -596,7 +595,7 @@ export function Settings() {
                 <div className="flex items-center gap-3 mb-6">
                   <User className="text-[#2CC295]" size={20} />
                   <div>
-                    <h3 className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">Profile</h3>
+                    <h3 className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest">Profile</h3>
                     <p className="text-xs text-ui-muted mt-1">Shared profile details used by both Profile and Settings.</p>
                   </div>
                 </div>
@@ -604,7 +603,7 @@ export function Settings() {
                 {profileDraft ? (
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)] gap-6">
-                      <div className="rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4">
+                      <div className="rounded-[20px] bg-[var(--t-surface-5)] p-4">
                         <ImageUpload
                           walletAddress={address}
                           variant="banner"
@@ -623,7 +622,7 @@ export function Settings() {
                         />
                       </div>
 
-                      <div className="flex h-full items-center justify-center rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4">
+                      <div className="flex h-full items-center justify-center rounded-[20px] bg-[var(--t-surface-5)] p-4">
                         <ImageUpload
                           className="flex w-full max-w-[220px] flex-col items-center"
                           walletAddress={address}
@@ -764,7 +763,7 @@ export function Settings() {
               <div className={settingsPanelClass}>
                 <div className="flex items-center gap-3 mb-6">
                   <Shield className="text-[#2CC295]" size={20} />
-                  <h3 className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">Privacy & Security</h3>
+                  <h3 className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest">Privacy & Security</h3>
                 </div>
                 <div className="space-y-4">
                   <div className={settingsRowClass}>
@@ -812,7 +811,7 @@ export function Settings() {
               <div className={settingsPanelClass}>
                 <div className="flex items-center gap-3 mb-6">
                   <Bell className="text-[#2CC295]" size={20} />
-                  <h3 className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">Notification Preferences</h3>
+                  <h3 className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest">Notification Preferences</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className={settingsRowClass}>
@@ -852,11 +851,11 @@ export function Settings() {
               <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-6">
                 <div className="flex items-center gap-3 mb-6">
                   <Globe className="text-[#2CC295]" size={20} />
-                  <h3 className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">Language & Region</h3>
+                  <h3 className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest">Language & Region</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
-                    <label className="text-[9px] font-bold text-ui-muted uppercase tracking-widest">Language</label>
+                    <label className="text-[9px] font-semibold text-ui-muted uppercase tracking-widest">Language</label>
                     <CustomDropdown
                       variant="compact"
                       defaultValue={settings.language}
@@ -870,7 +869,7 @@ export function Settings() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[9px] font-bold text-ui-muted uppercase tracking-widest">Timezone</label>
+                    <label className="text-[9px] font-semibold text-ui-muted uppercase tracking-widest">Timezone</label>
                     <CustomDropdown
                       variant="compact"
                       defaultValue={settings.timezone}
@@ -884,7 +883,7 @@ export function Settings() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[9px] font-bold text-ui-muted uppercase tracking-widest">Currency</label>
+                    <label className="text-[9px] font-semibold text-ui-muted uppercase tracking-widest">Currency</label>
                     <CustomDropdown
                       variant="compact"
                       defaultValue={settings.currency}
@@ -906,7 +905,7 @@ export function Settings() {
               <div className={settingsPanelClass}>
                 <div className="flex items-center gap-3 mb-6">
                   <Moon className="text-[#2CC295]" size={20} />
-                  <h3 className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">Display Preferences</h3>
+                  <h3 className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest">Display Preferences</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className={settingsRowClass}>
@@ -923,32 +922,24 @@ export function Settings() {
                   </div>
                 </div>
               </div>
-
-              {/* ══════════════════════════════════════════════ */}
-              {/* SECTION 9: Protocol Runtime Status            */}
-              {/* ══════════════════════════════════════════════ */}
-              <div className={settingsPanelClass}>
-                <RuntimeStatusPanel />
-              </div>
-
               {/* Export & Delete */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className={settingsPanelClass}>
-                  <h4 className="text-ui-primary font-bold mb-2">Export Data</h4>
+                  <h4 className="text-ui-primary font-semibold mb-2">Export Data</h4>
                   <p className="text-xs text-ui-muted mb-6 leading-relaxed">
                     Download a complete archive of your account data, including transaction history and settings.
                   </p>
-                  <button className="inline-flex items-center gap-2 px-4 py-2 bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] rounded-full text-xs font-bold text-[#2CC295] transition-colors">
+                  <button className="inline-flex items-center gap-2 px-4 py-2 bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] rounded-full text-xs font-semibold text-[#2CC295] transition-colors">
                     <Trash2 size={14} />
                     Start Exporting
                   </button>
                 </div>
                 <div className={settingsPanelClass}>
-                  <h4 className="text-ui-primary font-bold mb-2">Delete Account</h4>
+                  <h4 className="text-ui-primary font-semibold mb-2">Delete Account</h4>
                   <p className="text-xs text-ui-muted mb-6 leading-relaxed">
                     Permanently delete your account and all associated data. This action is irreversible.
                   </p>
-                  <button className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold bg-[rgba(255,255,255,0.05)] hover:bg-red-500/15 rounded-full text-ui-secondary hover:text-red-300 transition-colors">
+                  <button className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-[rgba(255,255,255,0.05)] hover:bg-red-500/15 rounded-full text-ui-secondary hover:text-red-300 transition-colors">
                     <Trash2 size={14} />
                     Delete Permanently
                   </button>
@@ -967,14 +958,14 @@ export function Settings() {
             </div>
             <div className="flex gap-4">
               <button
-                className="px-6 py-2.5 rounded-full text-sm font-bold text-ui-muted hover:text-ui-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-2.5 rounded-full text-sm font-semibold text-ui-muted hover:text-ui-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleDiscardChanges}
                 disabled={!hasChanges}
               >
                 Discard
               </button>
               <button
-                className="px-10 py-2.5 bg-[#2CC295] rounded-full text-sm font-bold text-black hover:opacity-90 hover:shadow-lg hover:shadow-[#2CC295]/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-10 py-2.5 bg-[#2CC295] rounded-full text-sm font-semibold text-black hover:opacity-90 hover:shadow-lg hover:shadow-[#2CC295]/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleSaveSettings}
                 disabled={!hasChanges}
               >
@@ -988,7 +979,7 @@ export function Settings() {
 
       {/* Right Sidebar - Account Security */}
       <StudioSidebarShell widthClassName="w-[344px]" className="bg-ui-page border-l-0 p-2.5">
-        <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+        <div className="surface-primary-shell h-full rounded-[24px] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="p-6 bg-gradient-to-b from-[var(--t-surface-2)] to-transparent">
           <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
@@ -1004,8 +995,8 @@ export function Settings() {
           <div className="space-y-4">
             <div className={settingsSidebarCardClass}>
               <div className="flex justify-between items-center mb-3">
-                <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">Security Score</p>
-                <span className={`text-xs font-bold ${securityScore.toneClass}`}>
+                <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest">Security Score</p>
+                <span className={`text-xs font-semibold ${securityScore.toneClass}`}>
                   {securityScore.score}% - {securityScore.label}
                 </span>
               </div>
@@ -1038,7 +1029,7 @@ export function Settings() {
                       />
                       <span className="truncate text-ui-secondary">{check.label}</span>
                     </div>
-                    <span className={`shrink-0 font-bold ${check.passed ? 'text-[#2CC295]' : 'text-ui-muted'}`}>
+                    <span className={`shrink-0 font-semibold ${check.passed ? 'text-[#2CC295]' : 'text-ui-muted'}`}>
                       {check.passed ? 'Live' : 'Missing'}
                     </span>
                   </div>
@@ -1049,7 +1040,7 @@ export function Settings() {
 
           {/* Recent Logins */}
           <div className="space-y-4">
-            <h3 className="text-[11px] uppercase tracking-[0.15em] font-bold text-ui-muted px-1">
+            <h3 className="text-[11px] uppercase tracking-[0.15em] font-semibold text-ui-muted px-1">
               Recent Logins
             </h3>
             {accountSecurityStatus === 'loading' ? (
@@ -1070,7 +1061,7 @@ export function Settings() {
                 <button
                   type="button"
                   onClick={handleUnlockSessionHistory}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#2CC295] px-3 py-1.5 text-[10px] font-bold text-black transition-opacity hover:opacity-90"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#2CC295] px-3 py-1.5 text-[10px] font-semibold text-black transition-opacity hover:opacity-90"
                 >
                   <Lock size={12} />
                   Unlock Session History
@@ -1085,7 +1076,7 @@ export function Settings() {
                 <button
                   type="button"
                   onClick={() => void refreshAccountSecurity()}
-                  className="inline-flex items-center gap-2 rounded-full bg-[var(--t-surface-5)] px-3 py-1.5 text-[10px] font-bold text-ui-primary transition-colors hover:bg-[var(--t-surface-10)]"
+                  className="inline-flex items-center gap-2 rounded-full bg-[var(--t-surface-5)] px-3 py-1.5 text-[10px] font-semibold text-ui-primary transition-colors hover:bg-[var(--t-surface-10)]"
                 >
                   Retry
                 </button>
@@ -1113,11 +1104,11 @@ export function Settings() {
                       <div className="flex justify-between items-start gap-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <Icon className={session.isCurrent ? 'text-ui-secondary' : 'text-ui-muted'} size={14} />
-                          <span className={`text-xs font-bold truncate ${session.isCurrent ? 'text-ui-primary' : 'text-ui-secondary'}`}>
+                          <span className={`text-xs font-semibold truncate ${session.isCurrent ? 'text-ui-primary' : 'text-ui-secondary'}`}>
                             {formatSessionDeviceLabel(session.deviceLabel)}
                           </span>
                         </div>
-                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold ${badgeClass}`}>
+                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold ${badgeClass}`}>
                           {sessionStatusLabel(session)}
                         </span>
                       </div>
@@ -1134,7 +1125,7 @@ export function Settings() {
 
           {/* Quick Security */}
           <div className="p-5 bg-[var(--t-surface-2)] backdrop-blur-[10px] rounded-2xl">
-            <h3 className="text-[11px] uppercase font-bold text-ui-muted mb-4">Quick Security</h3>
+            <h3 className="text-[11px] uppercase font-semibold text-ui-muted mb-4">Quick Security</h3>
             <div className="space-y-4">
               <label className="flex items-center justify-between cursor-pointer group">
                 <span className="text-xs text-ui-secondary group-hover:text-ui-primary transition-colors">
@@ -1158,7 +1149,7 @@ export function Settings() {
             type="button"
             onClick={handleSignOutEverywhere}
             disabled={isSigningOutEverywhere || !address || accountSecurityStatus === 'loading'}
-            className="w-full py-3 bg-[var(--t-surface-2)] rounded-xl text-xs font-bold text-ui-primary hover:text-red-400 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 bg-[var(--t-surface-2)] rounded-xl text-xs font-semibold text-ui-primary hover:text-red-400 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <LogOut className="text-ui-muted group-hover:text-red-400" size={14} />
             {isSigningOutEverywhere ? 'Revoking Sessions...' : 'Sign Out Everywhere'}

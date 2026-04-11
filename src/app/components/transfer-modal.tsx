@@ -122,7 +122,7 @@ export function TransferModal({ isOpen, onClose, asset }: TransferModalProps) {
             <StudioModalHeader className="p-6 md:p-8 border-b-0 pb-3 md:pb-4">
             <div className="flex items-start justify-between mb-3 md:mb-4">
               <div>
-                <h2 className="text-lg font-bold text-ui-primary tracking-tight mb-1">Transfer Asset</h2>
+                <h2 className="text-lg font-semibold text-ui-primary tracking-tight mb-1">Transfer Asset</h2>
                 <p className="text-[10px] text-ui-muted uppercase tracking-widest">Send this asset to another wallet address</p>
               </div>
               <StudioModalCloseButton onClick={onClose} />
@@ -141,14 +141,14 @@ export function TransferModal({ isOpen, onClose, asset }: TransferModalProps) {
                 className="w-16 h-16 rounded-lg"
               />
               <div className="flex-1">
-                <p className="text-base font-bold tracking-tight text-ui-primary">{asset.name}</p>
+                <p className="text-base font-semibold tracking-tight text-ui-primary">{asset.name}</p>
                 <p className="text-[10px] uppercase tracking-widest text-ui-muted">Token ID: {asset.id}</p>
               </div>
             </div>
 
             {/* Recipient Address */}
             <div className="mb-6">
-              <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
+              <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-semibold">
                 Recipient Address
               </StudioFieldLabel>
               <StudioInputField
@@ -171,7 +171,7 @@ export function TransferModal({ isOpen, onClose, asset }: TransferModalProps) {
 
             {/* Quantity */}
             <div className="mb-6">
-              <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-bold">
+              <StudioFieldLabel className="text-ui-muted text-[10px] uppercase tracking-widest font-semibold">
                 Quantity
               </StudioFieldLabel>
               <div className={`taf-surface rounded-[24px] bg-[var(--t-surface-5)] border border-ui-border-subtle p-4 flex items-center justify-between gap-4 ${
@@ -185,7 +185,7 @@ export function TransferModal({ isOpen, onClose, asset }: TransferModalProps) {
                   -
                 </button>
                 <div className="flex-1 text-center">
-                  <p className="text-5xl font-bold text-ui-primary leading-none">{quantity}</p>
+                  <p className="text-5xl font-semibold text-ui-primary leading-none">{quantity}</p>
                   <p className="text-sm text-ui-muted mt-2">Units to transfer</p>
                 </div>
                 <button
@@ -219,7 +219,7 @@ export function TransferModal({ isOpen, onClose, asset }: TransferModalProps) {
                 onClick={onClose}
                 variant="secondary"
                 size="lg"
-                className={`taf-surface flex-1 text-sm font-bold tracking-tight ${
+                className={`taf-surface flex-1 text-sm font-semibold tracking-tight ${
                   isLightTheme ? '!bg-[#F3F5F8] !border !border-[var(--t-border-subtle)] hover:!bg-[#ECEFF3]' : ''
                 }`}
               >
@@ -230,7 +230,7 @@ export function TransferModal({ isOpen, onClose, asset }: TransferModalProps) {
                 disabled={!isFormValid}
                 variant="primary"
                 size="lg"
-                className="flex-1 text-sm font-bold tracking-tight disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 text-sm font-semibold tracking-tight disabled:opacity-50 disabled:cursor-not-allowed"
                 leftIcon={<Send size={18} />}
               >
                 Confirm Transfer

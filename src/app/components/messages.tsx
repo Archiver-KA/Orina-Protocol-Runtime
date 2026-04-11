@@ -1,11 +1,10 @@
-import { Search, Smile, Paperclip, Send, Copy, Diamond, Coins, Zap, Flag, ArrowRight, Bot, Star, Plus, AlertTriangle, X, ArrowUp, ShieldCheck, LockKeyhole } from 'lucide-react';
+import { Search, Smile, Copy, Diamond, Coins, Zap, Flag, ArrowRight, Bot, Star, Plus, AlertTriangle, X, ArrowUp, ShieldCheck, LockKeyhole } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useAccount } from 'wagmi';
 import { getAvatarByUserId } from '@/app/components/user-avatars';
 import { formatUserDisplayName, shortenUserDisplayName } from '@/utils/profileUtils';
 import { useUser } from '@/contexts/UserContext';
 import { useNotifications } from '@/contexts/NotificationContext';
-import { useAccessMode } from '@/hooks/useAccessMode';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { useWalletSecurityPrompt } from '@/hooks/useWalletSecurityPrompt';
 import { NewConversationModal } from '@/app/components/new-conversation-modal';
 import * as MessagesClient from '@/utils/messagesClient';
@@ -28,6 +27,8 @@ import {
 import { isBridgeAuthRequiredError } from '@/utils/supabaseAuthClaimBridge';
 import { hasWalletAuthSession } from '@/utils/walletAuthSession';
 import { BorderlessTextarea } from '@/app/components/ai/borderless-textarea';
+import { StudioActionButton } from '@/app/components/ui/studio-action-button';
+import { getSupabaseFunctionUrl } from '/utils/supabase/functions';
 
 // ✅ FIX: Local image attachment type (different from UploadedImage which requires IPFS fields)
 interface AttachedImage {
@@ -75,9 +76,7 @@ interface MessagesProps {
 type CreateConversationResult = 'created' | 'pending';
 
 export function Messages({ onNavigateToUserProfile, initialConversationId }: MessagesProps) {
-  // ✅ Get wallet address for backend communication
-  const { address } = useAccount();
-  const { isAuthPending } = useAccessMode();
+  const { address, isAuthPending } = useEffectiveViewer();
   const { promptChatSecurityCheck } = useWalletSecurityPrompt();
   
   // Get user data from context
@@ -977,53 +976,60 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
 
   if (requiresChatSecurityCheck) {
     return (
-      <section className="h-full bg-ui-page overflow-hidden p-6">
-        <div className="flex h-full items-center justify-center">
-          <div className="w-full max-w-[560px] rounded-[32px] border border-white/8 bg-[var(--t-card-bg)] p-8 shadow-[0_30px_80px_rgba(0,0,0,0.32)]">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1">
-              <ShieldCheck size={14} className="text-[#78E5BF]" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#78E5BF]">Protected Area</span>
-            </div>
-
-            <h2 className="text-[28px] font-extrabold tracking-tight text-white">Unlock Secure Messages</h2>
-            <p className="mt-3 max-w-[460px] text-sm leading-6 text-zinc-400">
-              Messages and conversations need a one-time wallet security check before Orina can sync your chat session. This is where the first signature should happen, not during wallet login.
-            </p>
-
-            <div className="mt-6 grid gap-3">
-              <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">What you are approving</p>
-                <p className="mt-1 text-sm font-semibold text-white">Wallet session unlock for Messages & conversations</p>
+      <section className="h-full bg-ui-page overflow-hidden">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/82 p-6 backdrop-blur-[16px]">
+          <div className="studio-modal-theme studio-glass-modal wallet-security-modal relative flex w-full max-w-[520px] flex-col overflow-hidden rounded-[32px] border border-ui-border-subtle shadow-2xl">
+            <div className="px-8 pb-5 pt-8">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1">
+                <ShieldCheck size={14} className="text-[#78E5BF]" />
+                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#78E5BF]">Protected Area</span>
               </div>
-              <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">Wallet request</p>
-                    <p className="mt-1 text-sm font-semibold text-white">One-time signature</p>
-                  </div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-black/20 px-3 py-1.5">
-                    <LockKeyhole size={14} className="text-zinc-300" />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300">No Gas</span>
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            <div className="mt-4 rounded-2xl border border-white/6 bg-black/20 px-4 py-3">
-              <p className="text-[11px] leading-5 text-zinc-400">
-                After you sign once, Orina will load your conversation list automatically. No transaction is sent and no token approval is requested.
+              <h2 className="text-2xl font-semibold tracking-tight text-ui-primary">Unlock Secure Messages</h2>
+              <p className="mt-2 text-sm leading-6 text-ui-secondary">
+                Messages and conversations need a one-time wallet security check before Orina can sync your chat session. This is where the first signature should happen, not during wallet login.
               </p>
             </div>
 
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <button
+            <div className="px-8 pb-6">
+              <div className="studio-glass-surface rounded-[28px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-5">
+                <div className="border-b border-ui-border-subtle pb-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-muted">What You Are Approving</p>
+                  <p className="mt-1 text-sm font-semibold text-ui-primary">Wallet session unlock for Messages & conversations</p>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-4">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-muted">Wallet Request</p>
+                    <p className="mt-1 text-sm font-semibold text-ui-primary">One-time message signature</p>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-3 py-1.5">
+                    <LockKeyhole size={14} className="text-ui-secondary" />
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-secondary">No Gas</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-3">
+                <p className="text-[11px] leading-5 text-ui-secondary">
+                  After you sign once, Orina will load your conversation list automatically. No transaction is sent and no token approval is requested.
+                </p>
+              </div>
+            </div>
+
+            <div className="border-t border-ui-border-subtle px-8 py-6">
+              <StudioActionButton
                 type="button"
                 onClick={() => promptChatSecurityCheck()}
-                className="rounded-full bg-[#2CC295] px-5 py-3 text-sm font-black uppercase tracking-[0.08em] text-black transition-colors hover:bg-[#34d3a3]"
+                variant="primary"
+                size="lg"
+                className="w-full text-sm font-semibold uppercase tracking-[0.12em]"
               >
                 Unlock Messages
-              </button>
-              <p className="text-xs text-zinc-500">Conversations stay hidden until the wallet security check is complete.</p>
+              </StudioActionButton>
+              <p className="mt-4 text-center text-xs text-ui-muted">
+                Conversations stay hidden until the wallet security check is complete.
+              </p>
             </div>
           </div>
         </div>
@@ -1046,7 +1052,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
           {/* Header */}
           <div className="p-4 border-b border-[var(--t-border-subtle)] bg-transparent">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-ui-primary uppercase tracking-wider">Messages</h2>
+              <h2 className="text-sm font-semibold text-ui-primary uppercase tracking-wider">Messages</h2>
               <button
                 onClick={() => {
                   if (!address) {
@@ -1104,7 +1110,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                   <div className="flex-grow min-w-0">
                     <div className="flex justify-between items-center mb-0.5">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-ui-primary truncate">
+                        <span className="text-xs font-semibold text-ui-primary truncate">
                           {conv.displayName || shortenUserDisplayName(conv.address)}
                         </span>
                       </div>
@@ -1133,14 +1139,14 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
         {!activeConversationRecord ? (
           <div className="flex-1 flex items-center justify-center bg-transparent">
             <div className="max-w-sm text-center px-8">
-              <h3 className="text-lg font-bold text-ui-primary">No Conversation Selected</h3>
+              <h3 className="text-lg font-semibold text-ui-primary">No Conversation Selected</h3>
               <p className="text-sm text-ui-muted mt-2">
                 Choose an existing thread or start a new conversation to continue messaging.
               </p>
               <button
                 type="button"
                 onClick={() => setIsNewConversationModalOpen(true)}
-                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#2CC295] px-4 py-2.5 text-sm font-bold text-black transition-all hover:shadow-lg hover:shadow-[#2CC295]/20"
+                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#2CC295] px-4 py-2.5 text-sm font-semibold text-black transition-all hover:shadow-lg hover:shadow-[#2CC295]/20"
               >
                 <Plus size={16} />
                 New Conversation
@@ -1167,18 +1173,18 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                         ) : AvatarComp ? (
                           <AvatarComp className="w-full h-full" />
                         ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-[#2CC295] to-[#1a9d6f] flex items-center justify-center text-white font-bold">
+                          <div className="w-full h-full bg-gradient-to-br from-[#2CC295] to-[#1a9d6f] flex items-center justify-center text-white font-semibold">
                             {displayName.charAt(0).toUpperCase()}
                           </div>
                         )}
                       </div>
                       <div>
-                        <h3 className="text-sm font-bold text-ui-primary flex items-center gap-2">
+                        <h3 className="text-sm font-semibold text-ui-primary flex items-center gap-2">
                           {displayName}
                         </h3>
                         <div className="flex items-center gap-1.5">
                           <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-[#2CC295]' : 'bg-ui-muted'}`}></span>
-                          <span className={`text-[10px] uppercase font-bold tracking-widest ${isOnline ? 'text-[#2CC295]' : 'text-ui-muted'}`}>{isOnline ? 'Online' : 'Offline'}</span>
+                          <span className={`text-[10px] uppercase font-semibold tracking-widest ${isOnline ? 'text-[#2CC295]' : 'text-ui-muted'}`}>{isOnline ? 'Online' : 'Offline'}</span>
                         </div>
                       </div>
                     </div>
@@ -1191,7 +1197,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
             <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto p-6 pb-24 space-y-6 hidden-scrollbar min-h-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               {/* Date Divider */}
               <div className="flex justify-center">
-                <span className="text-[10px] px-3 py-1 bg-ui-pill border border-ui-border-subtle rounded-full text-ui-muted uppercase tracking-widest font-bold">
+                <span className="text-[10px] px-3 py-1 bg-ui-pill border border-ui-border-subtle rounded-full text-ui-muted uppercase tracking-widest font-semibold">
                   Today
                 </span>
               </div>
@@ -1211,7 +1217,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                         ) : ConvAvatarComp ? (
                           <ConvAvatarComp className="w-full h-full" />
                         ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-[var(--t-surface-10)] to-[var(--t-surface-5)] flex items-center justify-center text-ui-primary text-xs font-bold">
+                          <div className="w-full h-full bg-gradient-to-br from-[var(--t-surface-10)] to-[var(--t-surface-5)] flex items-center justify-center text-ui-primary text-xs font-semibold">
                             {activeConv?.displayName?.charAt(0).toUpperCase() || 'U'}
                           </div>
                         )}
@@ -1284,7 +1290,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                       ) : ConvAvatarComp ? (
                         <ConvAvatarComp className="w-full h-full" />
                       ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-[var(--t-surface-10)] to-[var(--t-surface-5)] flex items-center justify-center text-ui-primary text-xs font-bold">
+                        <div className="w-full h-full bg-gradient-to-br from-[var(--t-surface-10)] to-[var(--t-surface-5)] flex items-center justify-center text-ui-primary text-xs font-semibold">
                           {activeConv?.displayName?.charAt(0).toUpperCase() || 'U'}
                         </div>
                       )}
@@ -1306,19 +1312,21 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
 
             {/* Message Input */}
             <div className="p-6 bg-transparent">
-              <div className="flex items-end gap-2 bg-[var(--t-input-bg)] rounded-[24px] px-2 py-2 transition-colors !border-0 !shadow-none ring-0 max-w-4xl mx-auto w-full">
+              <div className="chat-composer-shell flex min-h-[64px] items-end gap-2 rounded-[24px] px-3 py-2.5 transition-[background-color] max-w-4xl mx-auto w-full">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-7 h-7 flex items-center justify-center shrink-0 rounded-lg text-ui-muted hover:text-ui-primary transition-colors mb-[1px]"
+                  className="mb-[2px] flex h-8 w-8 items-center justify-center shrink-0 rounded-lg text-ui-muted hover:text-ui-primary transition-colors"
                   title="Attach file"
                 >
                   <Plus size={18} />
                 </button>
-                <div className="relative flex-1 flex flex-col justify-center">
+                <div className="relative min-w-0 flex-1">
                   <BorderlessTextarea
                     id="message-inbox-input"
                     rows={1}
+                    autoResize
+                    maxAutoHeight={120}
                     value={userInput}
                     onChange={(e) => setUserInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -1328,34 +1336,29 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                       }
                     }}
                     onFocus={handleTyping}
-                    onInput={(e) => {
-                      const target = e.target as HTMLTextAreaElement;
-                      target.style.height = 'auto';
-                      target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
-                    }}
                     placeholder="Type a secure message..."
-                    className="flex-1 resize-none bg-transparent text-[14px] font-medium text-ui-primary placeholder:text-ui-muted overflow-y-auto leading-relaxed py-1.5 px-1 self-center"
+                    className="w-full resize-none bg-transparent px-1 py-1.5 text-[14px] font-medium leading-relaxed text-ui-primary placeholder:text-ui-muted overflow-y-auto"
                     style={{ minHeight: '22px', maxHeight: '120px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                   />
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 flex gap-1">
+                </div>
+                <div className="mb-[2px] flex items-center gap-1.5 shrink-0 self-end">
+                  <div className="relative flex items-center justify-center">
                     <button
                       ref={emojiButtonRef}
-                      className={`w-7 h-7 flex items-center justify-center shrink-0 rounded-lg transition-colors ${showEmojiPicker ? 'text-[#2CC295]' : 'text-ui-muted hover:text-ui-primary'}`}
+                      className={`flex h-8 w-8 items-center justify-center shrink-0 rounded-full transition-colors ${showEmojiPicker ? 'text-[#2CC295]' : 'text-ui-muted hover:text-ui-primary'}`}
                       onClick={() => setShowEmojiPicker(prev => !prev)}
                       type="button"
                     >
                       <Smile size={18} />
                     </button>
-                  </div>
-                  {/* Emoji Picker - anchored inside input wrapper to prevent overflow */}
-                  {showEmojiPicker && (
-                    <div
-                      ref={emojiPickerRef}
-                      className="absolute bottom-[calc(100%+0.5rem)] right-0 mb-2 bg-ui-dropdown border border-ui-border-subtle rounded-xl p-3 shadow-2xl shadow-black/40 backdrop-blur-[20px] z-[120]"
-                    >
-                      <div className="flex flex-col gap-1.5">
-                        {emojiRows.map((row, rowIdx) => (
-                          <div key={rowIdx} className="flex gap-1">
+                    {showEmojiPicker && (
+                      <div
+                        ref={emojiPickerRef}
+                        className="absolute bottom-[calc(100%+0.5rem)] right-0 mb-2 bg-ui-dropdown border border-ui-border-subtle rounded-xl p-3 shadow-2xl shadow-black/40 backdrop-blur-[20px] z-[120]"
+                      >
+                        <div className="flex flex-col gap-1.5">
+                          {emojiRows.map((row, rowIdx) => (
+                            <div key={rowIdx} className="flex gap-1">
                               {row.map((emoji) => (
                                 <button
                                   key={emoji}
@@ -1366,18 +1369,17 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                                   {emoji}
                                 </button>
                               ))}
-                          </div>
-                        ))}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0 mb-[1px]">
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={handleSendMessage}
                     disabled={(!userInput.trim() && !attachedImage) || sendingMessage}
-                    className="w-7 h-7 flex flex-col items-center justify-center shrink-0 rounded-full bg-ui-primary hover:opacity-80 text-[var(--t-page-bg)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+                    className="chat-send-button"
                   >
                     <ArrowUp size={15} strokeWidth={3} />
                   </button>
@@ -1429,8 +1431,8 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                       <Bot className="text-white" size={32} />
                     )}
                   </div>
-                  <h3 className="text-ui-primary font-bold text-sm">{userInfo.displayName}</h3>
-                  <p className="text-[10px] text-ui-muted mt-1 uppercase tracking-widest font-bold">
+                  <h3 className="text-ui-primary font-semibold text-sm">{userInfo.displayName}</h3>
+                  <p className="text-[10px] text-ui-muted mt-1 uppercase tracking-widest font-semibold">
                     {userInfo.role}
                   </p>
                   <div className="mt-3 flex justify-center gap-2">
@@ -1444,7 +1446,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                           onNavigateToUserProfile(targetAddress);
                         }
                       }}
-                      className="px-4 py-2 bg-ui-input border border-ui-border-subtle rounded-lg text-xs font-bold text-ui-secondary hover:text-ui-primary hover:border-[#2CC295]/50 transition-all flex items-center gap-1.5"
+                      className="px-4 py-2 bg-ui-input border border-ui-border-subtle rounded-lg text-xs font-semibold text-ui-secondary hover:text-ui-primary hover:border-[#2CC295]/50 transition-all flex items-center gap-1.5"
                     >
                       View Profile
                       <ArrowRight size={12} />
@@ -1471,7 +1473,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                   {/* Wallet Address - Only for non-AI users */}
                   {userInfo.walletAddress && (
                     <div>
-                      <h4 className="text-[10px] text-ui-muted font-bold uppercase tracking-widest mb-4">Wallet Address</h4>
+                      <h4 className="text-[10px] text-ui-muted font-semibold uppercase tracking-widest mb-4">Wallet Address</h4>
                       <div 
                         className="bg-ui-input p-3 rounded-lg border border-ui-border-subtle flex items-center justify-between group cursor-pointer hover:border-[#2CC295]/50 transition-colors"
                         onClick={() => copyToClipboard(userInfo.walletAddress)}
@@ -1486,8 +1488,8 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                   {userInfo.mutualHoldings && userInfo.mutualHoldings.length > 0 && (
                     <div>
                       <div className="flex justify-between items-center mb-4">
-                        <h4 className="text-[10px] text-ui-muted font-bold uppercase tracking-widest">Mutual Holdings</h4>
-                        <span className="text-[10px] text-[#2CC295] font-bold">{userInfo.mutualHoldings.length} Assets</span>
+                        <h4 className="text-[10px] text-ui-muted font-semibold uppercase tracking-widest">Mutual Holdings</h4>
+                        <span className="text-[10px] text-[#2CC295] font-semibold">{userInfo.mutualHoldings.length} Assets</span>
                       </div>
                       <div className="space-y-3">
                         {userInfo.mutualHoldings.map((holding, index) => {
@@ -1500,7 +1502,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                                 <IconComponent style={{ color: holding.color }} size={14} />
                               </div>
                               <div>
-                                <p className="text-xs font-bold text-ui-primary">{holding.name}</p>
+                                <p className="text-xs font-semibold text-ui-primary">{holding.name}</p>
                                 <p className="text-[10px] text-ui-muted">{holding.amount}</p>
                               </div>
                             </div>
@@ -1520,7 +1522,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                       {rep.score !== null ? (
                         <>
                           <div className="flex items-center justify-center gap-1.5 mb-1">
-                            <span className="text-xl font-bold text-ui-primary">{rep.score}</span>
+                            <span className="text-xl font-semibold text-ui-primary">{rep.score}</span>
                             <div className="flex items-center">
                               {renderStars(Math.round(rep.score))}
                             </div>
@@ -1529,7 +1531,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                         </>
                       ) : (
                         <>
-                          <p className="text-sm font-bold text-ui-primary text-center">No reviews yet</p>
+                          <p className="text-sm font-semibold text-ui-primary text-center">No reviews yet</p>
                           <p className="mt-1 text-[10px] text-ui-muted text-center">This profile has not received any reviews yet.</p>
                         </>
                       )}
@@ -1573,7 +1575,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                       <AlertTriangle size={20} className="text-red-400" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold text-white tracking-tight">Report User</h2>
+                      <h2 className="text-lg font-semibold text-white tracking-tight">Report User</h2>
                       <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5">
                         {reportTarget.name}
                       </p>
@@ -1591,7 +1593,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
               {/* Body */}
               <div className="p-6 space-y-5">
                 <div>
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-3">
+                  <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest block mb-3">
                     Reason for Report
                   </label>
                   <div className="space-y-2">
@@ -1634,7 +1636,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
               <div className="p-6 pt-0 flex gap-3">
                 <button
                   onClick={() => setReportModalOpen(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-xl transition-all text-sm"
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-3 rounded-xl transition-all text-sm"
                 >
                   Cancel
                 </button>
@@ -1646,8 +1648,12 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                     }
                     // Submit report to server-side moderation table
                     try {
-                      const { SUPABASE_EDGE_URL } = await import('/utils/supabase/info');
-                      await fetch(`${SUPABASE_EDGE_URL}/orina-chat-v1/messages/report`, {
+                      const reportUrl = getSupabaseFunctionUrl('messages/report', 'orina-chat-v1');
+                      if (!reportUrl) {
+                        throw new Error('Supabase Functions endpoint is not configured');
+                      }
+
+                      await fetch(reportUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -1666,7 +1672,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
                     setReportReason('');
                   }}
                   disabled={!reportReason}
-                  className="flex-1 bg-red-500/80 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  className="flex-1 bg-red-500/80 hover:bg-red-500 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                 >
                   Submit Report
                 </button>

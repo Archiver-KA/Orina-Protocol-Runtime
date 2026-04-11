@@ -53,7 +53,7 @@ export function LeftSidebar({
       }`}
     >
       <div className="h-full p-2.5">
-        <div className={`h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden ${collapsed ? 'pt-5 pb-2.5 px-2.5' : 'p-5'}`}>
+        <div className={`surface-primary-shell h-full rounded-[24px] flex flex-col overflow-hidden ${collapsed ? 'pt-5 pb-2.5 px-2.5' : 'p-5'}`}>
           <div className={`flex-shrink-0 ${collapsed ? 'flex items-center justify-center mb-5' : 'flex items-center gap-2.5 mb-5'}`}>
             <div className="w-9 h-9 flex-shrink-0">
               <OrinaMark />
@@ -100,7 +100,7 @@ export function LeftSidebar({
                     {!collapsed && (
                       <span
                         className={`text-[13px] truncate pointer-events-none ${
-                          isActive ? 'font-bold' : 'font-medium'
+                          isActive ? 'font-semibold' : 'font-medium'
                         } leading-[1.3]`}
                       >
                         {item.label}

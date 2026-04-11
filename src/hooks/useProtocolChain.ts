@@ -6,21 +6,23 @@ import { getWalletErrorMessage } from '@/utils/walletErrors';
 
 export function useProtocolChain() {
   const {
+    liveNetwork,
+    liveChainId,
+    liveContracts,
     selectedNetwork,
-    selectedChainId,
     walletChainId,
     status,
     isConnected,
-    isOnSelectedNetwork,
+    isOnLiveNetwork,
     isSwitching,
-    selectNetwork,
+    switchWalletToLiveNetwork,
   } = useProtocolNetworkRouter();
 
   const currentChainId = isConnected ? (walletChainId ?? undefined) : undefined;
   const currentChainLabel = isConnected ? formatChainLabel(currentChainId) : 'Wallet not connected';
-  const targetChainId = selectedChainId ?? undefined;
-  const targetChainLabel = selectedNetwork.label;
-  const isOnProtocolChain = isOnSelectedNetwork;
+  const targetChainId = liveChainId ?? undefined;
+  const targetChainLabel = liveNetwork.label;
+  const isOnProtocolChain = status === 'ready' && isOnLiveNetwork;
 
   const ensureProtocolChainAsync = useCallback(async (actionLabel: string) => {
     if (!isConnected) {
@@ -28,8 +30,8 @@ export function useProtocolChain() {
       return false;
     }
 
-    if (!selectedNetwork.chainId || selectedNetwork.status !== 'live' || !selectedNetwork.contracts) {
-      toast.error(`${selectedNetwork.label} is not enabled for protocol actions yet.`);
+    if (!liveNetwork.chainId || liveNetwork.status !== 'live' || !liveContracts) {
+      toast.error(`${targetChainLabel} is not enabled for protocol actions yet.`);
       return false;
     }
 
@@ -38,7 +40,7 @@ export function useProtocolChain() {
     }
 
     try {
-      const switched = await selectNetwork(selectedNetwork.key);
+      const switched = await switchWalletToLiveNetwork();
       if (!switched) {
         return false;
       }
@@ -57,8 +59,9 @@ export function useProtocolChain() {
     currentChainId,
     currentChainLabel,
     isConnected,
-    selectedNetwork,
-    selectNetwork,
+    liveContracts,
+    liveNetwork,
+    switchWalletToLiveNetwork,
     targetChainId,
     targetChainLabel,
   ]);
@@ -73,6 +76,7 @@ export function useProtocolChain() {
     isSwitching,
     status,
     selectedNetwork,
+    liveNetwork,
     ensureProtocolChainAsync,
   };
 }

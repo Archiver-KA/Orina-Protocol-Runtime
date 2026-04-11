@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useAccount } from 'wagmi';
 import { useUser } from '@/contexts/UserContext';
 import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
+import { BorderlessTextarea } from '@/app/components/ai/borderless-textarea';
 import { formatDistanceToNow } from 'date-fns';
 import { copyWithToast } from '@/utils/clipboard';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import type { Post, Comment, FeedFilter, FeedSort, CreatePostData, TrendingTopic } from '@/types/community';
 import type { AppNotification } from '@/types/notifications';
 import {
@@ -35,11 +36,11 @@ import {
   getUnreadCount,
 } from '@/utils/notifications';
 import {
+  ArrowUp,
   Heart,
   Share2,
   Bookmark,
   MoreHorizontal,
-  Send,
   MessageSquare,
   Filter,
   Search,
@@ -95,7 +96,7 @@ function PostTypeBadge({ type }: { type: Post['type'] }) {
   };
   const s = map[type] || map.discussion;
   return (
-    <span className={`${s.bg} ${s.text} text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-tighter`}>
+    <span className={`${s.bg} ${s.text} text-[10px] px-1.5 py-0.5 rounded uppercase font-semibold tracking-tighter`}>
       {s.label}
     </span>
   );
@@ -163,7 +164,7 @@ function DeleteDialog({
             <AlertTriangle size={20} className="text-red-400" />
           </div>
           <div>
-            <h3 className="text-white font-bold text-sm">{title}</h3>
+            <h3 className="text-white font-semibold text-sm">{title}</h3>
             <p className="text-zinc-500 text-xs">This action cannot be undone</p>
           </div>
         </div>
@@ -316,7 +317,7 @@ function PollSection({
 
   return (
     <div className="bg-ui-pill border border-ui-border-subtle rounded-xl p-4 space-y-3">
-      <p className="text-sm font-bold text-ui-primary flex items-center gap-2">
+      <p className="text-sm font-semibold text-ui-primary flex items-center gap-2">
         <BarChart3 size={16} className="text-primary" />
         {poll.question}
       </p>
@@ -346,7 +347,7 @@ function PollSection({
                   {option.text}
                 </span>
                 {showResults && (
-                  <span className="text-xs font-bold text-ui-muted">{pct}%</span>
+                  <span className="text-xs font-semibold text-ui-muted">{pct}%</span>
                 )}
               </div>
             </button>
@@ -383,7 +384,7 @@ function TrendingTopicsBar({
     <div className="bg-ui-pill border border-ui-border-subtle rounded-2xl p-4">
       <div className="flex items-center gap-2 mb-3">
         <TrendingUp size={14} className="text-primary" />
-        <span className="text-[11px] font-bold text-ui-secondary uppercase tracking-widest">Trending</span>
+        <span className="text-[11px] font-semibold text-ui-secondary uppercase tracking-widest">Trending</span>
       </div>
       <div className="flex flex-wrap gap-2">
         {topics.slice(0, 8).map((topic) => {
@@ -392,7 +393,7 @@ function TrendingTopicsBar({
             <button
               key={topic.tag}
               onClick={() => onTagClick(isActive ? '' : topic.tag)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isActive
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${isActive
                   ? 'bg-[var(--color-primary-custom)]/20 text-primary border border-[var(--color-primary-custom)]/30'
                   : 'bg-ui-input text-ui-secondary border border-ui-border-subtle hover:bg-[var(--t-input-focus-bg)] hover:text-ui-primary'
                 }`}
@@ -455,9 +456,9 @@ function NotificationPanel({
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-panel-border)]">
         <div className="flex items-center gap-2">
           <Bell size={16} className="text-primary" />
-          <span className="text-sm font-bold text-white">Notifications</span>
+          <span className="text-sm font-semibold text-white">Notifications</span>
           {unreadCount > 0 && (
-            <span className="bg-[var(--color-primary-custom)] text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+            <span className="bg-[var(--color-primary-custom)] text-black text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
               {unreadCount}
             </span>
           )}
@@ -466,7 +467,7 @@ function NotificationPanel({
           {unreadCount > 0 && (
             <button
               onClick={onMarkAllRead}
-              className="text-[10px] text-primary hover:underline font-bold uppercase"
+              className="text-[10px] text-primary hover:underline font-semibold uppercase"
             >
               Mark all read
             </button>
@@ -474,7 +475,7 @@ function NotificationPanel({
           {notifications.length > 0 && (
             <button
               onClick={onClearAll}
-              className="text-[10px] text-zinc-500 hover:text-zinc-300 font-bold uppercase"
+              className="text-[10px] text-zinc-500 hover:text-zinc-300 font-semibold uppercase"
             >
               Clear
             </button>
@@ -501,7 +502,7 @@ function NotificationPanel({
               <div className="flex items-start gap-3">
                 <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${!notif.read ? 'bg-[var(--color-primary-custom)]' : 'bg-transparent'}`} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-white truncate">{notif.title}</p>
+                  <p className="text-xs font-semibold text-white truncate">{notif.title}</p>
                   <p className="text-[11px] text-zinc-400 mt-0.5 line-clamp-2">{notif.message}</p>
                   <p className="text-[10px] text-zinc-600 mt-1">
                     {formatRelativeTimeSafe(notif.timestamp)}
@@ -575,7 +576,7 @@ function CommentThread({
         <div className="min-w-0 flex-1">
           <div className="min-w-0 overflow-hidden rounded-2xl border border-ui-border-subtle bg-ui-pill p-3">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold text-ui-primary">{commentName}</span>
+              <span className="text-xs font-semibold text-ui-primary">{commentName}</span>
               <span className="text-[10px] text-ui-muted">
                 {formatRelativeTimeSafe(comment.createdAt)}
               </span>
@@ -593,7 +594,7 @@ function CommentThread({
           <div className="ml-1 mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <button
               onClick={() => onLikeComment(comment.id)}
-              className={`text-[10px] font-bold uppercase flex items-center gap-1 transition-colors ${likedCommentIds.has(comment.id)
+              className={`text-[10px] font-semibold uppercase flex items-center gap-1 transition-colors ${likedCommentIds.has(comment.id)
                   ? 'text-red-500/80 hover:text-red-500'
                   : 'text-ui-muted hover:text-ui-primary'
                 }`}
@@ -604,7 +605,7 @@ function CommentThread({
             {isConnected && (
               <button
                 onClick={() => onReply(comment)}
-                className="text-[10px] text-ui-muted font-bold hover:text-primary uppercase flex items-center gap-1"
+                className="text-[10px] text-ui-muted font-semibold hover:text-primary uppercase flex items-center gap-1"
               >
                 <Reply size={10} /> Reply
               </button>
@@ -612,7 +613,7 @@ function CommentThread({
             {isMine && (
               <button
                 onClick={() => onDelete(comment.id)}
-                className="text-[10px] text-red-400/60 font-bold hover:text-red-400 uppercase"
+                className="text-[10px] text-red-400/60 font-semibold hover:text-red-400 uppercase"
               >
                 Delete
               </button>
@@ -620,7 +621,7 @@ function CommentThread({
             {replies.length > 0 && (
               <button
                 onClick={() => setShowReplies(!showReplies)}
-                className="text-[10px] text-primary/70 font-bold hover:text-primary uppercase flex items-center gap-1"
+                className="text-[10px] text-primary/70 font-semibold hover:text-primary uppercase flex items-center gap-1"
               >
                 {showReplies ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
                 {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
@@ -698,7 +699,7 @@ export function EnhancedCommunity({
 
   // Reply threading state
   const [replyingTo, setReplyingTo] = useState<Record<string, Comment | null>>({});
-  const commentInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const commentInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
   // Comment like tracking (local session toggle)
   const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
@@ -708,7 +709,7 @@ export function EnhancedCommunity({
   const [isNotifPanelOpen, setIsNotifPanelOpen] = useState(false);
 
   // ── Context ──
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useEffectiveViewer();
   const { requireWalletAction } = useRequireWalletAction();
   const { userData, displayName } = useUser();
 
@@ -1271,7 +1272,7 @@ export function EnhancedCommunity({
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--color-panel-border); border-radius: 10px; }
-        .post-card { background: var(--t-surface-2); border: 0; }
+        .post-card { background: var(--t-surface-2); }
       `}</style>
 
       <div className="relative z-10 h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto custom-scrollbar">
@@ -1279,7 +1280,7 @@ export function EnhancedCommunity({
           {/* ─── Header ─── */}
           <div className="flex items-end justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-ui-primary tracking-tight">Community Feed</h1>
+              <h1 className="text-2xl font-semibold text-ui-primary tracking-tight">Community Feed</h1>
               <p className="text-ui-secondary text-sm mt-1">
                 {isConnected
                   ? `Welcome back, ${actualUserName}`
@@ -1302,7 +1303,7 @@ export function EnhancedCommunity({
                   >
                     <Bell size={18} />
                     {unreadNotifCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-[var(--color-primary-custom)] text-black text-[9px] font-bold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+                      <span className="absolute -top-1 -right-1 bg-[var(--color-primary-custom)] text-black text-[9px] font-semibold min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
                         {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
                       </span>
                     )}
@@ -1324,7 +1325,7 @@ export function EnhancedCommunity({
                   setIsCreateModalOpen(true);
                 }}
                 variant="primary"
-                className="h-[43px] px-6 rounded-full text-[15px] font-bold tracking-tight"
+                className="h-[43px] px-6 rounded-full text-[15px] font-semibold tracking-tight"
                 leftIcon={<Plus size={18} />}
               >
                 Create Post
@@ -1332,7 +1333,7 @@ export function EnhancedCommunity({
             </div>
           </div>
 
-          <div className="bg-[rgba(255,255,255,0.02)] rounded-[24px] border-0 p-4 sm:p-5 space-y-4">
+          <div className="space-y-4">
             {/* ─── Search + Filters (single row on desktop) ─── */}
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.38fr)_minmax(200px,0.32fr)] gap-3 items-center">
               <div className="relative w-full">
@@ -1428,7 +1429,7 @@ export function EnhancedCommunity({
                     {showPinnedState && (
                       <div className="flex items-center gap-2 px-5 py-2 bg-[var(--color-primary-custom)]/5 border-b border-[var(--color-primary-custom)]/10 rounded-t-2xl">
                         <Pin size={12} className="text-primary" />
-                        <span className="text-[10px] text-primary font-bold uppercase tracking-widest">
+                        <span className="text-[10px] text-primary font-semibold uppercase tracking-widest">
                           Pinned Post
                         </span>
                       </div>
@@ -1450,7 +1451,7 @@ export function EnhancedCommunity({
                             )}
                             {post.type === 'achievement' && (
                               <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[var(--color-primary-custom)] border-2 border-[var(--t-card-bg)] rounded-full flex items-center justify-center pointer-events-none">
-                                <Check size={10} className="text-black font-bold" />
+                                <Check size={10} className="text-black font-semibold" />
                               </span>
                             )}
                           </button>
@@ -1458,7 +1459,7 @@ export function EnhancedCommunity({
                             <div className="flex items-center gap-2 flex-wrap">
                               <button
                                 onClick={() => handleNavigateProfile(post)}
-                                className="text-ui-primary font-bold text-sm hover:text-primary transition-colors cursor-pointer"
+                                className="text-ui-primary font-semibold text-sm hover:text-primary transition-colors cursor-pointer"
                               >
                                 {postDisplayName}
                               </button>
@@ -1571,7 +1572,7 @@ export function EnhancedCommunity({
                               }`}
                           >
                             <Heart size={20} fill={isLiked ? 'currentColor' : 'none'} />
-                            <span className="text-xs font-bold">{post.likeCount > 0 ? formatCount(post.likeCount) : '0'}</span>
+                            <span className="text-xs font-semibold">{post.likeCount > 0 ? formatCount(post.likeCount) : '0'}</span>
                           </button>
                           <button
                             onClick={() => handleToggleComments(post.id)}
@@ -1579,14 +1580,14 @@ export function EnhancedCommunity({
                               }`}
                           >
                             <MessageSquare size={20} />
-                            <span className="text-xs font-bold">{post.commentCount}</span>
+                            <span className="text-xs font-semibold">{post.commentCount}</span>
                           </button>
                           <button
                             onClick={() => handleShare(post.id)}
                             className="flex items-center gap-2 text-ui-muted hover:text-ui-secondary transition-all group"
                           >
                             <Share2 size={20} />
-                            <span className="text-xs font-bold">{post.shareCount}</span>
+                            <span className="text-xs font-semibold">{post.shareCount}</span>
                           </button>
                         </div>
                         <div className="flex items-center gap-4">
@@ -1655,41 +1656,47 @@ export function EnhancedCommunity({
                         {/* Add Comment Input - no avatar, cleaner layout */}
                         <div className="flex items-center gap-3 pt-2">
                           <div className="flex-1">
-                            <div className="relative">
-                            <input
-                              ref={(el) => { commentInputRefs.current[post.id] = el; }}
-                              value={commentInputs[post.id] || ''}
-                              onChange={(e) =>
-                                setCommentInputs((prev) => ({
-                                  ...prev,
-                                  [post.id]: e.target.value.slice(0, COMMENT_MAX_LENGTH),
-                                }))
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                  e.preventDefault();
-                                  handleAddComment(post.id);
+                            <div className="chat-composer-shell flex min-h-[56px] items-end gap-2 overflow-hidden rounded-[20px] px-3 py-2.5">
+                              <div className="min-w-0 flex-1">
+                                <BorderlessTextarea
+                                ref={(el) => { commentInputRefs.current[post.id] = el; }}
+                                value={commentInputs[post.id] || ''}
+                                onChange={(e) =>
+                                  setCommentInputs((prev) => ({
+                                    ...prev,
+                                    [post.id]: e.target.value.slice(0, COMMENT_MAX_LENGTH),
+                                  }))
                                 }
-                              }}
-                              className="w-full bg-ui-input border border-ui-border-subtle rounded-xl px-4 py-2.5 text-sm focus:ring-[var(--color-primary-custom)] focus:border-[var(--color-primary-custom)] focus:outline-none text-ui-primary placeholder:text-ui-muted pr-12"
-                              maxLength={COMMENT_MAX_LENGTH}
-                              placeholder={
-                                !isConnected
-                                  ? 'Connect wallet to comment...'
-                                  : currentReply
-                                    ? `Reply to ${formatUserDisplayName(currentReply.userName, currentReply.walletAddress || currentReply.userId)}...`
-                                    : 'Write a comment...'
-                              }
-                              disabled={!isConnected}
-                            />
-                            <button
-                              onClick={() => handleAddComment(post.id)}
-                              disabled={!isConnected || !commentInputs[post.id]?.trim()}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-[var(--color-primary-custom)] disabled:bg-ui-border-subtle text-black disabled:text-ui-muted rounded-lg flex items-center justify-center hover:bg-[var(--color-primary-custom)]/90 transition-all"
-                            >
-                              <Send size={16} />
-                            </button>
-                          </div>
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleAddComment(post.id);
+                                  }
+                                }}
+                                rows={1}
+                                autoResize
+                                maxAutoHeight={96}
+                                className="w-full resize-none bg-transparent px-1 py-1.5 text-sm leading-relaxed text-ui-primary placeholder:text-ui-muted overflow-y-auto"
+                                maxLength={COMMENT_MAX_LENGTH}
+                                placeholder={
+                                  !isConnected
+                                    ? 'Connect wallet to comment...'
+                                    : currentReply
+                                      ? `Reply to ${formatUserDisplayName(currentReply.userName, currentReply.walletAddress || currentReply.userId)}...`
+                                      : 'Write a comment...'
+                                }
+                                disabled={!isConnected}
+                                style={{ minHeight: '22px', maxHeight: '96px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                                />
+                              </div>
+                              <button
+                                onClick={() => handleAddComment(post.id)}
+                                disabled={!isConnected || !commentInputs[post.id]?.trim()}
+                                className="chat-send-button mb-[2px]"
+                              >
+                                <ArrowUp size={16} strokeWidth={3} />
+                              </button>
+                            </div>
                             <div className="mt-1 flex items-center justify-end">
                               <span
                                 className={`text-[10px] font-medium ${

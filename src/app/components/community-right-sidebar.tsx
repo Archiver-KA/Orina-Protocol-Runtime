@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useAccount } from 'wagmi';
 import { Users, TrendingUp as TrendingUpIcon, TrendingDown, Minus, HelpCircle, Code, ExternalLink } from 'lucide-react';
 import type { CommunityStats, TrendingTopic } from '@/types/community';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { formatCount, loadCommunityHubFromServer } from '@/utils/communityUtils';
 import { StudioSidebarShell, StudioSidebarHeader, StudioSidebarScroll, StudioSidebarFooter } from '@/app/components/ui/studio-sidebar';
 
@@ -13,7 +13,7 @@ const EMPTY_STATS: CommunityStats = {
 };
 
 export function CommunityRightSidebar() {
-  const { address } = useAccount();
+  const { address } = useEffectiveViewer();
   const [stats, setStats] = useState<CommunityStats>(EMPTY_STATS);
   const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
 
@@ -39,7 +39,7 @@ export function CommunityRightSidebar() {
     <StudioSidebarShell widthClassName="w-full" className="community-borderless-theme bg-ui-page border-l-0 p-2.5">
       <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
         <StudioSidebarHeader className="p-5 border-b border-[var(--t-border-subtle)]">
-          <h2 className="text-ui-primary font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
+          <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
             <Users className="text-primary" size={18} />
             Community Hub
           </h2>
@@ -49,24 +49,24 @@ export function CommunityRightSidebar() {
         <StudioSidebarScroll className="p-4 space-y-4">
           <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[11px] uppercase font-bold text-ui-muted">Community Stats</h3>
+              <h3 className="text-[11px] uppercase font-semibold text-ui-muted">Community Stats</h3>
               <span className={`w-2 h-2 rounded-full ${hasLiveData ? 'bg-[#2CC295] animate-pulse' : 'bg-ui-border-subtle'}`} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-[10px] text-ui-muted font-bold uppercase mb-1">Active Today</p>
-                <p className="text-lg font-bold text-ui-primary">{formatCount(stats.activeToday)}</p>
+                <p className="text-[10px] text-ui-muted font-semibold uppercase mb-1">Active Today</p>
+                <p className="text-lg font-semibold text-ui-primary">{formatCount(stats.activeToday)}</p>
               </div>
               <div>
-                <p className="text-[10px] text-ui-muted font-bold uppercase mb-1">Total Posts</p>
-                <p className="text-lg font-bold text-ui-primary">{formatCount(stats.totalPosts)}</p>
+                <p className="text-[10px] text-ui-muted font-semibold uppercase mb-1">Total Posts</p>
+                <p className="text-lg font-semibold text-ui-primary">{formatCount(stats.totalPosts)}</p>
               </div>
             </div>
           </div>
 
           <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[11px] uppercase font-bold text-ui-muted flex items-center gap-2">
+              <h2 className="text-[11px] uppercase font-semibold text-ui-muted flex items-center gap-2">
                 <TrendingUpIcon size={14} className="text-primary" />
                 Trending Topics
               </h2>
@@ -78,7 +78,7 @@ export function CommunityRightSidebar() {
                 {trendingTopics.map((topic) => (
                   <div key={topic.tag} className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-bold text-ui-primary">#{topic.tag}</p>
+                      <p className="text-sm font-semibold text-ui-primary">#{topic.tag}</p>
                       <p className="text-[10px] text-ui-muted">{formatCount(topic.postCount)} posts</p>
                     </div>
                     {topic.trend === 'up' ? (
@@ -95,7 +95,7 @@ export function CommunityRightSidebar() {
           </div>
 
           <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
-            <h2 className="text-[11px] uppercase font-bold text-ui-muted mb-4">Quick Links</h2>
+            <h2 className="text-[11px] uppercase font-semibold text-ui-muted mb-4">Quick Links</h2>
             <div className="space-y-1">
               <a
                 href="https://docs.orina.io/"

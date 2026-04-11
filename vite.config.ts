@@ -16,6 +16,48 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+
+          if (id.includes('wagmi') || id.includes('/viem/') || id.includes('@tanstack/react-query')) return 'vendor-web3'
+          if (id.includes('maplibre-gl') || id.includes('react-map-gl')) return 'vendor-maps'
+          if (id.includes('recharts')) return 'vendor-charts'
+          if (
+            id.includes('react-dom') ||
+            id.includes(`${path.sep}react${path.sep}`) ||
+            id.includes('/react/')
+          ) {
+            return 'vendor-react'
+          }
+          if (
+            id.includes('@mui/') ||
+            id.includes('@emotion/') ||
+            id.includes('@radix-ui/') ||
+            id.includes('lucide-react') ||
+            id.includes('/motion/') ||
+            id.includes('motion/react') ||
+            id.includes('sonner') ||
+            id.includes('react-day-picker') ||
+            id.includes('react-hook-form') ||
+            id.includes('cmdk') ||
+            id.includes('react-resizable-panels') ||
+            id.includes('embla-carousel-react') ||
+            id.includes('react-medium-image-zoom') ||
+            id.includes('react-responsive-masonry') ||
+            id.includes('react-slick') ||
+            id.includes('react-zoom-pan-pinch') ||
+            id.includes('next-themes') ||
+            id.includes('@popperjs/core')
+          ) {
+            return 'vendor-ui'
+          }
+        },
+      },
+    },
+  },
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],

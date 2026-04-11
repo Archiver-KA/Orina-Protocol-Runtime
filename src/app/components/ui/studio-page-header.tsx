@@ -26,7 +26,7 @@ export function StudioPageHeader({
       {...props}
     >
       <div className="min-w-0">
-        <h1 className={cn('font-bold text-ui-primary', compact ? 'text-2xl' : 'text-2xl')}>{title}</h1>
+        <h1 className={cn('font-semibold text-ui-primary tracking-[-0.02em]', compact ? 'text-2xl' : 'text-2xl')}>{title}</h1>
         {subtitle ? <p className="text-sm text-ui-muted mt-1">{subtitle}</p> : null}
       </div>
       {actions ? <div className="flex items-center gap-3 flex-shrink-0">{actions}</div> : null}

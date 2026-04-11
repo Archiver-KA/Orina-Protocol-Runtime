@@ -42,6 +42,15 @@ function normalizeOptionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+function resolveWalletAddressLike(...values: Array<unknown>): string | undefined {
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (isLikelyWalletAddress(trimmed)) return trimmed;
+  }
+  return undefined;
+}
+
 function normalizePostType(value: unknown): PostType {
   switch (value) {
     case 'discussion':
@@ -305,14 +314,15 @@ function commentMapKey(clientCommentId: string): string {
 function mapDbPostToLocal(row: DbCommunityPostRow): Post {
   const metadata = row.metadata || {};
   const clientId = metadata.clientId || row.id;
+  const walletAddress = resolveWalletAddressLike(metadata.walletAddress, metadata.userId);
   const normalized = normalizePostRecord({
     id: clientId,
     type: (metadata.type as PostType) || 'discussion',
-    userId: metadata.userId || metadata.walletAddress || row.author_user_id,
+    userId: metadata.userId || walletAddress || row.author_user_id,
     userName: metadata.userName || 'Community Member',
     userAvatar: metadata.userAvatar || undefined,
     userRole: metadata.userRole || null,
-    walletAddress: metadata.walletAddress || undefined,
+    walletAddress: walletAddress || undefined,
     content: row.content || '',
     images: Array.isArray(row.media) ? row.media : (metadata.images || undefined),
     poll: row.poll || metadata.poll || undefined,
@@ -349,13 +359,14 @@ function mapDbPostToLocal(row: DbCommunityPostRow): Post {
 
 function mapDbCommentToLocal(row: DbCommunityCommentRow, postClientId: string): Comment {
   const metadata = row.metadata || {};
+  const walletAddress = resolveWalletAddressLike(metadata.walletAddress, metadata.userId);
   const normalized = normalizeCommentRecord({
     id: metadata.clientId || row.id,
     postId: postClientId,
-    userId: metadata.userId || metadata.walletAddress || row.author_user_id,
+    userId: metadata.userId || walletAddress || row.author_user_id,
     userName: metadata.userName || 'Community Member',
     userAvatar: metadata.userAvatar || undefined,
-    walletAddress: metadata.walletAddress || undefined,
+    walletAddress: walletAddress || undefined,
     content: row.content || '',
     likeCount: Number(metadata.likeCount || 0),
     replyCount: Number(metadata.replyCount || 0),
@@ -1045,8 +1056,9 @@ export async function toggleCommunityReactionOnServer(input: {
  * Check if a post belongs to the given wallet address
  */
 export function isPostOwner(post: Post, walletAddress?: string): boolean {
-  if (!walletAddress || !post.walletAddress) return false;
-  return normalizeAddress(post.walletAddress) === normalizeAddress(walletAddress);
+  const ownerWallet = resolveWalletAddressLike(post.walletAddress, post.userId);
+  if (!walletAddress || !ownerWallet) return false;
+  return normalizeAddress(ownerWallet) === normalizeAddress(walletAddress);
 }
 
 // ─── Posts CRUD ─────────────────────────────────────────────

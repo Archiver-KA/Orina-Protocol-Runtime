@@ -16,6 +16,7 @@ export interface DisputeThreadMessage {
   sender: DisputeParticipantRole;
   senderAddress?: `0x${string}`;
   content: string;
+  imageUrls?: string[];
   timestamp: number;
   type: 'message' | 'proposal' | 'system';
   proposalId?: string;

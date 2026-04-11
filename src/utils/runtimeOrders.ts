@@ -4,8 +4,9 @@
  * protocol_runtime_orders (000005) server table.
  * See spec: 15-local-api-audit-and-server-migration-plan.md
  */
-import { ACTIVE_CHAIN_ID, CONTRACTS, PAYMENT_TOKENS, PROTOCOL } from "@/config/contracts";
+import { OrderState, PAYMENT_TOKENS, PROTOCOL } from "@/config/contracts";
 import { deriveOrderProgress } from "@/utils/orderLifecycle";
+import { hasOrderPaymentCommitted, isOrderCompleted, resolveOrderSemantics } from "@/utils/orderSemantics";
 import type { OrderShippingAddressSnapshot, OrderUiRecord } from "@/types/order";
 import { parseOnchainBigIntLike } from "@/utils/onchainNormalization";
 import {
@@ -14,8 +15,8 @@ import {
   restSelect,
 } from "@/utils/supabaseRest";
 import {
-  getProtocolNetworkOptionByKey,
-  PROTOCOL_NETWORK_STORAGE_KEY,
+  LIVE_PROTOCOL_CHAIN_ID,
+  LIVE_PROTOCOL_CONTRACTS,
 } from "@/utils/protocolNetwork";
 
 export const RUNTIME_ORDERS_CHANGED_EVENT = "orina:orders-changed";
@@ -27,8 +28,8 @@ const DEFAULT_ASSET_IMAGE =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" rx="24" fill="#18181b"/><path d="M36 104l24-28 18 22 20-26 26 32H36z" fill="#2CC295" opacity="0.85"/><circle cx="60" cy="56" r="12" fill="#3f3f46"/></svg>',
   );
 const PAYMENT_TOKEN_DECIMALS_BY_SYMBOL: Record<string, number> = {
-  USDT: 6,
-  USDC: 6,
+  USDT: 18,
+  USDC: 18,
   WBNB: 18,
   ORI: 18,
 };
@@ -211,6 +212,37 @@ function parseNumberLike(value: unknown, fallback = 0): number {
   return fallback;
 }
 
+function parseProjectedOrderState(
+  chainState: unknown,
+  fallbackStatus: string | null | undefined,
+) {
+  if (typeof chainState === "number" && Number.isFinite(chainState)) {
+    return chainState;
+  }
+
+  if (typeof chainState === "string") {
+    const normalizedState = chainState.trim().toLowerCase();
+    if (normalizedState === "finalized") return 3;
+    if (normalizedState === "cancelled") return 4;
+    if (normalizedState === "disputed") return 2;
+    if (normalizedState === "paid" || normalizedState === "pending_delivery" || normalizedState === "pending_settlement") {
+      return 1;
+    }
+    if (normalizedState === "pending_buyer_accept" || normalizedState === "pending_seller_confirm" || normalizedState === "pending_confirm") {
+      return 0;
+    }
+  }
+
+  const normalizedStatus = String(fallbackStatus || "").trim().toLowerCase();
+  if (normalizedStatus === "finalized") return 3;
+  if (normalizedStatus === "cancelled") return 4;
+  if (normalizedStatus === "disputed") return 2;
+  if (normalizedStatus === "paid" || normalizedStatus === "pending_delivery" || normalizedStatus === "pending_settlement") {
+    return 1;
+  }
+  return 0;
+}
+
 function parseTimestampMs(value?: string | number | null, fallback = 0) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
@@ -227,36 +259,16 @@ function looksLikeAddress(value?: string | null) {
 }
 
 function readStoredRuntimeOrderScope(): RuntimeOrderScope {
-  if (typeof window === "undefined") {
-    return {
-      chainId: ACTIVE_CHAIN_ID,
-      marketplaceContract: CONTRACTS.MARKETPLACE_ATP,
-      assetContract: CONTRACTS.ORINA_RWA,
-    };
-  }
-
-  try {
-    const selectedNetworkKey = window.localStorage.getItem(PROTOCOL_NETWORK_STORAGE_KEY);
-    const selectedNetwork = getProtocolNetworkOptionByKey(selectedNetworkKey);
-    return {
-      chainId: selectedNetwork?.chainId ?? ACTIVE_CHAIN_ID,
-      marketplaceContract:
-        selectedNetwork?.contracts?.MARKETPLACE_ATP ?? null,
-      assetContract:
-        selectedNetwork?.contracts?.ORINA_RWA ?? null,
-    };
-  } catch {
-    return {
-      chainId: ACTIVE_CHAIN_ID,
-      marketplaceContract: CONTRACTS.MARKETPLACE_ATP,
-      assetContract: CONTRACTS.ORINA_RWA,
-    };
-  }
+  return {
+    chainId: LIVE_PROTOCOL_CHAIN_ID,
+    marketplaceContract: LIVE_PROTOCOL_CONTRACTS.MARKETPLACE_ATP,
+    assetContract: LIVE_PROTOCOL_CONTRACTS.ORINA_RWA,
+  };
 }
 
 function resolveRuntimeOrderScope(scope?: RuntimeOrderScope) {
   const stored = readStoredRuntimeOrderScope();
-  const chainId = scope?.chainId ?? stored.chainId ?? ACTIVE_CHAIN_ID;
+  const chainId = scope?.chainId ?? stored.chainId ?? LIVE_PROTOCOL_CHAIN_ID;
   const marketplaceContract = String(
     scope?.marketplaceContract
     ?? stored.marketplaceContract
@@ -370,7 +382,21 @@ function extractRuntimeOrderMetadata(row: ProtocolOrderRow) {
   return metadata;
 }
 
-function toProtocolOrderRow(order: OrderUiRecord, scope?: RuntimeOrderScope): ProtocolOrderRow {
+function getProtocolOrderProjectionStatus(order: OrderUiRecord, nowSec = Math.floor(Date.now() / 1000)) {
+  const semantics = resolveOrderSemantics(order);
+  if (semantics.isCancelled) return "cancelled";
+  if (semantics.isDisputed) return "disputed";
+  if (semantics.isCompleted) return "finalized";
+  if (order.state === OrderState.PAID || order.paidAt > 0n) {
+    return order.autoReleaseAt > BigInt(nowSec) ? "pending_delivery" : "paid";
+  }
+  if (order.sellerConfirmed) {
+    return order.payDeadline > 0n ? "pending_buyer_accept" : "pending_delivery";
+  }
+  return "pending_seller_confirm";
+}
+
+export function toProtocolOrderRow(order: OrderUiRecord, scope?: RuntimeOrderScope): ProtocolOrderRow {
   const resolvedScope = resolveRuntimeOrderScope(scope);
   const amount = Number(order.amount || 0n);
   const grossPrice = Number(order.grossPrice || 0n);
@@ -388,22 +414,25 @@ function toProtocolOrderRow(order: OrderUiRecord, scope?: RuntimeOrderScope): Pr
     asset_token_id: order.assetId.toString(),
     buyer_address: order.buyer.toLowerCase(),
     seller_address: order.seller.toLowerCase(),
-    status: "pending_settlement",
+    status: getProtocolOrderProjectionStatus(order),
     amount: String(amount),
     price_per_unit: String(pricePerUnit),
     total_value: String(grossPrice),
-    currency_symbol: order.paymentToken,
+    currency_symbol: paymentTokenSnapshot.symbol,
     metadata: {
       runtimeOrderVersion: 2,
-      projection_state: "pending_settlement",
+      projection_state: getProtocolOrderProjectionStatus(order),
       status_source: "runtime_shadow",
       canonical_status_source: "chain_projection",
       paymentTokenSymbol: paymentTokenSnapshot.symbol,
       paymentTokenDecimals: paymentTokenSnapshot.decimals,
+      paymentToken: order.paymentToken,
       assetUid: order.assetUid ?? null,
       onchainAssetId: order.assetId.toString(),
       tokenId: order.tokenId ?? order.assetId.toString(),
       assetContract: order.assetContract ?? resolvedScope.assetContract,
+      assetName: order.assetName,
+      assetImage: order.assetImage,
       unitId: order.unitId?.toString(),
       unitName: order.unitName ?? null,
       unitLabel: order.unitLabel ?? order.unitName ?? null,
@@ -413,6 +442,43 @@ function toProtocolOrderRow(order: OrderUiRecord, scope?: RuntimeOrderScope): Pr
         chainId: resolvedScope.chainId,
         marketplaceContract: resolvedScope.marketplaceContract,
         assetContract: resolvedScope.assetContract,
+      },
+      chainSnapshot: {
+        buyer: order.buyer.toLowerCase(),
+        seller: order.seller.toLowerCase(),
+        paymentToken: order.paymentToken.toLowerCase(),
+        paymentTokenSymbol: paymentTokenSnapshot.symbol,
+        paymentTokenDecimals: paymentTokenSnapshot.decimals,
+        assetId: order.assetId.toString(),
+        assetUid: order.assetUid ?? null,
+        tokenId: order.tokenId ?? order.assetId.toString(),
+        assetContract: (order.assetContract ?? resolvedScope.assetContract ?? "").toLowerCase(),
+        assetName: order.assetName,
+        amount: order.amount.toString(),
+        grossPrice: order.grossPrice.toString(),
+        proposedAt: order.proposedAt.toString(),
+        paidAt: order.paidAt.toString(),
+        autoReleaseAt: order.autoReleaseAt.toString(),
+        estDeliverySeconds: order.estDeliverySeconds.toString(),
+        payDeadline: order.payDeadline.toString(),
+        state: order.state,
+        settlementType: order.settlementType,
+        sellerConfirmed: order.sellerConfirmed,
+        finalized: order.finalized,
+        sellerConfirmedAt: order.sellerConfirmedAt.toString(),
+        buyerSig1Present: order.signatures.buyer1,
+        sellerSigPresent: order.signatures.seller,
+        buyerSig2Present: order.signatures.buyer2,
+        disputedActive: Boolean(order.disputed),
+        disputeDeadline: order.disputeDeadline?.toString() ?? "0",
+        disputeOpenedAt: order.disputeOpenedAt?.toString() ?? "0",
+        disputeExtended: Boolean(order.disputeExtended),
+        disputeVerdict: order.disputeVerdict ?? 0,
+        platformFeeBpsSnapshot: order.platformFeeBpsSnapshot.toString(),
+        daoFeeBpsSnapshot: order.daoFeeBpsSnapshot.toString(),
+        burnFeeBpsSnapshot: order.burnFeeBpsSnapshot.toString(),
+        disputeBuyerShareBps: order.disputeBuyerShareBps?.toString() ?? "0",
+        disputeSellerShareBps: order.disputeSellerShareBps?.toString() ?? "0",
       },
       runtimeOrder: toPersistedOrder(order),
       selectedAttributes: order.selectedAttributes ?? [],
@@ -424,9 +490,6 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow, scope?: RuntimeOrder
   const resolvedScope = resolveRuntimeOrderScope(scope);
   const metadata = extractRuntimeOrderMetadata(row);
   const persisted = metadata.runtimeOrder;
-  if (persisted) {
-    return fromPersistedOrder(persisted);
-  }
 
   if (!row.order_uid || !row.buyer_address || !row.seller_address || !row.asset_token_id) {
     return null;
@@ -493,17 +556,7 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow, scope?: RuntimeOrder
   const finalized = Boolean(chainSnapshot?.finalized);
   const disputed =
     Boolean(chainSnapshot?.disputedActive) || String(row.status || "").trim().toLowerCase() === "disputed";
-  const state = (() => {
-    if (typeof chainSnapshot?.state === "number" && Number.isFinite(chainSnapshot.state)) {
-      return chainSnapshot.state;
-    }
-    const normalized = String(row.status || "").trim().toLowerCase();
-    if (normalized === "finalized") return 3;
-    if (normalized === "cancelled") return 4;
-    if (normalized === "disputed") return 2;
-    if (normalized === "paid" || normalized === "pending_delivery") return 1;
-    return 0;
-  })();
+  const state = parseProjectedOrderState(chainSnapshot?.state, row.status);
   const sellerConfirmedAt = parseBigIntLike(
     typeof chainSnapshot?.sellerConfirmedAt === "string" || typeof chainSnapshot?.sellerConfirmedAt === "number"
       ? (chainSnapshot.sellerConfirmedAt as string | number)
@@ -537,20 +590,24 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow, scope?: RuntimeOrder
     coalesceString(
       typeof chainSnapshot?.assetName === "string" ? chainSnapshot.assetName : undefined,
       metadata.assetName,
+      persisted?.assetName,
     ) ?? `Asset #${assetId.toString()}`;
   const assetUid = coalesceString(
     typeof chainSnapshot?.assetUid === "string" ? chainSnapshot.assetUid : undefined,
     metadata.assetUid,
+    persisted?.assetUid,
   );
   const tokenId = coalesceString(
     typeof chainSnapshot?.tokenId === "string" ? chainSnapshot.tokenId : undefined,
     metadata.tokenId,
+    persisted?.tokenId,
     row.asset_token_id,
   );
   const assetContract = parseAddressLike(
     coalesceString(
       typeof chainSnapshot?.assetContract === "string" ? chainSnapshot.assetContract : undefined,
       metadata.assetContract,
+      persisted?.assetContract,
       row.asset_contract,
       resolvedScope.assetContractAddress ?? undefined,
     ),
@@ -558,25 +615,28 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow, scope?: RuntimeOrder
   const unitIdSource =
     chainSnapshot?.unitId !== undefined
       ? (chainSnapshot.unitId as string | number)
-      : metadata.unitId;
+      : metadata.unitId ?? persisted?.unitId;
   const unitName =
     coalesceString(
       typeof chainSnapshot?.unitName === "string" ? chainSnapshot.unitName : undefined,
       metadata.unitName,
+      persisted?.unitName,
     );
   const unitLabel =
     coalesceString(
       typeof chainSnapshot?.unitLabel === "string" ? chainSnapshot.unitLabel : undefined,
       metadata.unitLabel,
+      persisted?.unitLabel,
       unitName,
     );
   const buyerSig1Present =
     chainSnapshot?.buyerSig1Present === undefined ? true : Boolean(chainSnapshot.buyerSig1Present);
   const sellerSigPresent =
     chainSnapshot?.sellerSigPresent === undefined ? sellerConfirmed : Boolean(chainSnapshot.sellerSigPresent);
+  const paymentCommitted = hasOrderPaymentCommitted({ state, finalized, paidAt });
   const buyerSig2Present =
     chainSnapshot?.buyerSig2Present === undefined
-      ? Boolean(finalized || state >= 1 || paidAt > 0n)
+      ? Boolean(isOrderCompleted({ state, finalized }) || paymentCommitted || (sellerConfirmed && payDeadline === 0n))
       : Boolean(chainSnapshot.buyerSig2Present);
 
   return {
@@ -595,7 +655,7 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow, scope?: RuntimeOrder
       resolvedScope.chainId === 56 || resolvedScope.chainId === 97
         ? "bnb"
         : `chain-${resolvedScope.chainId}`,
-    assetImage: metadata.assetImage || DEFAULT_ASSET_IMAGE,
+    assetImage: metadata.assetImage || persisted?.assetImage || DEFAULT_ASSET_IMAGE,
     amount: amount > 0n ? amount : 1n,
     grossPrice,
     payDeadline,
@@ -607,8 +667,8 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow, scope?: RuntimeOrder
     disputed,
     disputeExtended: Boolean(chainSnapshot?.disputeExtended),
     sellerConfirmed,
-    paymentSent: paidAt > 0n || state >= 1,
-    deliveryConfirmed: finalized || state === 3,
+    paymentSent: paymentCommitted,
+    deliveryConfirmed: isOrderCompleted({ state, finalized }),
     createdAt,
     updatedAt,
     proposedAt,
@@ -622,8 +682,8 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow, scope?: RuntimeOrder
     platformFeeBpsSnapshot,
     daoFeeBpsSnapshot,
     burnFeeBpsSnapshot,
-    shippingAddressSnapshot: metadata.shippingAddressSnapshot ?? null,
-    shippingMethodLabel: metadata.shippingMethodLabel,
+    shippingAddressSnapshot: metadata.shippingAddressSnapshot ?? persisted?.shippingAddressSnapshot ?? null,
+    shippingMethodLabel: metadata.shippingMethodLabel ?? persisted?.shippingMethodLabel,
     disputeBuyerShareBps: parseBigIntLike(
       typeof chainSnapshot?.disputeBuyerShareBps === "string" || typeof chainSnapshot?.disputeBuyerShareBps === "number"
         ? (chainSnapshot.disputeBuyerShareBps as string | number)
@@ -634,7 +694,7 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow, scope?: RuntimeOrder
         ? (chainSnapshot.disputeSellerShareBps as string | number)
         : null,
     ) || undefined,
-    selectedAttributes,
+    selectedAttributes: selectedAttributes.length > 0 ? selectedAttributes : (persisted?.selectedAttributes ?? []),
     settlementType: parseNumberLike(chainSnapshot?.settlementType, 0),
     progress: deriveOrderProgress(state, finalized, sellerConfirmed, payDeadline, autoReleaseAt, proposedAt),
     signatures: {
@@ -704,6 +764,15 @@ export function loadRuntimeOrders(walletAddress?: string | null, scope?: Runtime
 
 export function saveRuntimeOrders(orders: OrderUiRecord[], scope?: RuntimeOrderScope) {
   writeLocalRuntimeOrders(orders, scope);
+}
+
+export function removeRuntimeOrders(orderIds: bigint[], scope?: RuntimeOrderScope) {
+  if (orderIds.length === 0) return;
+  const removeSet = new Set(orderIds.map((orderId) => orderId.toString()));
+  const next = readLocalRuntimeOrders(scope).filter(
+    (order) => !removeSet.has(order.orderId.toString()),
+  );
+  writeLocalRuntimeOrders(next, scope);
 }
 
 export function upsertRuntimeOrder(order: OrderUiRecord, scope?: RuntimeOrderScope) {
@@ -808,7 +877,7 @@ export function createRuntimeOrderFromRwaIntent(params: {
     assetContract:
       params.asset.assetContract
       ?? resolvedScope.assetContractAddress
-      ?? CONTRACTS.ORINA_RWA,
+      ?? LIVE_PROTOCOL_CONTRACTS.ORINA_RWA,
     assetName: params.asset.name ?? `Asset #${assetIdValue.toString()}`,
     unitId: unitIdValue,
     unitName: params.asset.unitName,

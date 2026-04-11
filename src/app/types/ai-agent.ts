@@ -25,6 +25,16 @@ export interface AIConversationMessage {
     confidence?: number;
     apiCallMade?: boolean;
     assetIds?: string[];
+    version?: string;
+    disputeSuggestion?: AIDisputeSuggestion;
+    dispute?: AIDisputeSuggestion;
+    products?: AIProductResult[];
+    orders?: AIOrderSummary[];
+    marketAnalysis?: MarketAnalysis;
+    draft?: any;
+    preview?: string;
+    hasMore?: boolean;
+    totalLength?: number;
   };
 }
 
@@ -151,10 +161,11 @@ export interface SellerMintingConfig {
 
 export interface AIStructuredResponse {
   text: string;
-  action?: 'show_products' | 'show_orders' | 'mint_draft_ready' | 'market_analysis' | 'clarification' | 'general' | 'error_fallback';
+  action?: 'show_products' | 'show_orders' | 'mint_draft_ready' | 'market_analysis' | 'clarification' | 'general' | 'error_fallback' | 'dispute_suggest';
   products?: AIProductResult[];
   orders?: AIOrderSummary[];
   dispute?: AIDisputeSuggestion;
+  disputeSuggestion?: AIDisputeSuggestion;
   draft?: any;
   marketAnalysis?: MarketAnalysis;
   clarificationQuestion?: string;

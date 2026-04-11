@@ -21,16 +21,67 @@ import {
 import { ActivityItem } from '@/types/profile';
 import { normalizeAddress } from '@/utils/storageScope';
 
-// REMOVED: localStorage keys — data now lives in profile_reputation_summary (000047)
-// const REPUTATION_KEY = 'studio_reputation';
-// const RATINGS_KEY = 'studio_ratings';
-// const DISPUTES_KEY = 'studio_disputes';
+const REPUTATION_KEY = 'orina:reputation-score-cache-v1';
+const RATINGS_KEY = 'orina:reputation-ratings-cache-v1';
 
 function normalizeStorageUserId(userId: string): string {
   if (/^0x[a-fA-F0-9]{40}$/.test(userId)) {
     return normalizeAddress(userId);
   }
   return userId;
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function readStorageMap<T>(storageKey: string): Record<string, T> {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return {};
+
+    const parsed = JSON.parse(raw);
+    return isObjectRecord(parsed) ? (parsed as Record<string, T>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeStorageMap<T>(storageKey: string, nextMap: Record<string, T>): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    if (Object.keys(nextMap).length === 0) {
+      window.localStorage.removeItem(storageKey);
+      return;
+    }
+
+    window.localStorage.setItem(storageKey, JSON.stringify(nextMap));
+  } catch {
+    // Ignore storage failures and keep the in-memory caller state.
+  }
+}
+
+function cloneRatings(ratings: Rating[]): Rating[] {
+  return ratings.map((rating) => ({
+    ...rating,
+    pros: Array.isArray(rating.pros) ? [...rating.pros] : undefined,
+    cons: Array.isArray(rating.cons) ? [...rating.cons] : undefined,
+  }));
+}
+
+function cloneScore(score: ReputationScore): ReputationScore {
+  return {
+    ...score,
+    metrics: { ...score.metrics },
+    trustIndicators: { ...score.trustIndicators },
+    scoreHistory: Array.isArray(score.scoreHistory)
+      ? score.scoreHistory.map((item) => ({ ...item }))
+      : [],
+    recentRatings: Array.isArray(score.recentRatings) ? cloneRatings(score.recentRatings) : [],
+  };
 }
 
 /**
@@ -279,45 +330,60 @@ function calculateVerificationScore(isVerified: boolean, accountAge: number): nu
 }
 
 /**
- * Load reputation score
+ * Load reputation score from the local snapshot cache.
  */
-/**
- * @deprecated Use server-side profile_reputation_summary view.
- */
-export function loadReputationScore(_userId: string): ReputationScore | null {
-  console.warn('[reputationUtils] loadReputationScore() is deprecated — use server API');
-  return null;
+export function loadReputationScore(userId: string): ReputationScore | null {
+  const normalizedUserId = normalizeStorageUserId(userId);
+  if (!normalizedUserId) return null;
+
+  const stored = readStorageMap<ReputationScore>(REPUTATION_KEY)[normalizedUserId];
+  if (!stored || !isObjectRecord(stored)) return null;
+
+  return cloneScore(stored as ReputationScore);
 }
 
 /**
- * Save reputation score
+ * Save reputation score to the local snapshot cache.
  */
-/**
- * @deprecated Use server-side profile_reputation_summary view.
- */
-export function saveReputationScore(_score: ReputationScore): void {
-  console.warn('[reputationUtils] saveReputationScore() is deprecated — use server API');
+export function saveReputationScore(score: ReputationScore): void {
+  const normalizedUserId = normalizeStorageUserId(score.userId);
+  if (!normalizedUserId) return;
+
+  const nextMap = readStorageMap<ReputationScore>(REPUTATION_KEY);
+  nextMap[normalizedUserId] = cloneScore({
+    ...score,
+    userId: normalizedUserId,
+  });
+  writeStorageMap(REPUTATION_KEY, nextMap);
 }
 
 /**
- * Load ratings
+ * Load ratings from the local snapshot cache.
  */
-/**
- * @deprecated Use server-side profile_reviews table.
- */
-export function loadRatings(_userId: string): Rating[] {
-  console.warn('[reputationUtils] loadRatings() is deprecated — use server API');
-  return [];
+export function loadRatings(userId: string): Rating[] {
+  const normalizedUserId = normalizeStorageUserId(userId);
+  if (!normalizedUserId) return [];
+
+  const stored = readStorageMap<Rating[]>(RATINGS_KEY)[normalizedUserId];
+  if (!Array.isArray(stored)) return [];
+
+  return cloneRatings(stored)
+    .filter((rating) => isObjectRecord(rating))
+    .sort((left, right) => right.timestamp - left.timestamp);
 }
 
 /**
- * Save ratings
+ * Save ratings to the local snapshot cache.
  */
-/**
- * @deprecated Use server-side profile_reviews table.
- */
-export function saveRatings(_userId: string, _ratings: Rating[]): void {
-  console.warn('[reputationUtils] saveRatings() is deprecated — use server API');
+export function saveRatings(userId: string, ratings: Rating[]): void {
+  const normalizedUserId = normalizeStorageUserId(userId);
+  if (!normalizedUserId) return;
+
+  const nextMap = readStorageMap<Rating[]>(RATINGS_KEY);
+  nextMap[normalizedUserId] = cloneRatings(ratings)
+    .filter((rating) => isObjectRecord(rating))
+    .sort((left, right) => right.timestamp - left.timestamp);
+  writeStorageMap(RATINGS_KEY, nextMap);
 }
 
 /**

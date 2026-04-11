@@ -18,7 +18,7 @@ import {
   getGeoLabelAtIndex,
   getPreferredDeliveryAddress,
   loadGeoCountries,
-  loadGeoPlaces,
+  loadGeoPlacesForLevel,
   loadUserDeliveryAddresses,
   resolveCountryByCode,
   saveUserDeliveryAddress,
@@ -198,7 +198,7 @@ export const DeliveryAddressBlock = forwardRef<DeliveryAddressBlockHandle, Deliv
           if (index > 0 && !parentId) break;
 
           try {
-            nextOptions[index] = await loadGeoPlaces(selectedCountry.code, parentId);
+            nextOptions[index] = await loadGeoPlacesForLevel(selectedCountry, index, parentId);
           } catch (error) {
             nextOptions[index] = [];
             nextErrors[index] = toUserMessage(error, 'Failed to load regions for this level.');
@@ -248,7 +248,7 @@ export const DeliveryAddressBlock = forwardRef<DeliveryAddressBlockHandle, Deliv
       clearGeoAddressCaches();
       try {
         const parentId = index === 0 ? null : draft.geoPath[index - 1]?.placeId || null;
-        const next = await loadGeoPlaces(selectedCountry.code, parentId);
+        const next = await loadGeoPlacesForLevel(selectedCountry, index, parentId);
         setLevelOptions((prev) => ({ ...prev, [index]: next }));
         setLevelErrors((prev) => {
           const updated = { ...prev };
@@ -388,7 +388,7 @@ export const DeliveryAddressBlock = forwardRef<DeliveryAddressBlockHandle, Deliv
       <div className="bg-[var(--t-surface-2)] rounded-xl p-6">
         <div className="flex items-center gap-3 mb-2">
           <Home className="text-[#2CC295]" size={20} />
-          <h3 className="text-[10px] font-bold text-ui-muted uppercase tracking-widest">Delivery Address</h3>
+          <h3 className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest">Delivery Address</h3>
         </div>
         <p className="text-xs text-ui-muted mb-6">
           Choose your country first. Region fields update automatically based on the selected destination.
@@ -471,7 +471,6 @@ export const DeliveryAddressBlock = forwardRef<DeliveryAddressBlockHandle, Deliv
                   {selectedCountry
                     ? geoLevels.map((level, index) => {
                         const options = (levelOptions[index] || [])
-                          .filter((place) => place.placeKind === level.kind)
                           .map((place) => ({
                             id: place.id,
                             label: place.name,
@@ -595,7 +594,7 @@ export const DeliveryAddressBlock = forwardRef<DeliveryAddressBlockHandle, Deliv
             </label>
 
             <div className="rounded-2xl bg-[var(--t-surface-5)] px-4 py-4">
-              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-ui-muted mb-2">
+              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-ui-muted mb-2">
                 <MapPin size={14} className="text-[#2CC295]" />
                 Normalized Preview
               </div>

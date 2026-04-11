@@ -1,6 +1,10 @@
 import { SearchFilters, SearchResult, SearchHistoryItem, SortOption } from '@/types/search';
 import { MarketplaceAsset } from '@/app/types/asset';
 import {
+  getMarketplaceAssetNetworkFilterOption,
+  matchesMarketplaceAssetFilter,
+} from '@/utils/marketplaceNetwork';
+import {
   getCategoryDisplayLabel,
   getTaxonomySearchText,
   normalizeCategoryFilterValue,
@@ -92,16 +96,26 @@ function parseMarketplacePrice(price: string): number {
  * Filter marketplace assets based on search filters
  */
 export function filterMarketplaceResults(results: MarketplaceAsset[], filters: SearchFilters): MarketplaceAsset[] {
+  return filterMarketplaceResultsWithOptions(results, filters);
+}
+
+export function filterMarketplaceResultsWithOptions(
+  results: MarketplaceAsset[],
+  filters: SearchFilters,
+  options: { includeQuery?: boolean } = {},
+): MarketplaceAsset[] {
   let filtered = [...results];
   const normalizedCategoryFilters = normalizeCategoryFilterValues(filters.categories);
+  const includeQuery = options.includeQuery ?? true;
 
-  if (filters.query.trim()) {
+  if (includeQuery && filters.query.trim()) {
     const query = normalizeTaxonomySearchKey(filters.query);
     filtered = filtered.filter((item) =>
       normalizeTaxonomySearchKey(item.name).includes(query) ||
       normalizeTaxonomySearchKey(item.description || '').includes(query) ||
       normalizeTaxonomySearchKey(getTaxonomySearchText(item.category)).includes(query) ||
       item.tags?.some((tag) => normalizeTaxonomySearchKey(tag).includes(query)) ||
+      normalizeTaxonomySearchKey(getMarketplaceAssetNetworkFilterOption(item).label).includes(query) ||
       normalizeTaxonomySearchKey(item.seller.ensName || '').includes(query) ||
       normalizeTaxonomySearchKey(item.seller.address).includes(query)
     );
@@ -122,7 +136,9 @@ export function filterMarketplaceResults(results: MarketplaceAsset[], filters: S
   }
 
   if (filters.blockchains.length > 0) {
-    filtered = filtered.filter((item) => filters.blockchains.includes(item.blockchain));
+    filtered = filtered.filter((item) =>
+      filters.blockchains.some((filterValue) => matchesMarketplaceAssetFilter(item, filterValue))
+    );
   }
 
   if (filters.verifiedOnly) {

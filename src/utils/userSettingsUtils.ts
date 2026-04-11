@@ -471,7 +471,7 @@ export async function hydrateUserAppSettingsFromSupabase(address?: string | null
       restSelect<DbLegacyUserPreferencesRow>(
         'user_preferences',
         toQuery({
-          select: 'user_id,notification_settings,ui_preferences,privacy_settings,created_at,updated_at',
+          select: 'user_id,notification_settings,ui_preferences,privacy_settings,updated_at',
           user_id: encodeEq(userId),
           limit: '1',
         })

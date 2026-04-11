@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useAccount } from 'wagmi';
 import { Heart, UserPlus, DollarSign, TrendingUp } from 'lucide-react';
 import { FavoriteSortOption } from '@/types/favorites';
 import { SearchResultCard } from '@/app/components/search-result-card';
@@ -12,6 +11,7 @@ import {
   loadFavorites,
   toggleFavorite,
 } from '@/utils/favoritesUtils';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import {
   COLLECTIONS_SYNC_EVENT,
   loadFavoriteCollectionSummaries,
@@ -57,7 +57,7 @@ export function FavoritesFollowingPage({
   onNavigateToAsset,
   onNavigateToUserProfile,
 }: FavoritesFollowingPageProps) {
-  const { address } = useAccount();
+  const { address } = useEffectiveViewer();
   const storageUserId = address || currentUserId;
 
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
@@ -197,10 +197,10 @@ export function FavoritesFollowingPage({
   };
 
   return (
-    <div className="h-full bg-ui-page overflow-hidden">
-      <div className="h-full p-2.5 overflow-hidden">
-        <section className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto custom-scrollbar relative z-10">
-          <div className="p-6 space-y-8">
+    <div className="favorites-page-theme h-full bg-ui-page overflow-hidden">
+      <div className="h-full overflow-hidden p-2.5">
+        <div className="relative z-10 h-full overflow-y-auto custom-scrollbar px-6 py-6">
+          <div className="space-y-8">
           <StudioPageHeader
             title="Favorites & Following"
             subtitle="Manage your saved assets and followed profiles."
@@ -256,7 +256,7 @@ export function FavoritesFollowingPage({
             {activeTab === 'favorites' ? (
             <div>
               <div className="flex items-center justify-between gap-4 mb-6">
-                <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Favorites Management</h3>
+                <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-widest">Favorites Management</h3>
                 <StudioPillGroup compact>
                   <StudioPillButton active={favoritesViewMode === 'assets'} onClick={() => setFavoritesViewMode('assets')}>
                     Assets
@@ -317,7 +317,7 @@ export function FavoritesFollowingPage({
             <div>
               <div className="flex items-center justify-between gap-4 mb-6">
                 <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">
+                  <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-widest">
                     {followingViewMode === 'profiles' ? 'Following Profiles' : 'Following Collections'}
                   </h3>
                   <div className="mt-2 flex items-center gap-2 text-xs text-zinc-500">
@@ -385,7 +385,7 @@ export function FavoritesFollowingPage({
             </div>
             )}
           </div>
-        </section>
+        </div>
       </div>
 
       <CollectionDetailsModal

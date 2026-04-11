@@ -15,9 +15,9 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { formatUnits } from 'viem';
-import { useAccount } from 'wagmi';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 import { StudioStatusBadge } from '@/app/components/ui/studio-status-badge';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { useUserOrders } from '@/hooks/useUserOrders';
 import { OrderState } from '@/config/contracts';
 import type { OrderUiRecord } from '@/types/order';
@@ -151,7 +151,7 @@ export function SellerAssetManagementModal({
   onClose,
   asset,
 }: SellerAssetManagementModalProps) {
-  const { address } = useAccount();
+  const { address } = useEffectiveViewer();
   const { orders, isLoading } = useUserOrders(address);
   const [activeTab, setActiveTab] = useState<SellerTab>('overview');
 

@@ -1,9 +1,7 @@
 import { useState, useEffect, useMemo, useRef, type ChangeEvent } from 'react';
-import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
 import {
-  Grid3x3,
-  Activity as ActivityIcon,
+  ArrowLeft,
   Pencil,
   Twitter,
   MessageCircle,
@@ -29,6 +27,7 @@ import {
   saveNotificationsLocalOnly,
   buildNotificationSourceId,
 } from '@/utils/notifications';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { useUser } from '@/contexts/UserContext';
 import {
   loadUserProfile,
@@ -50,8 +49,10 @@ import { CollectionEditorModal } from '@/app/components/collections/collection-e
 import { CollectionDetailsModal } from '@/app/components/collections/collection-details-modal';
 import { CollectionsGridPanel } from '@/app/components/collections/collections-grid-panel';
 import { ProfileFollowButton } from '@/app/components/profile/profile-follow-button';
+import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
+import { StudioStatusBadge } from '@/app/components/ui/studio-status-badge';
 import { VerifiedUserIcon } from '@/app/components/verified-user-icon';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
@@ -100,6 +101,14 @@ import {
 } from '@/utils/profileOverview';
 import { loadRatings, formatTimeAgo } from '@/utils/reputationUtils';
 import { REPUTATION_SYNC_EVENT, hydrateReputationFromSupabase } from '@/utils/profileReputationSync';
+import {
+  getCategoryDisplayLabel,
+  getTaxonomyCategoryOptions,
+  hydrateTaxonomyFromSupabase,
+  normalizeCategoryFilterValue,
+  TAXONOMY_SYNC_EVENT,
+} from '@/utils/taxonomy';
+import { navigateToMarketplaceCategory } from '@/utils/appNavigation';
 
 const STORY_CHARACTER_LIMIT = 5000;
 const STORY_IMAGE_LIMIT = 5;
@@ -107,6 +116,9 @@ const DEFAULT_STORY_SETTINGS: StorySettings = {
   category: '',
   tags: '',
 };
+type TaxonomyCategoryOption = ReturnType<typeof getTaxonomyCategoryOptions>[number];
+type TopProductListItem = ReturnType<typeof buildProfileTopProducts>[number];
+type TrustBadge = WalletIdentity['reputation']['trustBadges'][number];
 
 function countStoryCharacters(blocks: StoryBlock[]): number {
   return blocks.reduce((total, block) => total + (block.type === 'image' ? 0 : block.content.length), 0);
@@ -161,6 +173,42 @@ function getProfileReviewInitials(rating: Rating): string {
   return displayName.slice(0, 2).toUpperCase() || 'RV';
 }
 
+function getTrustBadgeVariant(badge: TrustBadge): 'success' | 'warning' | 'info' | 'accent' | 'muted' {
+  switch (badge.type) {
+    case 'verified':
+    case 'trusted':
+      return 'success';
+    case 'top_seller':
+    case 'fast_responder':
+      return 'warning';
+    case 'reliable':
+      return 'info';
+    case 'premium':
+      return 'accent';
+    default:
+      return 'muted';
+  }
+}
+
+function getTrustBadgeIcon(badge: TrustBadge) {
+  switch (badge.type) {
+    case 'verified':
+      return Shield;
+    case 'top_seller':
+      return Star;
+    case 'fast_responder':
+      return TrendingUpIcon;
+    case 'reliable':
+      return Shield;
+    case 'premium':
+      return Gem;
+    case 'trusted':
+      return Shield;
+    default:
+      return Shield;
+  }
+}
+
 function getProfileReviewRoleLabel(ratingType: Rating['ratingType']): string {
   return ratingType === 'seller' ? 'Seller review' : 'Buyer review';
 }
@@ -172,19 +220,25 @@ function formatProfileReviewTimestamp(timestamp?: number): string {
 
 interface EnhancedProfileProps {
   address?: string;
+  initialTab?: ProfileTab;
   onNavigateToAsset?: (assetId: string, fromPage?: string) => void;
+  onNavigateToCollection?: (collectionId: string, fromPage?: string) => void;
   onNavigateToMessages?: (walletAddress: string) => void;
+  onBack?: () => void;
 }
 
 export function EnhancedProfile({
   address,
+  initialTab,
   onNavigateToAsset,
+  onNavigateToCollection,
   onNavigateToMessages,
+  onBack,
 }: EnhancedProfileProps) {
   const { requireWalletActionAsync } = useRequireWalletAction();
   const { assetAddress, chainId } = useProtocolDataNetwork();
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
+  const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab ?? 'overview');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [ownedCollections, setOwnedCollections] = useState<CollectionSummary[]>([]);
   const [walletIdentity, setWalletIdentity] = useState<WalletIdentity | null>(null);
@@ -203,8 +257,9 @@ export function EnhancedProfile({
   const [profileRatings, setProfileRatings] = useState<Rating[]>([]);
   const [isReviewsLoading, setIsReviewsLoading] = useState(false);
   const { updateAvatar, updateBanner, updateUserData, userData } = useUser();
-  const { address: connectedAddress } = useAccount();
+  const { address: connectedAddress } = useEffectiveViewer();
   const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
+  const [taxonomyVersion, setTaxonomyVersion] = useState(0);
   const [runtimeMintedRecords, setRuntimeMintedRecords] = useState<RuntimeMintedAssetRecord[]>([]);
   const runtimeAssetScope = useMemo(() => ({
     chainId,
@@ -232,6 +287,20 @@ export function EnhancedProfile({
     }
     setIsFollowingProfile(isFollowingUser(connectedAddress, profileAddress));
   }, [connectedAddress, profileAddress, isOwnProfile, profile?.followers]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const syncTaxonomy = () => {
+      setTaxonomyVersion((value) => value + 1);
+    };
+
+    void hydrateTaxonomyFromSupabase().catch(() => undefined);
+    window.addEventListener(TAXONOMY_SYNC_EVENT, syncTaxonomy as EventListener);
+    return () => {
+      window.removeEventListener(TAXONOMY_SYNC_EVENT, syncTaxonomy as EventListener);
+    };
+  }, []);
 
   // ✅ SIMPLIFIED: Load profile on mount - address-based only
   useEffect(() => {
@@ -307,6 +376,8 @@ export function EnhancedProfile({
   }, [profileAddress, isOwnProfile]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
     const syncMarketplaceAssets = () => {
       setMarketplaceAssets(loadMarketplaceCatalogSync());
     };
@@ -339,6 +410,7 @@ export function EnhancedProfile({
 
   useEffect(() => {
     if (!profileAddress) return;
+    if (typeof window === 'undefined') return undefined;
 
     const refreshProfile = () => {
       const nextProfile = loadUserProfile(profileAddress);
@@ -367,6 +439,7 @@ export function EnhancedProfile({
       setIsReviewsLoading(false);
       return;
     }
+    if (typeof window === 'undefined') return undefined;
 
     let disposed = false;
 
@@ -380,7 +453,7 @@ export function EnhancedProfile({
     setIsReviewsLoading(true);
 
     void hydrateReputationFromSupabase(profileAddress, { force: true })
-      .catch((error) => {
+      .catch((error: unknown) => {
         console.debug('[EnhancedProfile] Failed to hydrate profile reviews:', error);
       })
       .finally(() => {
@@ -400,6 +473,10 @@ export function EnhancedProfile({
       window.removeEventListener(REPUTATION_SYNC_EVENT, handleReputationSync as EventListener);
     };
   }, [profileAddress]);
+
+  useEffect(() => {
+    setActiveTab(initialTab ?? 'overview');
+  }, [initialTab, profileAddress]);
 
   const storyHasUnsavedChanges =
     JSON.stringify(storyDraftBlocks) !== JSON.stringify(savedStoryDraftBlocks) ||
@@ -440,11 +517,20 @@ export function EnhancedProfile({
     () => sortedProfileRatings.filter((rating) => rating.ratingType === 'buyer').length,
     [sortedProfileRatings],
   );
+  const recentProfileRatings = useMemo(
+    () => sortedProfileRatings.slice(0, 3),
+    [sortedProfileRatings],
+  );
   const mintedOverviewItems = isOwnProfile
     ? overviewMintedAssets.ownerCards
     : overviewMintedAssets.visitorCards;
+  const bannerControlHeightClassName = 'h-10';
+  const bannerGlassButtonBaseClassName =
+    'border border-white/10 bg-black/60 text-white backdrop-blur-md shadow-[0_10px_24px_-18px_rgba(15,23,42,0.5)] transition-colors hover:bg-black/80 hover:border-white/15 hover:text-white';
   const bannerIconButtonClassName =
-    'flex h-[36px] w-[36px] items-center justify-center rounded-full border border-white/15 bg-white/8 text-white backdrop-blur-[10px] transition-colors hover:bg-white/14 shadow-[0_4px_12px_rgba(0,0,0,0.18)]';
+    `inline-flex ${bannerControlHeightClassName} w-10 items-center justify-center rounded-full p-0 ${bannerGlassButtonBaseClassName}`;
+  const bannerFollowButtonClassName =
+    `${bannerControlHeightClassName} min-w-[96px] rounded-full px-4 text-[12px] font-semibold leading-none tracking-[-0.01em] ${bannerGlassButtonBaseClassName}`;
 
   useEffect(() => {
     if (!profile) return;
@@ -469,6 +555,10 @@ export function EnhancedProfile({
   }, [profile, isOwnProfile]);
 
   const handleCollectionCardClick = (collectionId: string) => {
+    if (onNavigateToCollection) {
+      onNavigateToCollection(collectionId, 'profile');
+      return;
+    }
     setSelectedCollectionId(collectionId);
     setIsCollectionModalOpen(true);
   };
@@ -500,26 +590,31 @@ export function EnhancedProfile({
   }) => {
     if (!profileAddress || !isOwnProfile) return;
 
+    const continueSaveCollection = async () => {
+      if (collectionEditorMode === 'create') {
+        const created = createCollection(profileAddress, draft);
+        setSelectedOwnedCollection(created);
+        toast.success(`Created collection "${created.name}"`);
+      } else if (selectedOwnedCollection) {
+        const updated = updateCollection(profileAddress, selectedOwnedCollection.id, draft);
+        if (updated) {
+          setSelectedOwnedCollection(updated);
+          toast.success(`Updated collection "${updated.name}"`);
+        }
+      }
+
+      setIsCollectionEditorOpen(false);
+    };
+
     const allowed = await requireWalletActionAsync({
       capability: 'protocol_asset_write',
       actionLabel: collectionEditorMode === 'create' ? 'create a collection' : 'edit this collection',
       fallbackPage: 'profile',
+      onSecurityCheckConfirmed: continueSaveCollection,
     });
     if (!allowed) return;
 
-    if (collectionEditorMode === 'create') {
-      const created = createCollection(profileAddress, draft);
-      setSelectedOwnedCollection(created);
-      toast.success(`Created collection "${created.name}"`);
-    } else if (selectedOwnedCollection) {
-      const updated = updateCollection(profileAddress, selectedOwnedCollection.id, draft);
-      if (updated) {
-        setSelectedOwnedCollection(updated);
-        toast.success(`Updated collection "${updated.name}"`);
-      }
-    }
-
-    setIsCollectionEditorOpen(false);
+    await continueSaveCollection();
   };
 
   const handleToggleFollowProfile = () => {
@@ -594,6 +689,18 @@ export function EnhancedProfile({
     } else {
       toast.error('Navigation function not available');
     }
+  };
+
+  const handleReviewAssetNavigation = (rating: Rating) => {
+    const targetAssetId = String(rating.assetId || '').trim();
+    if (!targetAssetId || !onNavigateToAsset) return;
+
+    onNavigateToAsset(targetAssetId, 'profile');
+    toast.info(`Opening ${rating.assetName || 'related asset'}`);
+  };
+
+  const handleOpenReviewsTab = () => {
+    setActiveTab('reviews');
   };
 
   const createStoryBlock = (type: StoryBlock['type'], content?: string): StoryBlock => ({
@@ -701,7 +808,9 @@ export function EnhancedProfile({
     if (!profile || !isOwnProfile) return;
 
     const normalizedSettings: StorySettings = {
-      category: (storyDraftSettings.category || DEFAULT_STORY_SETTINGS.category).trim() || DEFAULT_STORY_SETTINGS.category,
+      category: storyDraftSettings.category.trim()
+        ? normalizeCategoryFilterValue(storyDraftSettings.category)
+        : DEFAULT_STORY_SETTINGS.category,
       tags: (storyDraftSettings.tags || '').trim(),
     };
 
@@ -715,7 +824,9 @@ export function EnhancedProfile({
     if (!profile || !isOwnProfile) return;
 
     const normalizedSettings: StorySettings = {
-      category: (storyDraftSettings.category || DEFAULT_STORY_SETTINGS.category).trim() || DEFAULT_STORY_SETTINGS.category,
+      category: storyDraftSettings.category.trim()
+        ? normalizeCategoryFilterValue(storyDraftSettings.category)
+        : DEFAULT_STORY_SETTINGS.category,
       tags: (storyDraftSettings.tags || '').trim(),
     };
 
@@ -773,6 +884,40 @@ export function EnhancedProfile({
     toast.success('Profile updated successfully!');
   };
 
+  const tabs = [
+    { id: 'overview' as ProfileTab, label: 'Overview' },
+    { id: 'reviews' as ProfileTab, label: 'Reviews' },
+    { id: 'story' as ProfileTab, label: 'Story' },
+    { id: 'activity' as ProfileTab, label: isOwnProfile ? 'My Collections' : 'Collections' },
+  ];
+  const publishedStoryBlocks = profile?.story?.publishedBlocks || [];
+  const publishedStorySettings = profile?.story?.publishedSettings || DEFAULT_STORY_SETTINGS;
+  const displayedStoryBlocks = isOwnProfile ? storyDraftBlocks : publishedStoryBlocks;
+  const displayedStorySettings = isOwnProfile ? storyDraftSettings : publishedStorySettings;
+  const storyCharacterCount = countStoryCharacters(displayedStoryBlocks);
+  const storyImageCount = countStoryImages(displayedStoryBlocks);
+  const displayedStoryCategory = displayedStorySettings.category.trim()
+    ? normalizeCategoryFilterValue(displayedStorySettings.category)
+    : '';
+  const storyCategoryOptions = useMemo(() => {
+    const options = getTaxonomyCategoryOptions();
+    const currentValue = storyDraftSettings.category.trim()
+      ? normalizeCategoryFilterValue(storyDraftSettings.category)
+      : '';
+
+    if (!currentValue || options.some((option: TaxonomyCategoryOption) => option.value === currentValue)) {
+      return options;
+    }
+
+    return [
+      ...options,
+      {
+        value: currentValue,
+        label: getCategoryDisplayLabel(currentValue),
+      },
+    ];
+  }, [storyDraftSettings.category, taxonomyVersion]);
+
   if (!profile) {
     return (
       <div className="flex items-center justify-center h-full bg-[#121212]">
@@ -784,21 +929,14 @@ export function EnhancedProfile({
     );
   }
 
-  const tabs = [
-    { id: 'overview' as ProfileTab, label: 'Overview', icon: Grid3x3 },
-    { id: 'reviews' as ProfileTab, label: 'Reviews', icon: Star },
-    { id: 'story' as ProfileTab, label: 'Story', icon: Gem },
-    { id: 'activity' as ProfileTab, label: isOwnProfile ? 'My Collections' : 'Collections', icon: ActivityIcon },
-  ];
-  const publishedStoryBlocks = profile.story?.publishedBlocks || [];
-  const displayedStoryBlocks = isOwnProfile ? storyDraftBlocks : publishedStoryBlocks;
-  const storyCharacterCount = countStoryCharacters(displayedStoryBlocks);
-  const storyImageCount = countStoryImages(displayedStoryBlocks);
-
   return (
-    <section className="h-full bg-ui-page overflow-hidden relative">
+    <section className="profile-borderless-theme h-full bg-ui-page overflow-hidden relative">
       <style>{`
         .hidden-scrollbar::-webkit-scrollbar { display: none; }
+        .profile-main-column-shell {
+          background: var(--t-card-bg);
+          background: color-mix(in srgb, var(--t-card-bg) 26%, transparent);
+        }
         .metallic-panel {
           background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%), var(--color-panel-bg);
           border: 1px solid rgba(255, 255, 255, 0.08);
@@ -812,9 +950,9 @@ export function EnhancedProfile({
       <div className="h-full flex overflow-hidden">
         {/* Main Content */}
         <div className={`flex-1 min-w-0 p-2.5 ${isOwnProfile ? 'pr-0' : ''} overflow-hidden`}>
-          <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto hidden-scrollbar relative z-10">
+          <div className="profile-main-column-shell h-full rounded-[24px] backdrop-blur-[6px] overflow-y-auto hidden-scrollbar relative z-10">
         {/* Banner */}
-        <div className="h-48 w-full relative overflow-hidden bg-gradient-to-br from-[#1a1a1a] to-[#0f0f11]">
+        <div className="h-48 w-full relative overflow-hidden bg-[var(--t-surface-10)]">
           {(profile.bannerUrl || profile.banner) ? (
             <>
               <ImageWithFallback
@@ -826,14 +964,26 @@ export function EnhancedProfile({
               <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent"></div>
             </>
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-[#1a1a1a] via-[var(--color-panel-bg)] to-[#0f0f11] opacity-50"></div>
+            <div className="w-full h-full bg-[var(--t-surface-10)]"></div>
+          )}
+
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className={`absolute top-4 left-4 ${bannerIconButtonClassName}`}
+              title="Back"
+            >
+              <ArrowLeft size={16} />
+            </button>
           )}
 
           {/* Banner Edit Icon (Owner only) */}
           {isOwnProfile && (
             <button
+              type="button"
               onClick={() => setIsEditModalOpen(true)}
-              className={`absolute top-4 right-4 ${bannerIconButtonClassName} shadow-lg`}
+              className={`absolute top-4 right-4 ${bannerIconButtonClassName}`}
               title="Edit Profile"
             >
               <Pencil size={16} />
@@ -906,6 +1056,7 @@ export function EnhancedProfile({
             {isOwnProfile ? (
               <>
                 <button
+                  type="button"
                   className={bannerIconButtonClassName}
                   title="Share Profile"
                 >
@@ -917,11 +1068,12 @@ export function EnhancedProfile({
                 <ProfileFollowButton
                   following={isFollowingProfile}
                   onClick={handleToggleFollowProfile}
-                  className="shadow-[0_16px_32px_-22px_rgba(0,0,0,0.9)]"
+                  className={`${bannerFollowButtonClassName} !border-white/10 !bg-black/60 !text-white shadow-[0_16px_32px_-22px_rgba(0,0,0,0.9)] hover:!bg-black/80 hover:!border-white/15 hover:!text-white`}
                 >
                   {isFollowingProfile ? 'Following' : 'Follow'}
                 </ProfileFollowButton>
                 <button
+                  type="button"
                   onClick={handleOpenMessage}
                   className={bannerIconButtonClassName}
                   title="Send Message"
@@ -961,7 +1113,7 @@ export function EnhancedProfile({
                   >
                     <div className="flex flex-col items-center">
                       <Pencil size={24} className="text-primary" />
-                      <span className="text-ui-primary text-xs font-bold mt-1">Edit Profile</span>
+                      <span className="text-ui-primary text-xs font-semibold mt-1">Edit Profile</span>
                     </div>
                   </button>
                 )}
@@ -985,24 +1137,24 @@ export function EnhancedProfile({
                 {/* Name & Badge */}
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-3xl font-bold text-ui-primary tracking-tight">
+                    <h1 className="text-3xl font-semibold text-ui-primary tracking-tight">
                       {formatUserDisplayName(profile.displayName, profileAddress)}
                     </h1>
                     {/* ✅ WALLET IDENTITY: Conditional Premium/Verified badges */}
                     {walletIdentity?.verification.isPremium && (
-                      <span className="bg-[var(--color-primary-custom)]/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded border border-[var(--color-primary-custom)]/20 uppercase tracking-widest flex items-center gap-1">
+                      <span className="bg-[var(--color-primary-custom)]/10 text-primary text-[10px] font-semibold px-2 py-0.5 rounded border border-[var(--color-primary-custom)]/20 uppercase tracking-widest flex items-center gap-1">
                         <Gem size={10} />
                         {walletIdentity.verification.premiumLevel || 'Premium'}
                       </span>
                     )}
                     {walletIdentity?.verification.isVerified && (
-                      <span className="bg-blue-500/10 text-blue-400 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-500/20 uppercase tracking-widest flex items-center gap-1">
+                      <span className="bg-blue-500/10 text-blue-400 text-[10px] font-semibold px-2 py-0.5 rounded border border-blue-500/20 uppercase tracking-widest flex items-center gap-1">
                         <VerifiedUserIcon size={10} />
                         Verified
                       </span>
                     )}
                     {walletIdentity && !walletIdentity.verification.isPremium && !walletIdentity.verification.isVerified && (
-                      <span className="bg-[rgba(44,194,149,0.08)] text-ui-primary text-[10px] font-bold px-2 py-0.5 rounded border border-[rgba(44,194,149,0.22)] uppercase tracking-widest flex items-center gap-1">
+                      <span className="bg-[rgba(44,194,149,0.08)] text-ui-primary text-[10px] font-semibold px-2 py-0.5 rounded border border-[rgba(44,194,149,0.22)] uppercase tracking-widest flex items-center gap-1">
                         {walletIdentity.reputation.levelIcon} {walletIdentity.reputation.level}
                       </span>
                     )}
@@ -1043,22 +1195,22 @@ export function EnhancedProfile({
           {/* Stats Panel */}
           <div className="bg-[var(--t-surface-2)] border-0 rounded-2xl p-6 flex items-center justify-between gap-8 mb-10">
             <div className="flex-1 text-center border-r border-[var(--color-panel-border)]/50">
-              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest mb-1">
+              <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest mb-1">
                 Portfolio Value
               </p>
               <div className="flex items-center justify-center gap-2">
-                <span className="text-xl font-bold text-ui-primary">{walletIdentity ? formatETH(walletIdentity.portfolio.portfolioValueETH) : '—'}</span>
-                <span className="text-primary font-bold text-sm">ETH</span>
+                <span className="text-xl font-semibold text-ui-primary">{walletIdentity ? formatETH(walletIdentity.portfolio.portfolioValueETH) : '—'}</span>
+                <span className="text-primary font-semibold text-sm">ETH</span>
               </div>
               <p className="text-xs text-ui-secondary mt-1">≈ {walletIdentity ? formatUSD(walletIdentity.portfolio.portfolioValueUSD) : '—'} USD</p>
             </div>
 
             <div className="flex-1 text-center border-r border-[var(--color-panel-border)]/50">
-              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest mb-1">
+              <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest mb-1">
                 Total Profit
               </p>
               <div className="flex items-center justify-center gap-2">
-                <span className="text-xl font-bold text-ui-primary">{walletIdentity ? formatProfit(walletIdentity.portfolio.totalProfitPercent) : '—'}</span>
+                <span className="text-xl font-semibold text-ui-primary">{walletIdentity ? formatProfit(walletIdentity.portfolio.totalProfitPercent) : '—'}</span>
                 {walletIdentity && walletIdentity.portfolio.totalProfitPercent >= 0 ? (
                   <TrendingUpIcon size={18} className="text-primary" />
                 ) : (
@@ -1071,26 +1223,26 @@ export function EnhancedProfile({
             </div>
 
             <div className="flex-1 text-center border-r border-[var(--color-panel-border)]/50">
-              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest mb-1">
+              <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest mb-1">
                 Assets Owned
               </p>
-              <h4 className="text-xl font-bold text-ui-primary">{walletIdentity?.assets.totalOwned ?? '—'}</h4>
+              <h4 className="text-xl font-semibold text-ui-primary">{walletIdentity?.assets.totalOwned ?? '—'}</h4>
               <p className="text-xs text-ui-secondary mt-1">across {walletIdentity?.portfolio.activeNetworks ?? 1} network{(walletIdentity?.portfolio.activeNetworks ?? 1) > 1 ? 's' : ''}</p>
             </div>
 
             <div className="flex-1 text-center border-r border-[var(--color-panel-border)]/50">
-              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest mb-1">
+              <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest mb-1">
                 Followers
               </p>
-              <h4 className="text-xl font-bold text-ui-primary">{walletIdentity?.social.followersCount ?? 0}</h4>
+              <h4 className="text-xl font-semibold text-ui-primary">{walletIdentity?.social.followersCount ?? 0}</h4>
               <p className="text-xs text-ui-secondary mt-1">{walletIdentity?.social.followingCount ?? 0} following</p>
             </div>
 
             <div className="flex-1 text-center">
-              <p className="text-[10px] font-bold text-ui-muted uppercase tracking-widest mb-1">
+              <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest mb-1">
                 Joined
               </p>
-              <h4 className="text-xl font-bold text-ui-primary">{walletIdentity?.social.joinedDateFormatted ?? '—'}</h4>
+              <h4 className="text-xl font-semibold text-ui-primary">{walletIdentity?.social.joinedDateFormatted ?? '—'}</h4>
               <p className="text-xs text-ui-secondary mt-1">{walletIdentity && walletIdentity.social.accountAgeDays > 30 ? 'Early member' : 'New member'}</p>
             </div>
           </div>
@@ -1101,17 +1253,15 @@ export function EnhancedProfile({
           <div className="mb-8 border-b border-[var(--color-panel-border)]">
             <div className="flex gap-1">
               {tabs.map((tab) => {
-                const Icon = tab.icon;
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-6 py-3 font-bold text-sm transition-all relative ${activeTab === tab.id
+                    className={`px-6 py-3 font-semibold text-sm transition-all relative ${activeTab === tab.id
                         ? 'text-primary'
                         : 'text-ui-secondary hover:text-ui-primary'
                       }`}
                   >
-                    <Icon size={18} />
                     {tab.label}
                     {activeTab === tab.id && (
                       <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary-custom)] shadow-[0_0_12px_rgba(44,194,149,0.6)]" />
@@ -1131,19 +1281,19 @@ export function EnhancedProfile({
               <div>
                 <div className="mb-6 flex items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-lg font-bold text-ui-primary">Top Products</h3>
+                    <h3 className="text-lg font-semibold text-ui-primary">Top Products</h3>
                     <p className="mt-1 text-sm text-ui-secondary">
                       Finalized marketplace purchases ranked by demand for this profile.
                     </p>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-ui-muted">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">
                     Top 2
                   </span>
                 </div>
 
                 {topProducts.length === 0 ? (
                   <div className="rounded-2xl bg-[var(--t-surface-5)] px-6 py-10 text-center">
-                    <p className="text-lg font-bold text-ui-primary">
+                    <p className="text-lg font-semibold text-ui-primary">
                       {isOrdersLoading ? 'Loading product demand...' : 'No completed purchases yet'}
                     </p>
                     <p className="mt-2 text-sm text-ui-secondary">
@@ -1152,11 +1302,11 @@ export function EnhancedProfile({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {topProducts.map((product, index) => {
+                    {topProducts.map((product: TopProductListItem, index: number) => {
                       const canNavigate = Boolean(product.assetRouteId && onNavigateToAsset);
                       const content = (
                         <div className="flex items-center gap-4 rounded-2xl bg-[var(--t-surface-5)] px-4 py-4 text-left transition-colors hover:bg-[var(--t-surface-hover)]">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-sm font-bold text-ui-primary">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-sm font-semibold text-ui-primary">
                             {index + 1}
                           </div>
                           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-[var(--t-surface-10)]">
@@ -1168,16 +1318,23 @@ export function EnhancedProfile({
                                 loading="lazy"
                               />
                             ) : (
-                              <div className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase tracking-widest text-ui-muted">
+                              <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-widest text-ui-muted">
                                 No Media
                               </div>
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-[10px] font-bold uppercase tracking-widest text-ui-muted">
-                              {product.category}
-                            </p>
-                            <p className="mt-1 truncate text-base font-bold text-ui-primary">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                navigateToMarketplaceCategory({ category: product.category });
+                              }}
+                              className="truncate rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-ui-muted transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#2CC295]"
+                            >
+                              {getCategoryDisplayLabel(normalizeCategoryFilterValue(product.category))}
+                            </button>
+                            <p className="mt-1 truncate text-base font-semibold text-ui-primary">
                               {product.assetName}
                             </p>
                             <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-ui-secondary">
@@ -1190,14 +1347,21 @@ export function EnhancedProfile({
                       );
 
                       return canNavigate ? (
-                        <button
+                        <div
                           key={product.key}
-                          type="button"
+                          role="button"
+                          tabIndex={0}
                           onClick={() => onNavigateToAsset?.(product.assetRouteId!, 'profile')}
-                          className="block w-full"
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              onNavigateToAsset?.(product.assetRouteId!, 'profile');
+                            }
+                          }}
+                          className="block w-full cursor-pointer"
                         >
                           {content}
-                        </button>
+                        </div>
                       ) : (
                         <div key={product.key}>{content}</div>
                       );
@@ -1209,19 +1373,19 @@ export function EnhancedProfile({
               <div>
                 <div className="mb-6 flex items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-lg font-bold text-ui-primary">Minted On Marketplace</h3>
+                    <h3 className="text-lg font-semibold text-ui-primary">Minted On Marketplace</h3>
                     <p className="mt-1 text-sm text-ui-secondary">
                       Assets minted by this profile and currently active on the marketplace.
                     </p>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-ui-muted">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">
                     {mintedOverviewItems.length} active
                   </span>
                 </div>
 
                 {mintedOverviewItems.length === 0 ? (
                   <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-6 py-12 text-center">
-                    <p className="text-xl font-bold text-ui-primary">No active minted assets</p>
+                    <p className="text-xl font-semibold text-ui-primary">No active minted assets</p>
                     <p className="mt-2 text-sm text-ui-secondary">
                       Assets will appear here once they are minted by this profile and projected into the active marketplace catalog.
                     </p>
@@ -1233,7 +1397,7 @@ export function EnhancedProfile({
                           <MyAssetRwaCard
                             key={asset.id}
                             asset={asset}
-                            onManage={(selectedAsset) => onNavigateToAsset?.(selectedAsset.id, 'profile')}
+                            onManage={(selectedAsset: { id: string }) => onNavigateToAsset?.(selectedAsset.id, 'profile')}
                           />
                         ))
                       : (mintedOverviewItems as Array<(typeof overviewMintedAssets.visitorCards)[number]>).map((asset) => (
@@ -1252,13 +1416,13 @@ export function EnhancedProfile({
 
           {activeTab === 'reviews' && (
             <div className="mx-auto w-full max-w-5xl space-y-6">
-              <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] p-6 md:p-8">
+              <div className="rounded-[24px] bg-[var(--t-surface-2)] p-6 md:p-8">
                 <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                   <div className="space-y-2">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-ui-muted">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-muted">
                       Profile Reviews
                     </p>
-                    <h3 className="text-2xl font-bold text-ui-primary">
+                    <h3 className="text-2xl font-semibold text-ui-primary">
                       Community feedback for this profile
                     </h3>
                     <p className="max-w-2xl text-sm leading-6 text-ui-secondary">
@@ -1266,14 +1430,14 @@ export function EnhancedProfile({
                     </p>
                   </div>
 
-                  <div className="rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-5)] px-5 py-4 text-left lg:min-w-[220px] lg:text-right">
+                  <div className="rounded-[20px] bg-[var(--t-surface-5)] px-5 py-4 text-left lg:min-w-[220px] lg:text-right">
                     <div className="flex items-center gap-2 lg:justify-end">
                       <Star size={18} className="fill-current text-primary" />
-                      <span className="text-2xl font-black text-ui-primary">
+                      <span className="text-2xl font-semibold text-ui-primary">
                         {averageProfileRating > 0 ? averageProfileRating.toFixed(1) : '—'}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-ui-muted">
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-ui-muted">
                       {totalProfileReviews > 0 ? `${totalProfileReviews} total reviews` : 'No reviews yet'}
                     </p>
                   </div>
@@ -1302,9 +1466,9 @@ export function EnhancedProfile({
                       hint: 'Feedback received in buyer role',
                     },
                   ].map((item) => (
-                    <div key={item.label} className="rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ui-muted">{item.label}</p>
-                      <p className="mt-3 text-xl font-black text-ui-primary">{item.value}</p>
+                    <div key={item.label} className="rounded-[20px] bg-[var(--t-surface-5)] p-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ui-muted">{item.label}</p>
+                      <p className="mt-3 text-xl font-semibold text-ui-primary">{item.value}</p>
                       <p className="mt-2 text-xs leading-5 text-ui-secondary">{item.hint}</p>
                     </div>
                   ))}
@@ -1312,15 +1476,15 @@ export function EnhancedProfile({
               </div>
 
               {isReviewsLoading && sortedProfileRatings.length === 0 ? (
-                <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-6 py-12 text-center">
-                  <p className="text-lg font-bold text-ui-primary">Loading reviews</p>
+                <div className="rounded-[24px] bg-[var(--t-surface-2)] px-6 py-12 text-center">
+                  <p className="text-lg font-semibold text-ui-primary">Loading reviews</p>
                   <p className="mt-2 text-sm text-ui-secondary">
                     Syncing the latest profile feedback from Supabase.
                   </p>
                 </div>
               ) : sortedProfileRatings.length === 0 ? (
-                <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-6 py-12 text-center">
-                  <p className="text-xl font-bold text-ui-primary">No reviews yet</p>
+                <div className="rounded-[24px] bg-[var(--t-surface-2)] px-6 py-12 text-center">
+                  <p className="text-xl font-semibold text-ui-primary">No reviews yet</p>
                   <p className="mt-2 text-sm text-ui-secondary">
                     This profile has not received any reviews yet.
                   </p>
@@ -1330,30 +1494,42 @@ export function EnhancedProfile({
                   {sortedProfileRatings.map((rating) => (
                     <article
                       key={rating.id}
-                      className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] p-6"
+                      className="rounded-[24px] bg-[var(--t-surface-2)] p-6"
                     >
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="flex items-start gap-4">
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-sm font-black text-ui-primary">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-sm font-semibold text-ui-primary">
                             {getProfileReviewInitials(rating)}
                           </div>
                           <div className="space-y-2">
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-sm font-bold text-ui-primary">
+                              <p className="text-sm font-semibold text-ui-primary">
                                 {getProfileReviewDisplayName(rating)}
                               </p>
-                              <span className="rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-ui-secondary">
+                              <span className="rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ui-secondary">
                                 {getProfileReviewRoleLabel(rating.ratingType)}
                               </span>
                               {rating.verified && (
-                                <span className="rounded-full border border-[#2CC295]/30 bg-[#2CC295]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#2CC295]">
+                                <span className="rounded-full border border-[#2CC295]/30 bg-[#2CC295]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#2CC295]">
                                   Verified
                                 </span>
                               )}
                             </div>
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ui-secondary">
                               <span>{formatProfileReviewTimestamp(rating.timestamp)}</span>
-                              <span>{rating.assetName}</span>
+                              {rating.assetName ? (
+                                rating.assetId && onNavigateToAsset ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleReviewAssetNavigation(rating)}
+                                    className="font-semibold text-primary transition-colors hover:text-[#2CC295]"
+                                  >
+                                    {rating.assetName}
+                                  </button>
+                                ) : (
+                                  <span>{rating.assetName}</span>
+                                )
+                              ) : null}
                               {rating.helpful > 0 && <span>{rating.helpful} found helpful</span>}
                             </div>
                           </div>
@@ -1369,7 +1545,7 @@ export function EnhancedProfile({
                               />
                             ))}
                           </div>
-                          <p className="text-sm font-black text-ui-primary">{rating.overallRating.toFixed(1)} / 5</p>
+                          <p className="text-sm font-semibold text-ui-primary">{rating.overallRating.toFixed(1)} / 5</p>
                         </div>
                       </div>
 
@@ -1379,23 +1555,23 @@ export function EnhancedProfile({
                           { label: 'Delivery', value: rating.deliveryRating },
                           { label: 'Accuracy', value: rating.accuracyRating },
                         ].map((metric) => (
-                          <div key={metric.label} className="rounded-[18px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ui-muted">{metric.label}</p>
-                            <p className="mt-2 text-lg font-black text-ui-primary">{metric.value.toFixed(1)}</p>
+                          <div key={metric.label} className="rounded-[18px] bg-[var(--t-surface-5)] p-4">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ui-muted">{metric.label}</p>
+                            <p className="mt-2 text-lg font-semibold text-ui-primary">{metric.value.toFixed(1)}</p>
                           </div>
                         ))}
                       </div>
 
-                      <div className="mt-5 rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ui-muted">Written Feedback</p>
+                      <div className="mt-5 rounded-[20px] bg-[var(--t-surface-5)] p-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ui-muted">Written Feedback</p>
                         <p className="mt-3 text-sm leading-6 text-ui-secondary">
                           {rating.review?.trim() || 'No written feedback provided for this review.'}
                         </p>
                       </div>
 
                       {rating.response && (
-                        <div className="mt-4 rounded-[20px] border border-[#2CC295]/20 bg-[rgba(44,194,149,0.06)] p-4">
-                          <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-[#2CC295]">
+                        <div className="mt-4 rounded-[20px] bg-[rgba(44,194,149,0.06)] p-4">
+                          <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#2CC295]">
                             <span>Profile Response</span>
                             {rating.responseDate && (
                               <span className="text-ui-secondary">{formatProfileReviewTimestamp(rating.responseDate)}</span>
@@ -1419,13 +1595,24 @@ export function EnhancedProfile({
                   {storyCharacterCount}/{STORY_CHARACTER_LIMIT} chars • {storyImageCount}/{STORY_IMAGE_LIMIT} images
                 </div>
               )}
+              {displayedStoryCategory && (
+                <div className="mb-4 flex flex-wrap items-center gap-2 px-3">
+                  <button
+                    type="button"
+                    onClick={() => navigateToMarketplaceCategory({ category: displayedStoryCategory })}
+                    className="inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ui-muted transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#2CC295]"
+                  >
+                    {getCategoryDisplayLabel(displayedStoryCategory)}
+                  </button>
+                </div>
+              )}
               {displayedStoryBlocks.length === 0 ? (
                 <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-6 py-10 text-center text-sm text-ui-secondary">
                   {isOwnProfile ? 'Start building your story draft.' : 'No story published yet.'}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {displayedStoryBlocks.map((block, index) => (
+                  {displayedStoryBlocks.map((block: StoryBlock, index: number) => (
                     <div key={block.id} className="relative">
                       {isOwnProfile && (
                         <button
@@ -1486,7 +1673,7 @@ export function EnhancedProfile({
                             className="absolute flex h-12 w-12 items-center justify-center rounded-full bg-ui-input text-ui-secondary opacity-0 shadow-[0_10px_24px_-16px_rgba(0,0,0,0.45)] transition-opacity group-hover:opacity-100 hover:text-ui-primary"
                             title="Insert image"
                           >
-                            <ImagePlus size={24} className="mx-auto" />
+                            <ImagePlus size={17} className="mx-auto" />
                           </button>
                         )}
                       </div>
@@ -1503,21 +1690,21 @@ export function EnhancedProfile({
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--t-surface-5)] text-ui-secondary transition-colors hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
                       title="Add H3"
                     >
-                      <Heading3 size={22} />
+                      <Heading3 size={15} />
                     </button>
                     <button
                       onClick={() => addStoryBlock('paragraph')}
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--t-surface-5)] text-ui-secondary transition-colors hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
                       title="Add paragraph"
                     >
-                      <AlignLeft size={22} />
+                      <AlignLeft size={15} />
                     </button>
                     <button
                       onClick={() => requestStoryImageInsert(storyDraftBlocks.length)}
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--t-surface-5)] text-ui-secondary transition-colors hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
                       title="Add image"
                     >
-                      <ImagePlus size={30} />
+                      <ImagePlus size={21} />
                     </button>
                   </div>
                 </div>
@@ -1558,13 +1745,13 @@ export function EnhancedProfile({
                     onClick={handleOpenCreateCollection}
                     variant="primary"
                     size="lg"
-                    className="text-sm font-bold tracking-tight shadow-lg shadow-[#2CC295]/20"
+                    className="text-sm font-semibold tracking-tight shadow-lg shadow-[#2CC295]/20"
                   >
                     Create Collection
                   </StudioActionButton>
                 ) : undefined
               }
-              onCollectionClick={(collectionId) => {
+              onCollectionClick={(collectionId: string) => {
                 handleCollectionCardClick(collectionId);
               }}
             />
@@ -1576,12 +1763,12 @@ export function EnhancedProfile({
 
       {/* Right Sidebar */}
       {isOwnProfile && (
-      <StudioSidebarShell widthClassName="w-[344px]" className="bg-ui-page border-l-0 p-2.5">
+      <StudioSidebarShell widthClassName="w-[368px]" className="bg-ui-page border-l-0 p-4">
         {activeTab === 'story' ? (
-          <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto hidden-scrollbar p-5 space-y-5">
+          <div className="h-full rounded-[28px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto hidden-scrollbar p-6 space-y-6">
             <div className="rounded-[24px] bg-ui-input border border-ui-border-subtle p-6 space-y-6">
               <div>
-                <h3 className="text-sm font-bold text-ui-primary">Story Settings</h3>
+                <h3 className="text-sm font-semibold text-ui-primary">Story Settings</h3>
                 <p className="mt-1 text-[11px] leading-4 text-ui-secondary">
                   Configure how your content appears to investors.
                 </p>
@@ -1589,31 +1776,52 @@ export function EnhancedProfile({
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ui-muted">Category</p>
-                  <div className="relative">
-                    <select
-                      value={storyDraftSettings.category}
-                      onChange={(event) =>
-                        setStoryDraftSettings((prev) => ({ ...prev, category: event.target.value }))
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ui-muted">Category</p>
+                  <CustomDropdown
+                    className="w-full"
+                    variant="compact"
+                    openOnHover={false}
+                    defaultValue={storyDraftSettings.category.trim() ? normalizeCategoryFilterValue(storyDraftSettings.category) : ''}
+                    onChange={(value: string) =>
+                      setStoryDraftSettings((prev: StorySettings) => ({
+                        ...prev,
+                        category: value ? normalizeCategoryFilterValue(value) : '',
+                      }))
+                    }
+                    options={[
+                      { value: '', label: 'Select category' },
+                      ...storyCategoryOptions.map((option: TaxonomyCategoryOption) => ({
+                        value: option.value,
+                        label: option.label,
+                      })),
+                    ]}
+                    disableDefaultTriggerTone
+                    triggerClassName="h-[42px] rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-2)] px-4 text-sm font-medium text-ui-primary hover:bg-[var(--t-surface-5)] focus-visible:ring-primary/35"
+                    menuClassName="rounded-[24px] border border-ui-border-subtle bg-[var(--t-card-bg)] p-1.5"
+                  />
+                  {storyDraftSettings.category.trim() && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigateToMarketplaceCategory({
+                          category: normalizeCategoryFilterValue(storyDraftSettings.category),
+                        })
                       }
-                      className="w-full h-[42px] appearance-none rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-2)] px-4 pr-9 text-sm text-ui-primary focus:outline-none focus:border-primary focus:ring-primary/35"
+                      className="text-[11px] font-semibold text-primary transition-colors hover:text-[#7ae6c5]"
                     >
-                      <option value="">Select category</option>
-                      <option value="Institutional">Institutional</option>
-                      <option value="Retail">Retail</option>
-                      <option value="Mixed">Mixed</option>
-                    </select>
-                  </div>
+                      Open this category in marketplace
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-ui-muted">Tags</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ui-muted">Tags</p>
                   <div className="relative">
                     <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ui-muted">#</span>
                     <input
                       value={storyDraftSettings.tags}
                       onChange={(event) =>
-                        setStoryDraftSettings((prev) => ({ ...prev, tags: event.target.value }))
+                        setStoryDraftSettings((prev: StorySettings) => ({ ...prev, tags: event.target.value }))
                       }
                       className="w-full h-[42px] rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-2)] pl-8 pr-4 text-sm text-ui-primary focus:outline-none focus:border-primary focus:ring-primary/35"
                     />
@@ -1625,20 +1833,20 @@ export function EnhancedProfile({
                 <button
                   onClick={handleDiscardStoryChanges}
                   disabled={!storyHasUnsavedChanges}
-                  className="h-[43px] rounded-full border border-ui-border text-[11px] font-bold uppercase tracking-[0.05em] text-ui-secondary transition-colors hover:text-ui-primary disabled:cursor-default disabled:opacity-50"
+                  className="h-[43px] rounded-full border border-ui-border text-[11px] font-semibold uppercase tracking-[0.05em] text-ui-secondary transition-colors hover:text-ui-primary disabled:cursor-default disabled:opacity-50"
                 >
                   Discard
                 </button>
                 <button
                   onClick={handleSaveStoryDraft}
-                  className="h-[43px] rounded-full border border-ui-border text-[11px] font-bold uppercase tracking-[0.05em] text-ui-primary transition-colors hover:bg-[var(--t-surface-hover)]"
+                  className="h-[43px] rounded-full border border-ui-border text-[11px] font-semibold uppercase tracking-[0.05em] text-ui-primary transition-colors hover:bg-[var(--t-surface-hover)]"
                 >
                   Save Draft
                 </button>
                 <button
                   onClick={handlePublishStory}
                   disabled={storyDraftBlocks.length === 0}
-                  className="h-[43px] rounded-full border border-white bg-white text-[11px] font-bold uppercase tracking-[0.05em] text-black transition-colors hover:bg-zinc-100 disabled:cursor-default disabled:opacity-50"
+                  className="h-[43px] rounded-full border border-white bg-white text-[11px] font-semibold uppercase tracking-[0.05em] text-black transition-colors hover:bg-zinc-100 disabled:cursor-default disabled:opacity-50"
                 >
                   Publish
                 </button>
@@ -1646,15 +1854,15 @@ export function EnhancedProfile({
             </div>
 
             <div className="space-y-3">
-              <h3 className="px-1 text-[10px] font-bold uppercase tracking-[0.1em] text-ui-primary">Content Quality</h3>
+              <h3 className="px-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ui-primary">Content Quality</h3>
               <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] p-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-ui-secondary">Completeness</span>
-                  <span className="rounded-lg bg-[rgba(44,194,149,0.1)] px-2 py-0.5 text-[10px] font-bold text-primary">92</span>
+                  <span className="rounded-lg bg-[rgba(44,194,149,0.1)] px-2 py-0.5 text-[10px] font-semibold text-primary">92</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-ui-secondary">Readability</span>
-                  <span className="rounded-lg bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400">74</span>
+                  <span className="rounded-lg bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400">74</span>
                 </div>
                 <div className="h-1 rounded-full bg-[var(--t-surface-10)] overflow-hidden">
                   <div className="h-full w-3/4 bg-[var(--color-primary-custom)]" />
@@ -1668,20 +1876,20 @@ export function EnhancedProfile({
             <div className="rounded-[24px] bg-[rgba(44,194,149,0.05)] p-4 space-y-3">
               <div className="flex items-center gap-3 text-primary">
                 <TrendingUpIcon size={18} />
-                <span className="text-xs font-bold uppercase tracking-[0.08em]">AI Optimization</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.08em]">AI Optimization</span>
               </div>
               <p className="text-[11px] leading-5 text-ui-secondary">
                 Optimize this story for professional investors with our GPT-4 powered summary tool.
               </p>
-              <button className="w-full h-9 rounded-full border border-ui-border-subtle bg-[var(--color-button-secondary-bg)] text-[10px] font-bold uppercase tracking-[0.05em] text-ui-primary transition-colors hover:bg-[var(--color-button-secondary-bg-hover)]">
+              <button className="ui-secondary-button h-9 w-full rounded-full border text-[10px] font-semibold uppercase tracking-[0.05em] transition-colors">
                 Optimize Story
               </button>
             </div>
           </div>
         ) : (
-        <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+        <div className="h-full rounded-[28px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="p-6 border-b border-[var(--color-panel-border)] bg-gradient-to-b from-white/[0.02] to-transparent">
+        <div className="border-b border-[var(--color-panel-border)] bg-gradient-to-b from-white/[0.02] to-transparent px-6 py-5">
           <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
             <Shield size={18} className="text-primary" />
             User Performance
@@ -1690,22 +1898,22 @@ export function EnhancedProfile({
         </div>
 
         {/* Content */}
-        <div className="flex-grow overflow-y-auto p-5 space-y-8 hidden-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div className="hidden-scrollbar flex-grow overflow-y-auto space-y-6 p-6" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {/* Reputation Score - REAL DATA */}
-          <div className="text-center space-y-4">
-            <div className="relative w-32 h-32 mx-auto flex items-center justify-center">
+          <div className="space-y-4 text-center">
+            <div className="relative mx-auto flex h-40 w-40 items-center justify-center">
               <div
                 className="absolute inset-0 rounded-full"
                 style={{ background: walletIdentity ? getScoreGaugeGradient(walletIdentity.reputation.overallScore) : getScoreGaugeGradient(50) }}
               />
-              <div className="absolute inset-[13px] rounded-full bg-[var(--t-page-bg)] shadow-[inset_0_0_0_1px_var(--t-border-subtle)] flex flex-col items-center justify-center">
-                <span className="text-2xl font-black text-ui-primary">{walletIdentity?.reputation.overallScore ?? '—'}</span>
-                <span className="text-[10px] text-ui-muted font-bold uppercase">Rep Score</span>
+              <div className="absolute inset-[7px] rounded-full bg-[var(--t-page-bg)] shadow-[inset_0_0_0_1px_var(--t-border-subtle)] flex flex-col items-center justify-center">
+                <span className="text-3xl font-semibold text-ui-primary">{walletIdentity?.reputation.overallScore ?? '—'}</span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-ui-muted">Rep Score</span>
               </div>
             </div>
             {walletIdentity && (
               <div className="space-y-1">
-                <p className="text-xs font-bold text-ui-primary">
+                <p className="text-xs font-semibold text-ui-primary">
                   {walletIdentity.reputation.levelIcon} {walletIdentity.reputation.level} Level
                 </p>
                 <p className="text-xs text-ui-secondary">
@@ -1721,7 +1929,7 @@ export function EnhancedProfile({
           {/* Asset Breakdown */}
           {walletIdentity && (
             <div className="space-y-4">
-              <h3 className="text-[11px] uppercase tracking-[0.15em] font-bold text-ui-muted px-1">
+              <h3 className="text-[11px] uppercase tracking-[0.15em] font-semibold text-ui-muted px-1">
                 Asset Breakdown
               </h3>
               <div className="grid grid-cols-2 gap-2">
@@ -1734,9 +1942,9 @@ export function EnhancedProfile({
                   <div key={item.label} className="p-3 bg-[var(--t-surface-5)] rounded-lg">
                     <div className="flex items-center gap-2 mb-1">
                       <div className={`w-1.5 h-1.5 rounded-full ${item.color}`}></div>
-                      <span className="text-[10px] font-bold text-ui-muted uppercase">{item.label}</span>
+                      <span className="text-[10px] font-semibold text-ui-muted uppercase">{item.label}</span>
                     </div>
-                    <span className="text-lg font-bold text-ui-primary">{item.value}</span>
+                    <span className="text-lg font-semibold text-ui-primary">{item.value}</span>
                   </div>
                 ))}
               </div>
@@ -1744,26 +1952,37 @@ export function EnhancedProfile({
           )}
 
           {/* Recent Reviews - REAL DATA */}
-          <div className="space-y-4">
-            <h3 className="text-[11px] uppercase tracking-[0.15em] font-bold text-ui-muted px-1">
-              Recent Reviews
-              {walletIdentity && walletIdentity.reputation.totalReviews > 0 && (
-                <span className="ml-2 text-ui-secondary">({walletIdentity.reputation.totalReviews})</span>
+          <div className="space-y-5">
+            <div className="flex items-center justify-between gap-3 px-1">
+              <h3 className="text-[11px] uppercase tracking-[0.15em] font-semibold text-ui-muted">
+                Recent Reviews
+                {totalProfileReviews > 0 && (
+                  <span className="ml-2 text-ui-secondary">({totalProfileReviews})</span>
+                )}
+              </h3>
+              {totalProfileReviews > 0 && (
+                <button
+                  type="button"
+                  onClick={handleOpenReviewsTab}
+                  className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary transition-colors hover:text-[#2CC295]"
+                >
+                  View All Reviews
+                </button>
               )}
-            </h3>
-            <div className="space-y-4">
-              {walletIdentity && walletIdentity.reputation.recentRatings.length > 0 ? (
-                walletIdentity.reputation.recentRatings.slice(0, 3).map((rating, idx) => (
+            </div>
+            <div className="space-y-[18px]">
+              {recentProfileRatings.length > 0 ? (
+                recentProfileRatings.map((rating, idx) => (
                   <div
                     key={rating.id || `rating-${idx}`}
-                    className="p-4 bg-[var(--t-surface-5)] rounded-xl space-y-3"
+                    className="rounded-xl bg-[var(--t-surface-5)] p-[18px] space-y-3.5"
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-[var(--t-surface-10)] flex items-center justify-center text-[10px] font-bold text-ui-secondary">
+                        <div className="w-6 h-6 rounded-full bg-[var(--t-surface-10)] flex items-center justify-center text-[10px] font-semibold text-ui-secondary">
                           {(rating.fromUsername || rating.fromUserId || '?').slice(0, 2).toUpperCase()}
                         </div>
-                        <span className="text-xs font-bold text-ui-primary">
+                        <span className="text-xs font-semibold text-ui-primary">
                           {rating.fromUsername || `${(rating.fromUserId || '0x0000').slice(0, 6)}...`}
                         </span>
                       </div>
@@ -1780,11 +1999,23 @@ export function EnhancedProfile({
                     {rating.review && (
                       <p className="text-xs text-ui-secondary italic">"{rating.review.slice(0, 120)}{rating.review.length > 120 ? '...' : ''}"</p>
                     )}
+                    <div className="flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.12em]">
+                      <span className="truncate text-ui-muted">{rating.assetName || 'Related asset'}</span>
+                      {rating.assetId && onNavigateToAsset && (
+                        <button
+                          type="button"
+                          onClick={() => handleReviewAssetNavigation(rating)}
+                          className="shrink-0 text-primary transition-colors hover:text-[#2CC295]"
+                        >
+                          Open Asset
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))
               ) : (
                 <div className="rounded-xl border border-ui-border-subtle bg-[var(--t-surface-5)] p-4 text-center">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-ui-muted">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ui-muted">
                     No reviews yet
                   </p>
                   <p className="mt-2 text-xs leading-5 text-ui-secondary">
@@ -1796,49 +2027,49 @@ export function EnhancedProfile({
           </div>
 
           {/* Trust Metrics - REAL DATA */}
-          <div className="space-y-4">
-            <h3 className="text-[11px] uppercase tracking-[0.15em] font-bold text-ui-muted px-1">
+          <div className="space-y-5">
+            <h3 className="text-[11px] uppercase tracking-[0.15em] font-semibold text-ui-muted px-1">
               Trust Metrics
             </h3>
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <div className="flex justify-between text-[10px] font-bold uppercase">
+            <div className="space-y-[18px]">
+              <div className="space-y-2.5">
+                <div className="flex justify-between text-[10px] font-semibold uppercase">
                   <span className="text-ui-secondary">Response Rate</span>
                   <span className="text-ui-primary">{walletIdentity?.trust.responseRate ?? 0}%</span>
                 </div>
-                <div className="h-1 bg-[var(--t-surface-10)] rounded-full overflow-hidden">
+                <div className="h-1.5 bg-[var(--t-surface-10)] rounded-full overflow-hidden">
                   <div className="h-full bg-[var(--color-primary-custom)]" style={{ width: getTrustBarWidth(walletIdentity?.trust.responseRate ?? 0) }}></div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-[10px] font-bold uppercase">
+              <div className="space-y-2.5">
+                <div className="flex justify-between text-[10px] font-semibold uppercase">
                   <span className="text-ui-secondary">Order Completion</span>
                   <span className="text-ui-primary">{walletIdentity?.trust.orderCompletionRate ?? 0}%</span>
                 </div>
-                <div className="h-1 bg-[var(--t-surface-10)] rounded-full overflow-hidden">
+                <div className="h-1.5 bg-[var(--t-surface-10)] rounded-full overflow-hidden">
                   <div className="h-full bg-[var(--color-primary-custom)]" style={{ width: getTrustBarWidth(walletIdentity?.trust.orderCompletionRate ?? 0) }}></div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-[10px] font-bold uppercase">
+              <div className="space-y-2.5">
+                <div className="flex justify-between text-[10px] font-semibold uppercase">
                   <span className="text-ui-secondary">Avg. Response Time</span>
                   <span className="text-ui-primary">{walletIdentity ? formatResponseTime(walletIdentity.trust.avgResponseTimeHours) : 'N/A'}</span>
                 </div>
-                <div className="h-1 bg-[var(--t-surface-10)] rounded-full overflow-hidden">
+                <div className="h-1.5 bg-[var(--t-surface-10)] rounded-full overflow-hidden">
                   <div className="h-full bg-[var(--color-primary-custom)]" style={{ width: getTrustBarWidth(walletIdentity ? Math.max(0, 100 - walletIdentity.trust.avgResponseTimeHours * 10) : 0) }}></div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-[10px] font-bold uppercase">
+              <div className="space-y-2.5">
+                <div className="flex justify-between text-[10px] font-semibold uppercase">
                   <span className="text-ui-secondary">Dispute Rate</span>
-                  <span className={`${(walletIdentity?.trust.disputeRate ?? 0) > 5 ? 'text-red-500' : 'text-ui-primary'}`}>
+                  <span className="text-orange-400">
                     {walletIdentity?.trust.disputeRate ?? 0}%
                   </span>
                 </div>
-                <div className="h-1 bg-[var(--t-surface-10)] rounded-full overflow-hidden">
+                <div className="h-1.5 rounded-full bg-[rgba(249,115,22,0.12)] overflow-hidden">
                   <div
-                    className={`h-full ${(walletIdentity?.trust.disputeRate ?? 0) > 5 ? 'bg-red-500' : 'bg-[var(--color-primary-custom)]'}`}
-                    style={{ width: getTrustBarWidth(100 - (walletIdentity?.trust.disputeRate ?? 0)) }}
+                    className="h-full bg-orange-500"
+                    style={{ width: getTrustBarWidth(walletIdentity?.trust.disputeRate ?? 0) }}
                   ></div>
                 </div>
               </div>
@@ -1848,20 +2079,35 @@ export function EnhancedProfile({
           {/* Trust Badges */}
           {walletIdentity && walletIdentity.reputation.trustBadges.length > 0 && (
             <div className="space-y-4">
-              <h3 className="text-[11px] uppercase tracking-[0.15em] font-bold text-ui-muted px-1">
+              <h3 className="text-[11px] uppercase tracking-[0.15em] font-semibold text-ui-muted px-1">
                 Trust Badges
               </h3>
-              <div className="flex flex-wrap gap-2">
-                {walletIdentity.reputation.trustBadges.map((badge) => (
+              <div className="grid grid-cols-1 gap-2">
+                {walletIdentity.reputation.trustBadges.map((badge: TrustBadge) => {
+                  const BadgeIcon = getTrustBadgeIcon(badge);
+                  const badgeVariant = getTrustBadgeVariant(badge);
+
+                  return (
                   <div
                     key={badge.id}
-                    className={`px-3 py-1.5 rounded-lg border border-ui-border-subtle text-xs font-bold flex items-center gap-1.5 ${badge.color}`}
+                    className="flex items-center gap-3 rounded-[18px] bg-[var(--t-surface-5)] px-3 py-3"
                     title={badge.description}
                   >
-                    <span>{badge.icon}</span>
-                    <span>{badge.name}</span>
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-primary">
+                      <BadgeIcon size={15} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-xs font-semibold text-ui-primary">{badge.name}</p>
+                        <StudioStatusBadge variant={badgeVariant} size="sm" className="shrink-0 border-0">
+                          Active
+                        </StudioStatusBadge>
+                      </div>
+                      <p className="mt-1 text-[11px] leading-4 text-ui-secondary">{badge.description}</p>
+                    </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1869,7 +2115,7 @@ export function EnhancedProfile({
 
         {/* Footer */}
         <div className="mt-auto border-t border-ui-border-subtle p-5 bg-[var(--t-surface-2)] backdrop-blur-md">
-          <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-ui-border-subtle bg-[var(--color-button-secondary-bg)] py-3 text-xs font-bold text-ui-primary transition-all hover:border-[var(--color-primary-custom)]/50 hover:bg-[var(--color-button-secondary-bg-hover)]">
+          <button className="ui-secondary-button flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-xs font-semibold transition-all">
             <Shield size={16} />
             View Verification Audit
           </button>

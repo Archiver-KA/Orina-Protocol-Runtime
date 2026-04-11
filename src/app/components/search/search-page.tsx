@@ -1,8 +1,8 @@
-import { Search, List, Grid3x3 } from 'lucide-react';
-import { useState, useMemo, useEffect } from 'react';
-import { useAccount } from 'wagmi';
+import { Search, List, Grid3x3, Sparkles } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { FilterTags } from './filter-tags';
 import { SearchResultCard } from '@/app/components/search-result-card';
 import { ProfileSearchCard } from '@/app/components/profile-search-card';
@@ -11,7 +11,8 @@ import { CollectionDetailsModal } from '@/app/components/collections/collection-
 import { PriceRangeSlider } from './price-range-slider';
 import { SearchFilters } from '@/types/search';
 import { MarketplaceAsset } from '@/app/types/asset';
-import { getDefaultFilters, filterMarketplaceResults, getMarketplacePriceRange, saveSearchToHistory, countActiveFilters } from '@/utils/searchUtils';
+import type { AIProductResult } from '@/app/types/ai-agent';
+import { getDefaultFilters, filterMarketplaceResults, filterMarketplaceResultsWithOptions, getMarketplacePriceRange, saveSearchToHistory, countActiveFilters } from '@/utils/searchUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { AssetDetailsModal } from '@/app/components/asset-details-modal';
@@ -23,18 +24,24 @@ import { StudioPageHeader } from '@/app/components/ui/studio-page-header';
 import { StudioPillGroup, StudioPillButton } from '@/app/components/ui/studio-pill-group';
 import { StudioSidebarShell, StudioSidebarHeader, StudioSidebarScroll } from '@/app/components/ui/studio-sidebar';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
+import { StudioTransientState } from '@/app/components/ui/studio-transient-state';
+import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
+import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
 import { COLLECTIONS_SYNC_EVENT, loadCollectionFavorites, loadRuntimeCollections, toggleCollectionFavorite } from '@/utils/collectionsUtils';
 import type { CollectionSummary } from '@/types/collection';
 import { runtimeFlags } from '/utils/runtimeConfig';
 import { PROFILE_SYNC_EVENT } from '@/utils/profileUtils';
+import { AIAgentClient } from '@/utils/aiAgentClient';
+import { resolveAISearchResults } from '@/utils/aiSearchUtils';
 import {
   hydrateSellerDirectoryFromSupabase,
   loadSellerDirectorySync,
 } from '@/utils/sellerDirectory';
 import {
+  adjustMarketplaceAssetLikeCount,
   getMarketplaceCatalogAssetById,
-  getMarketplaceCatalogBlockchains,
   getMarketplaceCatalogCategories,
+  getMarketplaceCatalogNetworkOptions,
   hydrateMarketplaceCatalogFromSupabase,
   loadMarketplaceCatalogSync,
   MARKETPLACE_CATALOG_SYNC_EVENT,
@@ -42,21 +49,163 @@ import {
 import {
   getCategoryDisplayLabel,
   getCategoryOptionsFromValues,
+  getSubcategoryDisplayLabel,
   getTaxonomySearchText,
   hydrateTaxonomyFromSupabase,
   normalizeCategoryFilterValue,
   normalizeTaxonomySearchKey,
   TAXONOMY_SYNC_EVENT,
 } from '@/utils/taxonomy';
+import { navigateToMarketplaceCategory } from '@/utils/appNavigation';
+import {
+  buildSearchNavigationFilters,
+  type SearchNavigationRequest,
+} from '@/app/components/search/search-page.utils';
 
 interface SearchPageProps {
   initialQuery?: string;
+  navigationRequest?: SearchNavigationRequest | null;
+  onConsumeNavigationRequest?: (requestKey: string) => void;
   onNavigateToAsset?: (assetId: string) => void;
+  onNavigateToCollection?: (collectionId: string, fromPage?: string) => void;
   onNavigateToPage?: (page: string) => void;
   onNavigateToUserProfile?: (walletAddress: string) => void;
+  onNavigateToMessages?: (walletAddress: string) => void;
 }
 
-export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToPage, onNavigateToUserProfile }: SearchPageProps) {
+type AISearchStatus = 'idle' | 'loading' | 'success' | 'error';
+
+interface AISearchFallbackCardProps {
+  product: AIProductResult;
+  viewMode: 'grid' | 'list';
+}
+
+function AISearchFallbackCard({ product, viewMode }: AISearchFallbackCardProps) {
+  const similarityLabel =
+    typeof product.similarity === 'number' ? `${product.similarity}% match` : 'AI match';
+  const categoryLabel = getCategoryDisplayLabel(product.category);
+  const handleCategoryRoute = () => {
+    navigateToMarketplaceCategory({ category: product.category });
+  };
+  const shellClass =
+    'group w-full overflow-hidden rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-2)] transition-colors hover:bg-[var(--t-surface-5)]';
+
+  if (viewMode === 'grid') {
+    return (
+      <div className={`${shellClass} flex h-full flex-col`}>
+        <div className="relative h-[240px] overflow-hidden bg-black">
+          <ImageWithFallback
+            src={product.imageUrl || ''}
+            alt={product.title}
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
+          <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-[#2CC295]/20 bg-[rgba(255,255,255,0.84)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1f9f7d] shadow-[0_10px_24px_-18px_rgba(15,23,42,0.22)] dark:bg-[rgba(18,19,23,0.78)] dark:text-[#7CF0CB]">
+            <Sparkles size={12} />
+            {similarityLabel}
+          </div>
+        </div>
+
+        <div className="flex flex-1 flex-col gap-3 px-5 pb-5 pt-5">
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={handleCategoryRoute}
+              className="truncate rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-ui-muted transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#2CC295]"
+            >
+              {categoryLabel}
+            </button>
+            <span className="rounded-full border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
+              Syncing
+            </span>
+          </div>
+
+          <h3 className="line-clamp-2 text-[18px] font-semibold leading-[1.3] text-ui-primary">
+            {product.title}
+          </h3>
+
+          <p className="text-sm leading-6 text-ui-secondary">
+            Catalog details are syncing for this AI match. Retry the search in a moment to open the full listing.
+          </p>
+
+          <div className="mt-auto flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-ui-muted">Price</p>
+              <p className="mt-1 text-lg font-semibold text-ui-primary">{product.price || 'Pending sync'}</p>
+            </div>
+            <span className="text-[11px] font-medium text-[#7CF0CB]">AI semantic candidate</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${shellClass} flex flex-col lg:h-[240px] lg:flex-row`}>
+      <div className="relative h-[240px] shrink-0 overflow-hidden bg-black lg:h-full lg:w-[395px]">
+        <ImageWithFallback
+          src={product.imageUrl || ''}
+          alt={product.title}
+          className="h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
+        <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-[#2CC295]/20 bg-[rgba(255,255,255,0.84)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1f9f7d] shadow-[0_10px_24px_-18px_rgba(15,23,42,0.22)] dark:bg-[rgba(18,19,23,0.78)] dark:text-[#7CF0CB]">
+          <Sparkles size={12} />
+          {similarityLabel}
+        </div>
+      </div>
+
+      <div className="flex min-w-0 flex-1 flex-col gap-4 px-5 pb-5 pt-5 lg:px-6 lg:py-5">
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={handleCategoryRoute}
+            className="truncate rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-ui-muted transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#2CC295]"
+          >
+            {categoryLabel}
+          </button>
+          <span className="rounded-full border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
+            Syncing
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <h3 className="line-clamp-2 text-[20px] font-semibold leading-[1.25] text-ui-primary">
+              {product.title}
+            </h3>
+            <p className="mt-2 max-w-[32rem] text-sm leading-6 text-ui-secondary">
+              AI found this listing, but the full marketplace projection has not hydrated into the page yet.
+            </p>
+          </div>
+
+          <div className="shrink-0 lg:min-w-[150px] lg:text-right">
+            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-ui-muted">Price</p>
+            <p className="mt-1 text-[24px] font-semibold leading-none text-ui-primary">
+              {product.price || 'Pending sync'}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-auto flex items-center justify-between gap-4">
+          <span className="text-sm font-medium text-[#7CF0CB]">AI semantic candidate</span>
+          <span className="text-xs text-ui-muted">Refresh search if details do not appear yet.</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SearchPage({
+  initialQuery = '',
+  navigationRequest,
+  onConsumeNavigationRequest,
+  onNavigateToAsset,
+  onNavigateToCollection,
+  onNavigateToPage,
+  onNavigateToUserProfile,
+  onNavigateToMessages,
+}: SearchPageProps) {
   const [filters, setFilters] = useState<SearchFilters>(() => ({
     ...getDefaultFilters(),
     query: initialQuery,
@@ -69,11 +218,19 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
-  const { address } = useAccount();
+  const { address } = useEffectiveViewer();
   const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
   const [sellerProfiles, setSellerProfiles] = useState(() => loadSellerDirectorySync({ marketplaceAssets: loadMarketplaceCatalogSync() }));
   const [runtimeCollections, setRuntimeCollections] = useState<CollectionSummary[]>(() => loadRuntimeCollections());
   const [taxonomyVersion, setTaxonomyVersion] = useState(0);
+  const [aiSearchStatus, setAiSearchStatus] = useState<AISearchStatus>('idle');
+  const [aiSearchProducts, setAiSearchProducts] = useState<AIProductResult[]>([]);
+  const [aiSearchSummary, setAiSearchSummary] = useState('');
+  const [aiExtractedQuery, setAiExtractedQuery] = useState('');
+  const [aiSearchError, setAiSearchError] = useState('');
+  const [isAISemanticSearch, setIsAISemanticSearch] = useState(false);
+  const [aiSearchNonce, setAiSearchNonce] = useState(0);
+  const aiSearchRequestRef = useRef(0);
 
   useEffect(() => {
     const refresh = () => {
@@ -102,9 +259,28 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
   // Update query when initialQuery changes
   useEffect(() => {
     if (initialQuery) {
-      setFilters(prev => ({ ...prev, query: initialQuery }));
+      setFilters((prev) => (prev.query === initialQuery ? prev : { ...prev, query: initialQuery }));
     }
   }, [initialQuery]);
+
+  useEffect(() => {
+    if (!navigationRequest) return;
+
+    const nextFilters = buildSearchNavigationFilters(navigationRequest);
+
+    if (!nextFilters) {
+      onConsumeNavigationRequest?.(navigationRequest.requestKey);
+      return;
+    }
+
+    setContentMode('assets');
+    setFilters(nextFilters);
+    setSelectedAsset(null);
+    setIsModalOpen(false);
+    setSelectedCollectionId(null);
+    setIsCollectionModalOpen(false);
+    onConsumeNavigationRequest?.(navigationRequest.requestKey);
+  }, [navigationRequest, onConsumeNavigationRequest]);
 
   const marketplaceCategories = useMemo(() => getMarketplaceCatalogCategories(marketplaceAssets), [marketplaceAssets]);
   const marketplaceCategoryOptions = useMemo(
@@ -115,7 +291,10 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
     () => getCategoryOptionsFromValues(runtimeCollections.map((collection) => collection.category)),
     [runtimeCollections, taxonomyVersion]
   );
-  const marketplaceBlockchains = useMemo(() => getMarketplaceCatalogBlockchains(marketplaceAssets), [marketplaceAssets]);
+  const marketplaceNetworkOptions = useMemo(
+    () => getMarketplaceCatalogNetworkOptions(marketplaceAssets),
+    [marketplaceAssets]
+  );
   const marketplacePriceRange = useMemo(() => getMarketplacePriceRange(marketplaceAssets), [marketplaceAssets]);
   const visibleCategoryOptions = contentMode === 'collections' ? collectionCategoryOptions : marketplaceCategoryOptions;
 
@@ -144,10 +323,109 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
     };
   }, []);
 
+  useEffect(() => {
+    if (!selectedAsset) return;
+
+    const nextSelectedAsset = getMarketplaceCatalogAssetById(selectedAsset.id, marketplaceAssets);
+    if (nextSelectedAsset && nextSelectedAsset !== selectedAsset) {
+      setSelectedAsset(nextSelectedAsset);
+    }
+  }, [marketplaceAssets, selectedAsset]);
+
+  useEffect(() => {
+    const query = filters.query.trim();
+    if (contentMode !== 'assets' || !query) {
+      aiSearchRequestRef.current += 1;
+      setAiSearchStatus('idle');
+      setAiSearchProducts([]);
+      setAiSearchSummary('');
+      setAiExtractedQuery('');
+      setAiSearchError('');
+      setIsAISemanticSearch(false);
+      return;
+    }
+
+    const requestId = aiSearchRequestRef.current + 1;
+    aiSearchRequestRef.current = requestId;
+    setAiSearchStatus('loading');
+    setAiSearchProducts([]);
+    setAiSearchSummary('');
+    setAiExtractedQuery('');
+    setAiSearchError('');
+    setIsAISemanticSearch(false);
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const selectedCategory = filters.categories.length === 1 ? filters.categories[0] : undefined;
+        const language =
+          typeof navigator !== 'undefined'
+            ? String(navigator.language || '').split('-')[0] || undefined
+            : undefined;
+        const response = await AIAgentClient.searchProducts(query, {
+          category: selectedCategory,
+          limit: selectedCategory ? 18 : 12,
+          lang: language,
+        });
+
+        if (aiSearchRequestRef.current !== requestId) return;
+
+        if (!response) {
+          setAiSearchStatus('error');
+          setAiSearchProducts([]);
+          setAiSearchSummary('');
+          setAiExtractedQuery(query);
+          setAiSearchError('ORINA AI search is unavailable right now. Showing keyword matches from the marketplace catalog.');
+          setIsAISemanticSearch(false);
+          return;
+        }
+
+        setAiSearchStatus('success');
+        setAiSearchProducts(response.results ?? []);
+        setAiSearchSummary(String(response.chatResponse || '').trim());
+        setAiExtractedQuery(String(response.extractedQuery || query).trim() || query);
+        setAiSearchError('');
+        setIsAISemanticSearch(response.isVectorSearch === true);
+      })();
+    }, 320);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [aiSearchNonce, contentMode, filters.categories, filters.query]);
+
   // Filter results
   const filteredAssets = useMemo(() => {
     return filterMarketplaceResults(marketplaceAssets, filters);
   }, [marketplaceAssets, filters, taxonomyVersion]);
+
+  const resolvedAISearchResults = useMemo(
+    () => resolveAISearchResults(aiSearchProducts, marketplaceAssets),
+    [aiSearchProducts, marketplaceAssets],
+  );
+
+  const aiFilteredAssets = useMemo(
+    () => filterMarketplaceResultsWithOptions(resolvedAISearchResults.assets, filters, { includeQuery: false }),
+    [filters, resolvedAISearchResults.assets],
+  );
+
+  const hasAdvancedAssetRefinements =
+    filters.blockchains.length > 0 ||
+    filters.priceRange.min !== null ||
+    filters.priceRange.max !== null ||
+    filters.verifiedOnly;
+
+  const aiFallbackProducts = useMemo(() => {
+    if (hasAdvancedAssetRefinements) return [];
+
+    const normalizedCategories = filters.categories.map((category) => normalizeCategoryFilterValue(category));
+    if (normalizedCategories.length === 0) {
+      return resolvedAISearchResults.unresolved;
+    }
+
+    return resolvedAISearchResults.unresolved.filter((product) =>
+      normalizedCategories.includes(normalizeCategoryFilterValue(product.category)),
+    );
+  }, [filters.categories, hasAdvancedAssetRefinements, resolvedAISearchResults.unresolved]);
 
   const filteredCollections = useMemo(() => {
     let filtered = [...runtimeCollections];
@@ -271,7 +549,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
       case 'category':
         newFilters.categories = newFilters.categories.filter((c) => c !== value);
         break;
-      case 'blockchain':
+      case 'network':
         newFilters.blockchains = newFilters.blockchains.filter((b) => b !== value);
         break;
       case 'priceMin':
@@ -303,6 +581,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
       return;
     }
     const isFav = await toggleFavorite(address, assetId);
+    adjustMarketplaceAssetLikeCount(assetId, isFav ? 1 : -1);
     setLikedAssets(prev => {
       const next = new Set(prev);
       if (isFav) next.add(assetId);
@@ -327,14 +606,25 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
   };
 
   const handleAssetClick = (assetId: string) => {
-    const asset = getMarketplaceCatalogAssetById(assetId, marketplaceAssets);
-    if (asset) {
-      setSelectedAsset(asset);
-      setIsModalOpen(true);
+    if (onNavigateToAsset) {
+      onNavigateToAsset(assetId);
+      return;
     }
+    const asset = getMarketplaceCatalogAssetById(assetId, marketplaceAssets);
+    if (!asset) {
+      onNavigateToAsset?.(assetId);
+      return;
+    }
+
+    setSelectedAsset(asset);
+    setIsModalOpen(true);
   };
 
   const handleCollectionClick = (collectionId: string) => {
+    if (onNavigateToCollection) {
+      onNavigateToCollection(collectionId, 'search');
+      return;
+    }
     setSelectedCollectionId(collectionId);
     setIsCollectionModalOpen(true);
   };
@@ -349,12 +639,26 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
       .catch(() => undefined);
   };
 
+  const aiSearchActive = contentMode === 'assets' && filters.query.trim().length > 0;
+  const showingAISearchResults =
+    aiSearchActive &&
+    aiSearchStatus === 'success' &&
+    (aiFilteredAssets.length > 0 || aiFallbackProducts.length > 0);
+  const displayedAssets = showingAISearchResults ? aiFilteredAssets : filteredAssets;
+  const displayedAssetCount =
+    displayedAssets.length + (showingAISearchResults ? aiFallbackProducts.length : 0);
+  const showAssetEmptyState =
+    displayedAssetCount === 0 &&
+    !(aiSearchActive && aiSearchStatus === 'loading');
+  const showAssetLoadingState =
+    aiSearchActive && aiSearchStatus === 'loading' && displayedAssets.length === 0;
+
   const resultCount =
     contentMode === 'profiles'
       ? filteredProfiles.length
       : contentMode === 'collections'
       ? filteredCollections.length
-      : filteredAssets.length;
+      : displayedAssetCount;
 
   const handleContentModeChange = (nextMode: 'assets' | 'profiles' | 'collections') => {
     setContentMode(nextMode);
@@ -372,6 +676,33 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
     }
   };
 
+  const handleRetryAISearch = () => {
+    setAiSearchNonce((value) => value + 1);
+  };
+
+  const resultLabel =
+    contentMode === 'profiles'
+      ? 'profiles'
+      : contentMode === 'collections'
+        ? 'collections'
+        : 'items';
+  const searchTitle = filters.query
+    ? `Results for "${filters.query}"`
+    : contentMode === 'profiles'
+      ? 'Browse Profiles'
+      : contentMode === 'collections'
+        ? 'Browse Collections'
+        : 'Browse All Assets';
+  const searchSubtitle = filters.query
+    ? 'Search stays connected to the live marketplace catalog, semantic AI results, and your active filters.'
+    : contentMode === 'profiles'
+      ? 'Review verified seller profiles and marketplace reputation signals in one place.'
+      : contentMode === 'collections'
+        ? 'Browse collection surfaces mapped from the same canonical marketplace system.'
+        : 'Search the live catalog with keyword and semantic discovery while keeping filters visible.';
+  const filterSectionClassName =
+    'rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] p-5 shadow-none';
+
   return (
     <div className="search-page-theme h-full bg-ui-page overflow-hidden">
       <style>{`
@@ -381,98 +712,174 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
       `}</style>
 
       <div className="h-full flex overflow-hidden">
-      <div className="flex-1 min-w-0 p-2.5 pr-0 overflow-hidden">
+      <div className="flex-1 min-w-0 overflow-hidden px-6 py-6 lg:px-8 lg:py-8">
 
       {/* Center Column - Results */}
       <section className="h-full overflow-y-auto custom-scrollbar relative z-10">
-        <div className="p-6 max-w-5xl mx-auto">
-        {/* Header */}
-        <StudioPageHeader
-          title={
-            <>
-              {filters.query ? (
-                <>Results for "{filters.query}"</>
-              ) : (
-                contentMode === 'profiles'
-                  ? 'Browse Profiles'
-                  : contentMode === 'collections'
-                  ? 'Browse Collections'
-                  : 'Browse All Assets'
-              )}
-            </>
-          }
-          subtitle={
-            <>
-              {resultCount} {contentMode === 'profiles' ? 'profiles' : contentMode === 'collections' ? 'collections' : 'items'} found in marketplace
-            </>
-          }
-          actions={
-            <StudioPillGroup className="rounded-xl" compact>
-            <StudioPillButton
-              onClick={() => handleContentModeChange('assets')}
-              active={contentMode === 'assets'}
-              className={contentMode === 'assets' ? 'bg-[var(--t-surface-10)] text-ui-primary rounded-lg px-3 py-1.5 shadow-none' : 'text-ui-muted hover:text-ui-primary px-3 py-1.5 rounded-lg'}
-            >
-              Assets
-            </StudioPillButton>
-            <StudioPillButton
-              onClick={() => handleContentModeChange('profiles')}
-              active={contentMode === 'profiles'}
-              className={contentMode === 'profiles' ? 'bg-[var(--t-surface-10)] text-ui-primary rounded-lg px-3 py-1.5 shadow-none' : 'text-ui-muted hover:text-ui-primary px-3 py-1.5 rounded-lg'}
-            >
-              Profiles
-            </StudioPillButton>
-            <StudioPillButton
-              onClick={() => handleContentModeChange('collections')}
-              active={contentMode === 'collections'}
-              className={contentMode === 'collections' ? 'bg-[var(--t-surface-10)] text-ui-primary rounded-lg px-3 py-1.5 shadow-none' : 'text-ui-muted hover:text-ui-primary px-3 py-1.5 rounded-lg'}
-            >
-              Collections
-            </StudioPillButton>
-            <StudioPillButton
-              onClick={() => setViewMode('list')}
-              active={viewMode === 'list'}
-              className={viewMode === 'list' ? 'bg-[var(--t-surface-10)] text-ui-primary rounded-lg px-3 py-1.5 shadow-none' : 'text-ui-muted hover:text-ui-primary px-3 py-1.5 rounded-lg'}
-            >
-              <List size={18} />
-            </StudioPillButton>
-            <StudioPillButton
-              onClick={() => setViewMode('grid')}
-              active={viewMode === 'grid'}
-              className={viewMode === 'grid' ? 'bg-[var(--t-surface-10)] text-ui-primary rounded-lg px-3 py-1.5 shadow-none' : 'text-ui-muted hover:text-ui-primary px-3 py-1.5 rounded-lg'}
-            >
-              <Grid3x3 size={18} />
-            </StudioPillButton>
-            </StudioPillGroup>
-          }
-        />
+        <div className="mx-auto max-w-6xl">
+        <StudioPanel className="mb-8 rounded-[32px] p-5 sm:p-6">
+          <StudioPageHeader
+            className="mb-6 flex-col items-start gap-5 xl:flex-row xl:items-end xl:justify-between"
+            title={<span className="text-[32px] font-semibold tracking-[-0.03em] text-ui-primary">{searchTitle}</span>}
+            subtitle={<span className="max-w-2xl text-[15px] leading-7 text-ui-secondary">{searchSubtitle}</span>}
+          />
 
-        {/* Result Count & Filters Section */}
-        <div className="flex flex-col gap-5 mb-10">
-          {/* Result Count */}
-          <div className="flex items-center">
-            <div className="text-ui-secondary text-sm">
-              <span className="text-ui-primary font-bold">{resultCount}</span> results
-              {filters.query && (
-                <>
-                  {' '}for <span className="text-[#2CC295] font-medium">"{filters.query}"</span>
-                </>
-              )}
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <StudioPillGroup className="rounded-full bg-[var(--t-surface-2)] shadow-none" compact>
+                  <StudioPillButton
+                    onClick={() => handleContentModeChange('assets')}
+                    active={contentMode === 'assets'}
+                    className={contentMode === 'assets' ? 'rounded-full bg-[var(--t-card-bg)] px-4 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-4 py-2.5 text-ui-muted hover:text-ui-primary'}
+                  >
+                    Assets
+                  </StudioPillButton>
+                  <StudioPillButton
+                    onClick={() => handleContentModeChange('profiles')}
+                    active={contentMode === 'profiles'}
+                    className={contentMode === 'profiles' ? 'rounded-full bg-[var(--t-card-bg)] px-4 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-4 py-2.5 text-ui-muted hover:text-ui-primary'}
+                  >
+                    Profiles
+                  </StudioPillButton>
+                  <StudioPillButton
+                    onClick={() => handleContentModeChange('collections')}
+                    active={contentMode === 'collections'}
+                    className={contentMode === 'collections' ? 'rounded-full bg-[var(--t-card-bg)] px-4 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-4 py-2.5 text-ui-muted hover:text-ui-primary'}
+                  >
+                    Collections
+                  </StudioPillButton>
+                </StudioPillGroup>
+
+                <StudioPillGroup className="rounded-full bg-[var(--t-surface-2)] shadow-none" compact>
+                  <StudioPillButton
+                    onClick={() => setViewMode('list')}
+                    active={viewMode === 'list'}
+                    className={viewMode === 'list' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-3 py-2.5 text-ui-muted hover:text-ui-primary'}
+                  >
+                    <List size={18} />
+                  </StudioPillButton>
+                  <StudioPillButton
+                    onClick={() => setViewMode('grid')}
+                    active={viewMode === 'grid'}
+                    className={viewMode === 'grid' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-3 py-2.5 text-ui-muted hover:text-ui-primary'}
+                  >
+                    <Grid3x3 size={18} />
+                  </StudioPillButton>
+                </StudioPillGroup>
+              </div>
+
+              <div className="text-sm text-ui-secondary">
+                <span className="font-semibold text-ui-primary">{resultCount.toLocaleString()}</span> {resultLabel}
+                {filters.query ? (
+                  <>
+                    {' '}for <span className="font-medium text-primary">"{filters.query}"</span>
+                  </>
+                ) : null}
+              </div>
             </div>
-          </div>
 
-          {/* Filter Tags */}
-          {activeFilterCount > 0 && (
-            <FilterTags
-              filters={filters}
-              onRemoveFilter={handleRemoveFilter}
-              onClearAll={handleClearAllFilters}
-            />
-          )}
-        </div>
+            {activeFilterCount > 0 && (
+              <FilterTags
+                filters={filters}
+                onRemoveFilter={handleRemoveFilter}
+                onClearAll={handleClearAllFilters}
+              />
+            )}
+          </div>
+        </StudioPanel>
+
+        {contentMode === 'assets' && filters.query.trim() && (
+          <StudioPanel className="mb-6 rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-2)] p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#2CC295]">
+                    <Sparkles size={12} />
+                    ORINA AI Search
+                  </span>
+                  {aiSearchStatus === 'success' && (
+                    <span className="rounded-full border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
+                      {isAISemanticSearch ? 'Vector semantic' : 'Keyword fallback'}
+                    </span>
+                  )}
+                  {showingAISearchResults && resolvedAISearchResults.assets.length > 0 && (
+                    <span className="rounded-full border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
+                      {resolvedAISearchResults.assets.length} synced cards
+                    </span>
+                  )}
+                  {showingAISearchResults && aiFallbackProducts.length > 0 && (
+                    <span className="rounded-full border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
+                      {aiFallbackProducts.length} pending sync
+                    </span>
+                  )}
+                </div>
+
+                {aiSearchStatus === 'loading' ? (
+                  <StudioLoadingIndicator
+                    tone="muted"
+                    label="Analyzing search intent"
+                    subLabel="Checking semantic matches in the marketplace catalog."
+                    className="text-sm text-ui-secondary"
+                    labelClassName="text-ui-primary"
+                    subLabelClassName="text-ui-muted"
+                  />
+                ) : aiSearchStatus === 'error' ? (
+                  <StudioTransientState
+                    variant="error"
+                    inline={false}
+                    title="AI search did not return a usable response"
+                    description={aiSearchError}
+                  />
+                ) : aiSearchStatus === 'success' ? (
+                  <div className="space-y-2">
+                    <p className="text-sm leading-6 text-ui-secondary">
+                      {aiSearchSummary || 'AI search completed. Rendering semantic marketplace matches below.'}
+                    </p>
+                    {aiExtractedQuery && aiExtractedQuery !== filters.query.trim() && (
+                      <p className="text-xs text-ui-muted">
+                        AI interpreted your request as <span className="font-semibold text-ui-primary">"{aiExtractedQuery}"</span>.
+                      </p>
+                    )}
+                    {aiSearchProducts.length === 0 && (
+                      <StudioTransientState
+                        variant="info"
+                        inline={false}
+                        title="No semantic matches found"
+                        description="Showing keyword matches from the marketplace catalog so the page still stays useful."
+                      />
+                    )}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2">
+                <StudioActionButton
+                  onClick={handleRetryAISearch}
+                  variant="secondary"
+                  className="px-4 py-2 text-xs"
+                >
+                  Retry AI Search
+                </StudioActionButton>
+              </div>
+            </div>
+          </StudioPanel>
+        )}
 
         {/* Results */}
-        {(contentMode === 'assets' && filteredAssets.length === 0) || (contentMode === 'profiles' && filteredProfiles.length === 0) || (contentMode === 'collections' && filteredCollections.length === 0) ? (
+        {showAssetLoadingState ? (
+          <StudioPanel className="flex min-h-[220px] items-center justify-center rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-2)]">
+            <StudioLoadingIndicator
+              layout="stacked"
+              size={24}
+              tone="muted"
+              label="ORINA AI is searching the catalog"
+              subLabel="Semantic results will appear here when the response is ready."
+              labelClassName="text-ui-primary"
+              subLabelClassName="text-ui-muted"
+            />
+          </StudioPanel>
+        ) : (contentMode === 'assets' && showAssetEmptyState) || (contentMode === 'profiles' && filteredProfiles.length === 0) || (contentMode === 'collections' && filteredCollections.length === 0) ? (
           // Empty State
           <EmptyStateCard
             icon={<Search size={30} className="text-ui-muted" />}
@@ -487,7 +894,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
               <StudioActionButton
                 onClick={handleClearAllFilters}
                 variant="primary"
-                className="px-6 py-3 text-sm rounded-lg"
+                className="px-6 py-3 text-sm"
               >
                 Clear All Filters
               </StudioActionButton>
@@ -509,7 +916,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
           `}>
             {contentMode === 'assets' ? (
               <AnimatePresence mode="popLayout">
-                {filteredAssets.map((asset) => (
+                {displayedAssets.map((asset) => (
                   <motion.div
                     key={asset.id}
                     initial={{ opacity: 0, y: 20 }}
@@ -526,6 +933,18 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                     />
                   </motion.div>
                 ))}
+                {showingAISearchResults &&
+                  aiFallbackProducts.map((product) => (
+                    <motion.div
+                      key={`ai-fallback-${product.id}`}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <AISearchFallbackCard product={product} viewMode={viewMode} />
+                    </motion.div>
+                  ))}
               </AnimatePresence>
             ) : contentMode === 'profiles' ? (
               filteredProfiles.map((profile) => (
@@ -565,11 +984,11 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
       </div>
 
       {/* Right Sidebar - Filters */}
-      <StudioSidebarShell widthClassName="w-[344px]" className="bg-ui-page border-l-0 p-2.5">
-        <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+      <StudioSidebarShell widthClassName="w-[368px]" className="bg-transparent border-l-0 p-4">
+        <div className="flex h-full flex-col overflow-hidden rounded-[28px] bg-[var(--t-card-bg)] shadow-[0_24px_60px_-42px_rgba(0,0,0,0.34)]">
         {/* Header - Fixed */}
-        <StudioSidebarHeader className="p-5 border-b border-[var(--t-border-subtle)]">
-          <h2 className="text-ui-primary font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
+        <StudioSidebarHeader className="border-b border-ui-border-subtle px-6 py-5">
+          <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
             <Search className="text-primary" size={18} />
             Search Filters
           </h2>
@@ -577,12 +996,12 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
         </StudioSidebarHeader>
 
         {/* Scrollable Content */}
-        <StudioSidebarScroll className="p-4 space-y-4">
+        <StudioSidebarScroll className="space-y-5 p-5">
           {/* Filters */}
-          <div className="space-y-4">
+          <div className="space-y-5">
             {contentMode === 'assets' && (
-              <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
-                <label className="text-[10px] font-bold text-ui-muted uppercase block mb-4">
+              <StudioPanel className={filterSectionClassName}>
+                <label className="text-[10px] font-medium text-ui-muted uppercase block mb-4">
                   Price Range (ETH)
                 </label>
                 <PriceRangeSlider
@@ -600,14 +1019,14 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                   }}
                   step={0.01}
                 />
-              </div>
+              </StudioPanel>
             )}
 
-            {/* Blockchain */}
+            {/* Network */}
             {contentMode === 'assets' && (
-              <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
-                <label className="text-[10px] font-bold text-ui-muted uppercase block mb-4">
-                  Blockchain
+              <StudioPanel className={filterSectionClassName}>
+                <label className="text-[10px] font-medium text-ui-muted uppercase block mb-4">
+                  Network
                 </label>
                 <CustomDropdown
                   defaultValue={filters.blockchains[0] || 'all'}
@@ -615,18 +1034,18 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                     setFilters({ ...filters, blockchains: value === 'all' ? [] : [value] });
                   }}
                   options={[
-                    { value: 'all', label: 'All Blockchains' },
-                    ...marketplaceBlockchains.map((blockchain) => ({ value: blockchain, label: blockchain })),
+                    { value: 'all', label: 'All Networks' },
+                    ...marketplaceNetworkOptions,
                   ]}
                   variant="compact"
                   className="w-full"
                 />
-              </div>
+              </StudioPanel>
             )}
 
             {/* Status */}
-            <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
-              <label className="text-[10px] font-bold text-ui-muted uppercase block mb-4">
+            <StudioPanel className={filterSectionClassName}>
+              <label className="text-[10px] font-medium text-ui-muted uppercase block mb-4">
                 Status
               </label>
               <div className="space-y-3">
@@ -662,12 +1081,12 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                   </>
                 )}
               </div>
-            </div>
+            </StudioPanel>
 
             {/* Categories */}
             {contentMode !== 'profiles' && (
-              <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
-                <label className="text-[10px] font-bold text-ui-muted uppercase block mb-4">
+              <StudioPanel className={filterSectionClassName}>
+                <label className="text-[10px] font-medium text-ui-muted uppercase block mb-4">
                   Categories
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -681,7 +1100,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                         setFilters({ ...filters, categories: newCategories });
                       }}
                       className={`
-                        px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors
+                        px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors
                         ${filters.categories.includes(category.value)
                           ? 'bg-[#2CC295]/10 text-[#2CC295] border-[#2CC295]/20'
                           : 'bg-ui-input text-ui-secondary border-ui-border-subtle hover:bg-[var(--t-surface-hover)]'
@@ -692,24 +1111,24 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                     </button>
                   ))}
                 </div>
-              </div>
+              </StudioPanel>
             )}
           </div>
 
           {runtimeFlags.enableSearchDemoPanels ? (
-            <div className="p-5 bg-[rgba(255,255,255,0.02)] border-0 rounded-[24px] backdrop-blur-[10px]">
+            <StudioPanel className={filterSectionClassName}>
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-[11px] uppercase font-bold text-ui-muted">Market Trends</h2>
-                <span className="text-[10px] text-[#2CC295] bg-[#2CC295]/10 px-2 py-0.5 rounded font-bold uppercase">
+                <h2 className="text-[11px] uppercase font-semibold text-ui-muted">Market Trends</h2>
+                <span className="text-[10px] text-[#2CC295] bg-[#2CC295]/10 px-2 py-0.5 rounded font-semibold uppercase">
                   Live
                 </span>
               </div>
               <div className="space-y-4">
                 <StudioPanel className="p-4 rounded-xl bg-[var(--t-surface-5)]">
-                  <p className="text-[10px] font-bold text-ui-muted uppercase mb-1">Floor Price Trend</p>
+                  <p className="text-[10px] font-medium text-ui-muted uppercase mb-1">Floor Price Trend</p>
                   <div className="flex items-end justify-between">
-                    <span className="text-xl font-bold text-ui-primary">1.12 ETH</span>
-                    <span className="text-xs text-[#2CC295] font-bold flex items-center gap-1">
+                    <span className="text-xl font-semibold text-ui-primary">1.12 ETH</span>
+                    <span className="text-xs text-[#2CC295] font-semibold flex items-center gap-1">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                       </svg>
@@ -726,7 +1145,7 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
                   </div>
                 </StudioPanel>
               </div>
-            </div>
+            </StudioPanel>
           ) : null}
         </StudioSidebarScroll>
         </div>
@@ -737,6 +1156,8 @@ export function SearchPage({ initialQuery = '', onNavigateToAsset, onNavigateToP
         <AssetDetailsModal
           asset={selectedAsset}
           onClose={() => setIsModalOpen(false)}
+          onNavigateToSeller={onNavigateToUserProfile}
+          onNavigateToSellerMessages={onNavigateToMessages}
         />
       )}
 

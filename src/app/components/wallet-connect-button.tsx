@@ -95,13 +95,13 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
 
   const renderWalletDropdown = (align: 'right' | 'left') => (
     <div
-      className={`wallet-dropdown-panel absolute ${align === 'right' ? 'right-0' : 'left-full ml-2'} top-full mt-2 w-[264px] dropdown-panel overflow-hidden rounded-[24px] z-50 pb-[5px]`}
+      className={`wallet-dropdown-panel nativebar-dropdown-panel absolute ${align === 'right' ? 'right-0' : 'left-full ml-2'} top-full mt-2 w-[264px] dropdown-panel overflow-hidden rounded-[24px] z-50 pb-[5px]`}
       style={dropdownPanelStyle}
     >
       <style>{`@keyframes walletDropdownIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
       <div className="px-4 py-3">
-        <p className="text-[10px] text-[rgba(148,163,184,0.86)] uppercase tracking-[0.8px] font-bold mb-1">Connected Wallet</p>
+        <p className="text-[10px] text-[rgba(148,163,184,0.86)] uppercase tracking-[0.8px] font-semibold mb-1">Connected Wallet</p>
         <div className="flex items-start gap-2">
           <p className="text-xs font-mono text-[rgba(226,232,240,0.95)] break-all flex-1 leading-5">{address}</p>
           <button
@@ -172,7 +172,7 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
       return (
         <button
           onClick={handleConnect}
-          className="flex items-center gap-2 w-full px-3 py-2 bg-ui-input hover:bg-ui-input-focus text-ui-primary border border-ui-border-subtle font-semibold text-xs rounded-full transition-all justify-center"
+          className="ui-secondary-button flex w-full items-center justify-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition-all"
         >
           <span>Connect Wallet</span>
         </button>
@@ -211,7 +211,7 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
         className="wallet-dropdown-trigger flex items-center justify-between gap-2 min-w-[132px] max-w-[220px] h-[43px] px-3 bg-[rgba(18,18,18,0.5)] hover:bg-[rgba(18,18,18,0.65)] rounded-[50px] transition-all shadow-none"
       >
         <div className="min-w-0 flex-1 text-left">
-          <span className="text-[14px] leading-none font-bold text-[rgba(241,245,249,0.96)] block truncate">
+          <span className="text-[14px] leading-none font-semibold text-[rgba(241,245,249,0.96)] block truncate">
             {navLabel}
           </span>
         </div>

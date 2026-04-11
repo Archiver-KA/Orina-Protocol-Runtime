@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useAccount } from 'wagmi';
 import { OrderState } from '@/config/contracts';
 import {
   getBuyerDisputeDeadline,
@@ -8,11 +7,13 @@ import {
   getSellerConfirmDeadline,
 } from '@/utils/orderLifecycle';
 import { formatOrderGrossPrice } from '@/utils/orderDisplay';
+import { isOrderCompleted, resolveOrderSemantics } from '@/utils/orderSemantics';
 import { encodeIn, isSupabaseRestEnabled, restSelect } from '@/utils/supabaseRest';
 import type { OrderUiRecord } from '@/types/order';
 import type { ProtocolOrderRow } from '@/utils/runtimeOrders';
 import { useUserOrders } from './useUserOrders';
 import { useProtocolDataNetwork } from './useProtocolDataNetwork';
+import { useEffectiveViewer } from './useEffectiveViewer';
 
 export type TimeRange = '7D' | '30D' | '90D' | '1Y' | 'ALL';
 export type UserAnalyticsCalendarPhase =
@@ -329,7 +330,9 @@ function buildLifecycleMilestones(order: OrderUiRecord, viewerAddress?: string |
     );
   }
 
-  if (order.finalized || order.state === OrderState.FINALIZED) {
+  const semantics = resolveOrderSemantics(order);
+
+  if (semantics.isCompleted) {
     milestones.push(
       createAnalyticsEvent({
         id: `${orderId}-finalized`,
@@ -337,7 +340,7 @@ function buildLifecycleMilestones(order: OrderUiRecord, viewerAddress?: string |
         assetName: order.assetName,
         assetImage: order.assetImage,
         title: 'Order Finalized',
-        detail: `Order #${orderId} finalized on-chain.`,
+        detail: `Order #${orderId} was completed.`,
         timestamp: updatedAt,
         status: 'completed',
         kind: 'order_finalized',
@@ -349,7 +352,7 @@ function buildLifecycleMilestones(order: OrderUiRecord, viewerAddress?: string |
     );
   }
 
-  if (order.state === OrderState.CANCELLED) {
+  if (semantics.isCancelled) {
     milestones.push(
       createAnalyticsEvent({
         id: `${orderId}-cancelled`,
@@ -357,7 +360,7 @@ function buildLifecycleMilestones(order: OrderUiRecord, viewerAddress?: string |
         assetName: order.assetName,
         assetImage: order.assetImage,
         title: 'Order Cancelled',
-        detail: `Order #${orderId} cancelled on-chain.`,
+        detail: `Order #${orderId} was cancelled.`,
         timestamp: updatedAt,
         status: 'completed',
         kind: 'order_cancelled',
@@ -400,7 +403,7 @@ function buildLifecycleMilestones(order: OrderUiRecord, viewerAddress?: string |
         assetName: order.assetName,
         assetImage: order.assetImage,
         title: 'Seller Window Expired',
-        detail: `Seller did not act in time for order #${orderId}. The order is now waiting for protocol cancellation flow.`,
+        detail: `Seller did not act in time for order #${orderId}. The order is now moving toward cancellation.`,
         timestamp: deadlineMs,
         status: 'pending',
         kind: 'seller_confirm_expired',
@@ -420,8 +423,8 @@ function buildLifecycleMilestones(order: OrderUiRecord, viewerAddress?: string |
         orderId,
         assetName: order.assetName,
         assetImage: order.assetImage,
-        title: 'Buyer Re-Sign Due',
-        detail: `Buyer must re-sign or cancel order #${orderId}.`,
+        title: 'Buyer Confirmation Due',
+        detail: `Buyer must confirm or cancel order #${orderId}.`,
         timestamp: deadlineMs,
         status: resolveMilestoneStatus(deadlineMs, nowMs),
         kind: 'waiting_buyer_accept',
@@ -441,8 +444,8 @@ function buildLifecycleMilestones(order: OrderUiRecord, viewerAddress?: string |
         orderId,
         assetName: order.assetName,
         assetImage: order.assetImage,
-        title: 'Buyer Re-Sign Expired',
-        detail: `Buyer did not re-sign in time for order #${orderId}. The order is now waiting for protocol cancellation flow.`,
+        title: 'Buyer Confirmation Expired',
+        detail: `Buyer did not confirm in time for order #${orderId}. The order is now moving toward cancellation.`,
         timestamp: deadlineMs,
         status: 'pending',
         kind: 'buyer_accept_expired',
@@ -506,8 +509,8 @@ function buildLifecycleMilestones(order: OrderUiRecord, viewerAddress?: string |
         orderId,
         assetName: order.assetName,
         assetImage: order.assetImage,
-        title: 'Auto Finalize Ready',
-        detail: `Order #${orderId} is now eligible for protocol auto-finalization.`,
+        title: 'Auto Completion Ready',
+        detail: `Order #${orderId} is now ready to complete automatically.`,
         timestamp: deadlineMs || nowMs,
         status: 'pending',
         kind: 'auto_finalize_ready',
@@ -627,8 +630,8 @@ function createProjectedEventDetail(
   if (kind === 'pay_deadline_set') {
     const deadline = typeof args?.payDeadline === 'string' ? args.payDeadline : null;
     return deadline
-      ? `Buyer re-sign deadline recorded for order #${orderId}: ${deadline}.`
-      : `Buyer re-sign deadline recorded for order #${orderId}.`;
+      ? `Buyer confirmation deadline recorded for order #${orderId}: ${deadline}.`
+      : `Buyer confirmation deadline recorded for order #${orderId}.`;
   }
   if (kind === 'delivery_time_accepted') return `Buyer accepted revised delivery timing for order #${orderId}.`;
   if (kind === 'escrow_locked') return `Escrow locked for order #${orderId}.`;
@@ -637,11 +640,11 @@ function createProjectedEventDetail(
   if (kind === 'dispute_resolved_by_agreement') return `Dispute for order #${orderId} resolved by agreement.`;
   if (kind === 'dispute_resolved_by_arbiter') return `Dispute for order #${orderId} resolved by arbiter decision.`;
   if (kind === 'dispute_auto_split') return `Dispute for order #${orderId} auto-split after deadline.`;
-  if (kind === 'order_finalized') return `Order #${orderId} finalized on-chain.`;
+  if (kind === 'order_finalized') return `Order #${orderId} was completed.`;
   if (kind === 'order_cancelled_by_seller') return `Seller cancelled order #${orderId}.`;
   if (kind === 'order_cancelled_by_buyer') return `Buyer cancelled order #${orderId}.`;
-  if (kind === 'order_cancelled') return `Order #${orderId} cancelled on-chain.`;
-  return `Protocol event recorded for order #${orderId}.`;
+  if (kind === 'order_cancelled') return `Order #${orderId} was cancelled.`;
+  return `An order update was recorded for order #${orderId}.`;
 }
 
 function createProjectedEventTitle(kind: string, eventName?: string | null) {
@@ -650,7 +653,7 @@ function createProjectedEventTitle(kind: string, eventName?: string | null) {
   if (kind === 'seller_signed') return 'Seller Signed';
   if (kind === 'seller_confirmed') return 'Seller Confirmed';
   if (kind === 'delivery_time_set') return 'Delivery Time Set';
-  if (kind === 'pay_deadline_set') return 'Buyer Re-Sign Deadline';
+  if (kind === 'pay_deadline_set') return 'Buyer Confirmation Deadline';
   if (kind === 'delivery_time_accepted') return 'Delivery Accepted';
   if (kind === 'escrow_locked') return 'Escrow Locked';
   if (kind === 'dispute_opened') return 'Dispute Opened';
@@ -722,7 +725,7 @@ function buildActivityPoints(orders: OrderUiRecord[], range: TimeRange): UserAna
 
   for (const order of orders) {
     const createdMs = toMs(order.proposedAt, order.createdAt ?? now);
-    const finalizedMs = order.finalized || order.state === OrderState.FINALIZED ? (order.updatedAt ?? createdMs) : 0;
+    const finalizedMs = isOrderCompleted(order) ? (order.updatedAt ?? createdMs) : 0;
     const disputeMs = toMs(order.disputeOpenedAt);
 
     const createdIndex = Math.floor((toDayStart(createdMs) - effectiveStart) / DAY_MS);
@@ -748,7 +751,7 @@ function buildActivityPoints(orders: OrderUiRecord[], range: TimeRange): UserAna
 }
 
 export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult {
-  const { address } = useAccount();
+  const { address } = useEffectiveViewer();
   const { chainId, marketplaceAddress } = useProtocolDataNetwork();
   const { orders, isLoading } = useUserOrders(address);
   const [projectedEvents, setProjectedEvents] = useState<UserAnalyticsEvent[]>([]);
@@ -874,9 +877,9 @@ export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult 
       || order.state === OrderState.PAID
       || order.state === OrderState.DISPUTED
     )).length;
-    const finalizedOrders = userOrders.filter((order) => order.finalized || order.state === OrderState.FINALIZED).length;
-    const disputedOrders = userOrders.filter((order) => order.state === OrderState.DISPUTED || order.disputed).length;
-    const cancelledOrders = userOrders.filter((order) => order.state === OrderState.CANCELLED).length;
+    const finalizedOrders = userOrders.filter((order) => isOrderCompleted(order)).length;
+    const disputedOrders = userOrders.filter((order) => resolveOrderSemantics(order).isDisputed).length;
+    const cancelledOrders = userOrders.filter((order) => resolveOrderSemantics(order).isCancelled).length;
     const asBuyerCount = userOrders.filter((order) => order.buyer.toLowerCase() === normalizedAddress).length;
     const asSellerCount = userOrders.filter((order) => order.seller.toLowerCase() === normalizedAddress).length;
 
@@ -920,7 +923,7 @@ export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult 
       };
       token.orderCount += 1;
       token.grossVolume += order.grossPrice;
-      if (order.finalized || order.state === OrderState.FINALIZED) {
+      if (isOrderCompleted(order)) {
         token.finalizedCount += 1;
       }
       paymentMap.set(symbol, token);
@@ -942,36 +945,36 @@ export function useAnalytics(timeRange: TimeRange = '30D'): UserAnalyticsResult 
     if (userOrders.length === 0) {
       insights.push({
         type: 'info',
-        title: 'No On-Chain Activity Yet',
-        message: 'Create or fulfill an order to start building your lifecycle calendar.',
+        title: 'No Order Activity Yet',
+        message: 'Create or complete an order to start building your calendar view.',
       });
     } else {
       if (actionableUpcomingCount > 0) {
         insights.push({
           type: 'warning',
           title: 'Action Needed',
-          message: `${actionableUpcomingCount} milestone(s) currently require action from this wallet.`,
+          message: `${actionableUpcomingCount} step(s) currently require action from this wallet.`,
         });
       }
       if (finalizedOrders > 0) {
         insights.push({
           type: 'success',
           title: 'Orders Completed',
-          message: `${finalizedOrders} order(s) have already finalized on-chain.`,
+          message: `${finalizedOrders} order(s) have already been completed.`,
         });
       }
       if (disputedOrders > 0) {
         insights.push({
           type: 'warning',
-          title: 'Dispute Workflow Present',
-          message: `${disputedOrders} order(s) entered the dispute lifecycle and should be monitored closely.`,
+          title: 'Disputes Open',
+          message: `${disputedOrders} order(s) have entered dispute review and may need attention.`,
         });
       }
       if (upcomingEvents.length > 0) {
         insights.push({
           type: 'info',
-          title: 'Calendar Milestones Ready',
-          message: `${upcomingEvents.length} pending or future lifecycle milestone(s) are mapped from canonical order deadlines.`,
+          title: 'Upcoming Steps',
+          message: `${upcomingEvents.length} upcoming step(s) are already scheduled in your order calendar.`,
         });
       }
     }

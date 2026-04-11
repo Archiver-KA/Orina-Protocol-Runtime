@@ -102,6 +102,11 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
 export const LIVE_PROTOCOL_NETWORK =
   PROTOCOL_NETWORK_OPTIONS.find((network) => network.status === 'live') ?? PROTOCOL_NETWORK_OPTIONS[0];
 
+export const LIVE_PROTOCOL_CHAIN_ID = LIVE_PROTOCOL_NETWORK.chainId ?? ACTIVE_CHAIN_ID;
+export const LIVE_PROTOCOL_CONTRACTS = LIVE_PROTOCOL_NETWORK.contracts ?? CONTRACTS;
+export const LIVE_PROTOCOL_RPC_URL = LIVE_PROTOCOL_NETWORK.rpcUrl ?? RPC_URLS[LIVE_PROTOCOL_CHAIN_ID as keyof typeof RPC_URLS] ?? null;
+export const LIVE_PROTOCOL_EXPLORER_URL = LIVE_PROTOCOL_NETWORK.explorerUrl ?? EXPLORER_URLS[LIVE_PROTOCOL_CHAIN_ID as keyof typeof EXPLORER_URLS] ?? null;
+
 export const PROTOCOL_NETWORK_STORAGE_KEY = 'orina:protocol-network-key';
 
 function normalizeNetworkValue(value?: string | number | null) {
@@ -130,6 +135,18 @@ export function getProtocolNetworkOptionByKey(key?: string | null) {
   const normalizedKey = normalizeNetworkValue(key);
   if (!normalizedKey) return undefined;
   return PROTOCOL_NETWORK_OPTIONS.find((network) => normalizeNetworkValue(network.key) === normalizedKey);
+}
+
+export function resolveStoredProtocolNetworkKey(key?: string | null) {
+  const storedNetwork = getProtocolNetworkOptionByKey(key);
+  if (storedNetwork?.status === 'live' && storedNetwork.contracts) {
+    return storedNetwork.key;
+  }
+  return LIVE_PROTOCOL_NETWORK.key;
+}
+
+export function resolveStoredProtocolNetworkOption(key?: string | null) {
+  return getProtocolNetworkOptionByKey(resolveStoredProtocolNetworkKey(key)) ?? LIVE_PROTOCOL_NETWORK;
 }
 
 export function findProtocolNetworkOptionByValue(value?: string | number | null) {
@@ -174,4 +191,4 @@ export function getProtocolContracts(chainId?: number | null) {
   return getProtocolNetworkOption(chainId)?.contracts ?? null;
 }
 
-export const PROTOCOL_CHAIN_LABEL = formatChainLabel(ACTIVE_CHAIN_ID);
+export const PROTOCOL_CHAIN_LABEL = formatChainLabel(LIVE_PROTOCOL_CHAIN_ID);
