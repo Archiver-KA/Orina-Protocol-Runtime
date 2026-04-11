@@ -1,384 +1,140 @@
 # AI M2M Supabase Deploy And Runtime Verification
 
-## Scope
+> Historical shared-bundle checklist replaced by the split-function runbook in `docs/spec/19-supabase-split-function-runbook.md`. This file keeps the current verification matrix and compatibility notes for April 2026.
 
-This runbook is for the current ATP2 Supabase runtime:
+## Current Runtime Bases
 
 - project ref: `vcixsdudkizgfikhmfuv`
-- function slug: `make-server-b0d68fc8`
-- frontend bridge path prefix: `/auth/supabase-claim-bridge`
-- M2M config base route: `/ai/m2m`
+- shared core: `https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/make-server-b0d68fc8`
+- auth bridge: `https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/orina-auth-bridge-v1`
+- AI M2M: `https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/orina-ai-m2m-v2`
 
-Current frontend `.env` baseline:
+Routes currently used by the app:
 
-```env
-VITE_SUPABASE_PROJECT_ID=vcixsdudkizgfikhmfuv
-VITE_SUPABASE_URL=https://vcixsdudkizgfikhmfuv.supabase.co
-VITE_SUPABASE_AUTH_BRIDGE_ENABLED=true
-VITE_SUPABASE_AUTH_BRIDGE_FN_NAME=make-server-b0d68fc8
-VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX=/auth/supabase-claim-bridge
-VITE_M2M_DELEGATION_MANAGER=0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58
-VITE_M2M_AI_WALLET_FACTORY_V2=0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2
-```
+- bridge exchange: `POST /functions/v1/orina-auth-bridge-v1/exchange`
+- M2M config load: `GET /functions/v1/orina-ai-m2m-v2/config/:walletAddress`
+- M2M config save: `POST /functions/v1/orina-ai-m2m-v2/config`
+- generate delegate: `POST /functions/v1/orina-ai-m2m-v2/delegates/generate`
+- create enroll code: `POST /functions/v1/orina-ai-m2m-v2/delegates/invite`
+- accept enroll code: `POST /functions/v1/orina-ai-m2m-v2/delegates/accept-invite`
+- direct execution: `POST /functions/v1/orina-ai-m2m-v2/execute`
+- execution status poll: `GET /functions/v1/orina-ai-m2m-v2/status/:threadId/:messageId`
 
-## Current Runtime URLs
+Mounted source of truth in repo:
 
-Function base:
-
-```text
-https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/make-server-b0d68fc8
-```
-
-Routes used by the app:
-
-- bridge exchange: `POST /auth/supabase-claim-bridge/exchange`
-- M2M config load: `GET /ai/m2m/config/:walletAddress`
-- M2M config save: `POST /ai/m2m/config`
-- generate delegate: `POST /ai/m2m/delegates/generate`
-- create enroll code: `POST /ai/m2m/delegates/invite`
-- accept enroll code: `POST /ai/m2m/delegates/accept-invite`
-
-Mounted source of truth:
-
-- [index.tsx](c:/ORINA/ATPProtocol2/ATP2/supabase/functions/server/index.tsx)
+- [orina-auth-bridge-v1/index.ts](c:/ORINA/ATPProtocol2/ATP2/supabase/functions/orina-auth-bridge-v1/index.ts)
+- [orina-ai-m2m-v2/index.ts](c:/ORINA/ATPProtocol2/ATP2/supabase/functions/orina-ai-m2m-v2/index.ts)
 - [wallet-auth-claim-bridge.tsx](c:/ORINA/ATPProtocol2/ATP2/supabase/functions/server/wallet-auth-claim-bridge.tsx)
 - [ai-m2m-wallet.ts](c:/ORINA/ATPProtocol2/ATP2/supabase/functions/server/ai-m2m-wallet.ts)
 
-## Phase 0. Preconditions
-
-Local tools:
-
-1. `supabase --version`
-2. `npm run build`
-
-Current local checks:
-
-- Supabase CLI installed locally: `2.75.0`
-- frontend build currently passes
-
-Operator prerequisites:
-
-1. Supabase CLI logged in.
-2. Access to project `vcixsdudkizgfikhmfuv`.
-3. Project JWT secret available from Supabase project settings.
-4. Strong random secret prepared for `ATP2_M2M_DELEGATE_ENCRYPTION_KEY`.
-
-## Phase 1. Set Secrets
-
-Set the server-side secrets on the current remote project:
-
-```bat
-supabase secrets set ^
-ATP2_ENABLE_SUPABASE_AUTH_CLAIM_BRIDGE=true ^
-ATP2_SUPABASE_AUTH_BRIDGE_VERIFY_MODE=wallet_session_row ^
-ATP2_SUPABASE_AUTH_BRIDGE_EXPECTED_CLAIM_VERSION=h1 ^
-ATP2_SUPABASE_JWT_SECRET=<supabase-jwt-secret> ^
-ATP2_M2M_DELEGATE_ENCRYPTION_KEY=<strong-random-secret> ^
---project-ref vcixsdudkizgfikhmfuv
-```
-
-Verification:
-
-```bat
-supabase secrets list --project-ref vcixsdudkizgfikhmfuv
-```
-
-Pass criteria:
-
-- `ATP2_ENABLE_SUPABASE_AUTH_CLAIM_BRIDGE` present
-- `ATP2_SUPABASE_AUTH_BRIDGE_VERIFY_MODE` present
-- `ATP2_SUPABASE_AUTH_BRIDGE_EXPECTED_CLAIM_VERSION` present
-- `ATP2_SUPABASE_JWT_SECRET` present
-- `ATP2_M2M_DELEGATE_ENCRYPTION_KEY` present
-
-## Phase 2. Deploy Edge Function
-
-Deploy the current server function bundle:
-
-```bat
-supabase functions deploy make-server-b0d68fc8 --project-ref vcixsdudkizgfikhmfuv
-```
-
-Optional local syntax check before deploy:
-
-```bat
-deno check supabase/functions/server/index.tsx
-```
-
-Pass criteria:
-
-- deploy command returns success
-- no route regression in `make-server-b0d68fc8`
-
-## Phase 3. Deploy Frontend Runtime
-
-Ensure the frontend runtime env contains:
+## Frontend Runtime Baseline
 
 ```env
 VITE_SUPABASE_PROJECT_ID=vcixsdudkizgfikhmfuv
 VITE_SUPABASE_URL=https://vcixsdudkizgfikhmfuv.supabase.co
 VITE_SUPABASE_ANON_KEY=<project anon key>
+VITE_SUPABASE_FUNCTIONS_NAMESPACE=make-server-b0d68fc8
+VITE_SUPABASE_SHARED_SERVER_FN_NAME=make-server-b0d68fc8
 VITE_SUPABASE_AUTH_BRIDGE_ENABLED=true
-VITE_SUPABASE_AUTH_BRIDGE_FN_NAME=make-server-b0d68fc8
-VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX=/auth/supabase-claim-bridge
+VITE_SUPABASE_AUTH_BRIDGE_FN_NAME=orina-auth-bridge-v1
+VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX=
+VITE_SUPABASE_AI_M2M_FN_NAME=orina-ai-m2m-v2
 VITE_M2M_DELEGATION_MANAGER=0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58
 VITE_M2M_AI_WALLET_FACTORY_V2=0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2
 ```
 
-Build check:
+## Secrets Gate
+
+These must be present remotely before route or browser verification:
+
+- `ATP2_ENABLE_SUPABASE_AUTH_CLAIM_BRIDGE=true`
+- `ATP2_SUPABASE_AUTH_BRIDGE_VERIFY_MODE=wallet_session_row`
+- `ATP2_SUPABASE_AUTH_BRIDGE_EXPECTED_CLAIM_VERSION=h1`
+- `ATP2_SUPABASE_JWT_SECRET=<supabase-jwt-secret>`
+- `ATP2_M2M_DELEGATE_ENCRYPTION_KEY=<strong-random-secret>`
+
+## Verification Order
+
+### 1. Reachability
+
+Run these probes first:
 
 ```bat
-npm run build
+node supabase\audit\test_h1_claim_bridge_http.cjs https://vcixsdudkizgfikhmfuv.supabase.co <anon-jwt> orina-auth-bridge-v1
+```
+
+```bat
+node supabase\audit\probe_ai_m2m_runtime.cjs
+```
+
+```bat
+node supabase\audit\smoke_wallet_claim_security.cjs https://vcixsdudkizgfikhmfuv.supabase.co <anon-jwt> orina-auth-bridge-v1
 ```
 
 Pass criteria:
 
-- build passes
-- deployed frontend uses the same env values above
+- bridge health and exchange are reachable
+- AI M2M config and delegate routes are reachable
+- no route returns `404`
 
-## Phase 4. Route Reachability Checks
+### 2. Browser Auth Flow
 
-### 4.1 Bridge probe
+Using the root wallet that will own the delegated session:
 
-Run the existing bridge probe:
-
-```bat
-node supabase\audit\test_h1_claim_bridge_http.cjs https://vcixsdudkizgfikhmfuv.supabase.co <anon-jwt> make-server-b0d68fc8 /auth/supabase-claim-bridge
-```
-
-Expected:
-
-- at least one bridge health route responds
-- `exchange` route is reachable
-- it should not return `404`
-
-Interpretation:
-
-- `400` or `401` still proves the route is deployed
-- `404` means the wrong function build is live or the route path is wrong
-
-### 4.2 M2M route presence
-
-Open the app with devtools network tab enabled.
-
-Expected routes once the settings page loads:
-
-- `POST /functions/v1/make-server-b0d68fc8/auth/supabase-claim-bridge/exchange`
-- `GET /functions/v1/make-server-b0d68fc8/ai/m2m/config/<rootWallet>`
-
-Pass criteria:
-
-- neither route returns `404`
-- config route does not fail with generic network error
-
-## Phase 5. Auth Bridge Verification
-
-Use the root wallet that will own the delegated session.
-
-Steps:
-
-1. connect the root wallet
-2. trigger the Orina wallet auth flow
-3. sign the wallet auth message
-4. open Settings > AI Wallet M2M
+1. connect the wallet
+2. complete the Orina wallet auth signature
+3. open Settings > AI Wallet M2M
 
 Expected network sequence:
 
-1. `POST /auth/supabase-claim-bridge/exchange`
-2. `GET /ai/m2m/config/:walletAddress`
+1. `POST /functions/v1/orina-auth-bridge-v1/exchange`
+2. `GET /functions/v1/orina-ai-m2m-v2/config/:walletAddress`
 
 Expected statuses:
 
 - exchange: `200`
-- config: `200`
+- config load: `200`
 
-If exchange fails:
+### 3. Delegate Lifecycle
 
-- check `VITE_SUPABASE_AUTH_BRIDGE_ENABLED=true`
-- check root wallet has a local wallet auth session
-- check `ATP2_SUPABASE_JWT_SECRET`
-- check bridge function was redeployed after secrets changed
+Root wallet expected results:
 
-If config fails with `403`:
+- `POST /functions/v1/orina-ai-m2m-v2/delegates/generate` returns `200`
+- `POST /functions/v1/orina-ai-m2m-v2/delegates/invite` returns `200`
+- verified delegate appears in the UI after generate or enroll
 
-- connected wallet does not match the `walletAddress` being requested
+Delegate wallet expected result:
 
-## Phase 6. Generate Delegate Verification
+- `POST /functions/v1/orina-ai-m2m-v2/delegates/accept-invite` returns `200`
 
-With the authenticated root wallet on the settings page:
+### 4. Policy Save
 
-1. click `Generate Delegate`
+Expected result after saving a policy:
 
-Expected request:
+- `POST /functions/v1/orina-ai-m2m-v2/config` returns `200`
+- response includes `config.selectedDelegateId`
+- response overview keeps `rootFallbackEnabled = true`
+- policy reloads correctly on refresh
 
-- `POST /functions/v1/make-server-b0d68fc8/ai/m2m/delegates/generate`
+### 5. Optional Action Execution
 
-Expected result:
+When the proposal execution surface is in use:
 
-- `200`
-- response contains `success: true`
-- response contains `delegate`
-- a verified delegate appears in the UI
+- `POST /functions/v1/orina-ai-m2m-v2/execute` should move the proposal to `executing` or `completed`
+- `GET /functions/v1/orina-ai-m2m-v2/status/:threadId/:messageId` should expose the latest execution state and tx hash
 
-If it fails with `500` and mentions `ATP2_M2M_DELEGATE_ENCRYPTION_KEY`:
+## Go-Live Gate
 
-- set the secret
-- redeploy `make-server-b0d68fc8`
-- retry
-
-## Phase 7. Enroll Delegate Verification
-
-This flow uses a second wallet.
-
-### Root wallet
-
-1. click `Create Enroll Code`
-2. copy the generated invite id
-
-Expected request:
-
-- `POST /functions/v1/make-server-b0d68fc8/ai/m2m/delegates/invite`
-
-Expected result:
-
-- `200`
-- response contains `invite`
-- pending invite appears in UI
-
-### Delegate wallet
-
-1. disconnect root wallet
-2. connect the delegate wallet
-3. sign the Orina wallet auth message for that delegate wallet
-4. open the same settings panel
-5. paste the invite id
-6. click `Accept Enroll Code`
-
-Expected request:
-
-- `POST /functions/v1/make-server-b0d68fc8/ai/m2m/delegates/accept-invite`
-
-Expected result:
-
-- `200`
-- response contains `delegate`
-- response contains `rootWalletAddress`
-
-Pass criteria:
-
-- root wallet refresh sees the enrolled delegate in `Verified Delegates`
-
-## Phase 8. Config Save Verification
-
-Back on the root wallet:
-
-1. select a verified delegate
-2. leave `buy` enabled
-3. choose `USDT`
-4. set `maxPerOrder`
-5. set `maxTotal`
-6. set `expiryDays`
-7. click `Save M2M Policy`
-
-Expected request:
-
-- `POST /functions/v1/make-server-b0d68fc8/ai/m2m/config`
-
-Expected result:
-
-- `200`
-- response contains:
-  - `config.selectedDelegateId`
-  - `overview.rootFallbackEnabled = true`
-  - `overview.prefundRequired = true`
-
-Pass criteria:
-
-- no runtime error banner
-- saved policy reloads correctly on refresh
-
-## Phase 9. On-chain Readiness Verification
-
-After config save succeeds, the UI still depends on on-chain readiness.
-
-Expected cards:
-
-- `Session Model`: `Direct Delegate`
-- `Root Fallback`: `Always On`
-- `Deployment`: `Ready`
-
-Expected preview:
-
-- root epoch present
-- next session nonce present
-- selected delegate address shown
-- predicted wallet address derives successfully after token and expiry are set
-
-If deployment is not ready:
-
-- frontend M2M contract env is wrong
-- or current app runtime is still on an older build
-
-## Phase 10. Functional Smoke Matrix
-
-### Root wallet smoke
-
-1. load settings page
-2. generate delegate
-3. save config
-4. refresh page
-
-Expected:
-
-- config round-trip remains stable
-
-### External delegate smoke
-
-1. create enroll code
-2. accept with second wallet
-3. refresh root wallet page
-
-Expected:
-
-- enrolled delegate persists
-
-### Runtime error mapping smoke
-
-Check these now surface directly in UI:
-
-- bridge disabled
-- wallet session required
-- 401 auth claims rejected
-- 403 wallet mismatch
-- 404 route not deployed
-- 500 missing JWT secret
-- 500 missing delegate encryption key
-
-## Phase 11. Go-Live Gate
-
-Do not treat delegated AI wallet as enabled for users until all are true:
+Treat delegated AI wallet as live only when all are true:
 
 1. bridge exchange returns `200`
 2. config load returns `200`
-3. generate delegate returns `200`
-4. invite returns `200`
-5. accept invite returns `200`
-6. save config returns `200`
-7. UI derives predicted wallet successfully
-8. no route returns `404`
-9. no server route returns `500`
+3. delegate generate or enroll succeeds
+4. config save returns `200`
+5. predicted wallet derives successfully in the UI
+6. no bridge or M2M route returns `404`
+7. no route returns a `500` caused by missing JWT or delegate-encryption secrets
 
-## Rollback
+## Legacy Compatibility Note
 
-If runtime breaks after deploy:
-
-1. redeploy the previous frontend build
-2. redeploy the previous `make-server-b0d68fc8` bundle if needed
-3. disable access to the M2M settings page in frontend if the service cannot be recovered quickly
-
-If only `Generate Delegate` is broken:
-
-1. keep M2M settings page up
-2. temporarily rely on `Create Enroll Code` / `Accept Enroll Code`
-3. restore `ATP2_M2M_DELEGATE_ENCRYPTION_KEY`
-4. redeploy the function
+If a stale probe or old frontend build still targets `/functions/v1/make-server-b0d68fc8/auth/supabase-claim-bridge/*` or `/functions/v1/make-server-b0d68fc8/ai/m2m/*`, treat that as a routing drift issue, not as the current production topology. Shared-bundle M2M paths are no longer the default deploy target.

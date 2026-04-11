@@ -2,7 +2,7 @@
 
 This documentation set was rewritten against the current codebase on March 8, 2026.
 
-It replaces the previous mixed collection of audits, plans, migration notes, and aspirational subsystem writeups with a smaller set of source-of-truth specs based on the code currently in `src/`.
+It replaces most of the previous mixed collection of audits, plans, migration notes, and aspirational subsystem writeups with a smaller set of current-code specs and active runbooks, while keeping a short list of clearly labeled historical audit and design references.
 
 ## Spec Index
 
@@ -22,6 +22,10 @@ It replaces the previous mixed collection of audits, plans, migration notes, and
 14. [Production Env Flip Runbook](./spec/14-production-env-flip-runbook.md)
 15. [Local API Audit And Server Migration Plan](./spec/15-local-api-audit-and-server-migration-plan.md)
 16. [Service Boundary Separation](./spec/16-service-boundary-separation.md)
+17. [AI Store Advisor Architecture](./spec/17-ai-store-advisor-architecture.md)
+18. [API Credential And AI Agent Separation](./spec/18-api-credential-ai-agent-separation.md)
+19. [Supabase Split Function Runbook](./spec/19-supabase-split-function-runbook.md)
+20. [SEO And System Completion Roadmap](./spec/20-seo-and-system-completion-roadmap.md)
 
 ## How To Read This Set
 
@@ -32,11 +36,13 @@ It replaces the previous mixed collection of audits, plans, migration notes, and
 - Read `06` before assuming a page is production-backed rather than mock-backed.
 - Read `08` before changing Settings delivery address, mint delivery, asset address display, or marketplace map location logic.
 - Read `09` and `10` before changing geo tables, migrations, or import workflow.
-- Read `11` and `12` before changing AI/M2M runtime or Supabase bridge flows.
+- Read `19` before changing split-function routing, bridge slugs, AI/M2M runtime deployment, or shared-core IPFS and API-key surfaces.
+- Read `11` and `12` only for historical context on the legacy shared-bundle M2M runtime.
 - Read `13` before changing on-chain protocol assumptions, addresses, or role topology.
 - Read `14` before flipping frontend/backend runtime to a new deployment.
-- Read `15` before planning server-truth migration, local-state removal, or separation between Messages and AI.
+- Read `15` only for historical audit context when revisiting server-truth migration, local-state removal, or separation between Messages and AI.
 - Read `16` before adding any integration between the Chat service, AI workspace, or seller auto-reply automation.
+- Read `17` and `18` only as retained design references for deferred seller-AI and API-credential work; they are not live-runtime source-of-truth docs.
 
 ## Out Of Scope
 
@@ -45,4 +51,4 @@ It replaces the previous mixed collection of audits, plans, migration notes, and
 - Old UI audit reports
 - Archived roadmap planning
 
-The active docs set keeps only the current-code specs plus the current live runtime spec and cutover runbooks.
+The active docs set keeps current-code specs, live runtime and cutover runbooks, and a small number of explicitly labeled historical audit or design references.
