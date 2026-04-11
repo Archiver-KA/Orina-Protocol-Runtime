@@ -350,9 +350,27 @@ function mapDisputeContextToCaseFile(ctx: AIDisputeContext): ArbitrationCaseFile
   const disputeType = DISPUTE_REASON_TO_TYPE[firstReason] || 'other';
 
   const buyerEvidence = (ctx.evidenceUrls || []).map((url: string) => ({ type: 'image', url }));
-  const messages: { sender: string; content: string }[] = [];
-  if (ctx.buyerComment) messages.push({ sender: 'buyer', content: ctx.buyerComment });
-  if (ctx.sellerResponse) messages.push({ sender: 'seller', content: ctx.sellerResponse });
+  const systemGenerated: { type: string }[] = [];
+  if (ctx.deliveryConfirmed) {
+    systemGenerated.push({ type: 'delivery_log' });
+  }
+  if (ctx.transactionHash) {
+    systemGenerated.push({ type: 'blockchain_event' });
+  }
+
+  const messages = Array.isArray(ctx.messages) && ctx.messages.length > 0
+    ? ctx.messages
+        .filter((message): message is { sender: string; content: string } =>
+          Boolean(message && typeof message.sender === 'string' && typeof message.content === 'string' && message.content.trim()),
+        )
+        .map((message) => ({
+          sender: message.sender,
+          content: message.content,
+        }))
+    : [
+        ...(ctx.buyerComment ? [{ sender: 'buyer', content: ctx.buyerComment }] : []),
+        ...(ctx.sellerResponse ? [{ sender: 'seller', content: ctx.sellerResponse }] : []),
+      ];
 
   return {
     dispute_type: disputeType,
@@ -364,7 +382,7 @@ function mapDisputeContextToCaseFile(ctx: AIDisputeContext): ArbitrationCaseFile
     evidence: {
       buyer_submitted: buyerEvidence,
       seller_submitted: [],
-      system_generated: [],
+      system_generated: systemGenerated,
     },
     messages,
   };
@@ -2292,7 +2310,7 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
         const ids = sorted.map(({ r }) => String(r.product_id ?? r.id)).filter(Boolean);
         const { data: details, error: detailsError } = await supabase
           .from('assets_catalog')
-          .select('id, title, category, cover_image_url, attributes')
+          .select('id, asset_uid, title, category, cover_image_url, attributes')
           .in('id', ids)
           .eq('is_active', true);
         if (detailsError) console.error('❌ Asset details fetch error:', detailsError);
@@ -2301,8 +2319,9 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
           const id = String(r.product_id ?? r.id);
           const d = detailMap.get(id) ?? {};
           const price = d.attributes?.estimated_price?.suggested;
+          const frontendId = String(d.asset_uid ?? d.id ?? id);
           return {
-            id, title: d.title || r.product_name || 'Untitled Product',
+            id: frontendId, title: d.title || r.product_name || 'Untitled Product',
             category: d.category || 'General',
             price: price ? `$${price.toLocaleString()}` : undefined,
             imageUrl: d.cover_image_url || undefined,
@@ -2324,7 +2343,7 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
       for (const term of searchTerms.slice(0, 6)) {
         let q = supabase
           .from('assets_catalog')
-          .select('id, title, category, subcategory, cover_image_url, attributes')
+          .select('id, asset_uid, title, category, subcategory, cover_image_url, attributes')
           .eq('is_active', true)
           .or(`title.ilike.%${term}%,category.ilike.%${term}%,subcategory.ilike.%${term}%,description.ilike.%${term}%`)
           .limit(limit);
@@ -2332,7 +2351,7 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
         const { data, error: textError } = await q;
         if (textError) { console.error(`❌ Text search error for "${term}":`, textError.message); continue; }
         for (const d of data ?? []) {
-          const idKey = String(d.id);
+          const idKey = String(d.asset_uid ?? d.id);
           if (!textMap.has(idKey)) {
             const price = d.attributes?.estimated_price?.suggested;
             textMap.set(idKey, {
@@ -2380,7 +2399,7 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
       // Fetch products that have a cover image
       const { data: candidates } = await supabase
         .from('assets_catalog')
-        .select('id, title, category, cover_image_url, attributes')
+        .select('id, asset_uid, title, category, cover_image_url, attributes')
         .eq('is_active', true)
         .not('cover_image_url', 'is', null)
         .neq('cover_image_url', '')
@@ -2414,7 +2433,7 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
           if (match) {
             const price = product.attributes?.estimated_price?.suggested;
             matched.push({
-              id: String(product.id),
+              id: String(product.asset_uid ?? product.id),
               title: product.title || 'Untitled Product',
               category: product.category || 'General',
               price: price ? `$${price.toLocaleString()}` : undefined,
@@ -2680,7 +2699,8 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
       metadata: {
         intent: response.action || 'general',
         confidence: 0.85,
-        version: 'v2'
+        version: 'v2',
+        disputeSuggestion: response.disputeSuggestion,
       },
     };
 

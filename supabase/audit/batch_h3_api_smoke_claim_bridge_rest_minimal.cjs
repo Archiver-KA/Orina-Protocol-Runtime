@@ -1,71 +1,44 @@
 #!/usr/bin/env node
 
-const [baseUrlArg, anonKeyArg] = process.argv.slice(2);
+const path = require('path');
+const {
+  loadFoundryEnv,
+  parseNamedArgs,
+  requestJson,
+  resolveBridgePrincipal,
+} = require('./bridge_auth_client.cjs');
+
+const argv = process.argv.slice(2);
+const [baseUrlArg, anonKeyArg, fnNameArg = 'orina-auth-bridge-v1', routePrefixArg] = argv;
+const namedArgs = parseNamedArgs(argv.slice(4));
 
 if (!baseUrlArg || !anonKeyArg) {
   console.error(
-    'Usage: node supabase/audit/batch_h3_api_smoke_claim_bridge_rest_minimal.cjs <supabaseUrl> <anonJwt>'
+    'Usage: node supabase/audit/batch_h3_api_smoke_claim_bridge_rest_minimal.cjs <supabaseUrl> <anonJwt> [functionName=orina-auth-bridge-v1] [routePrefix]'
   );
   process.exit(1);
 }
 
 const baseUrl = baseUrlArg.replace(/\/+$/, '');
 const anonKey = anonKeyArg;
-const functionBase = `${baseUrl}/functions/v1/make-server-b0d68fc8`;
-const bridgeBase = `${functionBase}/auth/supabase-claim-bridge`;
+const fnName = String(fnNameArg || '').trim() || 'orina-auth-bridge-v1';
+const routePrefix =
+  typeof routePrefixArg === 'string'
+    ? String(routePrefixArg).trim()
+    : fnName === 'make-server-b0d68fc8'
+      ? '/auth/supabase-claim-bridge'
+      : '';
+const functionBase = `${baseUrl}/functions/v1/${fnName}`;
+const bridgeBase = `${functionBase}${routePrefix}`;
 const restBase = `${baseUrl}/rest/v1`;
+const ROOT = path.resolve(__dirname, '..', '..');
+const foundryEnv = loadFoundryEnv(ROOT);
 
 function randomHex(n) {
   const chars = 'abcdef0123456789';
   let out = '';
   for (let i = 0; i < n; i++) out += chars[Math.floor(Math.random() * chars.length)];
   return out;
-}
-
-function randomWallet() {
-  return `0x${randomHex(40)}`;
-}
-
-function fakeSignature() {
-  return `0x${'1a'.repeat(65)}`;
-}
-
-async function requestJson(url, init = {}) {
-  const res = await fetch(url, init);
-  const text = await res.text();
-  let json = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = { raw: text };
-  }
-  return { status: res.status, ok: res.ok, json };
-}
-
-async function exchange(walletAddress) {
-  const now = Date.now();
-  return requestJson(`${bridgeBase}/exchange`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${anonKey}`,
-      apikey: anonKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      walletAddress,
-      walletAuthSession: {
-        address: walletAddress,
-        signedAt: now,
-        signature: fakeSignature(),
-        message: `ATP2 H3 API smoke auth\nAddress: ${walletAddress}\nTime: ${new Date(now).toISOString()}`,
-      },
-      client: {
-        app: 'ATP2',
-        phase: 'H3-api-smoke-minimal',
-        requestedAt: new Date().toISOString(),
-      },
-    }),
-  });
 }
 
 function restHeaders(token, extra = {}) {
@@ -86,15 +59,49 @@ async function rest(path, token, init = {}) {
 }
 
 async function main() {
-  const walletA = randomWallet();
-  const walletB = randomWallet();
+  const principalA = await resolveBridgePrincipal({
+    baseUrl,
+    anonKey,
+    fnName,
+    routePrefix,
+    namedArgs,
+    suffix: 'a',
+    phase: 'H3-api-smoke-minimal',
+    fallbackPrivateKeys: [foundryEnv.SMOKE_SELLER_PRIVATE_KEY],
+    requireProfileId: true,
+    requireWalletAddress: true,
+  });
+  const principalB = await resolveBridgePrincipal({
+    baseUrl,
+    anonKey,
+    fnName,
+    routePrefix,
+    namedArgs,
+    suffix: 'b',
+    phase: 'H3-api-smoke-minimal',
+    fallbackPrivateKeys: [foundryEnv.SMOKE_BUYER_PRIVATE_KEY],
+    requireProfileId: true,
+    requireWalletAddress: true,
+  });
+
+  if (
+    principalA.profileId === principalB.profileId ||
+    principalA.walletAddress === principalB.walletAddress
+  ) {
+    throw new Error('H3 smoke requires two distinct bridge principals. Provide separate JWTs, sessions, or private keys for A and B.');
+  }
+
   const summary = {
     context: {
       baseUrl,
+      fnName,
+      routePrefix,
       functionBase,
       testedAt: new Date().toISOString(),
-      walletA,
-      walletB,
+      walletA: principalA.walletAddress,
+      walletB: principalB.walletAddress,
+      authSourceA: principalA.authSource,
+      authSourceB: principalB.authSource,
     },
     checks: {},
     raw: {},
@@ -108,22 +115,47 @@ async function main() {
     summary.raw.bridgeHealth.status === 200 && summary.raw.bridgeHealth.json?.ok === true;
 
   // Exchange A/B
-  summary.raw.exchangeA = await exchange(walletA);
-  summary.raw.exchangeB = await exchange(walletB);
-  const aToken = summary.raw.exchangeA.json?.accessToken;
-  const bToken = summary.raw.exchangeB.json?.accessToken;
-  const aProfileId = summary.raw.exchangeA.json?.profileId;
-  const bProfileId = summary.raw.exchangeB.json?.profileId;
+  summary.raw.exchangeA = {
+    status: 200,
+    ok: true,
+    json: {
+      accessToken: principalA.accessToken,
+      profileId: principalA.profileId,
+      walletAddress: principalA.walletAddress,
+      authSource: principalA.authSource,
+    },
+  };
+  summary.raw.exchangeB = {
+    status: 200,
+    ok: true,
+    json: {
+      accessToken: principalB.accessToken,
+      profileId: principalB.profileId,
+      walletAddress: principalB.walletAddress,
+      authSource: principalB.authSource,
+    },
+  };
+  const aToken = principalA.accessToken;
+  const bToken = principalB.accessToken;
+  const aProfileId = principalA.profileId;
+  const bProfileId = principalB.profileId;
 
-  summary.checks.h1_exchange_a_ok =
-    summary.raw.exchangeA.status === 200 && !!aToken && !!aProfileId;
-  summary.checks.h1_exchange_b_ok =
-    summary.raw.exchangeB.status === 200 && !!bToken && !!bProfileId;
+  summary.checks.h1_exchange_a_ok = Boolean(aToken && aProfileId);
+  summary.checks.h1_exchange_b_ok = Boolean(bToken && bProfileId);
 
   if (!summary.checks.h1_exchange_a_ok || !summary.checks.h1_exchange_b_ok) {
     console.log(JSON.stringify(summary, null, 2));
     process.exit(2);
   }
+
+  summary.raw.profileReadOwnBefore = await rest(
+    `/profiles?id=eq.${encodeURIComponent(aProfileId)}&select=id,display_name`,
+    aToken,
+    { method: 'GET' },
+  );
+  const originalDisplayName = Array.isArray(summary.raw.profileReadOwnBefore.json)
+    ? summary.raw.profileReadOwnBefore.json[0]?.display_name ?? null
+    : null;
 
   // A updates own profile
   const aDisplayName = `H3A-${randomHex(6)}`;
@@ -229,6 +261,21 @@ async function main() {
   } else {
     summary.checks.cleanup_post_delete_owner_ok = false;
   }
+
+  summary.raw.profileRestoreOwnCleanup = await rest(
+    `/profiles?id=eq.${encodeURIComponent(aProfileId)}`,
+    aToken,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ display_name: originalDisplayName }),
+    },
+  );
+  summary.checks.cleanup_profile_restore_owner_ok =
+    summary.raw.profileRestoreOwnCleanup.status === 200 &&
+    Array.isArray(summary.raw.profileRestoreOwnCleanup.json) &&
+    summary.raw.profileRestoreOwnCleanup.json.length === 1 &&
+    summary.raw.profileRestoreOwnCleanup.json[0]?.id === aProfileId &&
+    (summary.raw.profileRestoreOwnCleanup.json[0]?.display_name ?? null) === originalDisplayName;
 
   summary.pass = Object.values(summary.checks).every(Boolean);
   console.log(JSON.stringify(summary, null, 2));

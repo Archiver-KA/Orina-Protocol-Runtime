@@ -26,6 +26,7 @@ if (!fs.existsSync(envPath)) {
 const envFile = parseEnv(fs.readFileSync(envPath, 'utf8'));
 const baseUrl = envFile.VITE_SUPABASE_URL;
 const anonKey = envFile.VITE_SUPABASE_ANON_KEY;
+const extraArgs = process.argv.slice(2);
 
 if (!baseUrl || !anonKey) {
   console.error('[run_h3_smoke_from_env] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env');
@@ -33,7 +34,7 @@ if (!baseUrl || !anonKey) {
 }
 
 const smokeScript = path.resolve(process.cwd(), 'supabase', 'audit', 'batch_h3_api_smoke_claim_bridge_rest_minimal.cjs');
-const result = cp.spawnSync(process.execPath, [smokeScript, baseUrl, anonKey], {
+const result = cp.spawnSync(process.execPath, [smokeScript, baseUrl, anonKey, ...extraArgs], {
   stdio: 'inherit',
 });
 

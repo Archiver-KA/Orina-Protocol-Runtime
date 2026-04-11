@@ -246,53 +246,6 @@ sellerMintingRouter.post("/advisor", async (c) => {
 });
 
 // ============================================================================
-// Image Upload
-// ============================================================================
-
-sellerMintingRouter.post("/upload-image", async (c) => {
-  try {
-    const formData = await c.req.formData();
-    const file = formData.get("file");
-    const sellerId = String(formData.get("sellerId") || "");
-
-    if (!(file instanceof File) || !sellerId) {
-      return c.json(
-        { error: "file and sellerId required" },
-        400
-      );
-    }
-
-    const sellerAuth = await requireAuthenticatedSeller(c, sellerId);
-    if (!sellerAuth.ok) return sellerAuth.response;
-    const resolvedSellerId = sellerAuth.sellerId;
-
-    const supabase = getSupabaseClient();
-    const fileName =
-      `${resolvedSellerId}/${Date.now()}_${file.name}`;
-
-    // Upload to Supabase Storage
-    const { error: uploadError, data } = await supabase.storage
-      .from("seller-assets")
-      .upload(fileName, file);
-
-    if (uploadError) throw uploadError;
-
-    // Generate public URL
-    const { data: urlData } = supabase.storage
-      .from("seller-assets")
-      .getPublicUrl(fileName);
-
-    return c.json({
-      success: true,
-      url: urlData.publicUrl,
-    });
-  } catch (error) {
-    console.error("Error uploading image:", error);
-    return c.json({ error: "Failed to upload image" }, 500);
-  }
-});
-
-// ============================================================================
 // Generate Asset Draft (using Cloudflare AI or LLM)
 // ============================================================================
 
@@ -586,6 +539,10 @@ sellerMintingRouter.post("/mint-asset", async (c) => {
 
     const supabase = getSupabaseClient();
     const taxonomy = normalizeListingTaxonomy(draft.category, draft.subcategory);
+    const nowIso = new Date().toISOString();
+    const sellerWallet = resolvedSellerId.toLowerCase();
+    const estimatedSuggestedPrice = Number(draft.estimatedPrice?.suggested || 0);
+    const listingCurrency = String(draft.estimatedPrice?.currency || "USD").trim().toUpperCase() || "USD";
 
     // Resolve wallet address to profile UUID
     const { data: profile, error: profileError } = await supabase
@@ -600,7 +557,6 @@ sellerMintingRouter.post("/mint-asset", async (c) => {
 
     // Generate a unique asset_uid
     const assetUid = `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
     // Create asset record in assets_catalog
     const { data: asset, error } = await supabase
       .from("assets_catalog")
@@ -616,12 +572,40 @@ sellerMintingRouter.post("/mint-asset", async (c) => {
           ...draft.attributes,
           estimated_price: draft.estimatedPrice,
         },
+        metadata: {
+          name: draft.name,
+          description: draft.description,
+          image: draft.imageUrls[0] || null,
+          images: draft.imageUrls,
+          category: taxonomy.categorySlug,
+          subcategory: taxonomy.subcategorySlug || null,
+          seller_wallet: sellerWallet,
+          seller: {
+            address: sellerWallet,
+            verified: false,
+          },
+          price: `${estimatedSuggestedPrice || 0} ${listingCurrency}`,
+          priceUSD: listingCurrency === "USD" || listingCurrency === "USDT" || listingCurrency === "USDC"
+            ? `$${estimatedSuggestedPrice || 0}`
+            : null,
+          currency: listingCurrency,
+          blockchain: "BSC",
+          network: "testnet",
+          views: 0,
+          likes: 0,
+          verified: false,
+          featured: false,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          mintedAt: nowIso,
+          mintTxHash: transactionHash,
+        },
         seller_user_id: profile.id,
         is_active: true,
         ai_created: true,
         ai_analysis: {
           confidence: draft.confidence,
-          generatedAt: new Date().toISOString(),
+          generatedAt: nowIso,
           transactionHash,
         },
       })
@@ -648,6 +632,7 @@ sellerMintingRouter.post("/mint-asset", async (c) => {
     return c.json({
       success: true,
       assetId: asset.id,
+      assetUid,
     });
   } catch (error) {
     console.error("Error minting asset:", error);

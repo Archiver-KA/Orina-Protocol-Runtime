@@ -1,5 +1,5 @@
 {
-  "source": "c:\\ORINA\\ATPProtocol2\\ATP2\\supabase\\audit\\batch1_table_stats.json",
+  "source": "C:\\ORINA\\ATPProtocol2\\ATP2\\supabase\\audit\\reference\\batch1\\batch1_table_stats.json",
   "expected_total": 22,
   "runtime_count_detected": 22,
   "expected_present": [

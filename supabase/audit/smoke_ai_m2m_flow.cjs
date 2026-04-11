@@ -5,6 +5,7 @@ const path = require('path');
 const { createPublicClient, createWalletClient, http, parseAbi, zeroHash } = require('viem');
 const { bscTestnet } = require('viem/chains');
 const { privateKeyToAccount } = require('viem/accounts');
+const { buildActiveArtifactPath } = require('./audit_artifact_paths.cjs');
 
 function readEnvFile(filepath) {
   const env = {};
@@ -50,11 +51,26 @@ async function requestJson(url, init = {}) {
   return { status: res.status, ok: res.ok, json };
 }
 
-async function exchangeBridge({ baseUrl, anonKey, fnName, bridgePathPrefix, account }) {
+function buildFunctionBase(baseUrl, functionName) {
+  return `${baseUrl}/functions/v1/${functionName}`;
+}
+
+function buildRoutePath(prefix, routePath) {
+  const normalizedRoutePath = String(routePath || '').replace(/^\/+/, '');
+  const normalizedPrefix = String(prefix || '').trim().replace(/\/+$/, '');
+
+  if (!normalizedRoutePath) {
+    return normalizedPrefix || '';
+  }
+
+  return normalizedPrefix ? `${normalizedPrefix}/${normalizedRoutePath}` : `/${normalizedRoutePath}`;
+}
+
+async function exchangeBridge({ functionBase, anonKey, bridgePathPrefix, account }) {
   const walletAddress = normalizeAddress(account.address);
   const message = buildWalletAuthMessage(walletAddress);
   const signature = await account.signMessage({ message });
-  const url = `${baseUrl}/functions/v1/${fnName}${bridgePathPrefix}/exchange`;
+  const url = `${functionBase}${buildRoutePath(bridgePathPrefix, 'exchange')}`;
   const response = await requestJson(url, {
     method: 'POST',
     headers: {
@@ -85,8 +101,8 @@ async function exchangeBridge({ baseUrl, anonKey, fnName, bridgePathPrefix, acco
   };
 }
 
-async function authedRequest({ baseUrl, fnName, token, method, routePath, body }) {
-  return requestJson(`${baseUrl}/functions/v1/${fnName}${routePath}`, {
+async function authedRequest({ functionBase, routePrefix = '', token, method, routePath, body }) {
+  return requestJson(`${functionBase}${buildRoutePath(routePrefix, routePath)}`, {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -107,8 +123,15 @@ async function main() {
 
   const baseUrl = String(env.VITE_SUPABASE_URL || '').replace(/\/+$/, '');
   const anonKey = env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
-  const fnName = env.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME || 'make-server-b0d68fc8';
-  const bridgePathPrefix = env.VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX || '/auth/supabase-claim-bridge';
+  const sharedFnName = env.VITE_SUPABASE_FUNCTIONS_NAMESPACE || env.VITE_SUPABASE_SHARED_SERVER_FN_NAME || 'make-server-b0d68fc8';
+  const authBridgeFnName = env.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME || 'orina-auth-bridge-v1';
+  const bridgePathPrefix =
+    env.VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX
+    || (authBridgeFnName === sharedFnName ? '/auth/supabase-claim-bridge' : '');
+  const aiM2MFnName = env.VITE_SUPABASE_AI_M2M_FN_NAME || 'orina-ai-m2m-v2';
+  const aiM2MPathPrefix =
+    env.VITE_SUPABASE_AI_M2M_PATH_PREFIX
+    || (aiM2MFnName === sharedFnName ? '/ai/m2m' : '');
   const rpcUrl = foundryEnv.BSC_TESTNET_RPC_URL;
   const delegationManager = env.VITE_M2M_DELEGATION_MANAGER;
   const walletFactory = env.VITE_M2M_AI_WALLET_FACTORY_V2;
@@ -141,6 +164,8 @@ async function main() {
   const buyer = privateKeyToAccount(buyerPrivateKey);
   const seller = privateKeyToAccount(sellerPrivateKey);
   const publicClient = createPublicClient({ chain: bscTestnet, transport: http(rpcUrl) });
+  const authBridgeBase = buildFunctionBase(baseUrl, authBridgeFnName);
+  const aiM2MBase = buildFunctionBase(baseUrl, aiM2MFnName);
 
   const candidates = [seller, buyer];
   let rootAccount = null;
@@ -169,28 +194,33 @@ async function main() {
     transport: http(rpcUrl),
   });
 
-  const rootExchange = await exchangeBridge({ baseUrl, anonKey, fnName, bridgePathPrefix, account: rootAccount });
+  const rootExchange = await exchangeBridge({
+    functionBase: authBridgeBase,
+    anonKey,
+    bridgePathPrefix,
+    account: rootAccount,
+  });
   if (!rootExchange.response.ok || !rootExchange.accessToken) {
     throw new Error(`Root bridge exchange failed: ${JSON.stringify(rootExchange.response.json)}`);
   }
 
   const configBefore = await authedRequest({
-    baseUrl,
-    fnName,
+    functionBase: aiM2MBase,
+    routePrefix: aiM2MPathPrefix,
     token: rootExchange.accessToken,
     method: 'GET',
-    routePath: `/ai/m2m/config/${rootExchange.walletAddress}`,
+    routePath: `config/${rootExchange.walletAddress}`,
   });
   if (!configBefore.ok) {
     throw new Error(`Config load failed: ${JSON.stringify(configBefore.json)}`);
   }
 
   const generateDelegate = await authedRequest({
-    baseUrl,
-    fnName,
+    functionBase: aiM2MBase,
+    routePrefix: aiM2MPathPrefix,
     token: rootExchange.accessToken,
     method: 'POST',
-    routePath: '/ai/m2m/delegates/generate',
+    routePath: 'delegates/generate',
     body: { walletAddress: rootExchange.walletAddress },
   });
   if (!generateDelegate.ok || !generateDelegate.json?.delegate?.id) {
@@ -199,11 +229,11 @@ async function main() {
 
   const generatedDelegate = generateDelegate.json.delegate;
   const saveConfig = await authedRequest({
-    baseUrl,
-    fnName,
+    functionBase: aiM2MBase,
+    routePrefix: aiM2MPathPrefix,
     token: rootExchange.accessToken,
     method: 'POST',
-    routePath: '/ai/m2m/config',
+    routePath: 'config',
     body: {
       walletAddress: rootExchange.walletAddress,
       enabled: true,
@@ -299,6 +329,11 @@ async function main() {
     testedAt: new Date().toISOString(),
     rootWallet: rootExchange.walletAddress,
     counterpartyWallet: normalizeAddress(counterpartyAccount.address),
+    sharedFnName,
+    authBridgeFnName,
+    aiM2MFnName,
+    authBridgeBase,
+    aiM2MBase,
     delegationManager,
     walletFactory,
     generatedDelegate: generatedDelegate.delegateAddress,
@@ -327,7 +362,7 @@ async function main() {
   };
 
   const stamp = new Date().toISOString().replace(/[:]/g, '-').replace(/\..+/, '');
-  const outPath = path.join('supabase', 'audit', `smoke_ai_m2m_flow_${stamp}.json`);
+  const outPath = buildActiveArtifactPath(`smoke_ai_m2m_flow_${stamp}.json`);
   fs.writeFileSync(outPath, JSON.stringify(result, null, 2));
   console.log(JSON.stringify({ ...result, outPath }, null, 2));
 }

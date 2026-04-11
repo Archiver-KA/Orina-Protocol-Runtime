@@ -1,5 +1,5 @@
 {
-  "source": "c:\\ORINA\\ATPProtocol2\\ATP2\\supabase\\audit\\batch1_index_stats.txt",
+  "source": "C:\\ORINA\\ATPProtocol2\\ATP2\\supabase\\audit\\reference\\batch1\\batch1_index_stats.txt",
   "expected_total": 22,
   "present_count": 22,
   "missing_count": 0,

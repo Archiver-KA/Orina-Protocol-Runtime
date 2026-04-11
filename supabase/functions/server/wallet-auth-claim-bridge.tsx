@@ -65,6 +65,40 @@ type AssetMetadataSeedRequest = {
   };
 };
 
+type ProtocolOrderSeedItem = {
+  orderUid?: string;
+  chainId?: number | null;
+  marketplaceContract?: string | null;
+  assetContract?: string | null;
+  assetTokenId?: string | null;
+  buyerAddress?: string | null;
+  sellerAddress?: string | null;
+  status?: string | null;
+  amount?: string | number | null;
+  pricePerUnit?: string | number | null;
+  totalValue?: string | number | null;
+  currencySymbol?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+type ProtocolOrderSeedRequest = {
+  orderItems?: ProtocolOrderSeedItem[];
+  client?: {
+    app?: string;
+    phase?: string;
+    requestedAt?: string;
+  };
+};
+
+type RuntimeMintedProjectionRepairRequest = {
+  dryRun?: boolean;
+  limit?: number;
+  assetUids?: string[];
+  chainId?: number | null;
+  contractAddress?: string | null;
+  tokenId?: string | null;
+};
+
 type DbProfileRow = {
   id: string;
   wallet_address: string;
@@ -98,6 +132,38 @@ type DbUserAppSettingsSecurityRow = {
 type DbAssetCatalogRow = {
   id: string;
   asset_uid: string;
+};
+
+type DbRuntimeMintedProjectionSeedRow = {
+  id: string;
+  asset_uid: string;
+  title: string | null;
+  contract_address: string | null;
+  token_id: string | null;
+  chain_id: number | null;
+  is_active: boolean | null;
+  metadata: Record<string, unknown> | null;
+};
+
+type DbAssetProtocolLinkProjectionRow = {
+  asset_id: string;
+  chain_id: number | null;
+  contract_address: string | null;
+  token_id: string | null;
+};
+
+type DbProtocolAssetProjectionRow = {
+  chain_id: number | null;
+  asset_contract: string | null;
+  token_id: string | null;
+};
+
+type DbProtocolOrderProjectionAmountRow = {
+  chain_id?: number | null;
+  asset_contract?: string | null;
+  asset_token_id?: string | null;
+  status?: string | null;
+  amount?: string | number | null;
 };
 
 type DbAssetTagRow = {
@@ -151,6 +217,128 @@ function safeObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function normalizeOptionalText(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function normalizeOptionalAddress(value: unknown): string | null {
+  const normalized = normalizeOptionalText(value);
+  if (!normalized) return null;
+  const address = normalizeAddress(normalized);
+  return isValidWalletAddress(address) ? address : null;
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function normalizeRepairAssetUids(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(
+      value
+        .map((entry) => normalizeAssetUid(String(entry || '')))
+        .filter(Boolean),
+    ),
+  );
+}
+
+function normalizeRepairLimit(value: unknown): number | null {
+  const parsed = toFiniteNumber(value);
+  if (parsed === null) return null;
+  return Math.min(Math.max(Math.floor(parsed), 1), 500);
+}
+
+function getRepairAllowlist(): string[] {
+  const rawValues = [
+    Deno.env.get('ATP2_AUTH_BRIDGE_REPAIR_ALLOWLIST') || '',
+    Deno.env.get('ATP2_RUNTIME_MINTED_REPAIR_ALLOWLIST') || '',
+    Deno.env.get('ATP2_OPERATOR_WALLET_ALLOWLIST') || '',
+    Deno.env.get('GNOSIS_SAFE') || '',
+    Deno.env.get('ARBITER_MULTISIG') || '',
+    Deno.env.get('EMERGENCY_MULTISIG') || '',
+  ];
+
+  const normalized = rawValues
+    .flatMap((value) => String(value || '').split(/[\s,;]+/))
+    .map((value) => normalizeOptionalAddress(value))
+    .filter((value): value is string => !!value);
+
+  return Array.from(new Set(normalized));
+}
+
+function isRepairOperatorWallet(walletAddress: string): boolean {
+  return getRepairAllowlist().includes(normalizeAddress(walletAddress));
+}
+
+function buildProjectionKey(
+  chainId: number | null | undefined,
+  contractAddress: string | null | undefined,
+  tokenId: string | null | undefined,
+): string | null {
+  if (!Number.isFinite(Number(chainId))) return null;
+  const normalizedContract = normalizeOptionalAddress(contractAddress);
+  const normalizedTokenId = normalizeOptionalText(tokenId);
+  if (!normalizedContract || !normalizedTokenId) return null;
+  return `${Math.floor(Number(chainId))}:${normalizedContract}:${normalizedTokenId}`;
+}
+
+function shouldReserveProtocolOrderAmount(status: unknown): boolean {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (!normalized) return true;
+  return !/(cancel|fail|reject|expire|revert)/.test(normalized);
+}
+
+function readMetadataNumber(metadata: Record<string, unknown>, key: string): number | null {
+  return toFiniteNumber(metadata[key]);
+}
+
+function resolveRuntimeMintedOwnerAddress(metadata: Record<string, unknown>): string | null {
+  const seller = safeObject(metadata.seller);
+  return (
+    normalizeOptionalAddress(metadata.seller_wallet)
+    || normalizeOptionalAddress(seller.address)
+    || normalizeOptionalAddress(metadata.seeded_by_wallet)
+  );
+}
+
+function resolveRuntimeMintedProtocolStatus(
+  row: Pick<DbRuntimeMintedProjectionSeedRow, 'is_active'>,
+  metadata: Record<string, unknown>,
+): string {
+  const listingState = normalizeOptionalText(metadata.listing_state);
+  if (listingState) return listingState.toLowerCase();
+
+  const metadataStatus = normalizeOptionalText(metadata.status);
+  if (metadataStatus) return metadataStatus.toLowerCase();
+
+  return row.is_active === false ? 'inactive' : 'listed';
+}
+
+function resolveRuntimeMintedAvailableAmount(
+  totalAmount: number | null,
+  seedAvailableAmount: number | null,
+  reservedAmount: number,
+): number | null {
+  if (seedAvailableAmount !== null && totalAmount !== null && seedAvailableAmount === totalAmount) {
+    return Math.max(0, totalAmount - reservedAmount);
+  }
+  if (seedAvailableAmount !== null) {
+    return Math.max(0, seedAvailableAmount);
+  }
+  if (totalAmount !== null) {
+    return Math.max(0, totalAmount - reservedAmount);
+  }
+  return null;
 }
 
 function getVerificationMode(): VerificationMode {
@@ -775,6 +963,7 @@ router.post('/logout', async (c) => {
 
   try {
     const supabase = getServiceSupabaseClient();
+    const seededAt = new Date().toISOString();
     const revokedAt = new Date().toISOString();
     const { data, error } = await supabase
       .from('wallet_sessions')
@@ -1112,6 +1301,7 @@ router.post('/asset-metadata-seed', async (c) => {
 
   try {
     const supabase = getServiceSupabaseClient();
+    const seededAt = new Date().toISOString();
 
     const { data: upsertedAssets, error: assetUpsertError } = await supabase
       .from('assets_catalog')
@@ -1127,9 +1317,24 @@ router.post('/asset-metadata-seed', async (c) => {
           gallery_images: item.gallery_images,
           attributes: item.attributes,
           metadata: {
+            name: item.title,
+            description: item.description,
+            image: item.cover_image_url,
+            images: item.gallery_images,
+            category: item.category,
+            subcategory: item.subcategory,
+            seller_wallet: auth.identity.walletAddress,
+            seller: {
+              address: auth.identity.walletAddress,
+              verified: false,
+            },
+            views: 0,
+            likes: 0,
+            createdAt: seededAt,
+            updatedAt: seededAt,
             ...(item.metadata || {}),
             seeded_by: 'h1_bridge_asset_metadata_seed',
-            seeded_at: new Date().toISOString(),
+            seeded_at: seededAt,
             seeded_by_wallet: auth.identity.walletAddress,
           },
           contract_address: item.contract_address,
@@ -1147,6 +1352,46 @@ router.post('/asset-metadata-seed', async (c) => {
 
     const assetRows = (upsertedAssets || []) as DbAssetCatalogRow[];
     const assetIdByUid = new Map(assetRows.map((row) => [normalizeAssetUid(row.asset_uid), row.id]));
+
+    const linkedItems = normalizedItems
+      .map((item) => ({
+        item,
+        assetId: assetIdByUid.get(normalizeAssetUid(item.asset_uid)) || null,
+      }))
+      .filter((entry) => (
+        !!entry.assetId
+        && entry.item.chain_id !== null
+        && !!entry.item.contract_address
+        && !!entry.item.token_id
+      ));
+
+    if (linkedItems.length > 0) {
+      const linkedAssetIds = Array.from(new Set(linkedItems.map((entry) => entry.assetId!)));
+      const { error: linkDeleteError } = await supabase
+        .from('asset_protocol_links')
+        .delete()
+        .in('asset_id', linkedAssetIds);
+
+      if (linkDeleteError) {
+        throw new Error(`asset_protocol_links delete failed: ${linkDeleteError.message}`);
+      }
+
+      const { error: linkInsertError } = await supabase
+        .from('asset_protocol_links')
+        .insert(
+          linkedItems.map((entry) => ({
+            asset_id: entry.assetId,
+            chain_id: entry.item.chain_id,
+            contract_address: entry.item.contract_address,
+            token_id: entry.item.token_id,
+            link_type: 'primary',
+          })),
+        );
+
+      if (linkInsertError) {
+        throw new Error(`asset_protocol_links insert failed: ${linkInsertError.message}`);
+      }
+    }
 
     // Tags upsert + lookup
     const allTags = Array.from(
@@ -1236,6 +1481,479 @@ router.post('/asset-metadata-seed', async (c) => {
     return c.json(
       { error: error instanceof Error ? error.message : 'asset-metadata-seed failed' },
       500
+    );
+  }
+});
+
+router.post('/protocol-order-seed', async (c) => {
+  const auth = await requireAuthenticatedWallet(c);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  let body: ProtocolOrderSeedRequest;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400);
+  }
+
+  if (!isEnabled('ATP2_ENABLE_SUPABASE_AUTH_CLAIM_BRIDGE')) {
+    return c.json({ error: 'Bridge is disabled' }, 501);
+  }
+
+  const rawItems = Array.isArray(body.orderItems) ? body.orderItems : [];
+  if (rawItems.length === 0) {
+    return c.json({ ok: true, rows: [], count: 0 });
+  }
+  if (rawItems.length > 100) {
+    return c.json({ error: 'Too many orderItems (max 100)' }, 400);
+  }
+
+  const normalizedItems = rawItems
+    .map((item) => {
+      const orderUid = String(item.orderUid || '').trim();
+      const chainId = Number(item.chainId);
+      const marketplaceContract = normalizeAddress(String(item.marketplaceContract || '').trim());
+      const buyerAddress = normalizeAddress(String(item.buyerAddress || '').trim());
+      const sellerAddress = normalizeAddress(String(item.sellerAddress || '').trim());
+      if (!orderUid || !Number.isFinite(chainId) || !isValidWalletAddress(marketplaceContract) || !isValidWalletAddress(buyerAddress) || !isValidWalletAddress(sellerAddress)) {
+        return null;
+      }
+
+      const assetContractRaw = String(item.assetContract || '').trim();
+      const assetContract = assetContractRaw && isValidWalletAddress(normalizeAddress(assetContractRaw))
+        ? normalizeAddress(assetContractRaw)
+        : null;
+      const status = String(item.status || '').trim().toLowerCase() || 'pending_seller_confirm';
+      const metadata = safeObject(item.metadata);
+
+      return {
+        order_uid: orderUid,
+        chain_id: Math.floor(chainId),
+        marketplace_contract: marketplaceContract,
+        asset_contract: assetContract,
+        asset_token_id: item.assetTokenId ? String(item.assetTokenId) : null,
+        buyer_address: buyerAddress,
+        seller_address: sellerAddress,
+        status,
+        amount: item.amount === null || item.amount === undefined ? null : String(item.amount),
+        price_per_unit: item.pricePerUnit === null || item.pricePerUnit === undefined ? null : String(item.pricePerUnit),
+        total_value: item.totalValue === null || item.totalValue === undefined ? null : String(item.totalValue),
+        currency_symbol: item.currencySymbol ? String(item.currencySymbol) : null,
+        metadata: {
+          ...metadata,
+          seeded_by: 'h1_bridge_protocol_order_seed',
+          seeded_at: new Date().toISOString(),
+          seeded_by_wallet: auth.identity.walletAddress,
+        },
+      };
+    })
+    .filter(Boolean) as Array<{
+      order_uid: string;
+      chain_id: number;
+      marketplace_contract: string;
+      asset_contract: string | null;
+      asset_token_id: string | null;
+      buyer_address: string;
+      seller_address: string;
+      status: string;
+      amount: string | null;
+      price_per_unit: string | null;
+      total_value: string | null;
+      currency_symbol: string | null;
+      metadata: Record<string, unknown>;
+    }>;
+
+  if (normalizedItems.length === 0) {
+    return c.json({ error: 'No valid orderItems after normalization' }, 400);
+  }
+
+  const walletAddress = auth.identity.walletAddress;
+  const unauthorized = normalizedItems.find((item) => item.buyer_address !== walletAddress && item.seller_address !== walletAddress);
+  if (unauthorized) {
+    return c.json({ error: 'Authenticated wallet must match order buyer or seller' }, 403);
+  }
+
+  try {
+    const supabase = getServiceSupabaseClient();
+    const { data, error } = await supabase
+      .from('protocol_orders')
+      .upsert(normalizedItems, { onConflict: 'chain_id,marketplace_contract,order_uid' })
+      .select('id,order_uid');
+
+    if (error) {
+      throw new Error(`protocol_orders upsert failed: ${error.message}`);
+    }
+
+    return c.json({
+      ok: true,
+      count: normalizedItems.length,
+      rows: (data || []).map((row) => ({
+        id: String((row as { id?: string }).id || ''),
+        orderUid: String((row as { order_uid?: string }).order_uid || ''),
+      })),
+    });
+  } catch (error) {
+    console.error('[H1 Bridge] protocol-order-seed failed:', error);
+    return c.json(
+      { error: error instanceof Error ? error.message : 'protocol-order-seed failed' },
+      500,
+    );
+  }
+});
+
+router.post('/repair/runtime-minted-projections', async (c) => {
+  const auth = await requireAuthenticatedWallet(c);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  if (!isEnabled('ATP2_ENABLE_SUPABASE_AUTH_CLAIM_BRIDGE')) {
+    return c.json({ error: 'Bridge is disabled' }, 501);
+  }
+
+  const allowlist = getRepairAllowlist();
+  if (allowlist.length === 0) {
+    return c.json({ error: 'Repair allowlist is not configured' }, 503);
+  }
+
+  if (!isRepairOperatorWallet(auth.identity.walletAddress)) {
+    return c.json({ error: 'Authenticated wallet is not allowed to run runtime projection repair' }, 403);
+  }
+
+  let body: RuntimeMintedProjectionRepairRequest = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    body = {};
+  }
+
+  const dryRun = body.dryRun !== false;
+  const limit = normalizeRepairLimit(body.limit) ?? 200;
+  const assetUids = normalizeRepairAssetUids(body.assetUids);
+  const chainIdFilter = toFiniteNumber(body.chainId);
+  const contractAddressFilter = normalizeOptionalAddress(body.contractAddress);
+  const tokenIdFilter = normalizeOptionalText(body.tokenId);
+
+  try {
+    const supabase = getServiceSupabaseClient();
+
+    let seedQuery = supabase
+      .from('assets_catalog')
+      .select('id,asset_uid,title,contract_address,token_id,chain_id,is_active,metadata')
+      .contains('metadata', { seed_source: 'runtime_minted_asset_bridge_v1' })
+      .order('asset_uid', { ascending: true })
+      .limit(limit);
+
+    if (assetUids.length > 0) {
+      seedQuery = seedQuery.in('asset_uid', assetUids);
+    }
+    if (chainIdFilter !== null) {
+      seedQuery = seedQuery.eq('chain_id', Math.floor(chainIdFilter));
+    }
+    if (contractAddressFilter) {
+      seedQuery = seedQuery.eq('contract_address', contractAddressFilter);
+    }
+    if (tokenIdFilter) {
+      seedQuery = seedQuery.eq('token_id', tokenIdFilter);
+    }
+
+    const { data: seedData, error: seedError } = await seedQuery;
+    if (seedError) {
+      throw new Error(`assets_catalog runtime seed lookup failed: ${seedError.message}`);
+    }
+
+    const seedRows = (seedData || []) as DbRuntimeMintedProjectionSeedRow[];
+    if (seedRows.length === 0) {
+      return c.json({
+        ok: true,
+        dryRun,
+        matched: 0,
+        linkInserts: 0,
+        protocolAssetUpserts: 0,
+        rows: [],
+      });
+    }
+
+    const projectionCandidates = seedRows
+      .map((row) => {
+        const chainId = Number.isFinite(Number(row.chain_id)) ? Math.floor(Number(row.chain_id)) : null;
+        const contractAddress = normalizeOptionalAddress(row.contract_address);
+        const tokenId = normalizeOptionalText(row.token_id);
+        return {
+          row,
+          chainId,
+          contractAddress,
+          tokenId,
+          projectionKey: buildProjectionKey(chainId, contractAddress, tokenId),
+        };
+      });
+
+    const validProjectionCandidates = projectionCandidates.filter((candidate) => !!candidate.projectionKey);
+    const chainIds = Array.from(new Set(validProjectionCandidates.map((candidate) => candidate.chainId as number)));
+    const contractAddresses = Array.from(new Set(validProjectionCandidates.map((candidate) => candidate.contractAddress as string)));
+    const tokenIds = Array.from(new Set(validProjectionCandidates.map((candidate) => candidate.tokenId as string)));
+
+    let existingLinkRows: DbAssetProtocolLinkProjectionRow[] = [];
+    let existingProtocolAssetRows: DbProtocolAssetProjectionRow[] = [];
+    let existingOrderRows: DbProtocolOrderProjectionAmountRow[] = [];
+
+    if (chainIds.length > 0 && contractAddresses.length > 0 && tokenIds.length > 0) {
+      const [linkResult, protocolAssetResult, orderResult] = await Promise.all([
+        supabase
+          .from('asset_protocol_links')
+          .select('asset_id,chain_id,contract_address,token_id')
+          .in('chain_id', chainIds)
+          .in('contract_address', contractAddresses)
+          .in('token_id', tokenIds),
+        supabase
+          .from('protocol_assets')
+          .select('chain_id,asset_contract,token_id')
+          .in('chain_id', chainIds)
+          .in('asset_contract', contractAddresses)
+          .in('token_id', tokenIds),
+        supabase
+          .from('protocol_orders')
+          .select('chain_id,asset_contract,asset_token_id,status,amount')
+          .in('chain_id', chainIds)
+          .in('asset_contract', contractAddresses)
+          .in('asset_token_id', tokenIds),
+      ]);
+
+      if (linkResult.error) {
+        throw new Error(`asset_protocol_links lookup failed: ${linkResult.error.message}`);
+      }
+      if (protocolAssetResult.error) {
+        throw new Error(`protocol_assets lookup failed: ${protocolAssetResult.error.message}`);
+      }
+      if (orderResult.error) {
+        throw new Error(`protocol_orders lookup failed: ${orderResult.error.message}`);
+      }
+
+      existingLinkRows = (linkResult.data || []) as DbAssetProtocolLinkProjectionRow[];
+      existingProtocolAssetRows = (protocolAssetResult.data || []) as DbProtocolAssetProjectionRow[];
+      existingOrderRows = (orderResult.data || []) as DbProtocolOrderProjectionAmountRow[];
+    }
+
+    const seedRowsByProjection = new Map<string, DbRuntimeMintedProjectionSeedRow[]>();
+    for (const candidate of validProjectionCandidates) {
+      const projectionKey = candidate.projectionKey as string;
+      const group = seedRowsByProjection.get(projectionKey) || [];
+      group.push(candidate.row);
+      seedRowsByProjection.set(projectionKey, group);
+    }
+
+    const existingLinkAssetIdsByProjection = new Map<string, Set<string>>();
+    for (const row of existingLinkRows) {
+      const projectionKey = buildProjectionKey(row.chain_id, row.contract_address, row.token_id);
+      if (!projectionKey) continue;
+      const group = existingLinkAssetIdsByProjection.get(projectionKey) || new Set<string>();
+      group.add(String(row.asset_id));
+      existingLinkAssetIdsByProjection.set(projectionKey, group);
+    }
+
+    const existingProtocolAssetKeys = new Set(
+      existingProtocolAssetRows
+        .map((row) => buildProjectionKey(row.chain_id, row.asset_contract, row.token_id))
+        .filter((value): value is string => !!value),
+    );
+
+    const reservedAmountByProjection = new Map<string, number>();
+    for (const row of existingOrderRows) {
+      const projectionKey = buildProjectionKey(row.chain_id ?? null, row.asset_contract ?? null, row.asset_token_id ?? null);
+      if (!projectionKey || !shouldReserveProtocolOrderAmount(row.status)) continue;
+      const amount = toFiniteNumber(row.amount) || 0;
+      reservedAmountByProjection.set(projectionKey, (reservedAmountByProjection.get(projectionKey) || 0) + Math.max(0, amount));
+    }
+
+    const plannedLinkRows: Array<{
+      asset_id: string;
+      chain_id: number;
+      contract_address: string;
+      token_id: string;
+      link_type: 'primary';
+    }> = [];
+    const plannedProtocolAssetRows: Array<{
+      chain_id: number;
+      asset_contract: string;
+      token_id: string;
+      owner_address: string | null;
+      status: string;
+      available_amount: number | null;
+      total_amount: number | null;
+      metadata: Record<string, unknown>;
+    }> = [];
+
+    const planRows = projectionCandidates.map((candidate) => {
+      const metadata = safeObject(candidate.row.metadata);
+      const reservedAmount = candidate.projectionKey ? (reservedAmountByProjection.get(candidate.projectionKey) || 0) : 0;
+      const totalAmount = readMetadataNumber(metadata, 'totalSlots');
+      const seedAvailableAmount = readMetadataNumber(metadata, 'availableSlots');
+      const resolvedAvailableAmount = resolveRuntimeMintedAvailableAmount(totalAmount, seedAvailableAmount, reservedAmount);
+      const ownerAddress = resolveRuntimeMintedOwnerAddress(metadata);
+      const status = resolveRuntimeMintedProtocolStatus(candidate.row, metadata);
+
+      if (!candidate.projectionKey || candidate.chainId === null || !candidate.contractAddress || !candidate.tokenId) {
+        return {
+          assetUid: candidate.row.asset_uid,
+          assetId: candidate.row.id,
+          title: candidate.row.title,
+          chainId: candidate.chainId,
+          contractAddress: candidate.contractAddress,
+          tokenId: candidate.tokenId,
+          projectionKey: candidate.projectionKey,
+          action: 'skip_missing_projection_key',
+          reason: 'Seed row is missing a valid chain/contract/token projection tuple',
+          reservedAmount,
+          totalAmount,
+          seedAvailableAmount,
+          resolvedAvailableAmount,
+          ownerAddress,
+        };
+      }
+
+      const duplicateSeedRows = seedRowsByProjection.get(candidate.projectionKey) || [];
+      if (duplicateSeedRows.length > 1) {
+        return {
+          assetUid: candidate.row.asset_uid,
+          assetId: candidate.row.id,
+          title: candidate.row.title,
+          chainId: candidate.chainId,
+          contractAddress: candidate.contractAddress,
+          tokenId: candidate.tokenId,
+          projectionKey: candidate.projectionKey,
+          action: 'skip_duplicate_seed_rows',
+          reason: `Projection tuple is claimed by multiple assets_catalog rows (${duplicateSeedRows.map((row) => row.asset_uid).join(', ')})`,
+          reservedAmount,
+          totalAmount,
+          seedAvailableAmount,
+          resolvedAvailableAmount,
+          ownerAddress,
+        };
+      }
+
+      const linkedAssetIds = existingLinkAssetIdsByProjection.get(candidate.projectionKey) || new Set<string>();
+      const linkExists = linkedAssetIds.has(candidate.row.id);
+      const conflictingLinkedAssets = Array.from(linkedAssetIds).filter((assetId) => assetId !== candidate.row.id);
+      if (conflictingLinkedAssets.length > 0) {
+        return {
+          assetUid: candidate.row.asset_uid,
+          assetId: candidate.row.id,
+          title: candidate.row.title,
+          chainId: candidate.chainId,
+          contractAddress: candidate.contractAddress,
+          tokenId: candidate.tokenId,
+          projectionKey: candidate.projectionKey,
+          action: 'skip_conflicting_link',
+          reason: `Projection tuple is already linked to a different asset_id (${conflictingLinkedAssets.join(', ')})`,
+          reservedAmount,
+          totalAmount,
+          seedAvailableAmount,
+          resolvedAvailableAmount,
+          ownerAddress,
+        };
+      }
+
+      const protocolAssetExists = existingProtocolAssetKeys.has(candidate.projectionKey);
+      const needsLinkInsert = !linkExists;
+      const needsProtocolAssetUpsert = !protocolAssetExists;
+
+      if (needsLinkInsert) {
+        plannedLinkRows.push({
+          asset_id: candidate.row.id,
+          chain_id: candidate.chainId,
+          contract_address: candidate.contractAddress,
+          token_id: candidate.tokenId,
+          link_type: 'primary',
+        });
+      }
+
+      if (needsProtocolAssetUpsert) {
+        plannedProtocolAssetRows.push({
+          chain_id: candidate.chainId,
+          asset_contract: candidate.contractAddress,
+          token_id: candidate.tokenId,
+          owner_address: ownerAddress,
+          status,
+          available_amount: resolvedAvailableAmount,
+          total_amount: totalAmount,
+          metadata: {
+            source: 'h1_bridge_runtime_projection_repair',
+            source_asset_id: candidate.row.id,
+            source_asset_uid: candidate.row.asset_uid,
+            source_seed: 'runtime_minted_asset_bridge_v1',
+            source_title: candidate.row.title || null,
+            seller_wallet: ownerAddress,
+            seed_available_amount: seedAvailableAmount,
+            seed_total_amount: totalAmount,
+            reserved_order_amount: reservedAmount,
+            repaired_at: new Date().toISOString(),
+            repaired_by_wallet: auth.identity.walletAddress,
+          },
+        });
+      }
+
+      return {
+        assetUid: candidate.row.asset_uid,
+        assetId: candidate.row.id,
+        title: candidate.row.title,
+        chainId: candidate.chainId,
+        contractAddress: candidate.contractAddress,
+        tokenId: candidate.tokenId,
+        projectionKey: candidate.projectionKey,
+        action:
+          needsLinkInsert && needsProtocolAssetUpsert
+            ? 'insert_link_and_protocol_asset'
+            : needsLinkInsert
+              ? 'insert_link'
+              : needsProtocolAssetUpsert
+                ? 'upsert_protocol_asset'
+                : 'noop',
+        reason: null,
+        reservedAmount,
+        totalAmount,
+        seedAvailableAmount,
+        resolvedAvailableAmount,
+        ownerAddress,
+      };
+    });
+
+    if (!dryRun) {
+      if (plannedLinkRows.length > 0) {
+        const { error: linkRepairError } = await supabase
+          .from('asset_protocol_links')
+          .upsert(plannedLinkRows, { onConflict: 'asset_id,chain_id,contract_address,token_id' });
+        if (linkRepairError) {
+          throw new Error(`asset_protocol_links repair upsert failed: ${linkRepairError.message}`);
+        }
+      }
+
+      if (plannedProtocolAssetRows.length > 0) {
+        const { error: protocolAssetRepairError } = await supabase
+          .from('protocol_assets')
+          .upsert(plannedProtocolAssetRows, { onConflict: 'chain_id,asset_contract,token_id' });
+        if (protocolAssetRepairError) {
+          throw new Error(`protocol_assets repair upsert failed: ${protocolAssetRepairError.message}`);
+        }
+      }
+    }
+
+    return c.json({
+      ok: true,
+      dryRun,
+      matched: seedRows.length,
+      linkInserts: plannedLinkRows.length,
+      protocolAssetUpserts: plannedProtocolAssetRows.length,
+      skipped: planRows.filter((row) => String(row.action).startsWith('skip_')).length,
+      allowlistCount: allowlist.length,
+      rows: planRows,
+    });
+  } catch (error) {
+    console.error('[H1 Bridge] runtime-minted projection repair failed:', error);
+    return c.json(
+      { error: error instanceof Error ? error.message : 'runtime-minted projection repair failed' },
+      500,
     );
   }
 });

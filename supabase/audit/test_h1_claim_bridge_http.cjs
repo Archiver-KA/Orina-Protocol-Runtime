@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-const [baseUrlArg, anonKeyArg, fnNameArg = 'server', routePrefixArg] = process.argv.slice(2);
+const [baseUrlArg, anonKeyArg, fnNameArg = 'orina-auth-bridge-v1', routePrefixArg] = process.argv.slice(2);
 
 if (!baseUrlArg || !anonKeyArg) {
   console.error(
-    'Usage: node supabase/audit/test_h1_claim_bridge_http.cjs <supabaseUrl> <anonJwt> [functionName=server]'
+    'Usage: node supabase/audit/test_h1_claim_bridge_http.cjs <supabaseUrl> <anonJwt> [functionName=orina-auth-bridge-v1]'
   );
   process.exit(1);
 }
@@ -19,7 +19,30 @@ const routePrefix =
     ? routePrefixArg
     : fnName === 'make-server-b0d68fc8'
       ? '/auth/supabase-claim-bridge'
-      : '/make-server-b0d68fc8/auth/supabase-claim-bridge';
+      : '';
+
+function buildRoutePath(prefix, routePath) {
+  const normalizedRoutePath = String(routePath || '').replace(/^\/+/, '');
+  const normalizedPrefix = String(prefix || '').trim().replace(/\/+$/, '');
+
+  if (!normalizedRoutePath) {
+    return normalizedPrefix || '';
+  }
+
+  return normalizedPrefix ? `${normalizedPrefix}/${normalizedRoutePath}` : `/${normalizedRoutePath}`;
+}
+
+function buildOrinaMessage(walletAddress, timeIso) {
+  return [
+    'Orina Wallet Session Authentication',
+    '',
+    'Sign this message to authenticate your session in Orina.',
+    'No blockchain transaction or gas fee is required.',
+    '',
+    `Address: ${walletAddress}`,
+    `Time: ${timeIso}`,
+  ].join('\n');
+}
 
 async function request(path, init = {}) {
   const url = `${functionBase}${path}`;
@@ -55,10 +78,7 @@ function fakeSignature() {
 (async () => {
   const probePaths = [
     '/health',
-    `${routePrefix}/health`,
-    '/make-server-b0d68fc8/health',
-    '/auth/supabase-claim-bridge/health',
-    '/make-server-b0d68fc8/auth/supabase-claim-bridge/health',
+    buildRoutePath(routePrefix, 'health'),
   ];
   const probes = [];
   for (const p of [...new Set(probePaths)]) {
@@ -66,7 +86,8 @@ function fakeSignature() {
   }
 
   const wallet = randomWallet();
-  const exchangePath = `${routePrefix}/exchange`;
+  const exchangePath = buildRoutePath(routePrefix, 'exchange');
+  const nowIso = new Date().toISOString();
   const exchange = await request(exchangePath, {
     method: 'POST',
     headers: {
@@ -79,7 +100,7 @@ function fakeSignature() {
         address: wallet,
         signedAt: Date.now(),
         signature: fakeSignature(),
-        message: `Orina Wallet Session Authentication\n\nAddress: ${wallet}\nTime: ${new Date().toISOString()}`,
+        message: buildOrinaMessage(wallet, nowIso),
       },
       client: {
         app: 'ATP2',

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { buildReferencePath } = require('./audit_artifact_paths.cjs');
 
 const expectedTables = [
   'wallet_auth_challenges',
@@ -27,7 +28,7 @@ const expectedTables = [
 ];
 
 function main() {
-  const input = process.argv[2] || 'supabase/audit/batch1_table_stats.json';
+  const input = process.argv[2] || buildReferencePath('batch1', 'batch1_table_stats.json');
   const fullPath = path.resolve(process.cwd(), input);
   const text = fs.readFileSync(fullPath, 'utf8');
 
@@ -52,7 +53,10 @@ function main() {
     note: 'Parsed from `supabase inspect db table-stats` output (linked project).',
   };
 
-  const outPath = path.resolve(process.cwd(), 'supabase/audit/batch1_expected_tables_from_table_stats.json');
+  const outPath = path.resolve(
+    process.cwd(),
+    process.argv[3] || buildReferencePath('batch1', 'batch1_expected_tables_from_table_stats.json'),
+  );
   fs.writeFileSync(outPath, JSON.stringify(result, null, 2), 'utf8');
 
   console.error(`VERIFY_OK ${outPath}`);

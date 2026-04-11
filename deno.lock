@@ -4032,6 +4032,7 @@
         "npm:vaul@1.1.2",
         "npm:viem@^2.45.1",
         "npm:vite@^6.4.1",
+        "npm:vitest@^4.1.3",
         "npm:wagmi@^3.4.2"
       ]
     }

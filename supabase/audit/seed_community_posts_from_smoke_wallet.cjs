@@ -27,6 +27,17 @@ function buildWalletAuthMessage(address, signedAt) {
   ].join('\n');
 }
 
+function buildRoutePath(prefix, routePath) {
+  const normalizedRoutePath = String(routePath || '').replace(/^\/+/, '');
+  const normalizedPrefix = String(prefix || '').trim().replace(/\/+$/, '');
+
+  if (!normalizedRoutePath) {
+    return normalizedPrefix || '';
+  }
+
+  return normalizedPrefix ? `${normalizedPrefix}/${normalizedRoutePath}` : `/${normalizedRoutePath}`;
+}
+
 async function requestJson(url, init = {}) {
   const res = await fetch(url, init);
   const text = await res.text();
@@ -44,7 +55,7 @@ async function exchangeBridge({ supabaseUrl, anonKey, fnName, bridgePathPrefix, 
   const signedAt = Date.now();
   const message = buildWalletAuthMessage(walletAddress, signedAt);
   const signature = await account.signMessage({ message });
-  const url = `${supabaseUrl}/functions/v1/${fnName}${bridgePathPrefix}/exchange`;
+  const url = `${supabaseUrl}/functions/v1/${fnName}${buildRoutePath(bridgePathPrefix, 'exchange')}`;
   const response = await requestJson(url, {
     method: 'POST',
     headers: {
@@ -219,7 +230,7 @@ async function main() {
   const supabaseUrl = String(runtime.frontend.supabaseUrl || '').replace(/\/+$/, '');
   const anonKey = String(runtime.frontend.anonKey || '').trim();
   const fnName = String(runtime.frontend.bridgeFnName || '').trim();
-  const bridgePathPrefix = String(runtime.frontend.bridgePathPrefix || '/auth/supabase-claim-bridge').trim();
+  const bridgePathPrefix = String(runtime.frontend.bridgePathPrefix ?? '').trim();
 
   if (!supabaseUrl) throw new Error('Missing VITE_SUPABASE_URL');
   if (!anonKey) throw new Error('Missing VITE_SUPABASE_ANON_KEY');

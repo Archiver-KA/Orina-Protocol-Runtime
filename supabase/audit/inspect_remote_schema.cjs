@@ -5,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { buildActiveArtifactPath } = require('./audit_artifact_paths.cjs');
 
 function applyPasswordToConnectionStringIfMissing(connectionString, password) {
   if (!connectionString || !password) return connectionString;
@@ -235,9 +236,7 @@ async function main() {
       runtime_public_tables: runtimeTables,
     };
 
-    const outDir = path.join(process.cwd(), 'supabase', 'audit');
-    fs.mkdirSync(outDir, { recursive: true });
-    const outPath = path.join(outDir, `${(projectRef || 'from_db_url')}_runtime_schema_audit.json`);
+    const outPath = buildActiveArtifactPath(`${(projectRef || 'from_db_url')}_runtime_schema_audit.json`);
     fs.writeFileSync(outPath, JSON.stringify(report, null, 2), 'utf8');
 
     console.error(`AUDIT_OK ${outPath}`);

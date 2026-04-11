@@ -5,13 +5,14 @@ const ROOT = process.cwd();
 
 const orderId = process.argv[2];
 const assetId = process.argv[3];
+const extraArgs = process.argv.slice(4);
 
 if (!orderId || !assetId) {
   console.error('Usage: node supabase/audit/run_import_smoke_record.cjs <orderId> <assetId>');
   process.exit(1);
 }
 
-const result = spawnSync('node', ['supabase/audit/import_protocol_runtime_smoke_records.cjs'], {
+const result = spawnSync('node', ['supabase/audit/import_protocol_runtime_smoke_records.cjs', ...extraArgs], {
   cwd: ROOT,
   env: {
     ...process.env,

@@ -25,6 +25,7 @@ export interface AIConversationMessage {
     apiCallMade?: boolean;
     assetIds?: string[];
     version?: string;
+    disputeSuggestion?: AIDisputeSuggestion;
     [key: string]: unknown;
   };
 }
@@ -32,13 +33,19 @@ export interface AIConversationMessage {
 export type AIAssistContext = 'buyer' | 'seller' | 'arbiter' | 'guest';
 
 export interface AIDisputeContext {
+  orderId?: string;
+  disputeReasons?: string[];
   buyerReasons?: string[];
   evidenceUrls?: string[];
   buyerComment?: string;
   sellerResponse?: string;
   grossPriceFormatted?: string;
+  orderAmount?: string;
   openedAt?: string;
   deadline?: string;
+  deliveryConfirmed?: boolean;
+  transactionHash?: string;
+  messages?: { sender: string; content: string }[];
   [key: string]: unknown;
 }
 

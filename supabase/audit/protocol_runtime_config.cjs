@@ -180,6 +180,22 @@ function getRuntimeConfig() {
     ori: pickAddress(['PAYMENT_TOKEN_ORI', 'ORI'], paymentSources, CURRENT_DEFAULTS.paymentTokens.ORI),
   };
 
+  const sharedFnName = String(
+    firstNonEmpty(
+      runtimeEnv.VITE_SUPABASE_FUNCTIONS_NAMESPACE,
+      rootEnv.VITE_SUPABASE_FUNCTIONS_NAMESPACE,
+      runtimeEnv.VITE_SUPABASE_SHARED_SERVER_FN_NAME,
+      rootEnv.VITE_SUPABASE_SHARED_SERVER_FN_NAME,
+      'make-server-b0d68fc8',
+    ),
+  ).trim();
+  const bridgeFnName = String(
+    firstNonEmpty(runtimeEnv.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME, rootEnv.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME, 'orina-auth-bridge-v1'),
+  ).trim();
+  const aiM2MFnName = String(
+    firstNonEmpty(runtimeEnv.VITE_SUPABASE_AI_M2M_FN_NAME, rootEnv.VITE_SUPABASE_AI_M2M_FN_NAME, 'orina-ai-m2m-v2'),
+  ).trim();
+
   return {
     ROOT,
     chainId,
@@ -193,8 +209,11 @@ function getRuntimeConfig() {
       supabaseUrl: String(firstNonEmpty(runtimeEnv.VITE_SUPABASE_URL, rootEnv.VITE_SUPABASE_URL)).replace(/\/+$/, ''),
       anonKey: String(firstNonEmpty(runtimeEnv.VITE_SUPABASE_ANON_KEY, rootEnv.VITE_SUPABASE_ANON_KEY, rootEnv.VITE_SUPABASE_PUBLISHABLE_KEY)).trim(),
       publishableKey: String(firstNonEmpty(runtimeEnv.VITE_SUPABASE_PUBLISHABLE_KEY, rootEnv.VITE_SUPABASE_PUBLISHABLE_KEY)).trim(),
-      bridgeFnName: String(firstNonEmpty(runtimeEnv.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME, rootEnv.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME, 'make-server-b0d68fc8')).trim(),
-      bridgePathPrefix: String(firstNonEmpty(runtimeEnv.VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX, rootEnv.VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX, '/auth/supabase-claim-bridge')).trim(),
+      sharedFnName,
+      bridgeFnName,
+      bridgePathPrefix: String(firstNonEmpty(runtimeEnv.VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX, rootEnv.VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX, bridgeFnName === sharedFnName ? '/auth/supabase-claim-bridge' : '')).trim(),
+      aiM2MFnName,
+      aiM2MPathPrefix: String(firstNonEmpty(runtimeEnv.VITE_SUPABASE_AI_M2M_PATH_PREFIX, rootEnv.VITE_SUPABASE_AI_M2M_PATH_PREFIX, aiM2MFnName === sharedFnName ? '/ai/m2m' : '')).trim(),
     },
     artifacts: {
       coreDeployRunJson: path.join(ROOT, 'foundry', 'broadcast', 'DeployFullSystemDirect.s.sol', String(chainId), 'run-latest.json'),

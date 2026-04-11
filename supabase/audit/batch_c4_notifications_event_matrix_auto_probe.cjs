@@ -2,23 +2,51 @@
 
 const fs = require('fs');
 const path = require('path');
+const {
+  buildRoutePath,
+  loadFoundryEnv,
+  parseNamedArgs,
+  requestJson,
+  resolveBridgePrincipal,
+} = require('./bridge_auth_client.cjs');
+const { buildActiveArtifactPath } = require('./audit_artifact_paths.cjs');
 
-const [baseUrlArg, anonKeyArg] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const [baseUrlArg, anonKeyArg, fnNameArg = 'orina-auth-bridge-v1', routePrefixArg] = argv;
+const namedArgs = parseNamedArgs(argv.slice(4));
 
 if (!baseUrlArg || !anonKeyArg) {
   console.error(
-    'Usage: node supabase/audit/batch_c4_notifications_event_matrix_auto_probe.cjs <supabaseUrl> <anonJwt>'
+    'Usage: node supabase/audit/batch_c4_notifications_event_matrix_auto_probe.cjs <supabaseUrl> <anonJwt> [functionName=orina-auth-bridge-v1] [routePrefix]'
   );
   process.exit(1);
 }
 
 const baseUrl = baseUrlArg.replace(/\/+$/, '');
 const anonKey = anonKeyArg;
-const functionBase = `${baseUrl}/functions/v1/make-server-b0d68fc8`;
-const bridgeBase = `${functionBase}/auth/supabase-claim-bridge`;
+const bridgeFnName = String(fnNameArg || '').trim() || 'orina-auth-bridge-v1';
+const routePrefix =
+  typeof routePrefixArg === 'string'
+    ? String(routePrefixArg).trim()
+    : bridgeFnName === 'make-server-b0d68fc8'
+      ? '/auth/supabase-claim-bridge'
+      : '';
+const sharedFnName = String(
+  namedArgs['shared-fn-name'] ||
+  namedArgs['notifications-fn-name'] ||
+  'make-server-b0d68fc8'
+).trim() || 'make-server-b0d68fc8';
+const sharedRoutePrefix = String(
+  namedArgs['shared-route-prefix'] || namedArgs['notifications-route-prefix'] || ''
+).trim();
+const bridgeFunctionBase = `${baseUrl}/functions/v1/${bridgeFnName}`;
+const sharedFunctionBase = `${baseUrl}/functions/v1/${sharedFnName}`;
+const bridgeBase = `${bridgeFunctionBase}${routePrefix}`;
 const restBase = `${baseUrl}/rest/v1`;
 const SOURCE_TYPE = 'atp2_app_v1';
 const PROBE_PREFIX = 'c4probe';
+const ROOT = path.resolve(__dirname, '..', '..');
+const foundryEnv = loadFoundryEnv(ROOT);
 
 function randomHex(n) {
   const chars = 'abcdef0123456789';
@@ -29,10 +57,6 @@ function randomHex(n) {
 
 function randomWallet() {
   return `0x${randomHex(40)}`;
-}
-
-function fakeSignature() {
-  return `0x${'1a'.repeat(65)}`;
 }
 
 function qEq(value) {
@@ -46,18 +70,6 @@ function toQuery(params) {
     s.set(k, String(v));
   }
   return s.toString();
-}
-
-async function requestJson(url, init = {}) {
-  const res = await fetch(url, init);
-  const text = await res.text();
-  let json = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = { raw: text };
-  }
-  return { status: res.status, ok: res.ok, json };
 }
 
 function restHeaders(token, extra = {}) {
@@ -86,27 +98,6 @@ async function bridge(pathname, init = {}) {
       'Content-Type': 'application/json',
       ...(init.headers || {}),
     },
-  });
-}
-
-async function exchange(walletAddress) {
-  const now = Date.now();
-  return bridge('/exchange', {
-    method: 'POST',
-    body: JSON.stringify({
-      walletAddress,
-      walletAuthSession: {
-        address: walletAddress,
-        signedAt: now,
-        signature: fakeSignature(),
-        message: `ATP2 C4.2 auto probe auth\nAddress: ${walletAddress}\nTime: ${new Date(now).toISOString()}`,
-      },
-      client: {
-        app: 'ATP2',
-        phase: 'C4.2-auto-probe',
-        requestedAt: new Date().toISOString(),
-      },
-    }),
   });
 }
 
@@ -202,9 +193,16 @@ function buildMatrixEvents(actorWallet, recipientWallet) {
   ];
 }
 
-async function communityNotify(evt, actorWalletAddress, recipientWalletAddress, actorName) {
-  return bridge('/community-notify', {
+async function communityNotify(evt, actorWalletAddress, recipientWalletAddress, actorName, actorToken) {
+  return requestJson(
+    `${bridgeBase}${buildRoutePath('', 'community-notify')}`,
+    {
     method: 'POST',
+    headers: {
+      Authorization: `Bearer ${actorToken}`,
+      apikey: anonKey,
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify({
       targetWalletAddress: recipientWalletAddress,
       title: evt.title,
@@ -219,7 +217,8 @@ async function communityNotify(evt, actorWalletAddress, recipientWalletAddress, 
         sourceId: evt.sourceId,
       },
     }),
-  });
+  }
+  );
 }
 
 function rowBySourceId(rows, sourceId) {
@@ -227,17 +226,56 @@ function rowBySourceId(rows, sourceId) {
 }
 
 async function main() {
-  const walletA = randomWallet();
-  const walletB = randomWallet();
+  const principalA = await resolveBridgePrincipal({
+    baseUrl,
+    anonKey,
+    fnName: bridgeFnName,
+    routePrefix,
+    namedArgs,
+    suffix: 'a',
+    phase: 'C4.2-auto-probe',
+    fallbackPrivateKeys: [foundryEnv.SMOKE_SELLER_PRIVATE_KEY],
+    requireProfileId: true,
+    requireWalletAddress: true,
+  });
+  const principalB = await resolveBridgePrincipal({
+    baseUrl,
+    anonKey,
+    fnName: bridgeFnName,
+    routePrefix,
+    namedArgs,
+    suffix: 'b',
+    phase: 'C4.2-auto-probe',
+    fallbackPrivateKeys: [foundryEnv.SMOKE_BUYER_PRIVATE_KEY],
+    requireProfileId: true,
+    requireWalletAddress: true,
+  });
+
+  if (
+    principalA.profileId === principalB.profileId ||
+    principalA.walletAddress === principalB.walletAddress
+  ) {
+    throw new Error('C4 probe requires two distinct bridge principals. Provide separate JWTs, sessions, or private keys for A and B.');
+  }
+
+  const walletA = principalA.walletAddress || randomWallet();
+  const walletB = principalB.walletAddress || randomWallet();
   const actorName = `C4Probe-${randomHex(4)}`;
   const result = {
     context: {
       baseUrl,
-      functionBase,
+      bridgeFnName,
+      routePrefix,
+      bridgeFunctionBase,
+      sharedFnName,
+      sharedRoutePrefix,
+      sharedFunctionBase,
       testedAt: new Date().toISOString(),
       walletA,
       walletB,
-      note: 'Auto probe uses random wallets to avoid polluting UI A/B test wallets',
+      authSourceA: principalA.authSource,
+      authSourceB: principalB.authSource,
+      note: 'Auto probe uses real bridge principals. Prefer dedicated smoke wallets for A/B isolation.',
     },
     checks: {},
     matrix: {},
@@ -247,14 +285,32 @@ async function main() {
   result.raw.bridgeHealth = await bridge('/health');
   result.checks.h1_health_ok = result.raw.bridgeHealth.status === 200 && result.raw.bridgeHealth.json?.ok === true;
 
-  result.raw.exchangeA = await exchange(walletA);
-  result.raw.exchangeB = await exchange(walletB);
-  const aToken = result.raw.exchangeA.json?.accessToken;
-  const bToken = result.raw.exchangeB.json?.accessToken;
-  const aProfileId = result.raw.exchangeA.json?.profileId;
-  const bProfileId = result.raw.exchangeB.json?.profileId;
-  result.checks.exchange_a_ok = result.raw.exchangeA.status === 200 && !!aToken && !!aProfileId;
-  result.checks.exchange_b_ok = result.raw.exchangeB.status === 200 && !!bToken && !!bProfileId;
+  result.raw.exchangeA = {
+    status: 200,
+    ok: true,
+    json: {
+      accessToken: principalA.accessToken,
+      profileId: principalA.profileId,
+      walletAddress: principalA.walletAddress,
+      authSource: principalA.authSource,
+    },
+  };
+  result.raw.exchangeB = {
+    status: 200,
+    ok: true,
+    json: {
+      accessToken: principalB.accessToken,
+      profileId: principalB.profileId,
+      walletAddress: principalB.walletAddress,
+      authSource: principalB.authSource,
+    },
+  };
+  const aToken = principalA.accessToken;
+  const bToken = principalB.accessToken;
+  const aProfileId = principalA.profileId;
+  const bProfileId = principalB.profileId;
+  result.checks.exchange_a_ok = Boolean(aToken && !!aProfileId);
+  result.checks.exchange_b_ok = Boolean(bToken && !!bProfileId);
 
   if (!result.checks.h1_health_ok || !result.checks.exchange_a_ok || !result.checks.exchange_b_ok) {
     result.pass = false;
@@ -279,8 +335,8 @@ async function main() {
   }
 
   for (const evt of events) {
-    const first = await communityNotify(evt, walletA, walletB, actorName);
-    const second = await communityNotify(evt, walletA, walletB, actorName);
+    const first = await communityNotify(evt, walletA, walletB, actorName, aToken);
+    const second = await communityNotify(evt, walletA, walletB, actorName, aToken);
     const rowsRes = await listNotificationsBySourceIds(bToken, bProfileId, [evt.sourceId]);
     const rows = Array.isArray(rowsRes.json) ? rowsRes.json : [];
     const row = rowBySourceId(rows, evt.sourceId);
@@ -417,11 +473,8 @@ async function main() {
   result.pass = Object.values(result.checks).every(Boolean);
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const outPath = path.resolve(
-    process.cwd(),
-    'supabase',
-    'audit',
-    `batch_c4_notifications_event_matrix_auto_probe_${stamp}.json`
+  const outPath = buildActiveArtifactPath(
+    `batch_c4_notifications_event_matrix_auto_probe_${stamp}.json`,
   );
   fs.writeFileSync(outPath, JSON.stringify(result, null, 2));
   result.artifact = path.relative(process.cwd(), outPath).replace(/\\/g, '/');

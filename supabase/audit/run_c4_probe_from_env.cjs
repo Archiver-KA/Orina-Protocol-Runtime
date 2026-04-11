@@ -26,6 +26,7 @@ if (!fs.existsSync(envPath)) {
 const envFile = parseEnv(fs.readFileSync(envPath, 'utf8'));
 const baseUrl = envFile.VITE_SUPABASE_URL;
 const anonKey = envFile.VITE_SUPABASE_ANON_KEY;
+const extraArgs = process.argv.slice(2);
 
 if (!baseUrl || !anonKey) {
   console.error('[run_c4_probe_from_env] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env');
@@ -38,7 +39,7 @@ const probeScript = path.resolve(
   'audit',
   'batch_c4_notifications_event_matrix_auto_probe.cjs'
 );
-const result = cp.spawnSync(process.execPath, [probeScript, baseUrl, anonKey], {
+const result = cp.spawnSync(process.execPath, [probeScript, baseUrl, anonKey, ...extraArgs], {
   stdio: 'inherit',
 });
 process.exit(result.status ?? 1);

@@ -6,6 +6,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { buildActiveArtifactPath } = require('./audit_artifact_paths.cjs');
 
 function b64urlToUtf8(segment) {
   const normalized = segment.replace(/-/g, '+').replace(/_/g, '/');
@@ -175,9 +176,7 @@ async function main() {
     strategy_note: 'Still follow Option A (new project). This audit is only for drift/runtime awareness on the old project.',
   };
 
-  const outDir = path.join(process.cwd(), 'supabase', 'audit');
-  fs.mkdirSync(outDir, { recursive: true });
-  const outPath = path.join(outDir, `${projectRef}_anon_rest_audit.json`);
+  const outPath = buildActiveArtifactPath(`${projectRef}_anon_rest_audit.json`);
   fs.writeFileSync(outPath, JSON.stringify(report, null, 2), 'utf8');
 
   console.error(`ANON_AUDIT_OK ${outPath}`);

@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { buildActiveArtifactPath } = require('./audit_artifact_paths.cjs');
 
 function readEnvFile(filepath) {
   const env = {};
@@ -43,15 +44,14 @@ async function main() {
   const env = readEnvFile(envPath);
   const baseUrl = String(env.VITE_SUPABASE_URL || '').replace(/\/+$/, '');
   const anonKey = env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  const fnName = env.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME || 'make-server-b0d68fc8';
-  const routePrefix = env.VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX || '/auth/supabase-claim-bridge';
+  const sharedFnName = env.VITE_SUPABASE_FUNCTIONS_NAMESPACE || env.VITE_SUPABASE_SHARED_SERVER_FN_NAME || 'make-server-b0d68fc8';
   if (!baseUrl || !anonKey) {
     console.error(JSON.stringify({ ok: false, error: 'Missing VITE_SUPABASE_URL / anon key in .env' }, null, 2));
     process.exit(1);
   }
 
   const restBase = `${baseUrl}/rest/v1`;
-  const functionBase = `${baseUrl}/functions/v1/${fnName}${routePrefix}`;
+  const functionBase = `${baseUrl}/functions/v1/${sharedFnName}`;
 
   const ownedFixtureAssetUids = [
     'twf-a-rwa-001',
@@ -192,6 +192,7 @@ async function main() {
     context: {
       testedAt: new Date().toISOString(),
       baseUrl,
+      sharedFnName,
       functionBase,
     },
     expected: {
@@ -322,7 +323,7 @@ async function main() {
   summary.pass = Object.values(summary.checks).every(Boolean);
 
   const stamp = new Date().toISOString().replace(/[:]/g, '-').replace(/\..+/, '');
-  const outPath = path.join('supabase', 'audit', `batch_c2_asset_metadata_seed_smoke_probe_${stamp}.json`);
+  const outPath = buildActiveArtifactPath(`batch_c2_asset_metadata_seed_smoke_probe_${stamp}.json`);
   fs.writeFileSync(outPath, JSON.stringify(summary, null, 2));
   console.log(JSON.stringify({ pass: summary.pass, outPath, checks: summary.checks, diagnostics: summary.diagnostics }, null, 2));
 

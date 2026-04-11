@@ -2,10 +2,18 @@
 
 const fs = require('fs');
 const path = require('path');
+const {
+  loadFoundryEnv,
+  normalizeAddress,
+  parseNamedArgs,
+  requestJson,
+  resolveBridgePrincipal,
+} = require('./bridge_auth_client.cjs');
 const { getRuntimeConfig } = require('./protocol_runtime_config.cjs');
 
 const RUNTIME = getRuntimeConfig();
 const ROOT_DIR = path.resolve(__dirname, '..', '..');
+const namedArgs = parseNamedArgs(process.argv.slice(2));
 const DEFAULTS = {
   chainId: RUNTIME.chainId,
   marketplaceContract: RUNTIME.addresses.marketplace,
@@ -24,8 +32,8 @@ const DEFAULTS = {
   burnFeeBps: '50',
   assetNamePrefix: 'Smoke RWA Asset',
   assetImage: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=1200&h=1200&fit=crop',
-  bridgeFnName: 'make-server-b0d68fc8',
-  bridgePathPrefix: '/auth/supabase-claim-bridge',
+  bridgeFnName: String(RUNTIME.frontend.bridgeFnName || 'orina-auth-bridge-v1').trim(),
+  bridgePathPrefix: String(RUNTIME.frontend.bridgePathPrefix ?? '').trim(),
   mintCreateBroadcast: RUNTIME.artifacts.smokeMintCreateRunJson,
   sellerConfirmBroadcast: RUNTIME.artifacts.smokeSellerConfirmRunJson,
 };
@@ -45,9 +53,17 @@ function parseEnvFile(filePath) {
   }
   return map;
 }
+function readEnvString(env, key) {
+  return Object.prototype.hasOwnProperty.call(env, key) ? String(env[key]).trim() : null;
+}
 
-function normalizeAddress(address) {
-  return String(address || '').trim().toLowerCase();
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    if (value == null) continue;
+    const normalized = String(value).trim();
+    if (normalized) return normalized;
+  }
+  return '';
 }
 
 function shortAddress(address) {
@@ -214,71 +230,38 @@ function buildOrderRuntimeRecord(ctx) {
   };
 }
 
-async function requestJson(url, init = {}) {
-  const res = await fetch(url, init);
-  const text = await res.text();
-  let payload = null;
-  try {
-    payload = text ? JSON.parse(text) : null;
-  } catch {
-    payload = { raw: text };
-  }
+async function requestJsonOrThrow(url, init = {}) {
+  const response = await requestJson(url, init);
 
-  if (!res.ok) {
+  if (!response.ok) {
     const message =
-      payload?.message ||
-      payload?.error ||
-      payload?.hint ||
-      `Request failed with status ${res.status}`;
+      response.json?.message ||
+      response.json?.error ||
+      response.json?.hint ||
+      `Request failed with status ${response.status}`;
     const error = new Error(message);
-    error.status = res.status;
-    error.payload = payload;
+    error.status = response.status;
+    error.payload = response.json;
     throw error;
   }
 
-  return payload;
-}
-
-async function exchangeBridgeToken(ctx) {
-  const now = Date.now();
-  const url = `${ctx.supabaseUrl}/functions/v1/${ctx.bridgeFnName}${ctx.bridgePathPrefix}/exchange`;
-  const payload = await requestJson(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${ctx.anonKey}`,
-      apikey: ctx.anonKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      walletAddress: ctx.sellerAddress,
-      walletAuthSession: {
-        address: ctx.sellerAddress,
-        signedAt: now,
-        signature: `0x${'1a'.repeat(65)}`,
-        message: `ATP2 runtime importer\nAddress: ${ctx.sellerAddress}\nTime: ${new Date(now).toISOString()}`,
-      },
-      client: {
-        app: 'ATP2',
-        phase: 'runtime-importer-smoke',
-        requestedAt: new Date().toISOString(),
-      },
-    }),
-  });
-
-  if (!payload?.accessToken) {
-    throw new Error('Claim bridge exchange returned no accessToken');
-  }
-
-  return payload.accessToken;
+  return response.json;
 }
 
 async function restUpsert(ctx, table, rows, onConflict) {
+  if (!ctx.serviceRoleKey) {
+    throw new Error(
+      'Missing SUPABASE_SERVICE_ROLE_KEY (or ATP2_SUPABASE_SERVICE_ROLE_KEY). ' +
+        'Canonical protocol projection writes are service-role-only since migration 000044.',
+    );
+  }
+
   const query = onConflict ? `?on_conflict=${encodeURIComponent(onConflict)}` : '';
-  return requestJson(`${ctx.supabaseUrl}/rest/v1/${table}${query}`, {
+  return requestJsonOrThrow(`${ctx.supabaseUrl}/rest/v1/${table}${query}`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${ctx.accessToken}`,
-      apikey: ctx.anonKey,
+      Authorization: `Bearer ${ctx.serviceRoleKey}`,
+      apikey: ctx.serviceRoleKey,
       'Content-Type': 'application/json',
       Prefer: 'return=representation,resolution=merge-duplicates',
     },
@@ -287,7 +270,7 @@ async function restUpsert(ctx, table, rows, onConflict) {
 }
 
 async function restSelect(ctx, table, query) {
-  return requestJson(`${ctx.supabaseUrl}/rest/v1/${table}${query}`, {
+  return requestJsonOrThrow(`${ctx.supabaseUrl}/rest/v1/${table}${query}`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${ctx.accessToken}`,
@@ -299,8 +282,18 @@ async function restSelect(ctx, table, query) {
 
 async function main() {
   const env = parseEnvFile(path.join(ROOT_DIR, '.env'));
+  const foundryEnv = loadFoundryEnv(ROOT_DIR);
   const supabaseUrl = String(env.VITE_SUPABASE_URL || '').replace(/\/+$/, '');
   const anonKey = String(env.VITE_SUPABASE_ANON_KEY || '').trim();
+  const serviceRoleKey = firstNonEmpty(
+    namedArgs['service-role-key'],
+    readEnvString(process.env, 'SUPABASE_SERVICE_ROLE_KEY'),
+    readEnvString(process.env, 'ATP2_SUPABASE_SERVICE_ROLE_KEY'),
+    readEnvString(env, 'SUPABASE_SERVICE_ROLE_KEY'),
+    readEnvString(env, 'ATP2_SUPABASE_SERVICE_ROLE_KEY'),
+    readEnvString(foundryEnv, 'SUPABASE_SERVICE_ROLE_KEY'),
+    readEnvString(foundryEnv, 'ATP2_SUPABASE_SERVICE_ROLE_KEY'),
+  );
 
   if (!supabaseUrl || !anonKey) {
     throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env');
@@ -333,8 +326,8 @@ async function main() {
   const ctx = {
     supabaseUrl,
     anonKey,
-    bridgeFnName: env.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME || DEFAULTS.bridgeFnName,
-    bridgePathPrefix: env.VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX || DEFAULTS.bridgePathPrefix,
+    bridgeFnName: readEnvString(env, 'VITE_SUPABASE_AUTH_BRIDGE_FN_NAME') || DEFAULTS.bridgeFnName,
+    bridgePathPrefix: readEnvString(env, 'VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX') ?? DEFAULTS.bridgePathPrefix,
     chainId: DEFAULTS.chainId,
     marketplaceContract: DEFAULTS.marketplaceContract,
     assetContract: DEFAULTS.assetContract,
@@ -441,7 +434,26 @@ async function main() {
     },
   };
 
-  ctx.accessToken = await exchangeBridgeToken(ctx);
+  const bridgePrincipal = await resolveBridgePrincipal({
+    baseUrl: ctx.supabaseUrl,
+    anonKey: ctx.anonKey,
+    fnName: ctx.bridgeFnName,
+    routePrefix: ctx.bridgePathPrefix,
+    namedArgs,
+    phase: 'runtime-importer-smoke',
+    fallbackPrivateKeys: [foundryEnv.SMOKE_SELLER_PRIVATE_KEY],
+    requireWalletAddress: true,
+  });
+
+  if (normalizeAddress(bridgePrincipal.walletAddress) !== normalizeAddress(ctx.sellerAddress)) {
+    throw new Error(
+      `Bridge auth wallet ${bridgePrincipal.walletAddress} does not match the seller address ${ctx.sellerAddress} required by the runtime importer.`,
+    );
+  }
+
+  ctx.accessToken = bridgePrincipal.accessToken;
+  ctx.bridgeAuthSource = bridgePrincipal.authSource;
+  ctx.serviceRoleKey = serviceRoleKey;
 
   const assetUpsert = await restUpsert(ctx, 'protocol_assets', [assetRow], 'chain_id,asset_contract,token_id');
   const orderUpsert = await restUpsert(ctx, 'protocol_orders', [orderRow], 'chain_id,marketplace_contract,order_uid');
@@ -476,6 +488,11 @@ async function main() {
           status: orderVerify?.status || null,
           buyer_address: orderVerify?.buyer_address || null,
           seller_address: orderVerify?.seller_address || null,
+        },
+        auth: {
+          walletAddress: bridgePrincipal.walletAddress,
+          bridgeSource: ctx.bridgeAuthSource,
+          projectionWriteSource: 'service-role-key',
         },
         tx: {
           mint: ctx.mintTxHash,

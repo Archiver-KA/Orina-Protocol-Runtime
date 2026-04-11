@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { buildReferencePath } = require('./audit_artifact_paths.cjs');
 
 const expectedTables = [
   'wallet_auth_challenges',
@@ -27,7 +28,7 @@ const expectedTables = [
 ];
 
 function main() {
-  const file = process.argv[2] || 'supabase/audit/batch1_index_stats.txt';
+  const file = process.argv[2] || buildReferencePath('batch1', 'batch1_index_stats.txt');
   const full = path.resolve(process.cwd(), file);
   const text = fs.readFileSync(full, 'utf8');
 
@@ -50,7 +51,10 @@ function main() {
     note: 'Proxy verification via pg index-stats output (checks for each <table>_pkey index).',
   };
 
-  const outPath = path.resolve(process.cwd(), 'supabase/audit/batch1_expected_tables_from_index_stats.json');
+  const outPath = path.resolve(
+    process.cwd(),
+    process.argv[3] || buildReferencePath('batch1', 'batch1_expected_tables_from_index_stats.json'),
+  );
   fs.writeFileSync(outPath, JSON.stringify(result, null, 2), 'utf8');
 
   console.error(`VERIFY_OK ${outPath}`);

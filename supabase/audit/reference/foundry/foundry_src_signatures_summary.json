@@ -1,0 +1,474 @@
+{
+  "srcDir": "C:\\Users\\proje\\Documents\\GitHub\\orina-atp\\packages\\contracts\\foundry\\src",
+  "files": [
+    {
+      "file": "AutoTimeManager.sol",
+      "hits": [
+        {
+          "line": 7,
+          "text": "interface IMarketplaceATP {"
+        },
+        {
+          "line": 8,
+          "text": "function isFinalized(uint256 orderId) external view returns (bool);"
+        },
+        {
+          "line": 9,
+          "text": "function isPendingConfirm(uint256 orderId) external view returns (bool);"
+        },
+        {
+          "line": 10,
+          "text": "function isPaid(uint256 orderId) external view returns (bool);"
+        },
+        {
+          "line": 11,
+          "text": "function isOrderDisputed(uint256 orderId) external view returns (bool);"
+        },
+        {
+          "line": 12,
+          "text": "function isSellerConfirmed(uint256 orderId) external view returns (bool);"
+        },
+        {
+          "line": 13,
+          "text": "function cancelOrder(uint256 orderId) external;"
+        },
+        {
+          "line": 14,
+          "text": "function autoRelease(uint256 orderId) external;"
+        },
+        {
+          "line": 15,
+          "text": "function proposedAt(uint256 orderId) external view returns (uint256);"
+        },
+        {
+          "line": 16,
+          "text": "function payDeadline(uint256 orderId) external view returns (uint256);"
+        },
+        {
+          "line": 17,
+          "text": "function autoReleaseAt(uint256 orderId) external view returns (uint256);"
+        },
+        {
+          "line": 20,
+          "text": "interface IDisputeManager {"
+        },
+        {
+          "line": 21,
+          "text": "function resolveStaleDispute(uint256 orderId) external;"
+        },
+        {
+          "line": 24,
+          "text": "contract AutoTimeManager is AccessControl, ReentrancyGuard {"
+        },
+        {
+          "line": 57,
+          "text": "function _checkAndExecute(uint256 orderId) internal {"
+        },
+        {
+          "line": 99,
+          "text": "function checkAndExecute(uint256 orderId) external nonReentrant {"
+        },
+        {
+          "line": 103,
+          "text": "function batchCheckAndExecute(uint256[] calldata orderIds) external nonReentrant {"
+        },
+        {
+          "line": 121,
+          "text": "function setDisputeManager(address _dm) external onlyRole(GOVERNANCE_ROLE) {"
+        }
+      ]
+    },
+    {
+      "file": "DisputeManager.sol",
+      "hits": [
+        {
+          "line": 9,
+          "text": "interface IMarketplaceATP {"
+        },
+        {
+          "line": 15,
+          "text": "function isOrderDisputed(uint256 orderId) external view returns (bool);"
+        },
+        {
+          "line": 16,
+          "text": "function isFinalized(uint256 orderId) external view returns (bool);"
+        },
+        {
+          "line": 17,
+          "text": "function grossPrice(uint256 orderId) external view returns (uint256);"
+        },
+        {
+          "line": 18,
+          "text": "function setDisputeResolved("
+        },
+        {
+          "line": 26,
+          "text": "interface IPaymentGateway {"
+        },
+        {
+          "line": 27,
+          "text": "function deductDisputeFee(uint256 orderId, uint256 feeAmount) external;"
+        },
+        {
+          "line": 30,
+          "text": "contract DisputeManager is AccessControl, ReentrancyGuard {"
+        },
+        {
+          "line": 93,
+          "text": "function openDispute(uint256 orderId) external {"
+        },
+        {
+          "line": 109,
+          "text": "function extendDispute(uint256 orderId) external onlyRole(ARBITER_ROLE) {"
+        },
+        {
+          "line": 119,
+          "text": "function resolveMutualSplit("
+        },
+        {
+          "line": 163,
+          "text": "function resolveDispute("
+        },
+        {
+          "line": 204,
+          "text": "function resolveStaleDispute(uint256 orderId) external {"
+        }
+      ]
+    },
+    {
+      "file": "FeeManager.sol",
+      "hits": [
+        {
+          "line": 6,
+          "text": "contract FeeManager is AccessControl {"
+        },
+        {
+          "line": 45,
+          "text": "function calculateFees(uint256 amount)"
+        },
+        {
+          "line": 55,
+          "text": "function setFees("
+        },
+        {
+          "line": 72,
+          "text": "function getTotalFeeBps() external view returns (uint256) {"
+        }
+      ]
+    },
+    {
+      "file": "FractionalReceiptNFT.sol",
+      "hits": [
+        {
+          "line": 8,
+          "text": "interface IMarketplaceATP {"
+        },
+        {
+          "line": 14,
+          "text": "function isFinalized(uint256 orderId) external view returns (bool);"
+        },
+        {
+          "line": 15,
+          "text": "function getSettlement(uint256 orderId)"
+        },
+        {
+          "line": 25,
+          "text": "interface IOrinaRWA {"
+        },
+        {
+          "line": 43,
+          "text": "function getAsset(uint256 assetId) external view returns (Asset memory);"
+        },
+        {
+          "line": 46,
+          "text": "contract FractionalReceiptNFT is ERC721, AccessControl {"
+        },
+        {
+          "line": 90,
+          "text": "function mint("
+        },
+        {
+          "line": 132,
+          "text": "function _update(address to, uint256 tokenId, address auth)"
+        },
+        {
+          "line": 147,
+          "text": "function tokenURI(uint256 tokenId)"
+        },
+        {
+          "line": 157,
+          "text": "function supportsInterface(bytes4 interfaceId)"
+        },
+        {
+          "line": 166,
+          "text": "function setBaseURI(string calldata newUri) external onlyRole(GOVERNANCE_ROLE) {"
+        }
+      ]
+    },
+    {
+      "file": "MarketplaceATP.sol",
+      "hits": [
+        {
+          "line": 15,
+          "text": "interface IDisputeManager {"
+        },
+        {
+          "line": 16,
+          "text": "function openDispute(uint256 orderId) external;"
+        },
+        {
+          "line": 19,
+          "text": "interface IModule {"
+        },
+        {
+          "line": 20,
+          "text": "function execute(uint256 orderId, address caller, bytes memory data) external returns (bool success, bytes memory result);"
+        },
+        {
+          "line": 23,
+          "text": "contract MarketplaceATP is AccessControl, ReentrancyGuard, Pausable, EIP712 {"
+        },
+        {
+          "line": 150,
+          "text": "function isPendingConfirm(uint256 orderId) external view returns (bool) {"
+        },
+        {
+          "line": 154,
+          "text": "function isPaid(uint256 orderId) external view returns (bool) {"
+        },
+        {
+          "line": 158,
+          "text": "function isOrderDisputed(uint256 orderId) external view returns (bool) {"
+        },
+        {
+          "line": 162,
+          "text": "function isFinalized(uint256 orderId) external view returns (bool) {"
+        },
+        {
+          "line": 166,
+          "text": "function isCancelled(uint256 orderId) external view returns (bool) {"
+        },
+        {
+          "line": 170,
+          "text": "function isSellerConfirmed(uint256 orderId) external view returns (bool) {"
+        },
+        {
+          "line": 174,
+          "text": "function proposedAt(uint256 orderId) external view returns (uint256) {"
+        },
+        {
+          "line": 178,
+          "text": "function autoReleaseAt(uint256 orderId) external view returns (uint256) {"
+        },
+        {
+          "line": 182,
+          "text": "function grossPrice(uint256 orderId) external view returns (uint256) {"
+        },
+        {
+          "line": 186,
+          "text": "function getOrderStatus(uint256 orderId)"
+        },
+        {
+          "line": 244,
+          "text": "function addModule(string calldata name, address moduleAddr) external onlyRole(GOVERNANCE_ROLE) {"
+        },
+        {
+          "line": 251,
+          "text": "function removeModule(string calldata name) external onlyRole(GOVERNANCE_ROLE) {"
+        },
+        {
+          "line": 258,
+          "text": "function _callModule(string memory name, uint256 orderId, address caller, bytes memory data) internal returns (bool success, bytes memory result) {"
+        },
+        {
+          "line": 271,
+          "text": "function createOrder("
+        },
+        {
+          "line": 314,
+          "text": "function sellerConfirm("
+        },
+        {
+          "line": 349,
+          "text": "function payOrder(uint256 orderId, bytes calldata buyerSig2)"
+        },
+        {
+          "line": 390,
+          "text": "function confirmDelivery(uint256 orderId)"
+        },
+        {
+          "line": 407,
+          "text": "function autoRelease(uint256 orderId)"
+        },
+        {
+          "line": 425,
+          "text": "function cancelOrder(uint256 orderId) external notFinalized(orderId) {"
+        },
+        {
+          "line": 440,
+          "text": "function cancelByBuyer(uint256 orderId) external nonReentrant whenNotPaused notFinalized(orderId) {"
+        },
+        {
+          "line": 454,
+          "text": "function openDispute(uint256 orderId)"
+        },
+        {
+          "line": 475,
+          "text": "function setDisputeResolved("
+        },
+        {
+          "line": 502,
+          "text": "function _finalize(uint256 orderId)"
+        },
+        {
+          "line": 547,
+          "text": "function setDisputeManager(address _dm)"
+        }
+      ]
+    },
+    {
+      "file": "OrinaRWA.sol",
+      "hits": [
+        {
+          "line": 9,
+          "text": "contract OrinaRWA is AccessControl, ReentrancyGuard, Pausable {"
+        },
+        {
+          "line": 68,
+          "text": "function mintAsset("
+        },
+        {
+          "line": 102,
+          "text": "function lockAmount("
+        },
+        {
+          "line": 126,
+          "text": "function consumeLocked("
+        },
+        {
+          "line": 155,
+          "text": "function unlockAmount("
+        },
+        {
+          "line": 180,
+          "text": "function burnAsset(uint256 assetId) external onlyRole(GOVERNANCE_ROLE) {"
+        },
+        {
+          "line": 192,
+          "text": "function totalLocked(uint256 assetId) external view returns (uint256) {"
+        },
+        {
+          "line": 196,
+          "text": "function getAsset(uint256 assetId) external view returns (Asset memory) {"
+        }
+      ]
+    },
+    {
+      "file": "PaymentGateway.sol",
+      "hits": [
+        {
+          "line": 10,
+          "text": "contract PaymentGateway is AccessControl, ReentrancyGuard, Pausable {"
+        },
+        {
+          "line": 53,
+          "text": "function depositEscrow("
+        },
+        {
+          "line": 71,
+          "text": "function releaseToSeller("
+        },
+        {
+          "line": 88,
+          "text": "function refundBuyer("
+        },
+        {
+          "line": 104,
+          "text": "function distributeFees("
+        },
+        {
+          "line": 126,
+          "text": "function deductDisputeFee(uint256 orderId, uint256 feeAmount)"
+        },
+        {
+          "line": 146,
+          "text": "function emergencyWithdraw("
+        },
+        {
+          "line": 163,
+          "text": "function pause() external onlyRole(GOVERNANCE_ROLE) {"
+        },
+        {
+          "line": 167,
+          "text": "function unpause() external onlyRole(GOVERNANCE_ROLE) {"
+        }
+      ]
+    },
+    {
+      "file": "ShippingRegistry.sol",
+      "hits": [
+        {
+          "line": 6,
+          "text": "interface IShippingRegistry {"
+        },
+        {
+          "line": 15,
+          "text": "function getOption(uint256 id) external view returns (ShippingOption memory);"
+        },
+        {
+          "line": 18,
+          "text": "contract ShippingRegistry is AccessControl, IShippingRegistry {"
+        },
+        {
+          "line": 32,
+          "text": "function createOption("
+        },
+        {
+          "line": 50,
+          "text": "function toggleOption(uint256 id, bool active)"
+        },
+        {
+          "line": 57,
+          "text": "function getOption(uint256 id)"
+        }
+      ]
+    },
+    {
+      "file": "UnitRegistry.sol",
+      "hits": [
+        {
+          "line": 6,
+          "text": "contract UnitRegistry is AccessControl {"
+        },
+        {
+          "line": 29,
+          "text": "function createUnit("
+        },
+        {
+          "line": 50,
+          "text": "function toggleUnitActive(uint256 unitId, bool active)"
+        },
+        {
+          "line": 58,
+          "text": "function updateLimits("
+        },
+        {
+          "line": 75,
+          "text": "function lockUnit(uint256 unitId)"
+        },
+        {
+          "line": 83,
+          "text": "function validateAmount(uint256 unitId, uint256 amount)"
+        },
+        {
+          "line": 94,
+          "text": "function getUnit(uint256 unitId)"
+        },
+        {
+          "line": 103,
+          "text": "function _checkUnitExists(uint256 unitId) internal view {"
+        }
+      ]
+    }
+  ]
+}

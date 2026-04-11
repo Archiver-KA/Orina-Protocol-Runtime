@@ -5,7 +5,8 @@
  * Usage:
  *   node supabase/audit/smoke_wallet_claim_security.cjs <supabaseUrl> <anonJwt> [functionName]
  *
- * functionName defaults to make-server-b0d68fc8 (must match VITE_SUPABASE_AUTH_BRIDGE_FN_NAME).
+ * functionName defaults to orina-auth-bridge-v1. Pass make-server-b0d68fc8 only when
+ * intentionally validating the legacy shared bridge topology.
  *
  * Optional env:
  *   ATP2_CLAIM_BRIDGE_TEST_JWT — bridge-issued access token (from browser after sign-in).
@@ -16,7 +17,7 @@
  */
 
 const [baseUrlArg, anonKeyArg, fnNameArg] = process.argv.slice(2);
-const FN = fnNameArg || 'make-server-b0d68fc8';
+const FN = fnNameArg || 'orina-auth-bridge-v1';
 
 if (!baseUrlArg || !anonKeyArg) {
   console.error(
@@ -28,7 +29,9 @@ if (!baseUrlArg || !anonKeyArg) {
 const baseUrl = baseUrlArg.replace(/\/+$/, '');
 const anonKey = anonKeyArg;
 const functionBase = `${baseUrl}/functions/v1/${FN}`;
-const bridgeBase = `${functionBase}/auth/supabase-claim-bridge`;
+const bridgeBase = FN === 'make-server-b0d68fc8'
+  ? `${functionBase}/auth/supabase-claim-bridge`
+  : functionBase;
 const restBase = `${baseUrl}/rest/v1`;
 
 function randomHex(n) {
