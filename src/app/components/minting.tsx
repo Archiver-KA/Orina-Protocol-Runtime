@@ -47,6 +47,7 @@ import { useProtocolNetworkRouter } from '@/contexts/ProtocolNetworkContext';
 import { PROTOCOL_NETWORK_OPTIONS } from '@/utils/protocolNetwork';
 import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
 import { dispatchAppNavigation, navigateToMarketplaceCategory } from '@/utils/appNavigation';
+import type { MintingSidebarTelemetry } from '@/app/components/minting-right-sidebar';
 
 function createMintingAttributeId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -111,6 +112,68 @@ type ReceiptLogLike = {
 
 type MintingWorkspaceMode = 'Create' | 'Drafts';
 const MINTING_WORKSPACE_TABS: MintingWorkspaceMode[] = ['Create', 'Drafts'];
+
+type MintingProps = {
+  onSidebarTelemetryChange?: (telemetry: MintingSidebarTelemetry | null) => void;
+};
+
+type MintingGasEstimateState = {
+  isEstimatingGas: boolean;
+  gasEstimateError: string | null;
+  estimatedGasUnits: string | null;
+  gasPriceWei: string | null;
+  estimatedCostWei: string | null;
+  lastEstimatedAt: number | null;
+};
+
+const EMPTY_MINTING_GAS_ESTIMATE_STATE: MintingGasEstimateState = {
+  isEstimatingGas: false,
+  gasEstimateError: null,
+  estimatedGasUnits: null,
+  gasPriceWei: null,
+  estimatedCostWei: null,
+  lastEstimatedAt: null,
+};
+
+function resolveMintingUnitId(assetType: 'RWA' | 'NFT', unitId: string): string {
+  return assetType === 'RWA' ? unitId : '0';
+}
+
+function resolveMintingExpiryDays(
+  assetType: 'RWA' | 'NFT',
+  expiryType: 'Expiry' | 'Non-Expiry',
+  expiryDays: string,
+): string {
+  if (assetType === 'RWA') {
+    return expiryType === 'Expiry' ? expiryDays.trim() : '';
+  }
+  return expiryDays.trim();
+}
+
+function resolveMintingExpiryTimestamp(expiryDays: string): bigint {
+  return expiryDays && Number(expiryDays) > 0
+    ? BigInt(Math.floor(Date.now() / 1000) + Number(expiryDays) * 24 * 60 * 60)
+    : 0n;
+}
+
+function parseWholePositiveAmount(raw: string): bigint | null {
+  const normalized = raw.trim();
+  if (!/^\d+$/.test(normalized)) return null;
+  const parsed = BigInt(normalized);
+  return parsed > 0n ? parsed : null;
+}
+
+function formatGasEstimateError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error || '');
+  if (!message) return 'Unable to estimate gas right now.';
+  if (message.includes('insufficient funds')) {
+    return 'Insufficient funds to estimate this mint transaction.';
+  }
+  if (message.includes('execution reverted')) {
+    return 'Mint transaction is currently not executable with the selected parameters.';
+  }
+  return message.split(/Request Arguments:|Contract Call:/)[0].trim() || 'Unable to estimate gas right now.';
+}
 
 function cloneMintingAttributeOptions(options: RwaConfigurableAttributeGroup['options']) {
   return options.map((option) => ({ ...option }));
@@ -411,7 +474,7 @@ function extractMintedAssetIdFromReceipt(
   return null;
 }
 
-export function Minting() {
+export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
   const [workspaceMode, setWorkspaceMode] = useState<MintingWorkspaceMode>('Create');
   const [assetType, setAssetType] = useState<'RWA' | 'NFT'>('RWA');
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
@@ -439,6 +502,7 @@ export function Minting() {
   const [pendingRuntimeMintDraft, setPendingRuntimeMintDraft] = useState<PendingRuntimeMintDraft | null>(null);
   const [lastMintSuccess, setLastMintSuccess] = useState<MintSuccessState | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
+  const [gasEstimateState, setGasEstimateState] = useState<MintingGasEstimateState>(EMPTY_MINTING_GAS_ESTIMATE_STATE);
 
   // ── On-chain unit data ─────────────────────────────────────────
   const { units: allUnits, isLoading: unitsLoading, isOnChain } = useAllUnits();
@@ -858,16 +922,16 @@ export function Minting() {
       }
     }
 
+    if (!normalizedMintAmount) {
+      alert('Total amount must be a whole positive number');
+      return;
+    }
+
     const continueMintAssets = async () => {
       try {
         setLastMintSuccess(null);
         reset();
-        const resolvedUnitId = assetType === 'RWA' ? unitId : '0';
-        const resolvedExpiryDays = assetType === 'RWA' ? expiryDays : expiryDays.trim();
-        const expiryTimestamp =
-          resolvedExpiryDays && Number(resolvedExpiryDays) > 0
-            ? BigInt(Math.floor(Date.now() / 1000) + Number(resolvedExpiryDays) * 24 * 60 * 60)
-            : BigInt(0);
+        const expiryTimestamp = resolveMintingExpiryTimestamp(resolvedExpiryDays);
 
         setPendingRuntimeMintDraft({
           walletAddress: address,
@@ -897,7 +961,7 @@ export function Minting() {
         });
         await mintAsset(
           BigInt(resolvedUnitId),
-          BigInt(totalAmount),
+          normalizedMintAmount,
           expiryTimestamp,
           assetType === 'RWA' ? AssetType.RWA : AssetType.NFT,
         );
@@ -975,6 +1039,162 @@ export function Minting() {
         .filter((option) => option.label),
     }))
     .filter((group) => group.label && group.options.length > 0);
+  const resolvedUnitId = useMemo(() => resolveMintingUnitId(assetType, unitId), [assetType, unitId]);
+  const resolvedExpiryDays = useMemo(
+    () => resolveMintingExpiryDays(assetType, expiryType, expiryDays),
+    [assetType, expiryDays, expiryType],
+  );
+  const normalizedMintAmount = useMemo(() => parseWholePositiveAmount(totalAmount), [totalAmount]);
+  const mintNativeSymbol = chainId === 56 || chainId === 97 ? 'BNB' : 'ETH';
+  const canEstimateMintGas =
+    Boolean(isConnected && address && chainId && assetAddress && publicClient)
+    && normalizedMintAmount !== null
+    && !amountError;
+
+  useEffect(() => {
+    if (!onSidebarTelemetryChange) return;
+    return () => onSidebarTelemetryChange(null);
+  }, [onSidebarTelemetryChange]);
+
+  useEffect(() => {
+    if (!onSidebarTelemetryChange) return;
+
+    onSidebarTelemetryChange({
+      chainId,
+      networkKey: selectedNetworkKey,
+      networkLabel: selectedNetwork.label,
+      nativeTokenSymbol: mintNativeSymbol,
+      isTestnet: chainId === 97,
+      walletAddress: address ?? null,
+      isWalletConnected: Boolean(isConnected && address),
+      assetType,
+      unitId: resolvedUnitId,
+      totalAmount,
+      expiryDays: resolvedExpiryDays,
+      canEstimate: canEstimateMintGas,
+      isEstimatingGas: gasEstimateState.isEstimatingGas,
+      gasEstimateError: gasEstimateState.gasEstimateError,
+      estimatedGasUnits: gasEstimateState.estimatedGasUnits,
+      gasPriceWei: gasEstimateState.gasPriceWei,
+      estimatedCostWei: gasEstimateState.estimatedCostWei,
+      lastEstimatedAt: gasEstimateState.lastEstimatedAt,
+    });
+  }, [
+    address,
+    assetType,
+    canEstimateMintGas,
+    chainId,
+    gasEstimateState.estimatedCostWei,
+    gasEstimateState.estimatedGasUnits,
+    gasEstimateState.gasEstimateError,
+    gasEstimateState.gasPriceWei,
+    gasEstimateState.isEstimatingGas,
+    gasEstimateState.lastEstimatedAt,
+    isConnected,
+    mintNativeSymbol,
+    onSidebarTelemetryChange,
+    resolvedExpiryDays,
+    resolvedUnitId,
+    selectedNetwork.label,
+    selectedNetworkKey,
+    totalAmount,
+  ]);
+
+  useEffect(() => {
+    if (!canEstimateMintGas || !publicClient || !chainId || !assetAddress || !address) {
+      setGasEstimateState((current) => {
+        const nextError =
+          isConnected && totalAmount.trim() && normalizedMintAmount === null
+            ? 'Enter a whole-number amount to estimate gas.'
+            : amountError;
+
+        if (
+          current.isEstimatingGas === false
+          && current.gasEstimateError === nextError
+          && current.estimatedGasUnits === null
+          && current.gasPriceWei === null
+          && current.estimatedCostWei === null
+          && current.lastEstimatedAt === null
+        ) {
+          return current;
+        }
+
+        return {
+          ...EMPTY_MINTING_GAS_ESTIMATE_STATE,
+          gasEstimateError: nextError,
+        };
+      });
+      return;
+    }
+
+    const amountToEstimate = normalizedMintAmount;
+    if (amountToEstimate == null) {
+      return;
+    }
+
+    let cancelled = false;
+    const estimateTimer = window.setTimeout(async () => {
+      setGasEstimateState((current) => ({
+        ...current,
+        isEstimatingGas: true,
+        gasEstimateError: null,
+      }));
+
+      try {
+        const expiryTimestamp = resolveMintingExpiryTimestamp(resolvedExpiryDays);
+        const [estimatedGasUnits, gasPriceWei] = await Promise.all([
+          publicClient.estimateContractGas({
+            account: address as `0x${string}`,
+            address: assetAddress,
+            abi: ORINA_RWA_ABI,
+            functionName: 'mintAsset',
+            args: [
+              BigInt(resolvedUnitId),
+              amountToEstimate,
+              expiryTimestamp,
+              assetType === 'RWA' ? AssetType.RWA : AssetType.NFT,
+            ],
+          }),
+          publicClient.getGasPrice(),
+        ]);
+
+        if (cancelled) return;
+
+        setGasEstimateState({
+          isEstimatingGas: false,
+          gasEstimateError: null,
+          estimatedGasUnits: estimatedGasUnits.toString(),
+          gasPriceWei: gasPriceWei.toString(),
+          estimatedCostWei: (estimatedGasUnits * gasPriceWei).toString(),
+          lastEstimatedAt: Date.now(),
+        });
+      } catch (estimateError) {
+        if (cancelled) return;
+        setGasEstimateState({
+          ...EMPTY_MINTING_GAS_ESTIMATE_STATE,
+          gasEstimateError: formatGasEstimateError(estimateError),
+        });
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(estimateTimer);
+    };
+  }, [
+    address,
+    amountError,
+    assetAddress,
+    assetType,
+    canEstimateMintGas,
+    chainId,
+    isConnected,
+    normalizedMintAmount,
+    publicClient,
+    resolvedExpiryDays,
+    resolvedUnitId,
+    totalAmount,
+  ]);
 
   const addConfigurableAttributeGroup = () => {
     setConfigurableAttributes((current) => [...current, createMintingAttributeGroup()]);

@@ -20,6 +20,7 @@ import { getConversations as getChatConversations } from '@/utils/messagesClient
 import { buildNotificationSourceId } from '@/utils/notifications';
 import { shortenUserDisplayName } from '@/utils/profileUtils';
 import type { RuntimeAppProps } from '@/app/runtime/runtime-app-types';
+import type { MintingSidebarTelemetry } from '@/app/components/minting-right-sidebar';
 
 const AISidebar = lazy(() =>
   import('@/app/components/ai/ai-sidebar').then((module) => ({ default: module.AISidebar })),
@@ -194,6 +195,7 @@ function RuntimeAppContent({
   const { applyThemeFromWallet } = useTheme();
   const { openConnectModal } = useWalletModalContext();
   const [showAISidebar, setShowAISidebar] = useState(false);
+  const [mintingSidebarTelemetry, setMintingSidebarTelemetry] = useState<MintingSidebarTelemetry | null>(null);
 
   const { isGuest, effectiveConnectedAddress, canAccessPage, resolvePageForMode } = useAccessMode();
   const accessGuard = useAccessGuard(setActivePage);
@@ -216,6 +218,12 @@ function RuntimeAppContent({
       setActivePage('overview');
     }
   }, [effectiveConnectedAddress, activePage, setActivePage]);
+
+  useEffect(() => {
+    if (activePage !== 'minting') {
+      setMintingSidebarTelemetry(null);
+    }
+  }, [activePage]);
 
   useEffect(() => {
     applyThemeFromWallet(effectiveConnectedAddress ?? null);
@@ -441,7 +449,7 @@ function RuntimeAppContent({
                 resetKey={activePage}
               >
                 <LazySurface fallbackLabel="Loading minting workspace...">
-                  <Minting />
+                  <Minting onSidebarTelemetryChange={setMintingSidebarTelemetry} />
                 </LazySurface>
               </RuntimeErrorBoundary>
             )}
@@ -507,7 +515,7 @@ function RuntimeAppContent({
                 resetKey={`sidebar:${activePage}`}
               >
                 <LazySurface fallbackLabel="Loading minting sidebar..." compact>
-                  <MintingRightSidebar />
+                  <MintingRightSidebar telemetry={mintingSidebarTelemetry} />
                 </LazySurface>
               </RuntimeErrorBoundary>
             )}
@@ -597,6 +605,7 @@ function RuntimeAppContent({
                   onNavigateToAsset={handleNavigateToAsset}
                   onNavigateToCollection={handleNavigateToCollection}
                   onNavigateToUserProfile={guardedNavigateToUserProfile}
+                  onNavigateToUserReviews={guardedNavigateToUserReviews}
                   onNavigateToMessages={guardedNavigateToMessages}
                 />
               </LazySurface>
@@ -606,6 +615,8 @@ function RuntimeAppContent({
                 <FavoritesFollowingPage
                   onNavigateToAsset={handleNavigateToAsset}
                   onNavigateToUserProfile={guardedNavigateToUserProfile}
+                  onNavigateToUserReviews={guardedNavigateToUserReviews}
+                  onNavigateToMessages={guardedNavigateToMessages}
                 />
               </LazySurface>
             )}
