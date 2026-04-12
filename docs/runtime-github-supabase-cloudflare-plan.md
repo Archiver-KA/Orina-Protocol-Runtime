@@ -4,12 +4,17 @@
 
 - Canonical repo: `C:\ORINA\ATPProtocol2\Orina Protocol - Runtime`
 - Branch: `main`
-- Remote: `origin -> https://github.com/Archiver-KA/Orina-Protocol-App`
-- Latest synced UI/runtime change set:
-  - `src/app/runtime/runtime-app.tsx`
-  - `src/app/components/minting.tsx`
-  - `src/app/components/minting-right-sidebar.tsx`
-  - `src/utils/binanceMarketStream.ts`
+- Remote: `origin -> https://github.com/Archiver-KA/Orina-Protocol-Runtime`
+- Live frontend hostname: `https://app.orina.io`
+- Live Cloudflare Worker service: `apporinaio`
+- Existing root-site assets remain outside this plan:
+  - `https://orina.io`
+  - `https://www.orina.io`
+- Deploy mode target:
+  - source of truth stays on GitHub
+  - GitHub Actions builds the repo on every push to `main`
+  - `wrangler deploy` updates Worker `apporinaio`
+  - custom domain `app.orina.io` stays bound to that Worker service
 
 ## Commit plan
 
@@ -39,17 +44,18 @@ Suggested message:
 
 - `chore: align frontend runtime env with supabase server`
 
-### Commit 3: Cloudflare deploy preparation
+### Commit 3: Cloudflare Worker deploy preparation
 
 Scope:
 
-- add Pages-specific routing assets only if needed after route smoke
-- document Pages build settings
-- pin preview/production environment variables in deployment checklist
+- add `wrangler.jsonc` for Worker `apporinaio`
+- add GitHub Actions workflow to build and deploy from `main`
+- document the minimal GitHub secrets required for the deploy path
+- keep `app.orina.io` isolated from the root-site Pages project
 
 Suggested message:
 
-- `chore: prepare cloudflare pages deployment`
+- `chore: prepare cloudflare worker deployment`
 
 ## Supabase canonical contract
 
@@ -66,28 +72,53 @@ Rules:
   - `npm run verify:protocol-runtime-surface`
 - if `verify:protocol-runtime-surface` skips locally, production deploy must still provide env and pass against the target server
 
-## Cloudflare Pages baseline
+## Cloudflare Worker baseline
 
-Current repo shape fits static Vite deployment.
+The live app is not running on Pages. It is bound through a Workers custom-domain record:
 
-Settings:
+- `app.orina.io -> apporinaio`
 
-- Framework preset: `React (Vite)` or no preset with manual values
-- Build command: `npm run build`
-- Build output directory: `dist`
-- Root directory: repo root
+The repo now targets a GitHub-driven Worker deploy:
 
-Environment variables to configure in Pages:
+- build command: `npm run verify:viewer-release`
+- deploy command: `wrangler deploy`
+- static assets source: `dist`
+- SPA routing mode: `assets.not_found_handling = "single-page-application"`
 
+Only `app.orina.io` is in scope. Do not edit:
+
+- `orina.io`
+- `www.orina.io`
+- Pages project `orina-io`
+
+### GitHub secrets required
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
 - `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PROJECT_ID`
 - `VITE_SUPABASE_ANON_KEY`
-- any runtime public env already consumed by `utils/runtimeConfig.ts`
+- `VITE_SUPABASE_PUBLISHABLE_KEY` (optional but recommended for parity)
+
+### Runtime values pinned in workflow
+
+- `VITE_SITE_URL=https://app.orina.io`
+- `VITE_SUPABASE_FUNCTIONS_NAMESPACE=make-server-b0d68fc8`
+- `VITE_SUPABASE_SHARED_SERVER_FN_NAME=make-server-b0d68fc8`
+- `VITE_SUPABASE_AUTH_BRIDGE_ENABLED=true`
+- `VITE_SUPABASE_AUTH_BRIDGE_FN_NAME=orina-auth-bridge-v1`
+- `VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX=`
+- `VITE_SUPABASE_AI_M2M_FN_NAME=orina-ai-m2m-v2`
+- `VITE_SUPABASE_SELLER_MINTING_FN_NAME=orina-seller-minting-v1`
+- `VITE_SUPABASE_RECEIPT_SYNC_FN_NAME=orina-receipt-sync-v1`
+- `VITE_M2M_DELEGATION_MANAGER=0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58`
+- `VITE_M2M_AI_WALLET_FACTORY_V2=0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2`
 
 Operational notes:
 
-- use branch previews for every non-trivial runtime change
-- keep `main` as production deployment branch
-- add explicit `_redirects` only if route smoke on Pages shows SPA fallback gaps
+- the deploy path is GitHub-driven, not manual dashboard upload
+- push to `main` should remain the only production trigger
+- if Cloudflare dashboard still shows manual uploads on `apporinaio`, treat them as emergency-only and re-sync from GitHub afterward
 
 ## Release gate
 
@@ -99,6 +130,6 @@ Before commit/push:
 
 Before Cloudflare production deploy:
 
-1. confirm production Pages env values
+1. confirm GitHub Actions secrets are present
 2. confirm Supabase target project and public anon key
 3. smoke wallet connect + minting sidebar + protected runtime routes on preview

@@ -1,0 +1,87 @@
+name: Deploy app.orina.io
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apporinaio-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Verify And Deploy apporinaio
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      VITE_SITE_URL: https://app.orina.io
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      VITE_SUPABASE_FUNCTIONS_NAMESPACE: make-server-b0d68fc8
+      VITE_SUPABASE_SHARED_SERVER_FN_NAME: make-server-b0d68fc8
+      VITE_SUPABASE_AUTH_BRIDGE_ENABLED: true
+      VITE_SUPABASE_AUTH_BRIDGE_FN_NAME: orina-auth-bridge-v1
+      VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX: ""
+      VITE_SUPABASE_AI_M2M_FN_NAME: orina-ai-m2m-v2
+      VITE_SUPABASE_SELLER_MINTING_FN_NAME: orina-seller-minting-v1
+      VITE_SUPABASE_RECEIPT_SYNC_FN_NAME: orina-receipt-sync-v1
+      VITE_M2M_DELEGATION_MANAGER: 0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58
+      VITE_M2M_AI_WALLET_FACTORY_V2: 0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2
+
+    steps:
+      - name: Check deploy prerequisites
+        id: preflight
+        shell: bash
+        run: |
+          missing=()
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID VITE_SUPABASE_URL VITE_SUPABASE_PROJECT_ID VITE_SUPABASE_ANON_KEY; do
+            if [ -z "${!name}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping deploy because required GitHub secrets are missing: ${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        if: steps.preflight.outputs.ready == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        if: steps.preflight.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.preflight.outputs.ready == 'true'
+        run: npm ci
+
+      - name: Verify viewer release
+        if: steps.preflight.outputs.ready == 'true'
+        run: npm run verify:viewer-release
+
+      - name: Deploy Worker assets to apporinaio
+        if: steps.preflight.outputs.ready == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+
+      - name: Deployment skipped
+        if: steps.preflight.outputs.ready != 'true'
+        run: echo "Deploy skipped until required GitHub secrets are configured."
