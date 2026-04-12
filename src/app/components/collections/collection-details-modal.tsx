@@ -45,6 +45,9 @@ interface CollectionDetailsModalProps {
   isOpen: boolean;
   collectionId: string | null;
   onClose: () => void;
+  onNavigateToSeller?: (sellerAddress: string) => void;
+  onNavigateToSellerReviews?: (sellerAddress: string) => void;
+  onNavigateToSellerMessages?: (sellerAddress: string) => void;
 }
 
 function formatMetaLabel(value: string | undefined): string | null {
@@ -94,6 +97,9 @@ export function CollectionDetailsModal({
   isOpen,
   collectionId,
   onClose,
+  onNavigateToSeller,
+  onNavigateToSellerReviews,
+  onNavigateToSellerMessages,
 }: CollectionDetailsModalProps) {
   const { address } = useEffectiveViewer();
   const { requireWalletActionAsync } = useRequireWalletAction();
@@ -612,6 +618,9 @@ export function CollectionDetailsModal({
         <AssetDetailsModal
           asset={selectedAsset}
           onClose={() => setSelectedAsset(null)}
+          onNavigateToSeller={onNavigateToSeller}
+          onNavigateToSellerReviews={onNavigateToSellerReviews}
+          onNavigateToSellerMessages={onNavigateToSellerMessages}
           zIndexClassName="z-[155]"
         />
       ) : null}

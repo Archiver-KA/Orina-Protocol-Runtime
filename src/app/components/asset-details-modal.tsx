@@ -1,5 +1,5 @@
 import { Heart, Layers, MessageSquare, Star, Minus, Plus, Shield, ExternalLink, Clock } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { MarketplaceAsset, RwaConfigurableAttributeGroup, RwaSelectedAttribute } from '@/app/types/asset';
 import type { Rating } from '@/types/reputation';
 import { motion, AnimatePresence } from 'motion/react';
@@ -16,8 +16,10 @@ import { RwaBuyOrderSignModal } from '@/app/components/rwa-buy-order-sign-modal'
 import { NftBuyDirectSignModal } from '@/app/components/nft-buy-direct-sign-modal';
 import { loadFavorites, toggleFavorite } from '@/utils/favoritesUtils';
 import {
-  adjustMarketplaceAssetLikeCount,
+  MARKETPLACE_CATALOG_SYNC_EVENT,
+  getMarketplaceCatalogAssetById,
   incrementMarketplaceAssetView,
+  loadMarketplaceCatalogSync,
 } from '@/utils/marketplaceCatalog';
 import { REPUTATION_SYNC_EVENT, hydrateReputationFromSupabase } from '@/utils/profileReputationSync';
 import {
@@ -84,13 +86,14 @@ function formatAssetReviewDate(timestamp: number): string {
 }
 
 export function AssetDetailsModal({
-  asset,
+  asset: initialAsset,
   onClose,
   onNavigateToSeller,
   onNavigateToSellerReviews,
   onNavigateToSellerMessages,
   zIndexClassName = 'z-[60]',
 }: AssetDetailsModalProps) {
+  const [catalogRevision, setCatalogRevision] = useState(0);
   const [activeTab, setActiveTab] = useState('Description');
   const [quantity, setQuantity] = useState(1);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -99,6 +102,20 @@ export function AssetDetailsModal({
   const [assetRatings, setAssetRatings] = useState<Rating[]>([]);
   const [isLoadingAssetReviews, setIsLoadingAssetReviews] = useState(false);
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string[]>>({});
+  const asset = useMemo(() => {
+    const catalog = loadMarketplaceCatalogSync();
+    return (
+      getMarketplaceCatalogAssetById(initialAsset.id, catalog)
+      || (initialAsset.assetUid
+        ? getMarketplaceCatalogAssetById(initialAsset.assetUid, catalog)
+        : undefined)
+      || (initialAsset.onchainAssetId
+        ? getMarketplaceCatalogAssetById(initialAsset.onchainAssetId, catalog)
+        : undefined)
+      || getMarketplaceCatalogAssetById(initialAsset.tokenId, catalog)
+      || initialAsset
+    );
+  }, [catalogRevision, initialAsset]);
   const { address } = useEffectiveViewer();
   const access = useAccessMode();
   const protocolChain = useProtocolChain();
@@ -138,7 +155,7 @@ export function AssetDetailsModal({
   const canNavigateToSeller = Boolean(onNavigateToSeller && sellerAddress);
   const canNavigateToSellerReviews = Boolean(onNavigateToSellerReviews && sellerAddress);
   const canNavigateToSellerMessages = Boolean(onNavigateToSellerMessages && sellerAddress);
-  const canContactSeller = canNavigateToSellerMessages || canNavigateToSeller;
+  const canContactSeller = canNavigateToSellerMessages;
   const sectionShellClassName =
     'studio-glass-surface rounded-[28px] border border-ui-border-subtle bg-[var(--t-surface-5)] shadow-[0_24px_60px_-42px_rgba(0,0,0,0.32)]';
   const statCardClassName = `${sectionShellClassName} p-4`;
@@ -148,6 +165,19 @@ export function AssetDetailsModal({
   const metaPillClassName =
     'inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ui-secondary';
   const sectionLabelClassName = 'text-[10px] font-medium uppercase tracking-[0.16em] text-ui-muted';
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleCatalogSync = () => {
+      setCatalogRevision((current) => current + 1);
+    };
+
+    window.addEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, handleCatalogSync as EventListener);
+    return () => {
+      window.removeEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, handleCatalogSync as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     setSelectedAttributes({});
@@ -238,27 +268,18 @@ export function AssetDetailsModal({
   const handleSellerClick = () => {
     if (onNavigateToSeller && sellerAddress) {
       onNavigateToSeller(sellerAddress);
-      onClose();
     }
   };
 
   const handleContactSellerClick = () => {
     if (onNavigateToSellerMessages && sellerAddress) {
       onNavigateToSellerMessages(sellerAddress);
-      onClose();
-      return;
-    }
-
-    if (onNavigateToSeller && sellerAddress) {
-      onNavigateToSeller(sellerAddress);
-      onClose();
     }
   };
 
   const handleSellerReviewsClick = () => {
     if (onNavigateToSellerReviews && sellerAddress) {
       onNavigateToSellerReviews(sellerAddress);
-      onClose();
     }
   };
 
@@ -590,42 +611,57 @@ export function AssetDetailsModal({
                 <div className="grid gap-3 md:grid-cols-[minmax(0,1.45fr)_minmax(210px,0.95fr)] md:items-stretch">
                   {/* Seller Info */}
                   <StudioPanel
-                    onClick={handleSellerClick}
-                    className={`studio-glass-surface flex h-full items-center gap-3 rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4 transition-all group ${
-                        canNavigateToSeller
-                          ? 'cursor-pointer hover:border-[var(--color-primary-custom)]/30 hover:bg-[var(--t-surface-10)]'
-                          : 'cursor-default'
-                      }`}
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--color-primary-custom)] to-[#1a8f6f] text-white font-semibold">
-                        {sellerAvatarLetter}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-semibold text-ui-primary transition-colors group-hover:text-primary">{sellerDisplayName}</p>
-                          {sellerVerified && (
-                            <VerifiedUserIcon size={12} />
-                          )}
-                        </div>
-                        {sellerReputation > 0 && (
-                          <div className="mt-0.5 flex items-center gap-1">
-                            <Star size={10} className="fill-yellow-400 text-yellow-400" />
-                            <span className="text-[10px] font-medium text-ui-muted">{sellerReputation}% Rating</span>
+                    className={`studio-glass-surface flex h-full items-center gap-3 rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4 transition-all ${
+                      canNavigateToSeller
+                        ? 'hover:border-[var(--color-primary-custom)]/30 hover:bg-[var(--t-surface-10)]'
+                        : ''
+                    }`}
+                  >
+                      {canNavigateToSeller ? (
+                        <button
+                          type="button"
+                          onClick={handleSellerClick}
+                          className="group flex min-w-0 flex-1 items-center gap-3 text-left"
+                        >
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--color-primary-custom)] to-[#1a8f6f] text-white font-semibold">
+                            {sellerAvatarLetter}
                           </div>
-                        )}
-                        {canNavigateToSellerReviews && (
-                          <button
-                            type="button"
-                            onClick={(e: React.MouseEvent) => {
-                              e.stopPropagation();
-                              handleSellerReviewsClick();
-                            }}
-                            className="mt-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary transition-colors hover:text-[#2CC295]"
-                          >
-                            View Reviews
-                          </button>
-                        )}
-                      </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="truncate text-sm font-semibold text-ui-primary transition-colors group-hover:text-primary">{sellerDisplayName}</p>
+                              {sellerVerified && (
+                                <VerifiedUserIcon size={12} />
+                              )}
+                            </div>
+                            {sellerReputation > 0 && (
+                              <div className="mt-0.5 flex items-center gap-1">
+                                <Star size={10} className="fill-yellow-400 text-yellow-400" />
+                                <span className="text-[10px] font-medium text-ui-muted">{sellerReputation}% Rating</span>
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      ) : (
+                        <>
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--color-primary-custom)] to-[#1a8f6f] text-white font-semibold">
+                            {sellerAvatarLetter}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="truncate text-sm font-semibold text-ui-primary">{sellerDisplayName}</p>
+                              {sellerVerified && (
+                                <VerifiedUserIcon size={12} />
+                              )}
+                            </div>
+                            {sellerReputation > 0 && (
+                              <div className="mt-0.5 flex items-center gap-1">
+                                <Star size={10} className="fill-yellow-400 text-yellow-400" />
+                                <span className="text-[10px] font-medium text-ui-muted">{sellerReputation}% Rating</span>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
                       <StudioActionButton
                         onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
@@ -681,7 +717,6 @@ export function AssetDetailsModal({
 
                         const nextFavoriteState = await toggleFavorite(address, asset.id);
                         setIsFavorited(nextFavoriteState);
-                        adjustMarketplaceAssetLikeCount(asset.id, nextFavoriteState ? 1 : -1);
                       }}
                       size="icon"
                       variant="secondary"

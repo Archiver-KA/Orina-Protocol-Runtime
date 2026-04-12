@@ -7,7 +7,9 @@ import { normalizeAddress } from '@/utils/storageScope';
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
 const WALLET_AUTH_SESSION_KEY = 'orina_wallet_auth_session';
-const DEFAULT_WALLET_AUTH_SESSION_TTL_MS = 30 * 60 * 1000;
+// Keep the browser proof window aligned with the claim-bridge max age so protected surfaces do
+// not force a new signature much earlier than the backend session model.
+const DEFAULT_WALLET_AUTH_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface WalletAuthSession {
   address: string;

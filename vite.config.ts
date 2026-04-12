@@ -58,6 +58,13 @@ export default defineConfig({
       },
     },
   },
+  test: {
+    exclude: [
+      '**/.clean-room/**',
+      '**/dist/**',
+      '**/node_modules/**',
+    ],
+  },
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],

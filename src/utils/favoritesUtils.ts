@@ -8,7 +8,11 @@ import type { FavoriteAsset } from '@/types/favorites';
 import { getTestWalletMyAssets } from '@/utils/testWalletAssetFixtures';
 import { ensureAssetMetadataSeedForIds } from '@/utils/assetMetadataSync';
 import { isGuestModeForced } from '@/utils/guestMode';
-import { getMarketplaceCatalogAssetById, loadMarketplaceCatalogSync } from '@/utils/marketplaceCatalog';
+import {
+  adjustMarketplaceAssetLikeCount,
+  getMarketplaceCatalogAssetById,
+  loadMarketplaceCatalogSync,
+} from '@/utils/marketplaceCatalog';
 import {
   dispatchSyncEvent,
   encodeEq,
@@ -402,6 +406,7 @@ export async function addFavorite(walletAddress: string, assetId: string): Promi
       addedAt: Date.now(),
     });
     await saveFavorites(walletAddress, favorites);
+    adjustMarketplaceAssetLikeCount(canonicalAssetId, 1);
   } catch (error) {
     console.error('[Favorites] Failed to add:', error);
   }
@@ -414,7 +419,9 @@ export async function removeFavorite(walletAddress: string, assetId: string): Pr
     const canonicalAssetId = toCanonicalFavoriteAssetId(assetId);
     const favorites = loadFavorites(walletAddress);
     const filtered = favorites.filter((favorite) => favorite.assetId !== canonicalAssetId);
+    if (filtered.length === favorites.length) return;
     await saveFavorites(walletAddress, filtered);
+    adjustMarketplaceAssetLikeCount(canonicalAssetId, -1);
   } catch (error) {
     console.error('[Favorites] Failed to remove:', error);
   }

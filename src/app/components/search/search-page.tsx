@@ -38,7 +38,6 @@ import {
   loadSellerDirectorySync,
 } from '@/utils/sellerDirectory';
 import {
-  adjustMarketplaceAssetLikeCount,
   getMarketplaceCatalogAssetById,
   getMarketplaceCatalogCategories,
   getMarketplaceCatalogNetworkOptions,
@@ -70,6 +69,7 @@ interface SearchPageProps {
   onNavigateToCollection?: (collectionId: string, fromPage?: string) => void;
   onNavigateToPage?: (page: string) => void;
   onNavigateToUserProfile?: (walletAddress: string) => void;
+  onNavigateToUserReviews?: (walletAddress: string) => void;
   onNavigateToMessages?: (walletAddress: string) => void;
 }
 
@@ -204,6 +204,7 @@ export function SearchPage({
   onNavigateToCollection,
   onNavigateToPage,
   onNavigateToUserProfile,
+  onNavigateToUserReviews,
   onNavigateToMessages,
 }: SearchPageProps) {
   const [filters, setFilters] = useState<SearchFilters>(() => ({
@@ -581,7 +582,6 @@ export function SearchPage({
       return;
     }
     const isFav = await toggleFavorite(address, assetId);
-    adjustMarketplaceAssetLikeCount(assetId, isFav ? 1 : -1);
     setLikedAssets(prev => {
       const next = new Set(prev);
       if (isFav) next.add(assetId);
@@ -1157,6 +1157,7 @@ export function SearchPage({
           asset={selectedAsset}
           onClose={() => setIsModalOpen(false)}
           onNavigateToSeller={onNavigateToUserProfile}
+          onNavigateToSellerReviews={onNavigateToUserReviews}
           onNavigateToSellerMessages={onNavigateToMessages}
         />
       )}
@@ -1168,6 +1169,9 @@ export function SearchPage({
           setIsCollectionModalOpen(false);
           setSelectedCollectionId(null);
         }}
+        onNavigateToSeller={onNavigateToUserProfile}
+        onNavigateToSellerReviews={onNavigateToUserReviews}
+        onNavigateToSellerMessages={onNavigateToMessages}
       />
       </div>
     </div>

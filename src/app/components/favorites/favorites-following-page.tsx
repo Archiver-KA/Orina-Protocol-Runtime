@@ -45,6 +45,8 @@ interface FavoritesFollowingPageProps {
   initialTab?: 'favorites' | 'following';
   onNavigateToAsset?: (assetId: string) => void;
   onNavigateToUserProfile?: (walletAddress: string) => void;
+  onNavigateToUserReviews?: (walletAddress: string) => void;
+  onNavigateToMessages?: (walletAddress: string) => void;
 }
 
 type TabType = 'favorites' | 'following';
@@ -56,6 +58,8 @@ export function FavoritesFollowingPage({
   initialTab = 'favorites',
   onNavigateToAsset,
   onNavigateToUserProfile,
+  onNavigateToUserReviews,
+  onNavigateToMessages,
 }: FavoritesFollowingPageProps) {
   const { address } = useEffectiveViewer();
   const storageUserId = address || currentUserId;
@@ -395,6 +399,9 @@ export function FavoritesFollowingPage({
           setIsCollectionModalOpen(false);
           setSelectedCollectionId(null);
         }}
+        onNavigateToSeller={onNavigateToUserProfile}
+        onNavigateToSellerReviews={onNavigateToUserReviews}
+        onNavigateToSellerMessages={onNavigateToMessages}
       />
     </div>
   );

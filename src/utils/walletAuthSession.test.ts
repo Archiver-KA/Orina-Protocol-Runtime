@@ -79,7 +79,7 @@ describe('walletAuthSession', () => {
   });
 
   it('clears an expired session instead of returning it', () => {
-    const signedAt = Date.now() - (31 * 60 * 1000);
+    const signedAt = Date.now() - (8 * 24 * 60 * 60 * 1000);
     setWalletAuthSession(address, signature, {
       signedAt,
       message: buildWalletAuthMessage(address, signedAt),
@@ -87,6 +87,19 @@ describe('walletAuthSession', () => {
 
     expect(getWalletAuthSession()).toBeNull();
     expect(globalThis.localStorage.getItem('orina_wallet_auth_session')).toBeNull();
+  });
+
+  it('keeps a session that is only a few hours old', () => {
+    const signedAt = Date.now() - (6 * 60 * 60 * 1000);
+    setWalletAuthSession(address, signature, {
+      signedAt,
+      message: buildWalletAuthMessage(address, signedAt),
+    });
+
+    expect(getWalletAuthSession()).toMatchObject({
+      address,
+      signature,
+    });
   });
 
   it('clears a session with an incompatible message', () => {

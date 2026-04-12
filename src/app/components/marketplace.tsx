@@ -35,7 +35,6 @@ import {
 import { MarketplaceAsset } from '@/app/types/asset';
 import type { CollectionSummary } from '@/types/collection';
 import {
-  adjustMarketplaceAssetLikeCount,
   getMarketplaceCatalogAssetById,
   getMarketplaceCatalogBlockchains,
   getMarketplaceCatalogCategories,
@@ -503,7 +502,6 @@ export function Marketplace({
       return;
     }
     const isFav = await toggleFavorite(address, assetId);
-    adjustMarketplaceAssetLikeCount(assetId, isFav ? 1 : -1);
     setLikedAssets(prev => {
       const next = new Set(prev);
       if (isFav) next.add(assetId);
@@ -824,6 +822,9 @@ export function Marketplace({
           setIsCollectionModalOpen(false);
           setSelectedCollectionId(null);
         }}
+        onNavigateToSeller={handleNavigateToSeller}
+        onNavigateToSellerReviews={handleNavigateToSellerReviews}
+        onNavigateToSellerMessages={handleNavigateToSellerMessages}
       />
     </div>
   );

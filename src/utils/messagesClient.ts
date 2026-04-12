@@ -5,6 +5,7 @@
 
 import { projectId, publicAnonKey, supabaseUrl } from '/utils/supabase/info';
 import {
+  clearSupabaseBridgeSession,
   ensureSupabaseBridgeAccessToken,
   getSupabaseBridgeAccessToken,
   isBridgeAuthRequiredError,
@@ -35,6 +36,24 @@ function dispatchChatEvent(name: string): void {
   window.dispatchEvent(new Event(name));
 }
 
+function readProtectedRequestErrorMessage(status: number, json: any, text: string): string {
+  return (
+    json?.error
+    || json?.message
+    || `HTTP ${status}: ${text?.slice(0, 200) || 'Request failed'}`
+  );
+}
+
+function isRetryableProtectedAuthFailure(status: number, json: any, text: string): boolean {
+  if (status !== 401) return false;
+  const normalized = readProtectedRequestErrorMessage(status, json, text).toLowerCase();
+  return (
+    normalized.includes('authentication required')
+    || normalized.includes('invalid or expired authentication token')
+    || normalized.includes('authenticated wallet claims are required')
+    || normalized.includes('authenticated wallet session is no longer active')
+  );
+}
 
 async function buildWalletAuthHeaders(
   walletAddress: string,
@@ -80,7 +99,7 @@ async function fetchJsonWithFallback<T>(
   path: string,
   walletAddress: string,
   init?: RequestInit,
-  opts?: { promptOnAuthMissing?: boolean },
+  opts?: { promptOnAuthMissing?: boolean; retryOnAuthFailure?: boolean },
 ): Promise<T> {
   const jsonBody = Boolean(
     init?.body && typeof init.body === 'string' && init.method && init.method !== 'GET'
@@ -106,10 +125,18 @@ async function fetchJsonWithFallback<T>(
   }
 
   if (!res.ok) {
-    const msg =
-      json?.error ||
-      json?.message ||
-      `HTTP ${res.status}: ${text?.slice(0, 200) || 'Request failed'}`;
+    if (
+      opts?.retryOnAuthFailure !== false
+      && isRetryableProtectedAuthFailure(res.status, json, text)
+    ) {
+      clearSupabaseBridgeSession();
+      return fetchJsonWithFallback<T>(path, walletAddress, init, {
+        ...opts,
+        retryOnAuthFailure: false,
+      });
+    }
+
+    const msg = readProtectedRequestErrorMessage(res.status, json, text);
     throw new Error(msg);
   }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Key, Copy, Trash2, Plus, Check, Shield, Activity, Clock, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { APIKey, APIKeyGenerateOptions, APIKeyPermission } from '@/app/types/api-key';
@@ -6,12 +6,18 @@ import { APIKeysClient } from '@/utils/apiKeysClient';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { copyToClipboard } from '@/utils/clipboard';
 import { Checkbox } from '@/app/components/ui/checkbox';
+import { useAccessMode } from '@/hooks/useAccessMode';
+import {
+  dispatchBridgeSecurityCheckRequest,
+  getSupabaseBridgeSessionEventName,
+} from '@/utils/supabaseAuthClaimBridge';
 
 interface APIKeysSettingsProps {
   walletAddress: string;
 }
 
 export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
+  const { isAuthPending } = useAccessMode();
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [generatedKey, setGeneratedKey] = useState<APIKey | null>(null);
@@ -19,12 +25,24 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [revokingKeyId, setRevokingKeyId] = useState<string | null>(null);
+  const requiresSecurityCheck = Boolean(walletAddress && isAuthPending);
 
-  useEffect(() => {
-    void loadKeys();
+  const requestUnlock = useCallback(() => {
+    dispatchBridgeSecurityCheckRequest(
+      {
+        title: 'Unlock API Keys',
+        description: 'Confirm a one-time wallet security check before Orina loads or updates your API keys.',
+        surfaceLabel: 'API keys',
+        confirmLabel: 'Unlock API Keys',
+        helpText: 'This only unlocks protected API key controls in Orina. No gas fee, transaction, or token approval is involved.',
+        successMessage: 'API key controls unlocked.',
+        successDescription: 'Your API keys are ready to load.',
+      },
+      walletAddress,
+    );
   }, [walletAddress]);
 
-  const loadKeys = async () => {
+  const loadKeys = useCallback(async () => {
     setIsLoading(true);
     try {
       const keys = await APIKeysClient.list(walletAddress);
@@ -41,7 +59,36 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [walletAddress]);
+
+  useEffect(() => {
+    if (!walletAddress || requiresSecurityCheck) {
+      setApiKeys([]);
+      setRuntimeError('');
+      setIsLoading(false);
+      return;
+    }
+    void loadKeys();
+  }, [walletAddress, requiresSecurityCheck, loadKeys]);
+
+  useEffect(() => {
+    if (!requiresSecurityCheck) return;
+    setShowCreateForm(false);
+    setGeneratedKey(null);
+  }, [requiresSecurityCheck]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !walletAddress) return;
+    const handleBridgeSessionChange = () => {
+      if (requiresSecurityCheck) return;
+      void loadKeys();
+    };
+
+    window.addEventListener(getSupabaseBridgeSessionEventName(), handleBridgeSessionChange as EventListener);
+    return () => {
+      window.removeEventListener(getSupabaseBridgeSessionEventName(), handleBridgeSessionChange as EventListener);
+    };
+  }, [walletAddress, requiresSecurityCheck, loadKeys]);
 
   const handleRevokeKey = async (keyId: string) => {
     if (confirm('Are you sure you want to revoke this API key? This action cannot be undone.')) {
@@ -117,12 +164,21 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
         </div>
         <button
           onClick={() => {
+            if (requiresSecurityCheck) {
+              requestUnlock();
+              return;
+            }
             setShowCreateForm(!showCreateForm);
             setGeneratedKey(null);
           }}
           className="px-4 py-2 bg-[#2CC295] hover:bg-[#25a67d] text-black font-semibold text-xs rounded-full transition-colors flex items-center gap-2"
         >
-          {showCreateForm ? (
+          {requiresSecurityCheck ? (
+            <>
+              <Shield size={14} />
+              Unlock API Keys
+            </>
+          ) : showCreateForm ? (
             <>
               <ChevronUp size={14} />
               Cancel
@@ -136,14 +192,32 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
         </button>
       </div>
 
-      {runtimeError ? (
+      {requiresSecurityCheck ? (
+        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <Shield className="mt-0.5 text-yellow-400" size={16} />
+            <div className="space-y-3">
+              <p className="text-xs text-yellow-100">
+                API keys are protected. Confirm a one-time wallet security check before Orina loads or updates this workspace.
+              </p>
+              <button
+                type="button"
+                onClick={requestUnlock}
+                className="rounded-full bg-[#2CC295] px-4 py-2 text-xs font-semibold text-black transition-colors hover:bg-[#25a67d]"
+              >
+                Unlock API Keys
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : runtimeError ? (
         <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-xs text-red-200">
           {runtimeError}
         </div>
       ) : null}
 
       {/* Expandable Create Form */}
-      {showCreateForm && (
+      {!requiresSecurityCheck && showCreateForm && (
         <CreateAPIKeyForm
           generatedKey={generatedKey}
           isSubmitting={isSubmitting}
@@ -160,7 +234,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
       )}
 
       {/* Stats Overview */}
-      {apiKeys.length > 0 && (
+      {!requiresSecurityCheck && apiKeys.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-[var(--t-surface-2)] rounded-xl p-4">
             <div className="flex items-center gap-2 text-ui-secondary text-xs font-semibold uppercase mb-2">
@@ -192,6 +266,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
       )}
 
       {/* API Keys List */}
+      {!requiresSecurityCheck ? (
       <div className="space-y-4">
         {isLoading && apiKeys.length === 0 ? (
           <div className="bg-[var(--t-surface-2)] border border-ui-border-subtle rounded-xl p-8 text-center">
@@ -319,6 +394,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
           ))
         )}
       </div>
+      ) : null}
     </div>
   );
 }
