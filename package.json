@@ -24,7 +24,9 @@
     "smoke:review:e2e": "node supabase/audit/run_review_smoke_from_env.cjs",
     "audit:supabase:security-definer": "node scripts/audit-supabase-security-definer.mjs",
     "security:check-client-secrets": "node scripts/check-client-no-privileged-supabase-secrets.mjs",
-    "security:scan": "node scripts/security-scan-system.mjs"
+    "security:scan": "node scripts/security-scan-system.mjs",
+    "deploy": "npm run build && wrangler deploy",
+    "preview": "npm run build && wrangler dev"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
@@ -93,11 +95,13 @@
     "wagmi": "^3.4.2"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.31.2",
     "@tailwindcss/vite": "4.1.12",
     "@vitejs/plugin-react": "4.7.0",
     "tailwindcss": "4.1.12",
     "vite": "^6.4.1",
-    "vitest": "^4.1.3"
+    "vitest": "^4.1.3",
+    "wrangler": "^4.81.1"
   },
   "peerDependencies": {
     "react": "18.3.1",
