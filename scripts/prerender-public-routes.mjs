@@ -4,7 +4,7 @@ import path from 'node:path';
 const ROOT_DIR = process.cwd();
 const DIST_DIR = path.join(ROOT_DIR, 'dist');
 const INDEX_HTML_PATH = path.join(DIST_DIR, 'index.html');
-const DEFAULT_SITE_URL = 'https://orina.io';
+const DEFAULT_SITE_URL = 'https://app.orina.io';
 const DEFAULT_OG_IMAGE = '/orina-social-card.svg';
 const DEFAULT_LIMIT = 120;
 

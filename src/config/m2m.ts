@@ -3,6 +3,8 @@ import type { AIM2MAction } from '@/app/types/ai-m2m-wallet';
 import { LIVE_PROTOCOL_CONTRACTS } from '@/utils/protocolNetwork';
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
+const DEFAULT_M2M_DELEGATION_MANAGER = '0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58';
+const DEFAULT_M2M_AI_WALLET_FACTORY_V2 = '0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2';
 
 function parseOptionalAddress(value: string | undefined): `0x${string}` | null {
   const normalized = String(value || '').trim();
@@ -10,8 +12,8 @@ function parseOptionalAddress(value: string | undefined): `0x${string}` | null {
 }
 
 export const M2M_CONTRACTS = {
-  DELEGATION_MANAGER: parseOptionalAddress(env.VITE_M2M_DELEGATION_MANAGER),
-  AI_WALLET_FACTORY_V2: parseOptionalAddress(env.VITE_M2M_AI_WALLET_FACTORY_V2),
+  DELEGATION_MANAGER: parseOptionalAddress(env.VITE_M2M_DELEGATION_MANAGER || DEFAULT_M2M_DELEGATION_MANAGER),
+  AI_WALLET_FACTORY_V2: parseOptionalAddress(env.VITE_M2M_AI_WALLET_FACTORY_V2 || DEFAULT_M2M_AI_WALLET_FACTORY_V2),
 } as const;
 
 export const M2M_FEATURES = {

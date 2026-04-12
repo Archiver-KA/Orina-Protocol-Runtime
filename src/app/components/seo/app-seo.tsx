@@ -13,7 +13,7 @@ type AppSeoProps = {
 };
 
 const SITE_NAME = 'Orina Protocol';
-const DEFAULT_SITE_URL = 'https://orina.io';
+const DEFAULT_SITE_URL = 'https://app.orina.io';
 const DEFAULT_OG_IMAGE = '/orina-social-card.svg';
 const DEFAULT_DESCRIPTION =
   'Discover Orina Protocol, the agent-to-agent marketplace for RWAs and NFTs with wallet-native access, live marketplace search, seller profiles, collections, and order workflows.';
