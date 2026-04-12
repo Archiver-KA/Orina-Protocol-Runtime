@@ -1,6 +1,6 @@
-# ORINA ATP2
+# Orina Protocol - Runtime
 
-ORINA ATP2 is the current frontend workspace for the Orina marketplace product. The codebase is a single-shell React application covering guest landing, marketplace, orders, assets, community, messages, profile, settings, and a set of test or demo surfaces.
+Orina Protocol - Runtime is the standalone runtime repository for the Orina marketplace application. It keeps the production-facing frontend, Supabase runtime surfaces, release gates, and current-code documentation without the old workspace-specific agent metadata and local archive material.
 
 ## Current Stack
 
@@ -15,34 +15,29 @@ ORINA ATP2 is the current frontend workspace for the Orina marketplace product. 
 ```bash
 npm install
 npm run dev
+npm run verify:viewer-release
 npm run build
 ```
 
 ## Documentation
 
-The old mixed documentation set has been removed and replaced with a current-code spec set.
+Current runtime and release references live under `docs/`.
 
 - [Docs Hub](./docs/README.md)
-- [App Shell And Navigation](./docs/spec/01-app-shell-and-navigation.md)
-- [Access, Theme, User, And Storage](./docs/spec/02-access-theme-user-and-storage.md)
-- [Assets, Marketplace, Search, And Orders](./docs/spec/03-assets-marketplace-search-and-orders.md)
-- [Community, Messages, And Profile](./docs/spec/04-community-messages-and-profile.md)
-- [Integrations, Settings, And Tools](./docs/spec/05-integrations-settings-and-tools.md)
-- [Current State And Demo Surfaces](./docs/spec/06-current-state-and-demo-surfaces.md)
-- [Collections And RWA Configurable Attributes](./docs/spec/07-collections-and-rwa-configurable-attributes.md)
-- [Global Delivery Address And Asset Location](./docs/spec/08-global-delivery-address.md)
-- [Supabase Migration And Geo Import Strategy](./docs/spec/09-supabase-migration-and-geo-import.md)
-- [Geo Import Runbook](./docs/spec/10-geo-import-runbook.md)
+- [AI M2M Runtime Enablement](./docs/spec/11-ai-m2m-runtime-enablement.md)
+- [AI M2M Supabase Deploy And Runtime Verification](./docs/spec/12-ai-m2m-supabase-deploy-runtime-checklist.md)
+- [Supabase Split Function Runbook](./docs/spec/19-supabase-split-function-runbook.md)
+- [SEO And System Completion Roadmap](./docs/spec/20-seo-and-system-completion-roadmap.md)
 
 ## Important Repository Areas
 
 - `src/` application source
-- `public/` static assets and embedded guest landing content
-- `supabase/` backend-related workspace files and migrations only
-- `docs/` current-code documentation only
+- `public/` static assets and prerendered route inputs
+- `supabase/` edge functions, audits, and migrations
+- `scripts/` release checks, prerender, and smoke helpers
+- `docs/` current-code runtime documentation
+- `utils/` shared runtime configuration helpers
 
 ## Scope Note
 
-The spec under `docs/spec/` describes the code as it exists now. It is not a forward-looking roadmap and it does not assume unfinished backend behavior is already live.
-
-All future product and platform specs should be added under `docs/spec/`, not under `supabase/`.
+This repo is intended to stay runtime-focused. Local agent metadata, archived planning material, nested repo artifacts, and scratch files are intentionally excluded from the tracked surface.

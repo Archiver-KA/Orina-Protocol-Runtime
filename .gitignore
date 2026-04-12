@@ -41,8 +41,23 @@ data/geo/vendor/
 /foundry
 /foundry/
 /atp34-testnet-contracts/
+/.claude/
+/.continue/
+/AGENTS.md
+/CLAUDE.md
+/_archive/
+/guidelines/
+/orina_agent/
+/CLOUDFLARE_AI_ENGINE_STRATEGY.md
+/DEPLOYMENT_CI_CD_COMPARISON.md
+/DEPLOYMENT_SCALABILITY_ANALYSIS.md
+/LCI_supabase.md
+/ORINA_AI_V2_*.md
+/Spec_orina.md
 
 # Root scratch artifacts
 /console.log((i+336)+'
 /l.includes('text-ui')
 /line.startsWith(k+'
+/({
+/{let

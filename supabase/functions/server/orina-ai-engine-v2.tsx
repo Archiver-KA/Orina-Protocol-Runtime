@@ -1,6 +1,6 @@
 // ============================================================
 //  ORINA AI ENGINE v2 — Clean Architecture
-//  Based on: orina_agent/system_prompt.md
+// Runtime AI engine prompt composition for the deployed edge function.
 //  Requirements: Consulting + Search and Analysis + Sales Listing Support
 // ============================================================
 
@@ -147,7 +147,7 @@ function KA(draftIntent = ""): boolean {
 
 
 // â”€â”€â”€ SELLER STORE ADVISOR SYSTEM PROMPT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Condensed from orina_agent/system_seller_Adviser.md
+// Seller advisor guidance condensed for runtime use.
 // Used when agentContext === 'seller' in handleGeneral
 const SELLER_ADVISOR_SYSTEM_PROMPT = `
 You are ORINA STORE ADVISOR â€” a dedicated AI advisor for sellers on ORINA Marketplace.
@@ -283,7 +283,7 @@ function getSupabaseClient() {
 }
 
 // ─── ARBITRATION UTILITIES ───────────────────────────────────────────────────
-// Adapted from orina_agent/system_ARBITRATION.md
+// Arbitration guidance condensed for runtime use.
 
 const ARBITRATION_SYSTEM_PROMPT = `You are ORINA ARBITRATOR \u2014 an impartial, senior-level AI arbitrator for ORINA Marketplace.
 
@@ -700,7 +700,7 @@ const LANG_HINTS: Record<string, string> = {
 };
 
 // ─── PRODUCT SOURCING: SUPPLIER CHANNELS & CATEGORY MAP ─────────────────────
-// From orina_agent/systeam_product_sourcing.md — condensed for runtime use
+// Product sourcing guidance condensed for runtime use.
 
 const SUPPLIER_CHANNELS: Record<string, { name: string; trustScore: number; categories: string[]; apiSource: string }> = {
   // B2B Primary — direct API (Alibaba DataHub RapidAPI)
