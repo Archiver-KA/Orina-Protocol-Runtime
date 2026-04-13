@@ -8,21 +8,28 @@ import { normalizeAddress } from '@/utils/storageScope';
 import type { SecurityCheckRequestData } from '@/types/wallet';
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
-const DEFAULT_AUTH_BRIDGE_FN_NAME = 'orina-auth-bridge-v1';
-const LEGACY_AUTH_BRIDGE_PATH_PREFIX = '/auth/supabase-claim-bridge';
+const DIRECT_AUTH_BRIDGE_FN_NAME = 'orina-auth-bridge-v1';
+const DEFAULT_SHARED_SERVER_FN_NAME = 'make-server-b0d68fc8';
+const SHARED_AUTH_BRIDGE_PATH_PREFIX = '/auth/supabase-claim-bridge';
 
 function readEnvString(name: string): string | null {
   const value = env[name];
-  return typeof value === 'string' ? value.trim() : null;
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized || null;
 }
 
 const BRIDGE_ENABLED =
   (readEnvString('VITE_SUPABASE_AUTH_BRIDGE_ENABLED') || 'true').toLowerCase() === 'true';
+const requestedBridgeFnName = readEnvString('VITE_SUPABASE_AUTH_BRIDGE_FN_NAME');
+const requestedSharedServerFnName = readEnvString('VITE_SUPABASE_SHARED_SERVER_FN_NAME');
 const BRIDGE_FN_NAME =
-  readEnvString('VITE_SUPABASE_AUTH_BRIDGE_FN_NAME') || DEFAULT_AUTH_BRIDGE_FN_NAME;
+  requestedBridgeFnName && requestedBridgeFnName !== DIRECT_AUTH_BRIDGE_FN_NAME
+    ? requestedBridgeFnName
+    : (requestedSharedServerFnName || DEFAULT_SHARED_SERVER_FN_NAME);
 const BRIDGE_PATH_PREFIX =
   readEnvString('VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX')
-  ?? (BRIDGE_FN_NAME === DEFAULT_AUTH_BRIDGE_FN_NAME ? '' : LEGACY_AUTH_BRIDGE_PATH_PREFIX);
+  ?? (BRIDGE_FN_NAME === DIRECT_AUTH_BRIDGE_FN_NAME ? '' : SHARED_AUTH_BRIDGE_PATH_PREFIX);
 
 const STORAGE_KEY = 'orina_supabase_auth_claim_bridge_session';
 const SESSION_EVENT = 'orina:supabase-auth-claim-bridge';

@@ -120,8 +120,8 @@ Recommended for exact parity with the current live runtime:
 
 - `VITE_SITE_URL=https://app.orina.io`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
-- `VITE_SUPABASE_AUTH_BRIDGE_FN_NAME=orina-auth-bridge-v1`
-- `VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX=`
+- `VITE_SUPABASE_AUTH_BRIDGE_FN_NAME=make-server-b0d68fc8`
+- `VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX=/auth/supabase-claim-bridge`
 - `VITE_SUPABASE_AI_M2M_FN_NAME=orina-ai-m2m-v2`
 - `VITE_SUPABASE_AI_M2M_PATH_PREFIX=`
 - `VITE_SUPABASE_SELLER_MINTING_FN_NAME=orina-seller-minting-v1`
