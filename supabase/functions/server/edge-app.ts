@@ -16,7 +16,8 @@ const ALLOWED_ORIGIN_PATTERNS = [
   /^http:\/\/127\.0\.0\.1(:\d+)?$/,
 ];
 
-const CORS_ALLOW_HEADERS = "Content-Type,Authorization,apikey";
+const CORS_ALLOW_HEADERS =
+  "authorization, x-client-info, apikey, content-type";
 const CORS_ALLOW_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
 const CORS_EXPOSE_HEADERS = "Content-Length";
 const CORS_MAX_AGE = "600";
@@ -25,10 +26,10 @@ export function resolveAllowedCorsOrigin(origin?: string | null) {
   const normalizedOrigin = String(origin || "").trim();
   if (!normalizedOrigin) return "*";
   if (EXACT_ALLOWED_ORIGINS.has(normalizedOrigin)) {
-    return normalizedOrigin;
+    return "*";
   }
   return ALLOWED_ORIGIN_PATTERNS.some((rule) => rule.test(normalizedOrigin))
-    ? normalizedOrigin
+    ? "*"
     : "";
 }
 
