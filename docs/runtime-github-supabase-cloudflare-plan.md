@@ -12,8 +12,8 @@
   - `https://www.orina.io`
 - Deploy mode target:
   - source of truth stays on GitHub
-  - GitHub Actions builds the repo on every push to `main`
-  - `wrangler deploy` updates Worker `apporinaio`
+  - Cloudflare Worker Builds pulls from GitHub on every push to `main`
+  - Cloudflare deploys Worker `apporinaio` from the repo build output
   - custom domain `app.orina.io` stays bound to that Worker service
 
 ## Commit plan
@@ -49,8 +49,8 @@ Suggested message:
 Scope:
 
 - add `wrangler.jsonc` for Worker `apporinaio`
-- add GitHub Actions workflow to build and deploy from `main`
-- document the minimal GitHub secrets required for the deploy path
+- remove repo-level deploy workflow so only the Cloudflare build path remains
+- document the minimal Cloudflare-side env required for the deploy path
 - keep `app.orina.io` isolated from the root-site Pages project
 
 Suggested message:
@@ -80,9 +80,11 @@ The live app is not running on Pages. It is bound through a Workers custom-domai
 
 The repo now targets a GitHub-driven Worker deploy:
 
-- build command: `npm run verify:viewer-release`
-- deploy command: `wrangler deploy`
+- source repo: `Archiver-KA/Orina-Protocol-Runtime`
+- production branch: `main`
+- build command: `npm run build`
 - static assets source: `dist`
+- runtime config source: `wrangler.jsonc`
 - SPA routing mode: `assets.not_found_handling = "single-page-application"`
 
 Only `app.orina.io` is in scope. Do not edit:
@@ -91,34 +93,35 @@ Only `app.orina.io` is in scope. Do not edit:
 - `www.orina.io`
 - Pages project `orina-io`
 
-### GitHub secrets required
+### Single deploy path
 
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
+- Keep:
+  - Cloudflare Worker Builds on `apporinaio`
+  - `wrangler.jsonc` in the repo
+  - `protocol-release-gate.yml` as verification only
+- Remove:
+  - repo-level deploy workflow `.github/workflows/deploy-apporinaio.yml`
+  - ad-hoc local `wrangler deploy` except for emergency recovery
+
+### Cloudflare-side env required
+
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PROJECT_ID`
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_SUPABASE_PUBLISHABLE_KEY` (optional but recommended for parity)
 
-### Runtime values pinned in workflow
+### Runtime defaults now pinned in source
 
 - `VITE_SITE_URL=https://app.orina.io`
-- `VITE_SUPABASE_FUNCTIONS_NAMESPACE=make-server-b0d68fc8`
-- `VITE_SUPABASE_SHARED_SERVER_FN_NAME=make-server-b0d68fc8`
-- `VITE_SUPABASE_AUTH_BRIDGE_ENABLED=true`
-- `VITE_SUPABASE_AUTH_BRIDGE_FN_NAME=orina-auth-bridge-v1`
-- `VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX=`
 - `VITE_SUPABASE_AI_M2M_FN_NAME=orina-ai-m2m-v2`
-- `VITE_SUPABASE_SELLER_MINTING_FN_NAME=orina-seller-minting-v1`
-- `VITE_SUPABASE_RECEIPT_SYNC_FN_NAME=orina-receipt-sync-v1`
 - `VITE_M2M_DELEGATION_MANAGER=0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58`
 - `VITE_M2M_AI_WALLET_FACTORY_V2=0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2`
 
 Operational notes:
 
-- the deploy path is GitHub-driven, not manual dashboard upload
+- the deploy path is GitHub-driven through Cloudflare, not through GitHub Actions
 - push to `main` should remain the only production trigger
-- if Cloudflare dashboard still shows manual uploads on `apporinaio`, treat them as emergency-only and re-sync from GitHub afterward
+- local `wrangler deploy` should be treated as emergency-only and followed by a normal Git push sync
 
 ## Release gate
 
@@ -130,6 +133,6 @@ Before commit/push:
 
 Before Cloudflare production deploy:
 
-1. confirm GitHub Actions secrets are present
+1. confirm Cloudflare build env is present
 2. confirm Supabase target project and public anon key
 3. smoke wallet connect + minting sidebar + protected runtime routes on preview
