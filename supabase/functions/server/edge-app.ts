@@ -66,7 +66,18 @@ export function registerCorsMiddleware(app: Hono) {
     }
 
     await next();
-    applyCorsHeaders(c);
+
+    const corsHeaders = createCorsHeaders(c.req.header("Origin"));
+    const responseHeaders = new Headers(c.res.headers);
+    corsHeaders.forEach((value, key) => {
+      responseHeaders.set(key, value);
+    });
+
+    c.res = new Response(c.res.body, {
+      status: c.res.status,
+      statusText: c.res.statusText,
+      headers: responseHeaders,
+    });
   });
 }
 
