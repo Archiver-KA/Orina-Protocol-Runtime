@@ -17,7 +17,7 @@ function readEnvString(name: string): string | null {
 }
 
 const BRIDGE_ENABLED =
-  (env.VITE_SUPABASE_AUTH_BRIDGE_ENABLED || '').toLowerCase() === 'true';
+  (readEnvString('VITE_SUPABASE_AUTH_BRIDGE_ENABLED') || 'true').toLowerCase() === 'true';
 const BRIDGE_FN_NAME =
   readEnvString('VITE_SUPABASE_AUTH_BRIDGE_FN_NAME') || DEFAULT_AUTH_BRIDGE_FN_NAME;
 const BRIDGE_PATH_PREFIX =

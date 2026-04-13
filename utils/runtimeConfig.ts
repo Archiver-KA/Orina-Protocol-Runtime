@@ -1,4 +1,5 @@
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
+const DEFAULT_SUPABASE_FUNCTIONS_NAMESPACE = 'make-server-b0d68fc8';
 
 function readString(name: string, fallback = ''): string {
   const value = env[name];
@@ -22,7 +23,9 @@ function readFloat(name: string, fallback: number): number {
 }
 
 export const runtimeFlags = {
-  enableSupabaseConfigFallback: readFlag('VITE_ENABLE_SUPABASE_CONFIG_FALLBACK', false),
+  // Keep public Supabase fallbacks active by default so Git-pulled Cloudflare builds do not
+  // silently degrade into an empty runtime surface when build-time env drifts.
+  enableSupabaseConfigFallback: readFlag('VITE_ENABLE_SUPABASE_CONFIG_FALLBACK', true),
   enableTestWalletFixtures: readFlag('VITE_ENABLE_TEST_WALLET_FIXTURES', false),
   enableCommunityMockData: readFlag('VITE_ENABLE_COMMUNITY_MOCK_DATA', false),
   enableSearchDemoPanels: readFlag('VITE_ENABLE_SEARCH_DEMO_PANELS', false),
@@ -31,7 +34,7 @@ export const runtimeFlags = {
 export const runtimeConfig = {
   supabaseFunctionsNamespace: readString(
     'VITE_SUPABASE_FUNCTIONS_NAMESPACE',
-    readString('VITE_SUPABASE_SHARED_SERVER_FN_NAME', ''),
+    readString('VITE_SUPABASE_SHARED_SERVER_FN_NAME', DEFAULT_SUPABASE_FUNCTIONS_NAMESPACE),
   ),
   supabaseSellerMintingFunctionName: readString(
     'VITE_SUPABASE_SELLER_MINTING_FN_NAME',

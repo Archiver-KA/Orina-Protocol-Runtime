@@ -105,15 +105,45 @@ Only `app.orina.io` is in scope. Do not edit:
 
 ### Cloudflare-side env required
 
+Cloudflare Worker Builds for `apporinaio` reads its own dashboard build variables. GitHub repository
+secrets do not feed this build path.
+
+Required in `Settings > Build > Build variables and secrets`:
+
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PROJECT_ID`
 - `VITE_SUPABASE_ANON_KEY`
-- `VITE_SUPABASE_PUBLISHABLE_KEY` (optional but recommended for parity)
+- `VITE_SUPABASE_SHARED_SERVER_FN_NAME=make-server-b0d68fc8`
+- `VITE_SUPABASE_AUTH_BRIDGE_ENABLED=true`
+
+Recommended for exact parity with the current live runtime:
+
+- `VITE_SITE_URL=https://app.orina.io`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `VITE_SUPABASE_AUTH_BRIDGE_FN_NAME=orina-auth-bridge-v1`
+- `VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX=`
+- `VITE_SUPABASE_AI_M2M_FN_NAME=orina-ai-m2m-v2`
+- `VITE_SUPABASE_AI_M2M_PATH_PREFIX=`
+- `VITE_SUPABASE_SELLER_MINTING_FN_NAME=orina-seller-minting-v1`
+- `VITE_SUPABASE_RECEIPT_SYNC_FN_NAME=orina-receipt-sync-v1`
+- `VITE_M2M_DELEGATION_MANAGER=0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58`
+- `VITE_M2M_AI_WALLET_FACTORY_V2=0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2`
+- `VITE_WALLET_AUTH_SESSION_TTL_MS=604800000`
+
+Do not put frontend-incompatible secrets into the Cloudflare Worker build:
+
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `ATP2_SUPABASE_JWT_SECRET`
+- `ATP2_M2M_DELEGATE_ENCRYPTION_KEY`
+- any `ATP2_*` private server secret intended for Supabase Edge Functions
 
 ### Runtime defaults now pinned in source
 
 - `VITE_SITE_URL=https://app.orina.io`
 - `VITE_SUPABASE_AI_M2M_FN_NAME=orina-ai-m2m-v2`
+- `VITE_SUPABASE_SHARED_SERVER_FN_NAME=make-server-b0d68fc8`
+- `VITE_SUPABASE_AUTH_BRIDGE_ENABLED=true`
+- `VITE_ENABLE_SUPABASE_CONFIG_FALLBACK=true`
 - `VITE_M2M_DELEGATION_MANAGER=0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58`
 - `VITE_M2M_AI_WALLET_FACTORY_V2=0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2`
 

@@ -4,6 +4,10 @@ import process from 'node:process';
 
 const repoRoot = process.cwd();
 const envPath = path.join(repoRoot, '.env');
+const DEFAULT_SUPABASE_PROJECT_ID = 'vcixsdudkizgfikhmfuv';
+const DEFAULT_SUPABASE_URL = `https://${DEFAULT_SUPABASE_PROJECT_ID}.supabase.co`;
+const DEFAULT_SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjaXhzZHVka2l6Z2Zpa2htZnV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5OTIyMjgsImV4cCI6MjA4NzU2ODIyOH0.Gk3PIFWYzEWwqTJ11E81WVQGtNyFZOdHa7PitY_Sf5o';
 const requiredTables = [
   'assets_catalog',
   'asset_protocol_links',
@@ -77,13 +81,18 @@ async function probeTable(baseUrl, anonKey, table) {
 
 async function main() {
   const localEnv = await readLocalEnv();
-  const supabaseUrl = resolveEnvValue(localEnv, 'VITE_SUPABASE_URL');
-  const anonKey = resolveEnvValue(localEnv, 'VITE_SUPABASE_ANON_KEY', 'VITE_SUPABASE_LEGACY_ANON_KEY');
-
-  if (!supabaseUrl || !anonKey) {
-    console.log('[protocol-runtime-surface] Skipped: missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.');
-    return;
-  }
+  const configuredUrl = resolveEnvValue(localEnv, 'VITE_SUPABASE_URL');
+  const configuredProjectId = resolveEnvValue(localEnv, 'VITE_SUPABASE_PROJECT_ID');
+  const supabaseUrl =
+    configuredUrl
+    || (configuredProjectId ? `https://${configuredProjectId}.supabase.co` : DEFAULT_SUPABASE_URL);
+  const anonKey =
+    resolveEnvValue(
+      localEnv,
+      'VITE_SUPABASE_ANON_KEY',
+      'VITE_SUPABASE_PUBLISHABLE_KEY',
+      'VITE_SUPABASE_LEGACY_ANON_KEY',
+    ) || DEFAULT_SUPABASE_ANON_KEY;
 
   const baseUrl = supabaseUrl.replace(/\/+$/, '');
   const results = [];

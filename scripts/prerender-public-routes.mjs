@@ -5,6 +5,9 @@ const ROOT_DIR = process.cwd();
 const DIST_DIR = path.join(ROOT_DIR, 'dist');
 const INDEX_HTML_PATH = path.join(DIST_DIR, 'index.html');
 const DEFAULT_SITE_URL = 'https://app.orina.io';
+const DEFAULT_SUPABASE_PROJECT_ID = 'vcixsdudkizgfikhmfuv';
+const DEFAULT_SUPABASE_URL = `https://${DEFAULT_SUPABASE_PROJECT_ID}.supabase.co`;
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjaXhzZHVka2l6Z2Zpa2htZnV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5OTIyMjgsImV4cCI6MjA4NzU2ODIyOH0.Gk3PIFWYzEWwqTJ11E81WVQGtNyFZOdHa7PitY_Sf5o';
 const DEFAULT_OG_IMAGE = '/orina-social-card.svg';
 const DEFAULT_LIMIT = 120;
 
@@ -283,6 +286,29 @@ function loadEnv() {
   parseEnvFile(path.join(ROOT_DIR, '.env.local'), env);
   parseEnvFile(path.join(ROOT_DIR, '.env'), env);
   return env;
+}
+
+function resolveSupabaseBuildEnv(siteEnv) {
+  const configuredUrl = String(siteEnv.VITE_SUPABASE_URL || '').trim();
+  const configuredProjectId = String(siteEnv.VITE_SUPABASE_PROJECT_ID || '').trim();
+  const configuredApiKey = String(
+    siteEnv.VITE_SUPABASE_ANON_KEY
+    || siteEnv.VITE_SUPABASE_PUBLISHABLE_KEY
+    || siteEnv.VITE_SUPABASE_LEGACY_ANON_KEY
+    || ''
+  ).trim();
+
+  const supabaseUrl =
+    configuredUrl
+    || (configuredProjectId ? `https://${configuredProjectId}.supabase.co` : DEFAULT_SUPABASE_URL);
+  const apiKey = configuredApiKey || DEFAULT_SUPABASE_ANON_KEY;
+  const usingFallback = !configuredUrl || !configuredApiKey;
+
+  return {
+    supabaseUrl,
+    apiKey,
+    usingFallback,
+  };
 }
 
 function escapeHtml(value) {
@@ -593,22 +619,10 @@ async function fetchRestRows(baseUrl, apiKey, table, params) {
 }
 
 async function loadPublicData(siteEnv) {
-  const supabaseUrl = String(siteEnv.VITE_SUPABASE_URL || '').trim();
-  const apiKey = String(
-    siteEnv.VITE_SUPABASE_ANON_KEY
-    || siteEnv.VITE_SUPABASE_PUBLISHABLE_KEY
-    || siteEnv.VITE_SUPABASE_LEGACY_ANON_KEY
-    || ''
-  ).trim();
+  const { supabaseUrl, apiKey, usingFallback } = resolveSupabaseBuildEnv(siteEnv);
 
-  if (!supabaseUrl || !apiKey) {
-    warn('Supabase public env is missing. Generating core prerender routes only.');
-    return {
-      assets: [],
-      profiles: [],
-      collections: [],
-      collectionAssets: [],
-    };
+  if (usingFallback) {
+    warn('Supabase build env is incomplete. Using canonical public runtime fallbacks for prerender data.');
   }
 
   const limit = Math.max(20, Number.parseInt(siteEnv.ORINA_PRERENDER_LIMIT || '', 10) || DEFAULT_LIMIT);
