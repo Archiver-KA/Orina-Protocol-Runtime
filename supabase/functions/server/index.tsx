@@ -1,11 +1,10 @@
 import { Hono } from "npm:hono";
-import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import aiChat from "./ai-chat.tsx";
 import aiAssist from "./ai-assist.ts";
 import aiM2MWallet from "./ai-m2m-wallet.ts";
 import apiKeysHandler from "./api-keys-handler.ts";
-import { resolveAllowedCorsOrigin } from "./edge-app.ts";
+import { registerCorsMiddleware } from "./edge-app.ts";
 import ipfsRouter from "./ipfs-upload.tsx";
 import sellerMintingRouter from "./seller-ai-minting-handler.ts";
 import walletAuthClaimBridge from "./wallet-auth-claim-bridge.tsx";
@@ -40,17 +39,7 @@ function registerSharedRoutes(prefix: string) {
 // Enable logger
 app.use('*', logger(console.log));
 
-// Enable CORS for all routes and methods
-app.use(
-  "/*",
-  cors({
-    origin: resolveAllowedCorsOrigin,
-    allowHeaders: ["Content-Type", "Authorization", "apikey"],
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    exposeHeaders: ["Content-Length"],
-    maxAge: 600,
-  }),
-);
+registerCorsMiddleware(app);
 
 for (const prefix of SHARED_ROUTE_PREFIXES) {
   registerSharedRoutes(prefix);

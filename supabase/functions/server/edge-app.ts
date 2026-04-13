@@ -1,5 +1,4 @@
-import { Hono } from "npm:hono";
-import { cors } from "npm:hono/cors";
+import { Hono, type Context } from "npm:hono";
 import { logger } from "npm:hono/logger";
 
 const EXACT_ALLOWED_ORIGINS = new Set([
@@ -17,6 +16,11 @@ const ALLOWED_ORIGIN_PATTERNS = [
   /^http:\/\/127\.0\.0\.1(:\d+)?$/,
 ];
 
+const CORS_ALLOW_HEADERS = "Content-Type,Authorization,apikey";
+const CORS_ALLOW_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
+const CORS_EXPOSE_HEADERS = "Content-Length";
+const CORS_MAX_AGE = "600";
+
 export function resolveAllowedCorsOrigin(origin?: string | null) {
   const normalizedOrigin = String(origin || "").trim();
   if (!normalizedOrigin) return "*";
@@ -28,20 +32,49 @@ export function resolveAllowedCorsOrigin(origin?: string | null) {
     : "";
 }
 
+function createCorsHeaders(origin?: string | null) {
+  const headers = new Headers({
+    "Access-Control-Allow-Headers": CORS_ALLOW_HEADERS,
+    "Access-Control-Allow-Methods": CORS_ALLOW_METHODS,
+    "Access-Control-Expose-Headers": CORS_EXPOSE_HEADERS,
+    "Access-Control-Max-Age": CORS_MAX_AGE,
+    Vary: "Origin, Access-Control-Request-Headers",
+  });
+
+  const allowedOrigin = resolveAllowedCorsOrigin(origin);
+  if (allowedOrigin) {
+    headers.set("Access-Control-Allow-Origin", allowedOrigin);
+  }
+
+  return headers;
+}
+
+export function applyCorsHeaders(context: Context) {
+  const headers = createCorsHeaders(context.req.header("Origin"));
+  headers.forEach((value, key) => {
+    context.header(key, value);
+  });
+}
+
+export function registerCorsMiddleware(app: Hono) {
+  app.use("/*", async (c, next) => {
+    if (c.req.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: createCorsHeaders(c.req.header("Origin")),
+      });
+    }
+
+    await next();
+    applyCorsHeaders(c);
+  });
+}
+
 export function createEdgeApp() {
   const app = new Hono();
 
   app.use("*", logger(console.log));
-  app.use(
-    "/*",
-    cors({
-      origin: resolveAllowedCorsOrigin,
-      allowHeaders: ["Content-Type", "Authorization", "apikey"],
-      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      exposeHeaders: ["Content-Length"],
-      maxAge: 600,
-    }),
-  );
+  registerCorsMiddleware(app);
 
   return app;
 }
