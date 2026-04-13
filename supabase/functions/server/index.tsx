@@ -5,6 +5,7 @@ import aiChat from "./ai-chat.tsx";
 import aiAssist from "./ai-assist.ts";
 import aiM2MWallet from "./ai-m2m-wallet.ts";
 import apiKeysHandler from "./api-keys-handler.ts";
+import { resolveAllowedCorsOrigin } from "./edge-app.ts";
 import ipfsRouter from "./ipfs-upload.tsx";
 import sellerMintingRouter from "./seller-ai-minting-handler.ts";
 import walletAuthClaimBridge from "./wallet-auth-claim-bridge.tsx";
@@ -43,18 +44,7 @@ app.use('*', logger(console.log));
 app.use(
   "/*",
   cors({
-    origin: (origin) => {
-      // Allow Supabase preview, localhost dev, and production app domains
-      if (!origin) return '*'; // server-to-server / curl
-      const allowed = [
-        /https:\/\/.*\.supabase\.co$/,
-        /https:\/\/.*\.vercel\.app$/,
-        /https:\/\/.*\.netlify\.app$/,
-        /^http:\/\/localhost(:\d+)?$/,
-        /^http:\/\/127\.0\.0\.1(:\d+)?$/,
-      ];
-      return allowed.some((r) => r.test(origin)) ? origin : '';
-    },
+    origin: resolveAllowedCorsOrigin,
     allowHeaders: ["Content-Type", "Authorization", "apikey"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],

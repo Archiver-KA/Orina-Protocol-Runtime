@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode, useState, useCallback, useEffect, type Context } from 'react';
+import { createContext, useContext, ReactNode, useState, useCallback, useEffect, useRef, type Context } from 'react';
 import { useAccount, useSignMessage } from 'wagmi';
 import { toast } from 'sonner';
 import { buildWalletAuthMessage, setWalletAuthSession } from '@/utils/walletAuthSession';
@@ -37,8 +37,9 @@ export function WalletModalProvider({ children }: { children: ReactNode }) {
   const [modalState, setModalState] = useState<WalletModalState>({
     step: null,
   });
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const connectToastShownRef = useRef(false);
 
   const openSecurityCheckModal = useCallback((securityCheckData: SecurityCheckRequestData, onConfirm?: WalletModalConfirmHandler) => {
     setModalState({
@@ -97,7 +98,18 @@ export function WalletModalProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const completeConnectFlow = useCallback(() => {
+    clearGuestModeForced();
+    closeModal();
+    if (connectToastShownRef.current) return;
+    connectToastShownRef.current = true;
+    toast.success('Wallet connected.', {
+      description: 'No signature or gas is required at login. Protected actions will ask only when needed.',
+    });
+  }, [closeModal]);
+
   const openConnectModal = useCallback(() => {
+    connectToastShownRef.current = false;
     setModalState({
       step: 'connect',
       source: 'connect',
@@ -106,15 +118,21 @@ export function WalletModalProvider({ children }: { children: ReactNode }) {
 
   const handleWalletConnect = useCallback(
     (_connectorId: string) => {
-      // Connect-only login UX: entering the app should not immediately trigger a signature request.
-      clearGuestModeForced();
-      closeModal();
-      toast.success('Wallet connected.', {
-        description: 'No signature or gas is required at login. Protected actions will ask only when needed.',
-      });
+      // Some injected connectors resolve late after the extension approval popup closes.
+      // Keep connect-only login resilient by finalizing as soon as wagmi reports a wallet.
+      completeConnectFlow();
     },
-    [closeModal]
+    [completeConnectFlow]
   );
+
+  useEffect(() => {
+    if (modalState.step !== 'connect') {
+      connectToastShownRef.current = false;
+      return;
+    }
+    if (!isConnected || !address) return;
+    completeConnectFlow();
+  }, [address, completeConnectFlow, isConnected, modalState.step]);
 
   const handleSecurityCheckConfirm = useCallback(async () => {
     try {
