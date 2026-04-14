@@ -12,6 +12,7 @@ import {
   getSupabaseFunctionsNamespace,
 } from '/utils/supabase/functions';
 import {
+  clearSupabaseBridgeSession,
   ensureSupabaseBridgeAccessToken,
   isBridgeAuthRequiredError,
   getSupabaseBridgeAccessToken,
@@ -29,15 +30,61 @@ function readEnvString(name: string): string | null {
 
 const SHARED_FUNCTION_NAMESPACE = getSupabaseFunctionsNamespace();
 const AI_M2M_FN_NAME = readEnvString('VITE_SUPABASE_AI_M2M_FN_NAME') || DEFAULT_AI_M2M_FN_NAME;
-const AI_M2M_PATH_PREFIX =
-  readEnvString('VITE_SUPABASE_AI_M2M_PATH_PREFIX')
-  ?? (AI_M2M_FN_NAME === SHARED_FUNCTION_NAMESPACE ? LEGACY_AI_M2M_PATH_PREFIX : '');
-const BASE_URL = getSupabaseFunctionsBaseUrl(AI_M2M_FN_NAME);
+const EXPLICIT_AI_M2M_PATH_PREFIX = readEnvString('VITE_SUPABASE_AI_M2M_PATH_PREFIX');
 const AI_M2M_CONFIG_CACHE = new Map<string, AIM2MConfigResponse>();
 
-function buildAIM2MRequestPath(path: string): string {
+interface AIM2MEndpoint {
+  baseUrl: string;
+  functionName: string;
+  pathPrefix: string;
+  kind: 'configured' | 'shared_fallback';
+}
+
+function normalizePathPrefix(value: string | null | undefined): string {
+  return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function buildAIM2MEndpoint(
+  functionName: string,
+  pathPrefix: string | null | undefined,
+  kind: AIM2MEndpoint['kind'],
+): AIM2MEndpoint | null {
+  const normalizedFunctionName = String(functionName || '').trim();
+  const baseUrl = getSupabaseFunctionsBaseUrl(normalizedFunctionName);
+  if (!normalizedFunctionName || !baseUrl) return null;
+
+  return {
+    baseUrl,
+    functionName: normalizedFunctionName,
+    pathPrefix: normalizePathPrefix(pathPrefix),
+    kind,
+  };
+}
+
+const PRIMARY_AI_M2M_ENDPOINT = buildAIM2MEndpoint(
+  AI_M2M_FN_NAME,
+  EXPLICIT_AI_M2M_PATH_PREFIX
+    ?? (AI_M2M_FN_NAME === SHARED_FUNCTION_NAMESPACE ? LEGACY_AI_M2M_PATH_PREFIX : ''),
+  'configured',
+);
+const SHARED_AI_M2M_FALLBACK_ENDPOINT =
+  !EXPLICIT_AI_M2M_PATH_PREFIX
+  && SHARED_FUNCTION_NAMESPACE
+  && SHARED_FUNCTION_NAMESPACE !== AI_M2M_FN_NAME
+    ? buildAIM2MEndpoint(SHARED_FUNCTION_NAMESPACE, LEGACY_AI_M2M_PATH_PREFIX, 'shared_fallback')
+    : null;
+const AI_M2M_ENDPOINTS = [PRIMARY_AI_M2M_ENDPOINT, SHARED_AI_M2M_FALLBACK_ENDPOINT]
+  .filter((endpoint): endpoint is AIM2MEndpoint => Boolean(endpoint))
+  .filter((endpoint, index, endpoints) => {
+    return endpoints.findIndex((candidate) => (
+      candidate.baseUrl === endpoint.baseUrl
+      && candidate.pathPrefix === endpoint.pathPrefix
+    )) === index;
+  });
+
+function buildAIM2MRequestPath(endpoint: AIM2MEndpoint, path: string): string {
   const normalizedPath = String(path || '').replace(/^\/+/, '');
-  const prefix = String(AI_M2M_PATH_PREFIX || '').trim().replace(/\/+$/, '');
+  const prefix = endpoint.pathPrefix;
   return prefix ? `${prefix}/${normalizedPath}` : `/${normalizedPath}`;
 }
 
@@ -118,6 +165,35 @@ function classifyHttpError(status: number): AIM2MClientError['code'] {
   return 'http_error';
 }
 
+function readRequestErrorMessage(payload: any, status: number): string {
+  return (
+    payload?.error
+    || payload?.message
+    || `AI M2M request failed with HTTP ${status}`
+  );
+}
+
+function isRetryableProtectedAuthFailure(status: number, payload: any): boolean {
+  if (status !== 401) return false;
+  const normalized = readRequestErrorMessage(payload, status).toLowerCase();
+  return (
+    normalized.includes('authentication required')
+    || normalized.includes('invalid or expired authentication token')
+    || normalized.includes('authenticated wallet claims are required')
+    || normalized.includes('authenticated wallet session is no longer active')
+    || normalized.includes('invalid jwt')
+  );
+}
+
+function shouldRetryViaSharedFallback(error: AIM2MClientError, endpoint: AIM2MEndpoint): boolean {
+  if (endpoint.kind !== 'configured') return false;
+  return (
+    error.code === 'network_error'
+    || error.code === 'http_not_found'
+    || error.code === 'http_server_error'
+  );
+}
+
 async function getProtectedJsonHeaders(walletAddress: string): Promise<Record<string, string>> {
   return getProtectedJsonHeadersWithMode(walletAddress, false);
 }
@@ -142,7 +218,7 @@ async function getProtectedJsonHeadersWithMode(
     throw makeClientError('invalid_request', 'Wallet address is required');
   }
 
-  if (!BASE_URL || !publicAnonKey) {
+  if (!AI_M2M_ENDPOINTS.length || !publicAnonKey) {
     throw makeClientError(
       'service_not_configured',
       'AI wallet settings are not available in this environment.',
@@ -208,58 +284,120 @@ async function getProtectedHeaders(walletAddress: string): Promise<Record<string
 
 async function requestWithWalletAuth<T>(
   walletAddress: string,
-  requestPath: string,
+  requestResourcePath: string,
   promptOnAuthMissing: boolean,
   init?: RequestInit,
+  retryOnAuthFailure = true,
 ): Promise<AIM2MClientResult<T>> {
   try {
     const headers = init?.method && init.method !== 'GET'
       ? await getProtectedJsonHeadersWithMode(walletAddress, promptOnAuthMissing)
       : await getProtectedHeaders(walletAddress);
 
-    const response = await fetch(`${BASE_URL}${requestPath}`, {
-      ...init,
-      headers: {
-        ...headers,
-        ...(init?.headers || {}),
-      },
-    });
-
-    const payload = await parseResponseBody(response);
-    if (!response.ok) {
-      const message =
-        payload?.error ||
-        payload?.message ||
-        `AI M2M request failed with HTTP ${response.status}`;
-
-      return {
-        ok: false,
-        error: makeClientError(classifyHttpError(response.status), message, {
-          status: response.status,
-          requestPath,
-          details: payload,
-        }),
-      };
-    }
-
-    if (!payload?.success) {
-      return {
-        ok: false,
-        error: makeClientError(
-          'http_error',
-          payload?.error || payload?.message || 'AI M2M service returned an unexpected response.',
-          {
-            status: response.status,
-            requestPath,
-            details: payload,
+    let lastError: AIM2MClientError | null = null;
+    for (const endpoint of AI_M2M_ENDPOINTS) {
+      const requestPath = buildAIM2MRequestPath(endpoint, requestResourcePath);
+      try {
+        const response = await fetch(`${endpoint.baseUrl}${requestPath}`, {
+          ...init,
+          headers: {
+            ...headers,
+            ...(init?.headers || {}),
           },
-        ),
-      };
+        });
+
+        const payload = await parseResponseBody(response);
+        if (
+          retryOnAuthFailure
+          && response.status === 401
+          && isRetryableProtectedAuthFailure(response.status, payload)
+        ) {
+          clearSupabaseBridgeSession();
+          return requestWithWalletAuth<T>(
+            walletAddress,
+            requestResourcePath,
+            promptOnAuthMissing,
+            init,
+            false,
+          );
+        }
+
+        if (!response.ok) {
+          const error = makeClientError(
+            classifyHttpError(response.status),
+            readRequestErrorMessage(payload, response.status),
+            {
+              status: response.status,
+              requestPath,
+              details: {
+                endpointKind: endpoint.kind,
+                functionName: endpoint.functionName,
+                payload,
+              },
+            },
+          );
+          if (shouldRetryViaSharedFallback(error, endpoint)) {
+            lastError = error;
+            continue;
+          }
+          return {
+            ok: false,
+            error,
+          };
+        }
+
+        if (!payload?.success) {
+          const error = makeClientError(
+            'http_error',
+            payload?.error || payload?.message || 'AI M2M service returned an unexpected response.',
+            {
+              status: response.status,
+              requestPath,
+              details: {
+                endpointKind: endpoint.kind,
+                functionName: endpoint.functionName,
+                payload,
+              },
+            },
+          );
+          if (shouldRetryViaSharedFallback(error, endpoint)) {
+            lastError = error;
+            continue;
+          }
+          return {
+            ok: false,
+            error,
+          };
+        }
+
+        return {
+          ok: true,
+          data: payload as T,
+        };
+      } catch (error) {
+        const clientError = coerceClientError(
+          error,
+          'network_error',
+          'Unable to reach the AI M2M configuration service.',
+          requestPath,
+        );
+        if (shouldRetryViaSharedFallback(clientError, endpoint)) {
+          lastError = clientError;
+          continue;
+        }
+        return {
+          ok: false,
+          error: clientError,
+        };
+      }
     }
 
     return {
-      ok: true,
-      data: payload as T,
+      ok: false,
+      error: lastError || makeClientError(
+        'service_not_configured',
+        'AI wallet settings are not available in this environment.',
+      ),
     };
   } catch (error) {
     return {
@@ -268,7 +406,7 @@ async function requestWithWalletAuth<T>(
         error,
         'network_error',
         'Unable to reach the AI M2M configuration service.',
-        requestPath,
+        requestResourcePath,
       ),
     };
   }
@@ -276,7 +414,7 @@ async function requestWithWalletAuth<T>(
 
 export class AIM2MWalletClient {
   static isConfigured(): boolean {
-    return Boolean(BASE_URL && publicAnonKey);
+    return Boolean(AI_M2M_ENDPOINTS.length && publicAnonKey);
   }
 
   static peekConfig(walletAddress: string): AIM2MConfigResponse | null {
@@ -286,7 +424,7 @@ export class AIM2MWalletClient {
   static async getConfig(walletAddress: string): Promise<AIM2MClientResult<AIM2MConfigResponse>> {
     const result = await requestWithWalletAuth<AIM2MConfigResponse>(
       walletAddress,
-      buildAIM2MRequestPath(`config/${walletAddress}`),
+      `config/${walletAddress}`,
       false,
     );
     if (result.ok) {
@@ -296,7 +434,7 @@ export class AIM2MWalletClient {
   }
 
   static async saveConfig(config: Partial<AIM2MWalletConfig> & { walletAddress: string }): Promise<AIM2MClientResult<AIM2MConfigResponse>> {
-    const result = await requestWithWalletAuth<AIM2MConfigResponse>(config.walletAddress, buildAIM2MRequestPath('config'), true, {
+    const result = await requestWithWalletAuth<AIM2MConfigResponse>(config.walletAddress, 'config', true, {
       method: 'POST',
       body: JSON.stringify(config),
     });
@@ -307,21 +445,21 @@ export class AIM2MWalletClient {
   }
 
   static async generateDelegate(walletAddress: string): Promise<AIM2MClientResult<AIM2MDelegateResponse>> {
-    return requestWithWalletAuth<AIM2MDelegateResponse>(walletAddress, buildAIM2MRequestPath('delegates/generate'), true, {
+    return requestWithWalletAuth<AIM2MDelegateResponse>(walletAddress, 'delegates/generate', true, {
       method: 'POST',
       body: JSON.stringify({ walletAddress }),
     });
   }
 
   static async createDelegateInvite(walletAddress: string): Promise<AIM2MClientResult<AIM2MInviteResponse>> {
-    return requestWithWalletAuth<AIM2MInviteResponse>(walletAddress, buildAIM2MRequestPath('delegates/invite'), true, {
+    return requestWithWalletAuth<AIM2MInviteResponse>(walletAddress, 'delegates/invite', true, {
       method: 'POST',
       body: JSON.stringify({ walletAddress }),
     });
   }
 
   static async acceptDelegateInvite(walletAddress: string, inviteId: string): Promise<AIM2MClientResult<AIM2MDelegateResponse>> {
-    return requestWithWalletAuth<AIM2MDelegateResponse>(walletAddress, buildAIM2MRequestPath('delegates/accept-invite'), true, {
+    return requestWithWalletAuth<AIM2MDelegateResponse>(walletAddress, 'delegates/accept-invite', true, {
       method: 'POST',
       body: JSON.stringify({ inviteId }),
     });
