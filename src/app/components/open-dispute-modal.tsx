@@ -26,6 +26,7 @@ interface OpenDisputeModalProps {
     assetImage: string;
     grossPrice: bigint;
     amount: bigint;
+    unitLabel?: string;
     unitName?: string;
     seller: `0x${string}`;
     paymentTokenSymbol?: string;

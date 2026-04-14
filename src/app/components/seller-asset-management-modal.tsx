@@ -15,16 +15,18 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { formatUnits } from 'viem';
+import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 import { StudioStatusBadge } from '@/app/components/ui/studio-status-badge';
 import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { useUserOrders } from '@/hooks/useUserOrders';
-import { OrderState } from '@/config/contracts';
 import type { OrderUiRecord } from '@/types/order';
 import { formatAddress } from '@/utils/format';
 import { formatOrderGrossPrice, formatOrderQuantity } from '@/utils/orderDisplay';
 import { getOrderLifecycleLabel, getOrderLifecyclePhase } from '@/utils/orderLifecycle';
 import { extractNumericValue, preventInvalidNumberKeyDown } from '@/utils/numericInput';
+import { isOrderCancelled, isOrderCompleted } from '@/utils/orderSemantics';
+import { sortOrdersNewestFirst } from '@/utils/orderSorting';
 import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 
 interface SellerAsset {
@@ -48,6 +50,13 @@ interface SellerAssetManagementModalProps {
 
 type SellerTab = 'overview' | 'active' | 'history' | 'manage';
 
+const SECTION_SHELL_CLASS =
+  'studio-glass-surface rounded-[28px] border border-ui-border-subtle bg-[var(--t-surface-5)] shadow-[0_24px_60px_-42px_rgba(0,0,0,0.32)]';
+const INSET_SHELL_CLASS =
+  'studio-glass-surface rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-2)]';
+const META_PILL_CLASS =
+  'inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ui-secondary';
+
 function normalize(value?: string | number | bigint | null) {
   return String(value ?? '').trim().toLowerCase();
 }
@@ -59,6 +68,16 @@ function parseAmount(value: string | number, fallback = 0) {
 
 function trimNumericString(value: string) {
   return value.replace(/\.?0+$/, '');
+}
+
+function coerceText(value: unknown, fallback = ''): string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+  if (value === null || value === undefined) return fallback;
+  const normalized = String(value).trim();
+  return normalized || fallback;
 }
 
 function formatAggregateOrderValue(orders: OrderUiRecord[]) {
@@ -138,10 +157,10 @@ function EmptyOrderPanel({
   description: string;
 }) {
   return (
-    <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 text-center">
-      <Package size={28} className="text-zinc-700 mx-auto mb-3" />
-      <p className="text-sm font-bold text-white">{title}</p>
-      <p className="text-xs text-zinc-500 mt-2 leading-5">{description}</p>
+    <div className={`${SECTION_SHELL_CLASS} p-6 text-center`}>
+      <Package size={28} className="mx-auto mb-3 text-ui-muted" />
+      <p className="text-sm font-semibold text-ui-primary">{title}</p>
+      <p className="mt-2 text-xs leading-5 text-ui-secondary">{description}</p>
     </div>
   );
 }
@@ -181,9 +200,9 @@ export function SellerAssetManagementModal({
 
   const assetOrders = useMemo(() => {
     if (!asset) return [] as OrderUiRecord[];
-    return [...sellerOrders]
-      .filter((order) => matchOrderToAsset(order, asset))
-      .sort((left, right) => Number(right.proposedAt - left.proposedAt));
+    return sortOrdersNewestFirst(
+      sellerOrders.filter((order) => matchOrderToAsset(order, asset)),
+    );
   }, [asset, sellerOrders]);
 
   const activeOrders = useMemo(
@@ -205,10 +224,8 @@ export function SellerAssetManagementModal({
   );
 
   const metrics = useMemo(() => {
-    const finalizedOrders = assetOrders.filter(
-      (order) => order.finalized || order.state === OrderState.FINALIZED,
-    );
-    const cancelledOrders = assetOrders.filter((order) => order.state === OrderState.CANCELLED);
+    const finalizedOrders = assetOrders.filter((order) => isOrderCompleted(order));
+    const cancelledOrders = assetOrders.filter((order) => isOrderCancelled(order));
     const totalSupply = Math.max(1, parseAmount(asset?.totalAmount ?? 0, 1));
     const sellThrough = `${Math.round((soldUnits / totalSupply) * 100)}%`;
 
@@ -236,13 +253,18 @@ export function SellerAssetManagementModal({
 
   if (!isOpen || !asset || typeof document === 'undefined') return null;
 
+  const assetReferenceLabel = asset.tokenId?.trim()
+    ? `Token ID #${asset.tokenId.trim()}`
+    : `Asset Ref #${asset.id.slice(-4)}`;
+  const assetStatusLabel = coerceText(asset.status, 'Unknown');
+
   const modalContent = (
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="studio-portal-backdrop fixed inset-0 z-[75] flex items-center justify-center p-4 md:p-6 bg-black/70 backdrop-blur-[10px]"
+        className="studio-portal-backdrop fixed inset-0 z-[75] flex items-center justify-center bg-black/78 p-6 backdrop-blur-[16px]"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
@@ -252,118 +274,116 @@ export function SellerAssetManagementModal({
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           transition={{ type: 'spring', duration: 0.3 }}
-          className="studio-modal-theme studio-glass-modal relative w-full max-w-[860px] h-[calc(100dvh-3rem)] rounded-[2rem] border border-ui-border-subtle bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] shadow-[0_30px_120px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col"
+          className="studio-modal-theme studio-glass-modal relative z-[1] flex max-h-[95vh] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border border-ui-border-subtle bg-[var(--t-card-bg)] shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)] backdrop-blur-[20px] md:h-[95vh]"
           onClick={(e) => e.stopPropagation()}
         >
           <style>{`
             .hidden-scrollbar::-webkit-scrollbar { display: none; }
           `}</style>
 
-          <div className="studio-glass-header shrink-0 p-5 md:p-6 pb-4 border-b border-[rgba(255,255,255,0.06)] bg-[rgba(18,18,18,0.86)] backdrop-blur-[20px] relative z-10">
+          <div className="studio-glass-header relative z-10 shrink-0 border-b border-ui-border-subtle bg-[var(--t-card-bg)] p-5 pb-4 md:p-6">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <h1 className="text-lg font-bold text-white tracking-tight truncate">Manage Asset</h1>
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5">
-                  Seller Dashboard
+                <h1 className="truncate text-lg font-semibold tracking-tight text-ui-primary">Manage Asset</h1>
+                <p className="mt-1 text-[10px] uppercase tracking-widest text-ui-muted">
+                  Seller dashboard for {asset.name}
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="studio-glass-chip h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
-                  Token ID #{asset.id.slice(-4)}
-                </span>
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                <span className={META_PILL_CLASS}>{getCategoryDisplayLabel(asset.category)}</span>
+                <span className={META_PILL_CLASS}>{assetReferenceLabel}</span>
                 <span
-                  className={`h-7 px-3 inline-flex items-center rounded-full border text-[9px] font-bold uppercase tracking-widest ${
-                    asset.status.toLowerCase() === 'active'
-                      ? 'bg-[#2CC295]/15 border-[#2CC295]/30 text-[#2CC295]'
-                      : 'studio-glass-chip bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)] text-zinc-400'
+                  className={`inline-flex items-center rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${
+                    assetStatusLabel.toLowerCase() === 'active'
+                      ? 'border-[#2CC295]/20 bg-[#2CC295]/10 text-[#7CF0CB]'
+                      : 'border-ui-border-subtle bg-[var(--t-surface-10)] text-ui-secondary'
                   }`}
                 >
-                  {asset.status}
+                  {assetStatusLabel}
                 </span>
-                <StudioModalCloseButton onClick={onClose} className="studio-glass-secondary" />
+                <StudioModalCloseButton onClick={onClose} className="studio-glass-secondary rounded-full" />
               </div>
             </div>
           </div>
 
-          <section className="min-w-0 min-h-0 flex-1 overflow-y-auto lg:overflow-hidden hidden-scrollbar relative">
-            <div className="h-full p-5 md:p-6 pt-4 relative z-10">
-              <div className="w-full h-full max-w-[860px] mx-auto flex flex-col lg:flex-row justify-center items-start gap-6 px-0 md:px-2">
-                <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-4 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
-                  <div className="studio-glass-surface relative w-full aspect-square max-w-full bg-[rgba(24,24,27,0.5)] rounded-[24px] overflow-hidden">
+          <section className="relative min-h-0 min-w-0 flex-1 overflow-y-auto custom-scrollbar hidden-scrollbar md:overflow-hidden">
+            <div className="grid min-h-full grid-cols-1 gap-0 md:h-full md:min-h-0 md:grid-cols-[minmax(320px,0.88fr)_minmax(0,1.12fr)]">
+              <div className="studio-glass-header border-r border-ui-border-subtle bg-[var(--t-surface-2)] md:h-full md:min-h-0 md:overflow-hidden">
+                <div className="custom-scrollbar flex h-full min-h-0 flex-col gap-5 overflow-y-auto p-8 overscroll-contain">
+                  <div className={`${SECTION_SHELL_CLASS} relative flex aspect-square shrink-0 items-center justify-center overflow-hidden rounded-[2rem] p-4 backdrop-blur-xl`}>
                     <img
                       src={asset.image}
                       alt={asset.name}
-                      className="w-full h-full object-cover opacity-80"
+                      className="h-full w-full rounded-2xl object-cover"
                     />
-                    <div className="studio-glass-chip absolute left-[17px] top-[17px] flex items-center gap-1 px-2 py-1 bg-black/60 border border-white/10 backdrop-blur-[6px] rounded-[6px]">
-                      <Shield size={10} className="text-[#2CC295]" />
-                      <span className="text-[9px] leading-[14px] font-bold uppercase text-[#2CC295]">Verified</span>
-                    </div>
-                    <div className="studio-glass-chip absolute right-[17px] top-[13px] px-2 py-[2.5px] bg-black/60 border border-white/10 backdrop-blur-[6px] rounded-[6px]">
-                      <span className="text-[9px] leading-[14px] font-bold uppercase text-zinc-400">
-                        {getCategoryDisplayLabel(asset.category)}
-                      </span>
-                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="flex -space-x-2">
-                      <span className="studio-glass-chip w-8 h-8 rounded-full bg-[#27272A] border-2 border-[#141417] text-[10px] font-bold text-zinc-300 inline-flex items-center justify-center">
-                        A
-                      </span>
-                      <span className="studio-glass-chip w-8 h-8 rounded-full bg-[#3F3F46] border-2 border-[#141417] text-[10px] font-bold text-zinc-300 inline-flex items-center justify-center">
-                        O
-                      </span>
-                      <span className="studio-glass-chip w-8 h-8 rounded-full bg-[#52525B] border-2 border-[#141417] text-[10px] font-bold text-zinc-300 inline-flex items-center justify-center">
-                        H
-                      </span>
-                      <span className="w-8 h-8 rounded-full bg-[#2CC295] border-2 border-[#141417] text-[10px] font-bold text-black inline-flex items-center justify-center">
-                        {assetOrders.length}
-                      </span>
+                  <div className={`${SECTION_SHELL_CLASS} p-5`}>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex -space-x-2">
+                          <span className="studio-glass-chip inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-[var(--t-surface-1)] bg-[var(--t-surface-3)] text-[10px] font-semibold text-ui-secondary">
+                            A
+                          </span>
+                          <span className="studio-glass-chip inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-[var(--t-surface-1)] bg-[var(--t-surface-4)] text-[10px] font-semibold text-ui-secondary">
+                            O
+                          </span>
+                          <span className="studio-glass-chip inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-[var(--t-surface-1)] bg-[var(--t-surface-5)] text-[10px] font-semibold text-ui-secondary">
+                            H
+                          </span>
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-[var(--t-surface-1)] bg-[#2CC295] text-[10px] font-semibold text-black">
+                            {assetOrders.length}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-ui-muted">Asset Runtime</p>
+                          <p className="mt-1 text-sm font-semibold text-ui-primary">Minted {asset.mintedDate}</p>
+                        </div>
+                      </div>
+                      <StudioStatusBadge variant="muted">{assetOrders.length} Orders</StudioStatusBadge>
                     </div>
-                    <span className="text-[10px] leading-[15px] font-medium text-[#71717A]">
-                      Minted {asset.mintedDate}
-                    </span>
-                  </div>
 
-                  <div className="grid grid-cols-4 gap-2">
-                    <StatTile label="Total Minted" value={String(asset.totalAmount)} />
-                    <StatTile label="Available" value={String(asset.availableAmount)} valueClassName="text-[#2CC295]" />
-                    <StatTile label="Sold Units" value={`${soldUnits}`} />
-                    <StatTile label="Min Price" value={asset.minPrice} />
+                    <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+                      <StatTile label="Total Minted" value={String(asset.totalAmount)} />
+                      <StatTile label="Available" value={String(asset.availableAmount)} />
+                      <StatTile label="Sold Units" value={`${soldUnits}`} />
+                      <StatTile label="Min Price" value={asset.minPrice} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="custom-scrollbar flex min-h-0 flex-col gap-5 p-8 overscroll-contain md:h-full md:overflow-y-auto">
+                <div>
+                  <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)] p-1.5">
+                    <TabButton
+                      label="Overview"
+                      icon={<BarChart3 size={12} />}
+                      isActive={activeTab === 'overview'}
+                      onClick={() => setActiveTab('overview')}
+                    />
+                    <TabButton
+                      label="Active"
+                      icon={<Clock3 size={12} />}
+                      isActive={activeTab === 'active'}
+                      onClick={() => setActiveTab('active')}
+                    />
+                    <TabButton
+                      label="History"
+                      icon={<History size={12} />}
+                      isActive={activeTab === 'history'}
+                      onClick={() => setActiveTab('history')}
+                    />
+                    <TabButton
+                      label="Manage"
+                      icon={<Settings2 size={12} />}
+                      isActive={activeTab === 'manage'}
+                      onClick={() => setActiveTab('manage')}
+                    />
                   </div>
                 </div>
 
-                <div className="w-full lg:w-[366px] max-w-[366px] flex flex-col gap-6 pr-1 min-h-0 h-auto lg:h-full overflow-visible lg:overflow-y-auto hidden-scrollbar">
-                  <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-3">
-                    <div className="grid grid-cols-4 gap-2">
-                      <TabButton
-                        label="Overview"
-                        icon={<BarChart3 size={12} />}
-                        isActive={activeTab === 'overview'}
-                        onClick={() => setActiveTab('overview')}
-                      />
-                      <TabButton
-                        label="Active"
-                        icon={<Clock3 size={12} />}
-                        isActive={activeTab === 'active'}
-                        onClick={() => setActiveTab('active')}
-                      />
-                      <TabButton
-                        label="History"
-                        icon={<History size={12} />}
-                        isActive={activeTab === 'history'}
-                        onClick={() => setActiveTab('history')}
-                      />
-                      <TabButton
-                        label="Manage"
-                        icon={<Settings2 size={12} />}
-                        isActive={activeTab === 'manage'}
-                        onClick={() => setActiveTab('manage')}
-                      />
-                    </div>
-                  </div>
-
+                <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto pr-1">
                   {activeTab === 'overview' && (
                     <OverviewTab
                       asset={asset}
@@ -401,15 +421,16 @@ function TabButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`h-10 rounded-full border text-[9px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-1 ${
+      className={`inline-flex min-h-[42px] items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold tracking-[-0.01em] transition-colors ${
         isActive
-          ? 'bg-[#2CC295]/10 border-[#2CC295]/30 text-[#2CC295]'
-          : 'studio-glass-chip bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.06)] text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+          ? 'bg-[var(--t-card-bg)] text-ui-primary shadow-[0_18px_35px_-28px_rgba(0,0,0,0.3)]'
+          : 'text-ui-secondary hover:bg-[var(--t-surface-10)] hover:text-ui-primary'
       }`}
     >
       {icon}
-      <span className="hidden sm:inline">{label}</span>
+      <span>{label}</span>
     </button>
   );
 }
@@ -424,9 +445,9 @@ function StatTile({
   valueClassName?: string;
 }) {
   return (
-    <div className="studio-glass-subsurface bg-[rgba(24,24,27,0.4)] rounded-[16px] p-3">
-      <p className="text-[8px] text-zinc-500 uppercase tracking-widest font-bold mb-1 leading-tight">{label}</p>
-      <p className={`text-sm font-bold text-white leading-tight ${valueClassName ?? ''}`}>{value}</p>
+    <div className={`${INSET_SHELL_CLASS} flex min-h-[88px] flex-col justify-between p-3.5`}>
+      <p className="text-[9px] font-medium uppercase leading-tight tracking-[0.16em] text-ui-muted">{label}</p>
+      <p className={`text-sm font-semibold leading-tight text-ui-primary ${valueClassName ?? ''}`}>{value}</p>
     </div>
   );
 }
@@ -455,9 +476,9 @@ function OverviewTab({
 }) {
   return (
     <div className="space-y-6">
-      <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Asset Information</h3>
+      <div className={`${SECTION_SHELL_CLASS} p-6`}>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-[10px] font-semibold uppercase tracking-[1px] text-ui-muted">Asset Information</h3>
           <Shield size={14} className="text-[#2CC295]" />
         </div>
         <div className="space-y-3">
@@ -469,8 +490,8 @@ function OverviewTab({
         </div>
       </div>
 
-      <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
-        <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A] mb-4">Live Snapshot</h3>
+      <div className={`${SECTION_SHELL_CLASS} p-6`}>
+        <h3 className="mb-4 text-[10px] font-semibold uppercase tracking-[1px] text-ui-muted">Live Snapshot</h3>
         <div className="grid grid-cols-2 gap-4">
           <MiniStat icon={<DollarSign size={14} className="text-[#2CC295]" />} label="Revenue" value={metrics.revenueLabel} />
           <MiniStat icon={<Package size={14} className="text-blue-400" />} label="Finalized" value={`${metrics.finalizedOrders}`} />
@@ -479,30 +500,30 @@ function OverviewTab({
         </div>
       </div>
 
-      <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Recent Order Activity</h3>
+      <div className={`${SECTION_SHELL_CLASS} p-6`}>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-[10px] font-semibold uppercase tracking-[1px] text-ui-muted">Recent Order Activity</h3>
           <StudioStatusBadge variant="muted">{metrics.totalOrders} Orders</StudioStatusBadge>
         </div>
         {isLoading ? (
-          <p className="text-xs text-zinc-500">Loading canonical seller orders…</p>
+          <p className="text-xs text-ui-secondary">Loading canonical seller orders...</p>
         ) : metrics.latestOrders.length === 0 ? (
-          <p className="text-xs text-zinc-500">No seller-side orders linked to this asset yet.</p>
+          <p className="text-xs text-ui-secondary">No seller-side orders linked to this asset yet.</p>
         ) : (
           <div className="space-y-4">
             {metrics.latestOrders.map((order, index) => (
               <div key={order.orderId.toString()} className="space-y-1">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-bold text-white">#{order.orderId.toString()}</p>
+                  <p className="text-xs font-semibold text-ui-primary">#{order.orderId.toString()}</p>
                   <StudioStatusBadge variant={getPhaseBadgeVariant(order)}>
                     {getOrderLifecycleLabel(order)}
                   </StudioStatusBadge>
                 </div>
-                <p className="text-[11px] text-zinc-500">
-                  Buyer {formatAddress(order.buyer)} · {formatOrderQuantity(order.amount, order.unitLabel, order.unitName)}
+                <p className="text-[11px] text-ui-secondary">
+                  Buyer {formatAddress(order.buyer)} - {formatOrderQuantity(order.amount, order.unitLabel, order.unitName)}
                 </p>
-                <p className="text-[11px] text-zinc-500">{formatOrderDate(order)}</p>
-                {index < metrics.latestOrders.length - 1 ? <div className="pt-2 border-b border-white/5" /> : null}
+                <p className="text-[11px] text-ui-muted">{formatOrderDate(order)}</p>
+                {index < metrics.latestOrders.length - 1 ? <div className="border-b border-ui-border-subtle pt-2" /> : null}
               </div>
             ))}
           </div>
@@ -519,8 +540,8 @@ function OverviewTab({
       </div>
 
       {!isLoading && orders.length === 0 ? (
-        <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6">
-          <p className="text-xs text-zinc-500 leading-5">
+        <div className={`${SECTION_SHELL_CLASS} p-6`}>
+          <p className="text-xs leading-5 text-ui-secondary">
             This asset does not have any canonical seller orders yet. It can still appear in warehouse inventory and listing management while waiting for marketplace activity.
           </p>
         </div>
@@ -547,11 +568,11 @@ function ActiveTab({
   return (
     <div className="space-y-4">
       {orders.map((order) => (
-        <div key={order.orderId.toString()} className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-4">
+        <div key={order.orderId.toString()} className={`${SECTION_SHELL_CLASS} p-5 space-y-4`}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-bold text-white">#{order.orderId.toString()}</p>
-              <p className="text-[10px] text-zinc-500 mt-1">Buyer: {formatAddress(order.buyer)}</p>
+              <p className="text-xs font-semibold text-ui-primary">#{order.orderId.toString()}</p>
+              <p className="mt-1 text-[10px] text-ui-secondary">Buyer: {formatAddress(order.buyer)}</p>
             </div>
             <StudioStatusBadge variant={getPhaseBadgeVariant(order)} size="sm">
               {getOrderLifecycleLabel(order)}
@@ -559,23 +580,23 @@ function ActiveTab({
           </div>
           <div className="grid grid-cols-2 gap-3 text-[10px]">
             <div>
-              <p className="text-zinc-500 uppercase tracking-widest font-bold">Quantity</p>
-              <p className="text-white font-bold mt-1">{formatOrderQuantity(order.amount, order.unitLabel, order.unitName)}</p>
+              <p className="font-semibold uppercase tracking-widest text-ui-muted">Quantity</p>
+              <p className="mt-1 font-semibold text-ui-primary">{formatOrderQuantity(order.amount, order.unitLabel, order.unitName)}</p>
             </div>
             <div>
-              <p className="text-zinc-500 uppercase tracking-widest font-bold">Gross Value</p>
-              <p className="text-[#2CC295] font-bold mt-1">
+              <p className="font-semibold uppercase tracking-widest text-ui-muted">Gross Value</p>
+              <p className="card-price-value mt-1 font-semibold">
                 {formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals)}
               </p>
             </div>
           </div>
           <div className="space-y-1.5">
-            <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Lifecycle</p>
-            <p className="text-xs text-zinc-300">
-              {getOrderLifecycleLabel(order)} · submitted {formatOrderDate(order)}
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">Lifecycle</p>
+            <p className="text-xs text-ui-secondary">
+              {getOrderLifecycleLabel(order)} - submitted {formatOrderDate(order)}
             </p>
             {order.shippingMethodLabel ? (
-              <p className="text-[10px] text-zinc-500">Shipping: {order.shippingMethodLabel}</p>
+              <p className="text-[10px] text-ui-muted">Shipping: {order.shippingMethodLabel}</p>
             ) : null}
           </div>
         </div>
@@ -602,25 +623,25 @@ function HistoryTab({
   return (
     <div className="space-y-4">
       {orders.map((order) => (
-        <div key={order.orderId.toString()} className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
+        <div key={order.orderId.toString()} className={`${SECTION_SHELL_CLASS} p-5 space-y-3`}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-bold text-white">#{order.orderId.toString()}</p>
-              <p className="text-[10px] text-zinc-500 mt-1">Buyer: {formatAddress(order.buyer)}</p>
+              <p className="text-xs font-semibold text-ui-primary">#{order.orderId.toString()}</p>
+              <p className="mt-1 text-[10px] text-ui-secondary">Buyer: {formatAddress(order.buyer)}</p>
             </div>
             <StudioStatusBadge variant={getPhaseBadgeVariant(order)} size="sm">
               {getOrderLifecycleLabel(order)}
             </StudioStatusBadge>
           </div>
           <div className="flex items-center justify-between text-[10px]">
-            <span className="text-zinc-500">
-              Amount: <span className="text-white font-bold">{formatOrderQuantity(order.amount, order.unitLabel, order.unitName)}</span>
+            <span className="text-ui-secondary">
+              Amount: <span className="font-semibold text-ui-primary">{formatOrderQuantity(order.amount, order.unitLabel, order.unitName)}</span>
             </span>
-            <span className="text-[#2CC295] font-bold">
+            <span className="card-price-value font-semibold">
               {formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals)}
             </span>
           </div>
-          <p className="text-[10px] text-zinc-600">{formatOrderDate(order)}</p>
+          <p className="text-[10px] text-ui-muted">{formatOrderDate(order)}</p>
         </div>
       ))}
     </div>
@@ -633,10 +654,10 @@ function ManageTab({ asset }: { asset: SellerAsset }) {
 
   return (
     <div className="space-y-6">
-      <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-4">
-        <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-[#71717A]">Listing Settings</h3>
+      <div className={`${SECTION_SHELL_CLASS} space-y-4 p-6`}>
+        <h3 className="text-[10px] font-semibold uppercase tracking-[1px] text-ui-muted">Listing Settings</h3>
         <div>
-          <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Min Price per Unit</label>
+          <label className="mb-3 block text-[9px] font-semibold uppercase tracking-widest text-ui-muted">Min Price per Unit</label>
           <div className="flex gap-3">
             <input
               type="number"
@@ -646,35 +667,37 @@ function ManageTab({ asset }: { asset: SellerAsset }) {
               value={minPrice}
               onChange={(e) => setMinPrice(e.target.value)}
               onKeyDown={preventInvalidNumberKeyDown}
-              className="studio-glass-input flex-1 h-[45px] px-4 bg-zinc-950 border border-[#27272a] rounded-full text-white text-sm focus:outline-none focus:border-[#2CC295]"
+              className="studio-glass-input h-[45px] flex-1 rounded-full border border-ui-border-subtle bg-ui-input px-4 text-sm text-ui-primary focus:border-[#2CC295] focus:outline-none"
               placeholder="2.5"
             />
-            <button className="h-[45px] px-6 rounded-full bg-[#2CC295] text-black text-sm font-bold tracking-tight hover:brightness-110 transition-all">
+            <StudioActionButton type="button" variant="primary" size="lg" className="h-[45px] px-6 text-sm tracking-tight">
               Update
-            </button>
+            </StudioActionButton>
           </div>
         </div>
-        <button
+        <StudioActionButton
+          type="button"
           onClick={() => setIsPaused(!isPaused)}
-          className={`w-full h-[45px] rounded-full border text-sm font-bold transition-all ${
+          variant="secondary"
+          className={`h-[45px] w-full text-sm ${
             isPaused
-              ? 'bg-green-500/20 text-green-300 border-green-500/30'
-              : 'bg-orange-500/20 text-orange-300 border-orange-500/30'
+              ? 'border-green-500/30 bg-green-500/10 text-green-300 hover:bg-green-500/15'
+              : 'border-orange-500/30 bg-orange-500/10 text-orange-300 hover:bg-orange-500/15'
           }`}
         >
           {isPaused ? 'Resume Listing' : 'Pause Listing'}
-        </button>
+        </StudioActionButton>
       </div>
 
-      <div className="studio-glass-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-6 space-y-3">
+      <div className={`${SECTION_SHELL_CLASS} space-y-3 p-6`}>
         <div className="flex items-center gap-2">
           <AlertCircle size={14} className="text-red-400" />
-          <h3 className="text-[10px] font-bold uppercase tracking-[1px] text-red-400">Danger Zone</h3>
+          <h3 className="text-[10px] font-semibold uppercase tracking-[1px] text-red-400">Danger Zone</h3>
         </div>
-        <p className="text-xs text-zinc-500">Permanently remove this listing from marketplace.</p>
-        <button className="w-full h-[45px] rounded-full bg-red-500/20 border border-red-500/30 text-red-300 text-sm font-bold tracking-tight hover:bg-red-500/30 transition-all">
+        <p className="text-xs text-ui-secondary">Permanently remove this listing from marketplace.</p>
+        <StudioActionButton type="button" variant="danger" size="lg" className="h-[45px] w-full text-sm tracking-tight">
           Delist Asset
-        </button>
+        </StudioActionButton>
       </div>
     </div>
   );
@@ -683,8 +706,8 @@ function ManageTab({ asset }: { asset: SellerAsset }) {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-xs text-zinc-500">{label}</span>
-      <span className="text-xs font-bold text-white text-right">{value}</span>
+      <span className="text-xs text-ui-secondary">{label}</span>
+      <span className="text-right text-xs font-semibold text-ui-primary">{value}</span>
     </div>
   );
 }
@@ -699,12 +722,12 @@ function MiniStat({
   value: string;
 }) {
   return (
-    <div className="studio-glass-subsurface bg-[rgba(255,255,255,0.02)] rounded-xl p-4">
-      <div className="flex items-center gap-2 mb-2">
+    <div className={`${INSET_SHELL_CLASS} rounded-[24px] p-4`}>
+      <div className="mb-2 flex items-center gap-2">
         {icon}
-        <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-bold">{label}</p>
+        <p className="text-[9px] font-semibold uppercase tracking-widest text-ui-muted">{label}</p>
       </div>
-      <p className="text-xl font-bold text-white">{value}</p>
+      <p className="text-xl font-semibold text-ui-primary">{value}</p>
     </div>
   );
 }

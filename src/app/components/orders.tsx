@@ -66,12 +66,16 @@ import {
 import { useAccessGuard } from '@/hooks/useAccessGuard';
 import { useProtocolChain } from '@/hooks/useProtocolChain';
 import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
-import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
+import { syncRuntimeReceiptsForWallet } from '@/utils/runtimeReceipts';
 import {
   getWalletErrorMessage,
   isWalletChainMismatchError,
   isWalletRequestPendingError,
 } from '@/utils/walletErrors';
+import { compareOrdersNewestFirst } from '@/utils/orderSorting';
+import { syncOrderProjectionViaBridge } from '@/utils/orderProjectionSync';
+import { isOrderCompleted, resolveOrderSemantics } from '@/utils/orderSemantics';
+import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 
 const TEAL = '#2CC295';
 function NetworkIconEth() {
@@ -244,7 +248,7 @@ interface OrdersProps {
 
 export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigationRequest }: OrdersProps) {
   const { address, walletConnected } = useEffectiveViewer();
-  const { chainId, marketplaceAddress } = useProtocolDataNetwork();
+  const { assetAddress, chainId, marketplaceAddress, receiptNftAddress } = useProtocolDataNetwork();
   const publicClient = usePublicClient({ chainId: chainId ?? undefined });
   const accessGuard = useAccessGuard(onNavigateToPage);
   const protocolChain = useProtocolChain();
@@ -264,7 +268,7 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
   const [selectedNetwork, setSelectedNetwork] = useState('all');
   const [selectedFilter, setSelectedFilter] = useState('all');
   const allOrders = useMemo(() => {
-    return [...canonicalOrders].sort((a, b) => Number(b.proposedAt - a.proposedAt));
+    return [...canonicalOrders].sort(compareOrdersNewestFirst);
   }, [canonicalOrders]);
   const [selectedOrder, setSelectedOrder] = useState<OrderUiRecord | null>(allOrders[0] ?? null);
   const [showDurationPicker, setShowDurationPicker] = useState(false);
@@ -279,6 +283,12 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
     formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
   const formatOrderQuantityLabel = (order: OrderUiRecord) =>
     formatOrderQuantity(order.amount, order.unitLabel, order.unitName);
+  const receiptSyncScope = useMemo(() => ({
+    chainId,
+    marketplaceContract: marketplaceAddress,
+    assetContract: assetAddress,
+    receiptContract: receiptNftAddress,
+  }), [assetAddress, chainId, marketplaceAddress, receiptNftAddress]);
   const selectedOrderShipping = getOrderShippingDetails(
     selectedOrder?.shippingAddressSnapshot,
     selectedOrder?.shippingMethodLabel,
@@ -398,9 +408,47 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
   const syncOrderAfterWrite = async (order: OrderUiRecord) => {
     const reconciledOrder = await rereadOrderFromChain(order);
     upsertRuntimeOrder(reconciledOrder);
+    void syncOrderProjectionViaBridge(reconciledOrder, address, {
+      chainId,
+      marketplaceContract: marketplaceAddress,
+      assetContract: assetAddress,
+    }).catch((error) => {
+      console.warn('[Orders] Failed to sync order projection via bridge', {
+        orderId: reconciledOrder.orderId.toString(),
+        error,
+      });
+    });
     setSelectedOrder(reconciledOrder);
     void refreshOrders();
     return reconciledOrder;
+  };
+
+  const syncReceiptProjectionAfterFinalize = async (
+    order: OrderUiRecord,
+    blockNumber?: bigint,
+  ) => {
+    try {
+      const scopedBlockNumber = blockNumber !== undefined ? Number(blockNumber) : undefined;
+      const result = await syncRuntimeReceiptsForWallet(order.buyer, receiptSyncScope, {
+        fromBlock: scopedBlockNumber,
+        toBlock: scopedBlockNumber,
+        promptOnAuthMissing: false,
+      });
+      if (!result) {
+        return ' Receipt NFT projection will appear after the next authenticated sync.';
+      }
+
+      const matchedReceipt = result.ownedReceipts.some((receiptAsset) => receiptAsset.orderId === order.orderId.toString());
+      return matchedReceipt
+        ? ' Receipt NFT projection refreshed and is ready in Assets.'
+        : ' Receipt sync completed, but the finalized receipt row is not indexed yet.';
+    } catch (error) {
+      console.warn('[Orders] Receipt sync after finalize failed', {
+        orderId: order.orderId.toString(),
+        error,
+      });
+      return ' Receipt sync trigger failed; refresh Assets after the next background sync.';
+    }
   };
 
   const shortTxHash = (hash: `0x${string}`) => `${hash.slice(0, 10)}...${hash.slice(-6)}`;
@@ -606,8 +654,8 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
   // Stats
   const stats = useMemo(() => ({
     total: allOrders.length,
-    active: allOrders.filter((order) => order.state === 1 || order.state === 2).length,
-    completed: allOrders.filter((order) => order.finalized || order.state === 3).length,
+    active: allOrders.filter((order) => !resolveOrderSemantics(order).isClosed).length,
+    completed: allOrders.filter((order) => isOrderCompleted(order)).length,
     volume: allOrders.reduce((sum, order) => sum + getOrderGrossPriceNumber(order.grossPrice, order.paymentTokenDecimals), 0),
   }), [allOrders]);
 
@@ -641,7 +689,7 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search by Order ID..."
-                    className="w-full h-12 rounded-full bg-[var(--t-card-bg)] border-0 pl-11 pr-4 text-sm text-ui-primary placeholder:text-ui-muted outline-none"
+                    className="w-full h-[48px] rounded-full bg-[var(--t-card-bg)] border border-ui-border-subtle pl-11 pr-4 text-sm font-medium tracking-[-0.01em] text-ui-primary placeholder:text-ui-muted outline-none"
                   />
                 </div>
                 <CustomDropdown
@@ -945,12 +993,15 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
     try {
       const currentOrder = await rereadOrderFromChain(order);
       if (!canConfirmDelivery(currentOrder)) {
+        const currentOrderSemantics = resolveOrderSemantics(currentOrder);
         showActionNotice(
           'warning',
-          currentOrder.finalized ? 'Order Already Finalized' : 'Order Not Actionable',
-          currentOrder.finalized
+          currentOrderSemantics.isCompleted ? 'Order Already Finalized' : currentOrderSemantics.isCancelled ? 'Order Cancelled' : 'Order Not Actionable',
+          currentOrderSemantics.isCompleted
             ? 'This order has already been finalized on-chain.'
-            : describeOnChainOrderState(currentOrder),
+            : currentOrderSemantics.isCancelled
+              ? 'This order was cancelled on-chain.'
+              : describeOnChainOrderState(currentOrder),
           currentOrder,
         );
         return;
@@ -970,11 +1021,12 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
         return;
       }
       const reconciledOrder = await syncOrderAfterWrite(currentOrder);
-      if (reconciledOrder.finalized || reconciledOrder.state === 3) {
+      if (isOrderCompleted(reconciledOrder)) {
+        const receiptProjectionMessage = await syncReceiptProjectionAfterFinalize(reconciledOrder, receipt.blockNumber);
         showActionNotice(
           'success',
           'Delivery Finalized On-Chain',
-          `Order finalized successfully on-chain. Tx ${shortTxHash(txHash)} has been reconciled with the runtime projection.`,
+          `Order finalized successfully on-chain. Tx ${shortTxHash(txHash)} has been reconciled with the runtime projection.${receiptProjectionMessage}`,
           reconciledOrder,
         );
         return;
@@ -1215,7 +1267,7 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search by Order ID..."
-                  className="bg-ui-input border border-ui-border rounded-full pl-10 pr-4 py-2 text-sm w-full focus:ring-primary/35 focus:border-primary text-ui-primary"
+                  className="w-full h-[48px] rounded-full bg-ui-input border border-ui-border-subtle pl-11 pr-4 text-sm font-medium tracking-[-0.01em] text-ui-primary placeholder:text-ui-muted outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 />
               </div>
               <CustomDropdown
@@ -1925,10 +1977,13 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
         <ConfirmDeliveryModal
           order={{
             orderId: selectedOrder.orderId,
+            assetId: selectedOrder.assetId,
+            assetUid: selectedOrder.assetUid,
             assetName: selectedOrder.assetName,
             assetImage: selectedOrder.assetImage,
             grossPrice: selectedOrder.grossPrice,
             amount: selectedOrder.amount,
+            unitLabel: selectedOrder.unitLabel,
             unitName: selectedOrder.unitName,
             seller: selectedOrder.seller,
             paymentTokenSymbol: selectedOrder.paymentTokenSymbol,
@@ -1950,6 +2005,7 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
             assetImage: selectedOrder.assetImage,
             grossPrice: selectedOrder.grossPrice,
             amount: selectedOrder.amount,
+            unitLabel: selectedOrder.unitLabel,
             unitName: selectedOrder.unitName,
             seller: selectedOrder.seller,
             paymentTokenSymbol: selectedOrder.paymentTokenSymbol,
