@@ -191,6 +191,31 @@ Review snapshot for the selective carry used to complete the current runtime bas
   Extended the modal order payload with `unitLabel` so dispute quantity rendering stays aligned with the confirm-delivery flow.
 - The remaining ATP2 deltas in `orders.tsx` are mostly copy and typography changes, so they were intentionally not carried as canonical behavior changes.
 
+## Runtime session log - April 15, 2026
+
+This batch was authored directly in:
+
+- `C:\ORINA\ATPProtocol2\Orina Protocol - Runtime`
+
+No ATP2 file was used as the carry source for this UI batch.
+
+### Files updated in this session
+
+- `src/utils/taxonomyAppearance.ts`
+  Added a shared category tone map so marketplace category badges use stable system colors by taxonomy slug.
+- `src/app/components/search-result-card.tsx`
+  Updated marketplace asset cards in both grid and list modes:
+  removed the `RWA Listing` / `NFT Listing` labels, moved and restyled the category badge, removed badge dots, rebuilt the list-mode right column, removed the temporary price panel shell, removed metric chip borders, and pinned the view/like controls to the lower card edge.
+- `src/app/components/profile/enhanced-profile.tsx`
+  Changed viewer overview minted-marketplace cards to render as 4 columns on XL screens while leaving owner-view layout at 3 columns.
+- `src/app/components/cards/my-asset-cards.tsx`
+  Removed border treatment from owner-view overlay badges so seller asset cards stay visually aligned with the updated marketplace badge language.
+
+### Verification run in runtime repo
+
+- `npm run build`
+  Passed after the final card-layout and profile overview updates on April 15, 2026.
+
 ## Minimal comparison checklist
 
 Before carrying any file from `ATP2` into runtime repo, answer all of these:

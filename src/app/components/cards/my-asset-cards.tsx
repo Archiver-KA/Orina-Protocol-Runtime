@@ -103,14 +103,14 @@ function AssetTypeBadge({
 }) {
   const className =
     tone === "rwa"
-      ? "border-[#2CC295]/18 bg-[#2CC295]/10 text-[#2CC295]"
+      ? "bg-[#2CC295]/10 text-[#2CC295]"
       : tone === "receipt"
-        ? "border-violet-400/20 bg-violet-500/14 text-violet-300"
-        : "border-fuchsia-400/20 bg-fuchsia-500/14 text-fuchsia-300";
+        ? "bg-violet-500/14 text-violet-300"
+        : "bg-fuchsia-500/14 text-fuchsia-300";
 
   return (
     <div
-      className={`absolute left-3 top-3 inline-flex items-center rounded-full border px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] backdrop-blur-md ${className}`}
+      className={`absolute left-3 top-3 inline-flex items-center rounded-full px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] backdrop-blur-md ${className}`}
     >
       {label}
     </div>
@@ -126,16 +126,16 @@ function AssetStateBadge({
 }) {
   const className =
     tone === "success"
-      ? "border-[#2CC295]/20 bg-[#2CC295]/14 text-[#7ae6c5]"
+      ? "bg-[#2CC295]/14 text-[#7ae6c5]"
       : tone === "warning"
-        ? "border-orange-400/20 bg-orange-500/14 text-orange-300"
+        ? "bg-orange-500/14 text-orange-300"
         : tone === "danger"
-          ? "border-red-400/20 bg-red-500/14 text-red-300"
-          : "border-white/12 bg-black/35 text-white/80";
+          ? "bg-red-500/14 text-red-300"
+          : "bg-black/35 text-white/80";
 
   return (
     <div
-      className={`absolute right-3 top-3 inline-flex items-center rounded-full border px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] backdrop-blur-md ${className}`}
+      className={`absolute right-3 top-3 inline-flex items-center rounded-full px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] backdrop-blur-md ${className}`}
     >
       {label}
     </div>

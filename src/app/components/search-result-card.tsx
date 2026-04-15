@@ -13,6 +13,7 @@ import { MarketplaceAsset } from '@/app/types/asset';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { getMarketplaceAssetChainInfo } from '@/utils/marketplaceNetwork';
 import { getCategoryDisplayLabel } from '@/utils/taxonomy';
+import { getTaxonomyBadgeTone } from '@/utils/taxonomyAppearance';
 import { navigateToMarketplaceCategory } from '@/utils/appNavigation';
 
 // ============================================================================
@@ -312,6 +313,39 @@ function ChainBadge({ asset, size = 16, variant = 'overlay' }: {
   );
 }
 
+function CategoryBadge({
+  category,
+  label,
+  onClick,
+  className = '',
+  overlay = false,
+}: {
+  category: string;
+  label: string;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+  className?: string;
+  overlay?: boolean;
+}) {
+  const tone = getTaxonomyBadgeTone(category);
+
+  return (
+    <button
+      type="button"
+      title={label}
+      onClick={onClick}
+      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] transition duration-200 hover:-translate-y-px hover:brightness-110 ${overlay ? 'backdrop-blur-md' : ''} ${className}`}
+      style={{
+        background: tone.background,
+        borderColor: tone.borderColor,
+        color: tone.textColor,
+        boxShadow: `0 14px 32px -28px ${tone.shadowColor}`,
+      }}
+    >
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
 // ============================================================================
 // SEARCH RESULT CARD
 // ============================================================================
@@ -330,10 +364,6 @@ export function SearchResultCard({
   const categoryLabel = getCategoryDisplayLabel(asset.category);
   const isFractionalListing =
     typeof asset.availableSlots === 'number' && typeof asset.totalSlots === 'number';
-  const badgeLabel = isFractionalListing ? 'RWA' : 'NFT';
-  const badgeClass = isFractionalListing
-    ? 'border-[#2CC295]/18 bg-[#2CC295]/10 text-[#2CC295]'
-    : 'border-ui-border-subtle bg-[var(--t-card-bg)] text-ui-primary';
   const availabilityValue = isFractionalListing
     ? `${asset.availableSlots} / ${asset.totalSlots}`
     : `Token #${asset.tokenId}`;
@@ -378,11 +408,16 @@ export function SearchResultCard({
     <div className="relative h-[240px] overflow-hidden bg-[var(--t-surface-10)]">
       <ImageWithFallback src={asset.image} alt={asset.name} className="card-hover-media h-full w-full object-cover" />
       <div className="card-hover-overlay absolute inset-0 bg-gradient-to-t from-black/28 via-transparent to-transparent" />
-      <div
-        className={`absolute left-3 top-3 inline-flex items-center rounded-full border px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] backdrop-blur-md ${badgeClass}`}
-      >
-        {badgeLabel}
-      </div>
+      {viewMode === 'grid' ? (
+        <div className="absolute bottom-3 left-3 z-10 max-w-[calc(100%-4.75rem)]">
+          <CategoryBadge
+            category={asset.category}
+            label={categoryLabel}
+            onClick={handleCategoryRoute}
+            overlay
+          />
+        </div>
+      ) : null}
       <div className="absolute bottom-3 right-3 z-10">
         <ChainBadge asset={asset} size={18} variant="overlay" />
       </div>
@@ -394,20 +429,6 @@ export function SearchResultCard({
       <p className={metricLabelClass}>Price</p>
       <p className="card-price-value mt-1 text-[24px] font-semibold leading-none">{asset.price}</p>
       {asset.priceUSD && <p className="mt-1.5 text-[10px] text-ui-muted">{asset.priceUSD}</p>}
-    </div>
-  );
-
-  const availabilityPanel = (
-    <div className="min-w-0">
-      <p className={metricLabelClass}>Ending In</p>
-      <div className="mt-1 flex items-center gap-1.5 lg:justify-end">
-        <Clock size={12} className="text-primary" />
-        <p className="text-[13px] font-semibold leading-[1.4] text-primary">{getListingDuration()}</p>
-      </div>
-      <p className={`${metricLabelClass} mt-2.5`}>{availabilityLabel}</p>
-      <p className={`mt-1 text-[15px] font-semibold ${isFractionalListing ? 'text-primary' : 'text-ui-primary'}`}>
-        {availabilityValue}
-      </p>
     </div>
   );
 
@@ -425,30 +446,97 @@ export function SearchResultCard({
     </div>
   );
 
-  const footer = (
-    <>
-      <div className={footerMetricClass}>
-        <Eye size={14} />
-        <span>{formatNumber(asset.views)}</span>
+  const availabilityPanelList = (
+    <div className="min-w-0">
+      <p className={metricLabelClass}>Ending In</p>
+      <div className="mt-1 flex items-center gap-1.5">
+        <Clock size={12} className="text-primary" />
+        <p className="text-[13px] font-semibold leading-[1.4] text-primary">{getListingDuration()}</p>
       </div>
-      <button
-        type="button"
-        onClick={handleLike}
-        className={`-mx-1 inline-flex items-center gap-1.5 rounded-full px-1 py-0.5 text-[11px] font-medium transition-colors ${
-          isLiked ? 'text-red-500' : 'text-ui-secondary hover:text-ui-primary'
-        }`}
-      >
-        <Heart size={13} className={isLiked ? 'fill-red-500 text-red-500' : ''} />
-        <span>{formatNumber(asset.likes)}</span>
-      </button>
-      {typeof asset.rank === 'number' && asset.rank > 0 && (
-        <div className={footerMetricClass}>
-          <TrendingUp size={14} />
-          <span>Rnk {asset.rank}</span>
-        </div>
-      )}
-    </>
+      <p className={`${metricLabelClass} mt-2.5`}>{availabilityLabel}</p>
+      <p className={`mt-1 text-[15px] font-semibold ${isFractionalListing ? 'text-primary' : 'text-ui-primary'}`}>
+        {availabilityValue}
+      </p>
+    </div>
   );
+
+  const listPricePanel = (
+    <div className="w-full rounded-[22px] border border-transparent bg-transparent px-1 py-1 lg:text-right">
+      <p className={`${metricLabelClass} text-left lg:text-right`}>Price</p>
+      <p className="card-price-value mt-2 text-[26px] font-semibold leading-none tracking-[-0.03em]">
+        {asset.price}
+      </p>
+      {asset.priceUSD ? (
+        <p className="mt-2 text-[10px] text-ui-muted">{asset.priceUSD}</p>
+      ) : null}
+    </div>
+  );
+
+  const viewMetric = (
+    <div className={footerMetricClass}>
+      <Eye size={14} />
+      <span>{formatNumber(asset.views)}</span>
+    </div>
+  );
+
+  const likeMetric = (
+    <button
+      type="button"
+      onClick={handleLike}
+      className={`-mx-1 inline-flex items-center gap-1.5 rounded-full px-1 py-0.5 text-[11px] font-medium transition-colors ${
+        isLiked ? 'text-red-500' : 'text-ui-secondary hover:text-ui-primary'
+      }`}
+    >
+      <Heart size={13} className={isLiked ? 'fill-red-500 text-red-500' : ''} />
+      <span>{formatNumber(asset.likes)}</span>
+    </button>
+  );
+
+  const rankMetric = typeof asset.rank === 'number' && asset.rank > 0 ? (
+    <div className={footerMetricClass}>
+      <TrendingUp size={14} />
+      <span>Rnk {asset.rank}</span>
+    </div>
+  ) : null;
+
+  const primaryStatsGroup = (
+    <div className="flex flex-wrap items-center gap-4">
+      {viewMetric}
+      {likeMetric}
+    </div>
+  );
+
+  const listMetricChipClass =
+    'inline-flex items-center gap-1.5 rounded-full bg-[var(--t-surface-2)] px-3 py-1.5 text-[10px] font-semibold text-ui-secondary transition-colors';
+
+  const listViewMetric = (
+    <div className={listMetricChipClass}>
+      <Eye size={13} />
+      <span>{formatNumber(asset.views)}</span>
+    </div>
+  );
+
+  const listLikeMetric = (
+    <button
+      type="button"
+      onClick={handleLike}
+      className={`${listMetricChipClass} ${
+        isLiked
+          ? 'bg-red-500/10 text-red-400'
+          : 'hover:bg-[#2CC295]/10 hover:text-ui-primary'
+      }`}
+    >
+      <Heart size={13} className={isLiked ? 'fill-red-500 text-red-500' : ''} />
+      <span>{formatNumber(asset.likes)}</span>
+    </button>
+  );
+
+  const listRankMetric = typeof asset.rank === 'number' && asset.rank > 0 ? (
+    <div className={listMetricChipClass}>
+      <TrendingUp size={13} />
+      <span>Rnk {asset.rank}</span>
+    </div>
+  ) : null;
 
   if (viewMode === 'grid') {
     return (
@@ -460,13 +548,6 @@ export function SearchResultCard({
             <h3 className="line-clamp-2 text-[17px] font-semibold leading-[1.18] text-ui-primary">
               {asset.name}
             </h3>
-            <button
-              type="button"
-              onClick={handleCategoryRoute}
-              className="mt-3 inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ui-muted transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#2CC295]"
-            >
-              {categoryLabel}
-            </button>
           </div>
 
           <div className="card-value-row mt-auto">
@@ -474,8 +555,11 @@ export function SearchResultCard({
             {availabilityPanelCompact}
           </div>
 
-          <div className="mt-4 flex items-center gap-4">
-            {footer}
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              {primaryStatsGroup}
+            </div>
+            {rankMetric ? <div className="shrink-0">{rankMetric}</div> : null}
           </div>
         </div>
       </div>
@@ -489,32 +573,35 @@ export function SearchResultCard({
       </div>
 
       <div className="market-card-info-area search-result-info-area flex min-w-0 flex-1 flex-col px-5 pb-5 pt-5 lg:h-full lg:px-6 lg:py-5">
-        <div className="flex min-w-0 flex-1 flex-col gap-4 lg:flex-row lg:justify-between lg:gap-6">
-          <div className="min-w-0 lg:max-w-[32rem]">
-            <button
-              type="button"
-              onClick={handleCategoryRoute}
-              className="inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ui-muted transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#2CC295]"
-            >
-              {categoryLabel}
-            </button>
+        <div className="flex min-w-0 flex-1 flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_236px] lg:grid-rows-[1fr_auto] lg:gap-x-8 lg:gap-y-4">
+          <div className="min-w-0">
             <h3 className="line-clamp-2 text-[18px] font-semibold leading-[1.18] text-ui-primary">
               {asset.name}
             </h3>
-            <p className="mt-3 line-clamp-2 max-w-[32rem] text-[13px] leading-5 text-ui-secondary">
+            <p className="mt-2 line-clamp-2 max-w-[32rem] text-[13px] leading-5 text-ui-secondary">
               {asset.description || 'Verified marketplace listing with on-chain ownership metadata and live market activity.'}
             </p>
           </div>
 
-          <div className="shrink-0 lg:min-w-[164px] lg:text-right">
-            {pricePanel}
+          <div className="shrink-0 lg:row-span-2 lg:min-w-0">
+            <div className="flex h-full flex-col gap-3 lg:items-end">
+              <CategoryBadge
+                category={asset.category}
+                label={categoryLabel}
+                onClick={handleCategoryRoute}
+                className="self-start lg:max-w-full lg:self-end"
+              />
+              {listPricePanel}
+              <div className="mt-auto flex flex-wrap items-center gap-2.5 lg:w-full lg:justify-end">
+                {listViewMetric}
+                {listLikeMetric}
+                {listRankMetric}
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div className="mt-auto flex flex-col gap-3.5 pt-4 lg:flex-row lg:items-start lg:justify-between lg:pt-0">
-          {availabilityPanel}
-          <div className="flex flex-wrap items-center gap-4">
-            {footer}
+          <div className="min-w-0 pt-1 lg:self-end">
+            {availabilityPanelList}
           </div>
         </div>
       </div>
