@@ -63,19 +63,21 @@ export function MainContent() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 sm:gap-6">
             {metrics.map((metric) => (
               <article
                 key={metric.label}
-                className="bg-ui-card rounded-[24px] p-6 min-h-[152px] flex flex-col justify-between gap-5"
+                className="bg-ui-card rounded-[24px] p-5 min-h-[142px] flex flex-col justify-between"
               >
-                <span className="text-[12px] uppercase tracking-[0.12em] font-medium text-ui-muted">
+                <p className="text-[12px] uppercase tracking-wider font-medium text-ui-muted">
                   {metric.label}
-                </span>
-                <div>
-                  <p className="text-[30px] leading-[36px] font-semibold text-ui-primary">{metric.value}</p>
-                  <p className="mt-2 text-[12px] leading-5 text-ui-secondary max-w-[22ch]">{metric.helper}</p>
-                </div>
+                </p>
+                <p className="mt-3 text-[30px] leading-[34px] font-semibold tabular-nums text-ui-primary">
+                  {metric.value}
+                </p>
+                <p className="mt-2 max-w-[24ch] text-[11px] leading-5 text-ui-muted">
+                  {metric.helper}
+                </p>
               </article>
             ))}
           </div>
