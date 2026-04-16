@@ -83,7 +83,11 @@ function clampUnitScore(value: number): number {
 }
 
 function safeJson<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
+  const serialized = JSON.stringify(value);
+  if (typeof serialized === 'undefined') {
+    return value;
+  }
+  return JSON.parse(serialized) as T;
 }
 
 function buildThreadTitle(message: string): string {
@@ -213,7 +217,9 @@ function mergeMemoryValue(memoryKey: string, existingValue: unknown, nextValue: 
 }
 
 function valuesEqual(left: unknown, right: unknown): boolean {
-  return JSON.stringify(safeJson(left)) === JSON.stringify(safeJson(right));
+  const normalizedLeft = safeJson(left);
+  const normalizedRight = safeJson(right);
+  return JSON.stringify(normalizedLeft) === JSON.stringify(normalizedRight);
 }
 
 async function ensureThread(
