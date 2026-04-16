@@ -21,6 +21,12 @@ import * as kv from './kv_store.tsx';
 import { createClient } from "npm:@supabase/supabase-js";
 import { callNvidiaNIM, callNvidiaNIMEmbedding, callNvidiaNIMVision, parseJSONFromLLM, type EmbeddingResult } from "./nvidia-nim-client.ts";
 import { searchProducts, type SourcedProduct } from "./b2b-api-client.ts";
+import {
+  estimateAgentTokenCount,
+  persistRelationalAssistantTurn,
+  persistRelationalUserTurn,
+  type RelationalUserTurnResult,
+} from './agent-memory.ts';
 
 // ─── SYSTEM PROMPT FROM system_prompt.md ────────────────────────────────────
 const ORINA_SYSTEM_PROMPT = `
@@ -1142,9 +1148,11 @@ export class ORINAEngine {
     const { walletAddress, conversationId, agentContext, imageUrls, disputeContext } = request;
     let { message } = request;
     const { activePage, clarificationSelections, originalMessage } = request;
+    const processStartedAtMs = Date.now();
+    const messageLanguage = detectLanguage(request.message);
 
     // Save user message to conversation history
-    await this.saveUserMessage(request);
+    const userTurn = await this.saveUserMessage(request, messageLanguage);
 
     // ── USER CONTEXT ENRICHMENT ──────────────────────────────────────────────
     const userSnapshot = await this.buildUserSnapshot(walletAddress, agentContext, activePage);
@@ -1169,7 +1177,11 @@ export class ORINAEngine {
           clarificationQuestion: clarification.question,
           clarificationOptions: clarification.options,
         };
-        await this.saveAIResponse(request, result);
+        await this.saveAIResponse(request, result, {
+          startedAtMs: processStartedAtMs,
+          userTurn,
+          languageCode: messageLanguage,
+        });
         return result;
       }
     }
@@ -1245,7 +1257,11 @@ export class ORINAEngine {
     }
 
     // Save AI response to conversation history
-    await this.saveAIResponse(request, result);
+    await this.saveAIResponse(request, result, {
+      startedAtMs: processStartedAtMs,
+      userTurn,
+      languageCode: messageLanguage,
+    });
 
     console.log('✅ ORINA v2 complete:', { intent: result.action, textLength: result.text?.length });
     return result;
@@ -2652,8 +2668,19 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
     };
   }
 
-  private static async saveUserMessage(request: AIAssistRequest): Promise<void> {
+  private static async saveUserMessage(
+    request: AIAssistRequest,
+    languageCode?: string,
+  ): Promise<RelationalUserTurnResult> {
     console.log('💾 saveUserMessage called:', { walletAddress: request.walletAddress, conversationId: request.conversationId });
+
+    const resolvedLanguageCode = languageCode || detectLanguage(request.message);
+    const fallbackSummary: RelationalUserTurnResult = {
+      threadId: '',
+      messageId: null,
+      inputTokens: estimateAgentTokenCount(request.message),
+      languageCode: resolvedLanguageCode,
+    };
 
     const userMsg: AIConversationMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -2684,9 +2711,34 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
       console.error('❌ Error details:', details.message, details.stack);
       // Continue execution even if saving fails
     }
+
+    try {
+      return await persistRelationalUserTurn({
+        walletAddress: request.walletAddress,
+        conversationId: request.conversationId,
+        agentContext: request.agentContext,
+        message: request.message,
+        languageCode: resolvedLanguageCode,
+        activePage: request.activePage,
+        originalMessage: request.originalMessage,
+        clarificationSelections: request.clarificationSelections,
+      });
+    } catch (error) {
+      const details = getErrorDetails(error);
+      console.error('[AI dual-write] Failed relational user turn:', details.message, details.stack);
+      return fallbackSummary;
+    }
   }
 
-  private static async saveAIResponse(request: AIAssistRequest, response: AIStructuredResponse): Promise<void> {
+  private static async saveAIResponse(
+    request: AIAssistRequest,
+    response: AIStructuredResponse,
+    runtime?: {
+      startedAtMs?: number;
+      userTurn?: RelationalUserTurnResult | null;
+      languageCode?: string;
+    },
+  ): Promise<void> {
     console.log('💾 saveAIResponse called:', { walletAddress: request.walletAddress, conversationId: request.conversationId, responseLength: response.text?.length });
 
     const aiMsg: AIConversationMessage = {
@@ -2748,6 +2800,25 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
       console.error('❌ Failed to save AI response:', error);
       console.error('❌ Error details:', details.message, details.stack);
       // Continue execution even if saving fails - don't crash the AI response
+    }
+
+    try {
+      await persistRelationalAssistantTurn({
+        walletAddress: request.walletAddress,
+        conversationId: request.conversationId,
+        agentContext: request.agentContext,
+        requestMessage: request.message,
+        response,
+        languageCode: runtime?.languageCode || detectLanguage(request.message),
+        inputTokens: runtime?.userTurn?.inputTokens ?? estimateAgentTokenCount(request.message),
+        userMessageId: runtime?.userTurn?.messageId ?? null,
+        startedAtMs: runtime?.startedAtMs ?? Date.now(),
+        activePage: request.activePage,
+        clarificationSelections: request.clarificationSelections,
+      });
+    } catch (error) {
+      const details = getErrorDetails(error);
+      console.error('[AI dual-write] Failed relational assistant turn:', details.message, details.stack);
     }
   }
 }
