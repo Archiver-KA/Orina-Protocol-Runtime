@@ -23,6 +23,7 @@ import { EmptyStateCard } from '@/app/components/ui/empty-state-card';
 import { StudioPageHeader } from '@/app/components/ui/studio-page-header';
 import { StudioPillGroup, StudioPillButton } from '@/app/components/ui/studio-pill-group';
 import { StudioSidebarShell, StudioSidebarHeader, StudioSidebarScroll } from '@/app/components/ui/studio-sidebar';
+import { InlineAIRightRail } from '@/app/components/ui/inline-ai-right-rail';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { StudioTransientState } from '@/app/components/ui/studio-transient-state';
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
@@ -71,6 +72,8 @@ interface SearchPageProps {
   onNavigateToUserProfile?: (walletAddress: string) => void;
   onNavigateToUserReviews?: (walletAddress: string) => void;
   onNavigateToMessages?: (walletAddress: string) => void;
+  showAISidebar?: boolean;
+  onCloseAISidebar?: () => void;
 }
 
 type AISearchStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -206,6 +209,8 @@ export function SearchPage({
   onNavigateToUserProfile,
   onNavigateToUserReviews,
   onNavigateToMessages,
+  showAISidebar = false,
+  onCloseAISidebar = () => undefined,
 }: SearchPageProps) {
   const [filters, setFilters] = useState<SearchFilters>(() => ({
     ...getDefaultFilters(),
@@ -984,6 +989,13 @@ export function SearchPage({
       </div>
 
       {/* Right Sidebar - Filters */}
+      <InlineAIRightRail
+        activePage="search"
+        showAI={showAISidebar}
+        onCloseAI={onCloseAISidebar}
+        widthClassName="w-[368px]"
+        shellClassName="bg-transparent border-l-0 p-4"
+      >
       <StudioSidebarShell widthClassName="w-[368px]" className="bg-transparent border-l-0 p-4">
         <div className="flex h-full flex-col overflow-hidden rounded-[28px] bg-[var(--t-card-bg)] shadow-[0_24px_60px_-42px_rgba(0,0,0,0.34)]">
         {/* Header - Fixed */}
@@ -1150,6 +1162,7 @@ export function SearchPage({
         </StudioSidebarScroll>
         </div>
       </StudioSidebarShell>
+      </InlineAIRightRail>
 
       {/* Product Modal */}
       {isModalOpen && selectedAsset && (

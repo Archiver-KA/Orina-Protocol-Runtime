@@ -51,6 +51,7 @@ import { CollectionsGridPanel } from '@/app/components/collections/collections-g
 import { ProfileFollowButton } from '@/app/components/profile/profile-follow-button';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
+import { InlineAIRightRail } from '@/app/components/ui/inline-ai-right-rail';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { StudioStatusBadge } from '@/app/components/ui/studio-status-badge';
 import { VerifiedUserIcon } from '@/app/components/verified-user-icon';
@@ -225,6 +226,8 @@ interface EnhancedProfileProps {
   onNavigateToCollection?: (collectionId: string, fromPage?: string) => void;
   onNavigateToMessages?: (walletAddress: string) => void;
   onBack?: () => void;
+  showAISidebar?: boolean;
+  onCloseAISidebar?: () => void;
 }
 
 export function EnhancedProfile({
@@ -234,6 +237,8 @@ export function EnhancedProfile({
   onNavigateToCollection,
   onNavigateToMessages,
   onBack,
+  showAISidebar = false,
+  onCloseAISidebar = () => undefined,
 }: EnhancedProfileProps) {
   const { requireWalletActionAsync } = useRequireWalletAction();
   const { assetAddress, chainId } = useProtocolDataNetwork();
@@ -1768,7 +1773,15 @@ export function EnhancedProfile({
         </div>
 
       {/* Right Sidebar */}
-      {isOwnProfile && (
+      {(isOwnProfile || showAISidebar) && (
+      <InlineAIRightRail
+        activePage="profile"
+        showAI={showAISidebar}
+        onCloseAI={onCloseAISidebar}
+        widthClassName="w-[368px]"
+        shellClassName="bg-ui-page border-l-0 p-4"
+      >
+      {isOwnProfile ? (
       <StudioSidebarShell widthClassName="w-[368px]" className="bg-ui-page border-l-0 p-4">
         {activeTab === 'story' ? (
           <div className="h-full rounded-[28px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto hidden-scrollbar p-6 space-y-6">
@@ -2129,6 +2142,8 @@ export function EnhancedProfile({
         </div>
         )}
       </StudioSidebarShell>
+      ) : null}
+      </InlineAIRightRail>
       )}
       </div>
 

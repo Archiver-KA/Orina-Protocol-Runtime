@@ -1,9 +1,9 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AnimatePresence } from 'motion/react';
 import { Navbar } from '@/app/components/navbar';
 import { LeftSidebar } from '@/app/components/left-sidebar';
 import { PublicHomePage } from '@/app/components/public-home-page';
 import { RuntimeErrorBoundary } from '@/app/components/ui/runtime-error-boundary';
+import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { Toaster } from '@/app/components/ui/sonner';
 import { WalletConnectionStatus } from '@/app/components/wallet-connection-status';
 import { Web3Provider } from '@/providers/Web3Provider';
@@ -103,6 +103,25 @@ const WalletModals = lazy(() =>
   import('@/app/components/wallet/wallet-modals').then((module) => ({ default: module.WalletModals })),
 );
 
+const SHELL_RIGHT_RAIL_PAGES = new Set(['overview', 'minting', 'assets', 'community', 'history']);
+const AI_EMBEDDED_RAIL_PAGES = new Set([
+  ...SHELL_RIGHT_RAIL_PAGES,
+  'marketplace',
+  'market-insights',
+  'favorites',
+  'asset-details',
+  'collection-details',
+]);
+const INLINE_RAIL_AI_PAGES = new Set([
+  'orders',
+  'messages',
+  'settings',
+  'agent-settings',
+  'profile',
+  'search',
+]);
+const LEGACY_GRID_RAIL_PAGES = new Set(['orders']);
+
 function SurfaceFallback({
   label,
   compact = false,
@@ -111,11 +130,21 @@ function SurfaceFallback({
   compact?: boolean;
 }) {
   return (
-    <div className={compact ? 'flex min-h-[120px] items-center justify-center px-4 py-4' : 'flex h-full min-h-[320px] items-center justify-center px-6 py-8'}>
-      <div className="flex items-center gap-3 rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-5 py-4 text-sm text-ui-secondary shadow-[0_18px_60px_-42px_rgba(0,0,0,0.6)]">
-        <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#2CC295]" aria-hidden="true" />
-        <span>{label}</span>
-      </div>
+    <div
+      className={
+        compact
+          ? 'flex min-h-[120px] items-center justify-center px-4 py-4'
+          : 'flex h-full min-h-[320px] items-center justify-center px-6 py-8'
+      }
+    >
+      <StudioLoadingIndicator
+        layout={compact ? 'inline' : 'stacked'}
+        tone="muted"
+        size={compact ? 16 : 22}
+        label={label}
+        className={compact ? 'text-ui-muted' : 'text-ui-muted'}
+        labelClassName={compact ? 'text-xs text-ui-muted' : 'text-sm font-medium text-ui-secondary'}
+      />
     </div>
   );
 }
@@ -361,6 +390,12 @@ function RuntimeAppContent({
     { canAccessPage, isGuest },
   );
   const resolvedProfileAddress = selectedProfileAddress || effectiveConnectedAddress;
+  const hasNativeShellRightRail = !isGuest && SHELL_RIGHT_RAIL_PAGES.has(activePage);
+  const aiUsesEmbeddedRightRail = showAISidebar && AI_EMBEDDED_RAIL_PAGES.has(activePage);
+  const mainGridColumns =
+    hasNativeShellRightRail || aiUsesEmbeddedRightRail || LEGACY_GRID_RAIL_PAGES.has(activePage)
+      ? '1fr 344px'
+      : '1fr';
 
   if (!effectiveConnectedAddress && activePage === 'home') {
     return (
@@ -402,12 +437,10 @@ function RuntimeAppContent({
 
           <main
             className="flex-1 overflow-hidden bg-ui-page text-ui-secondary"
-            style={!isGuest ? {
+            style={{
               display: 'grid',
-              gridTemplateColumns: (['marketplace', 'market-insights', 'messages', 'profile', 'settings', 'agent-settings', 'asset-details', 'collection-details', 'favorites', 'search'].includes(activePage))
-                ? '1fr'
-                : '1fr 344px',
-            } : undefined}
+              gridTemplateColumns: mainGridColumns,
+            }}
           >
             {activePage === 'overview' && (
               <LazySurface fallbackLabel="Loading dashboard overview...">
@@ -420,6 +453,8 @@ function RuntimeAppContent({
                   onNavigateToPage={guardedSetActivePage}
                   navigationRequest={ordersNavigationRequest}
                   onConsumeNavigationRequest={onConsumeOrderNavigationRequest}
+                  showAISidebar={showAISidebar}
+                  onCloseAISidebar={() => setShowAISidebar(false)}
                 />
               </LazySurface>
             )}
@@ -471,7 +506,12 @@ function RuntimeAppContent({
             )}
             {activePage === 'messages' && (
               <LazySurface fallbackLabel="Loading messages...">
-                <Messages onNavigateToUserProfile={guardedNavigateToUserProfile} initialConversationId={selectedConversationId} />
+                <Messages
+                  onNavigateToUserProfile={guardedNavigateToUserProfile}
+                  initialConversationId={selectedConversationId}
+                  showAISidebar={showAISidebar}
+                  onCloseAISidebar={() => setShowAISidebar(false)}
+                />
               </LazySurface>
             )}
             {activePage === 'profile' && (
@@ -485,6 +525,8 @@ function RuntimeAppContent({
                     onNavigateToCollection={handleNavigateToCollection}
                     onNavigateToMessages={guardedNavigateToMessages}
                     onBack={selectedProfileAddress ? handleBackFromProfile : undefined}
+                    showAISidebar={showAISidebar}
+                    onCloseAISidebar={() => setShowAISidebar(false)}
                   />
                 </LazySurface>
               ) : (
@@ -503,12 +545,12 @@ function RuntimeAppContent({
                 <History />
               </LazySurface>
             )}
-            {!isGuest && activePage === 'overview' && (
+            {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'overview' && (
               <LazySurface fallbackLabel="Loading dashboard sidebar..." compact>
                 <RightSidebar />
               </LazySurface>
             )}
-            {!isGuest && activePage === 'minting' && (
+            {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'minting' && (
               <RuntimeErrorBoundary
                 title="Minting Sidebar Failed to Load"
                 description="The minting panel ran into a problem and was temporarily separated from the page."
@@ -519,7 +561,7 @@ function RuntimeAppContent({
                 </LazySurface>
               </RuntimeErrorBoundary>
             )}
-            {!isGuest && activePage === 'assets' && (
+            {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'assets' && (
               <RuntimeErrorBoundary
                 title="Assets Sidebar Failed to Load"
                 description="The asset panel ran into a problem and was temporarily separated from the page."
@@ -530,15 +572,31 @@ function RuntimeAppContent({
                 </LazySurface>
               </RuntimeErrorBoundary>
             )}
-            {!isGuest && activePage === 'community' && (
+            {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'community' && (
               <LazySurface fallbackLabel="Loading community sidebar..." compact>
                 <CommunityRightSidebar />
               </LazySurface>
             )}
-            {!isGuest && activePage === 'history' && (
+            {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'history' && (
               <LazySurface fallbackLabel="Loading history sidebar..." compact>
                 <HistoryRightSidebar />
               </LazySurface>
+            )}
+            {aiUsesEmbeddedRightRail && (
+              <RuntimeErrorBoundary
+                title="AI Sidebar Failed to Load"
+                description="The AI panel ran into a problem. Close and reopen it to try again."
+                compact
+                resetKey={`${activePage}:${showAISidebar ? 'open' : 'closed'}`}
+              >
+                <LazySurface fallbackLabel="Loading AI sidebar..." compact>
+                  <AISidebar
+                    activePage={activePage}
+                    onClose={() => setShowAISidebar(false)}
+                    variant="embedded"
+                  />
+                </LazySurface>
+              </RuntimeErrorBoundary>
             )}
             {activePage === 'settings' && (
               <RuntimeErrorBoundary
@@ -547,7 +605,10 @@ function RuntimeAppContent({
                 resetKey={activePage}
               >
                 <LazySurface fallbackLabel="Loading settings...">
-                  <Settings />
+                  <Settings
+                    showAISidebar={showAISidebar}
+                    onCloseAISidebar={() => setShowAISidebar(false)}
+                  />
                 </LazySurface>
               </RuntimeErrorBoundary>
             )}
@@ -558,7 +619,10 @@ function RuntimeAppContent({
                 resetKey={activePage}
               >
                 <LazySurface fallbackLabel="Loading agent settings...">
-                  <AgentSettings />
+                  <AgentSettings
+                    showAISidebar={showAISidebar}
+                    onCloseAISidebar={() => setShowAISidebar(false)}
+                  />
                 </LazySurface>
               </RuntimeErrorBoundary>
             )}
@@ -607,6 +671,8 @@ function RuntimeAppContent({
                   onNavigateToUserProfile={guardedNavigateToUserProfile}
                   onNavigateToUserReviews={guardedNavigateToUserReviews}
                   onNavigateToMessages={guardedNavigateToMessages}
+                  showAISidebar={showAISidebar}
+                  onCloseAISidebar={() => setShowAISidebar(false)}
                 />
               </LazySurface>
             )}
@@ -640,23 +706,22 @@ function RuntimeAppContent({
 
       <DeferredWalletModals />
 
-      <AnimatePresence>
-        {showAISidebar && (
-          <RuntimeErrorBoundary
-            title="AI Sidebar Failed to Load"
-            description="The AI panel ran into a problem. Close and reopen it to try again."
-            compact
-            resetKey={`${activePage}:${showAISidebar ? 'open' : 'closed'}`}
-          >
-            <LazySurface fallbackLabel="Loading AI sidebar..." compact>
-              <AISidebar
-                activePage={activePage}
-                onClose={() => setShowAISidebar(false)}
-              />
-            </LazySurface>
-          </RuntimeErrorBoundary>
-        )}
-      </AnimatePresence>
+      {showAISidebar && !aiUsesEmbeddedRightRail && !INLINE_RAIL_AI_PAGES.has(activePage) && (
+        <RuntimeErrorBoundary
+          title="AI Sidebar Failed to Load"
+          description="The AI panel ran into a problem. Close and reopen it to try again."
+          compact
+          resetKey={`${activePage}:${showAISidebar ? 'open' : 'closed'}`}
+        >
+          <LazySurface fallbackLabel="Loading AI sidebar..." compact>
+            <AISidebar
+              activePage={activePage}
+              onClose={() => setShowAISidebar(false)}
+              variant="overlay"
+            />
+          </LazySurface>
+        </RuntimeErrorBoundary>
+      )}
     </>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { X, History, MessageSquare, Trash2, Image, Sparkles, ChevronRight, ArrowLeft, Plus, ArrowUp, Clock, Loader2, Maximize2, Minimize2 } from 'lucide-react';
+import { X, History, MessageSquare, Trash2, Image, Sparkles, ChevronRight, ArrowLeft, Plus, ArrowUp, Clock, Maximize2, Minimize2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import {
@@ -14,7 +14,7 @@ import {
 } from '@/app/types/ai-agent';
 import { AIAgentClient } from '@/utils/aiAgentClient';
 import { BorderlessTextarea } from './borderless-textarea';
-import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
+import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
 import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 import {
   dispatchAppNavigation,
@@ -28,9 +28,14 @@ import {
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
+type AISidebarVariant = 'embedded' | 'overlay';
+
 interface AISidebarProps {
   activePage: string;
   onClose: () => void;
+  variant?: AISidebarVariant;
+  embeddedWidthClassName?: string;
+  embeddedShellClassName?: string;
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
@@ -88,6 +93,37 @@ function renderMarkdown(text: string) {
 
 function ChatBubble({ entry, animateResponse = false }: { entry: AIChatEntry; animateResponse?: boolean }) {
   const isUser = entry.role === 'user';
+  const fullText = entry.text ?? '';
+  const shouldTypeOnMountRef = useRef(!isUser && animateResponse);
+  const [visibleLength, setVisibleLength] = useState(() =>
+    shouldTypeOnMountRef.current ? 0 : fullText.length
+  );
+
+  useEffect(() => {
+    if (!shouldTypeOnMountRef.current) {
+      setVisibleLength(fullText.length);
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setVisibleLength((current) => {
+        if (current >= fullText.length) {
+          window.clearInterval(intervalId);
+          return current;
+        }
+
+        const remaining = fullText.length - current;
+        const step = remaining > 160 ? 5 : remaining > 96 ? 4 : remaining > 48 ? 3 : remaining > 18 ? 2 : 1;
+        return Math.min(fullText.length, current + step);
+      });
+    }, 22);
+
+    return () => window.clearInterval(intervalId);
+  }, [fullText]);
+
+  const visibleText = shouldTypeOnMountRef.current ? fullText.slice(0, visibleLength) : fullText;
+  const isTyping = shouldTypeOnMountRef.current && visibleLength < fullText.length;
+
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-2`}>
       <div
@@ -104,8 +140,9 @@ function ChatBubble({ entry, animateResponse = false }: { entry: AIChatEntry; an
             ))}
           </div>
         )}
-        <div className={isUser ? undefined : animateResponse ? 'ai-response-text-reveal' : 'ai-response-text'}>
-          {renderMarkdown(entry.text)}
+        <div className={isUser ? undefined : 'ai-response-text'}>
+          {renderMarkdown(visibleText)}
+          {isTyping && <span className="ai-typing-cursor" aria-hidden="true">|</span>}
         </div>
       </div>
     </div>
@@ -323,16 +360,15 @@ function AISidebarLoadingState() {
   return (
     <div className="mb-3 flex justify-start">
       <div className="w-full max-w-[96%] rounded-[24px] bg-[var(--t-surface-5)] px-4 py-4">
-        <StudioLoadingIndicator
-          layout="stacked"
-          tone="primary"
-          size={24}
-          label="Orina AI is thinking..."
-          subLabel="Preparing the next response"
-          className="items-start justify-start text-left"
-          labelClassName="text-sm font-medium text-ui-primary"
-          subLabelClassName="text-xs text-ui-secondary"
-        />
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-ui-primary">
+            <AIFlowerIcon className="h-6 w-6 animate-spin object-contain" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-ui-primary">Orina AI is thinking...</p>
+            <p className="text-xs text-ui-secondary">Preparing the next response</p>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -391,7 +427,13 @@ function clearStoredConversationId(addr: string | undefined, conversationId: str
   }
 }
 
-export function AISidebar({ activePage, onClose }: AISidebarProps) {
+export function AISidebar({
+  activePage,
+  onClose,
+  variant = 'overlay',
+  embeddedWidthClassName = 'w-full',
+  embeddedShellClassName = 'bg-ui-page border-l-0 p-2.5',
+}: AISidebarProps) {
   const { address } = useEffectiveViewer();
 
   // Auto-detect seller vs buyer context from active page
@@ -670,133 +712,102 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
   const originalMsgForClarification = pendingClarification
     ? [...entries].reverse().find(e => e.role === 'user')?.text ?? ''
     : '';
+  const isEmbedded = variant === 'embedded';
+  const headerContext = contextLabel(agentContext, activePage);
+  const panelTransition = {
+    type: 'tween' as const,
+    duration: isFullscreen ? 0.18 : 0.16,
+    ease: [0.22, 1, 0.36, 1] as const,
+  };
+  const sharedStyles = (
+    <style>{`
+      .ai-sidebar-opaque-shell {
+        background: rgb(18, 18, 18);
+      }
 
-  return (
-    <motion.div
-      initial={{ x: 360, opacity: 0 }}
-      animate={isFullscreen ? { x: 0, y: 0, opacity: 1, scale: 1 } : { x: 0, opacity: 1, scale: 1 }}
-      exit={{ x: 360, opacity: 0 }}
-      transition={{
-        type: 'tween',
-        duration: isFullscreen ? 0.18 : 0.16,
-        ease: [0.22, 1, 0.36, 1],
-      }}
-      className={isFullscreen ? "fixed inset-0 z-[60] p-4 sm:p-6 md:p-8 flex items-center justify-center pointer-events-none" : "fixed right-0 top-0 h-[100dvh] w-[344px] z-[60] p-2.5 pointer-events-none"}
-      style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden' }}
+      [data-theme="light"] .ai-sidebar-opaque-shell {
+        background: #fcfdff;
+      }
+
+      .ai-user-chat-bubble {
+        background: #111111;
+        color: #ffffff;
+      }
+
+      [data-theme="dark"] .ai-user-chat-bubble {
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(248, 250, 252, 0.98);
+      }
+
+      .ai-response-text {
+        display: block;
+      }
+
+      .ai-typing-cursor {
+        display: inline-block;
+        margin-left: 1px;
+        color: var(--color-primary-custom, #2CC295);
+        animation: ai-typing-cursor-blink 1s steps(1, end) infinite;
+      }
+
+      @keyframes ai-typing-cursor-blink {
+        0%, 49% {
+          opacity: 1;
+        }
+
+        50%, 100% {
+          opacity: 0;
+        }
+      }
+    `}</style>
+  );
+
+  const panel = (
+    <div
+      className="ai-sidebar-opaque-shell relative flex h-full w-full flex-col overflow-hidden rounded-[24px]"
+      style={{ contain: 'layout paint' }}
     >
-      <style>{`
-        .ai-sidebar-opaque-shell {
-          background: rgb(18, 18, 18);
-        }
-
-        [data-theme="light"] .ai-sidebar-opaque-shell {
-          background: #fcfdff;
-        }
-
-        .ai-user-chat-bubble {
-          background: #111111;
-          color: #ffffff;
-        }
-
-        [data-theme="dark"] .ai-user-chat-bubble {
-          background: rgba(255, 255, 255, 0.08);
-          color: rgba(248, 250, 252, 0.98);
-        }
-
-        .ai-response-text {
-          display: block;
-        }
-
-        .ai-response-text-reveal {
-          display: block;
-          will-change: clip-path, opacity, transform;
-          animation: ai-response-fade-in 220ms ease-out both, ai-response-type-reveal 540ms cubic-bezier(0.22, 1, 0.36, 1) both;
-        }
-
-        @keyframes ai-response-fade-in {
-          from {
-            opacity: 0;
-            transform: translateY(4px);
-          }
-
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes ai-response-type-reveal {
-          from {
-            clip-path: inset(0 100% 0 0);
-          }
-
-          to {
-            clip-path: inset(0 0 0 0);
-          }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .ai-response-text-reveal {
-            animation: none;
-            clip-path: none;
-            opacity: 1;
-            transform: none;
-          }
-        }
-      `}</style>
-      {isFullscreen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/72 pointer-events-auto"
-          onClick={onClose}
-        />
-      )}
-      <div
-        className={`ai-sidebar-opaque-shell relative h-full ${isFullscreen ? 'w-full max-w-6xl' : 'w-full -translate-y-[1px]'} rounded-[24px] flex flex-col overflow-hidden pointer-events-auto`}
-        style={{ contain: 'layout paint' }}
-      >
-      {/* Header */}
-      <div className="flex items-center gap-2.5 p-5 border-b border-[var(--t-border-subtle)] shrink-0">
-        <div className="flex items-center justify-center shrink-0 text-ui-primary">
-          <AIFlowerIcon className="h-[20px] w-[20px] object-contain" />
+      <div className="flex shrink-0 items-center gap-3 px-4 py-3.5">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-5)] text-ui-primary">
+          <AIFlowerIcon className="h-[18px] w-[18px] object-contain" />
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-ui-primary uppercase tracking-wider">ORINA AI</p>
-          <p className="text-xs text-ui-muted truncate capitalize">{contextLabel(agentContext, activePage)}</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-ui-primary">ORINA AI</p>
+          <p className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-ui-muted">
+            {headerContext}
+          </p>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex shrink-0 items-center gap-1.5">
           {!isFullscreen && (
             <button
               type="button"
               onClick={() => setView(v => v === 'chat' ? 'history' : 'chat')}
-              className="w-8 h-8 rounded-full flex items-center justify-center bg-[var(--t-surface-10)] hover:bg-[var(--t-surface-20)] text-ui-primary transition-colors border border-[var(--t-border-subtle)]"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--t-border-subtle)] bg-[var(--t-surface-10)] text-ui-primary transition-colors hover:bg-[var(--t-surface-20)]"
               title={view === 'chat' ? 'View history' : 'Back to chat'}
             >
-              {view === 'chat' ? <History size={14} /> : <MessageSquare size={14} />}
+              {view === 'chat' ? <History size={13} /> : <MessageSquare size={13} />}
             </button>
           )}
           <button
             type="button"
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="w-8 h-8 rounded-full flex items-center justify-center bg-[var(--t-surface-10)] hover:bg-[var(--t-surface-20)] text-ui-primary transition-colors border border-[var(--t-border-subtle)] hidden sm:flex"
+            className="hidden h-7 w-7 items-center justify-center rounded-full border border-[var(--t-border-subtle)] bg-[var(--t-surface-10)] text-ui-primary transition-colors hover:bg-[var(--t-surface-20)] sm:flex"
             title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
           >
-            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center bg-[var(--t-surface-10)] hover:bg-[var(--t-surface-20)] text-ui-primary transition-colors border border-[var(--t-border-subtle)]"
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--t-border-subtle)] bg-[var(--t-surface-10)] text-ui-primary transition-colors hover:bg-[var(--t-surface-20)]"
+            title="Close AI sidebar"
           >
-            <X size={14} />
+            <X size={13} />
           </button>
         </div>
       </div>
 
-      {/* Body */}
-      <div className="flex-1 flex flex-row overflow-hidden relative">
+      <div className="relative flex flex-1 flex-row overflow-hidden">
         <AnimatePresence mode="wait">
           {(view === 'history' || isFullscreen) && (
             <motion.div
@@ -804,9 +815,9 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
               initial={isFullscreen ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className={`${isFullscreen ? 'w-[320px] shrink-0 border-r border-[var(--t-border-subtle)] bg-transparent' : 'absolute inset-0 z-10 bg-transparent'} flex flex-col overflow-hidden`}
+              className={`${isFullscreen ? 'w-[320px] shrink-0 bg-transparent' : 'absolute inset-0 z-10 bg-transparent'} flex flex-col overflow-hidden`}
             >
-              <div className="p-5 border-b border-[var(--t-border-subtle)] flex items-center justify-between shrink-0">
+              <div className="p-5 flex items-center justify-between shrink-0">
                 <span className="text-[12px] font-semibold text-ui-muted uppercase tracking-wider">History</span>
                 <button
                 type="button"
@@ -1030,7 +1041,66 @@ export function AISidebar({ activePage, onClose }: AISidebarProps) {
           )}
         </AnimatePresence>
       </div>
-      </div>
-    </motion.div>
+    </div>
+  );
+
+  if (isFullscreen) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={panelTransition}
+        className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none sm:p-6 md:p-8"
+        style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden' }}
+      >
+        {sharedStyles}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="absolute inset-0 bg-black/72 pointer-events-auto"
+          onClick={onClose}
+        />
+        <div className="pointer-events-auto h-full w-full max-w-6xl">
+          {panel}
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (!isEmbedded) {
+    return (
+      <motion.div
+        initial={{ x: 360, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: 360, opacity: 0 }}
+        transition={panelTransition}
+        className="fixed right-0 top-0 z-[60] h-[100dvh] w-[344px] p-2.5 pointer-events-none"
+        style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden' }}
+      >
+        {sharedStyles}
+        <div className="pointer-events-auto h-full w-full -translate-y-[1px]">
+          {panel}
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <>
+      {sharedStyles}
+      <StudioSidebarShell widthClassName={embeddedWidthClassName} className={embeddedShellClassName}>
+        <motion.div
+          initial={{ x: 24, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: 24, opacity: 0 }}
+          transition={panelTransition}
+          className="h-full"
+        >
+          {panel}
+        </motion.div>
+      </StudioSidebarShell>
+    </>
   );
 }

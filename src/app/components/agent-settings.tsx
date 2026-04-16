@@ -12,6 +12,7 @@ import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { RuntimeErrorBoundary } from '@/app/components/ui/runtime-error-boundary';
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
+import { InlineAIRightRail } from '@/app/components/ui/inline-ai-right-rail';
 import type {
   AIM2MActivityItem,
   AIM2MWalletRuntimeSnapshot,
@@ -101,7 +102,15 @@ function renderActivityTone(item: AIM2MActivityItem): string {
   return 'bg-[var(--t-surface-10)]';
 }
 
-export function AgentSettings() {
+interface AgentSettingsProps {
+  showAISidebar?: boolean;
+  onCloseAISidebar?: () => void;
+}
+
+export function AgentSettings({
+  showAISidebar = false,
+  onCloseAISidebar = () => undefined,
+}: AgentSettingsProps) {
   const { address } = useEffectiveViewer();
   const [m2mSnapshot, setM2MSnapshot] = useState<AIM2MWalletRuntimeSnapshot | null>(null);
   const [isM2MSectionMounted, setIsM2MSectionMounted] = useState(false);
@@ -232,6 +241,13 @@ export function AgentSettings() {
           </div>
         </div>
 
+        <InlineAIRightRail
+          activePage="agent-settings"
+          showAI={showAISidebar}
+          onCloseAI={onCloseAISidebar}
+          widthClassName="w-[344px]"
+          shellClassName="bg-ui-page border-l-0 p-2.5"
+        >
         <StudioSidebarShell widthClassName="w-[344px]" className="bg-ui-page border-l-0 p-2.5">
           <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
             <div className="p-6 bg-gradient-to-b from-[var(--t-surface-2)] to-transparent">
@@ -430,6 +446,7 @@ export function AgentSettings() {
             </div>
           </div>
         </StudioSidebarShell>
+        </InlineAIRightRail>
       </div>
     </section>
   );

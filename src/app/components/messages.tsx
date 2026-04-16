@@ -18,6 +18,7 @@ import {
   StudioSidebarScroll,
   StudioSidebarFooter,
 } from '@/app/components/ui/studio-sidebar';
+import { InlineAIRightRail } from '@/app/components/ui/inline-ai-right-rail';
 import {
   CHAT_PRESENCE_ACTIVITY_WINDOW_MS_DEFAULT,
   resolveChatPresenceOnline,
@@ -71,11 +72,18 @@ function computePollBackoffMs(streak: number, baseMs: number, maxMs: number): nu
 interface MessagesProps {
   onNavigateToUserProfile?: (walletAddress: string) => void;
   initialConversationId?: string | null;
+  showAISidebar?: boolean;
+  onCloseAISidebar?: () => void;
 }
 
 type CreateConversationResult = 'created' | 'pending';
 
-export function Messages({ onNavigateToUserProfile, initialConversationId }: MessagesProps) {
+export function Messages({
+  onNavigateToUserProfile,
+  initialConversationId,
+  showAISidebar = false,
+  onCloseAISidebar = () => undefined,
+}: MessagesProps) {
   const { address, isAuthPending } = useEffectiveViewer();
   const { promptChatSecurityCheck } = useWalletSecurityPrompt();
   
@@ -977,61 +985,75 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
   if (requiresChatSecurityCheck) {
     return (
       <section className="h-full bg-ui-page overflow-hidden">
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/82 p-6 backdrop-blur-[16px]">
-          <div className="studio-modal-theme studio-glass-modal wallet-security-modal relative flex w-full max-w-[520px] flex-col overflow-hidden rounded-[32px] border border-ui-border-subtle shadow-2xl">
-            <div className="px-8 pb-5 pt-8">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1">
-                <ShieldCheck size={14} className="text-[#78E5BF]" />
-                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#78E5BF]">Protected Area</span>
-              </div>
+        <div className="h-full flex overflow-hidden">
+          <div className="relative flex-1 min-w-0">
+            <div className="absolute inset-0 z-[90] flex items-center justify-center bg-black/82 p-6 backdrop-blur-[16px]">
+              <div className="studio-modal-theme studio-glass-modal wallet-security-modal relative flex w-full max-w-[520px] flex-col overflow-hidden rounded-[32px] border border-ui-border-subtle shadow-2xl">
+                <div className="px-8 pb-5 pt-8">
+                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1">
+                    <ShieldCheck size={14} className="text-[#78E5BF]" />
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#78E5BF]">Protected Area</span>
+                  </div>
 
-              <h2 className="text-2xl font-semibold tracking-tight text-ui-primary">Unlock Secure Messages</h2>
-              <p className="mt-2 text-sm leading-6 text-ui-secondary">
-                Messages and conversations need a one-time wallet security check before Orina can sync your chat session. This is where the first signature should happen, not during wallet login.
-              </p>
-            </div>
-
-            <div className="px-8 pb-6">
-              <div className="studio-glass-surface rounded-[28px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-5">
-                <div className="border-b border-ui-border-subtle pb-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-muted">What You Are Approving</p>
-                  <p className="mt-1 text-sm font-semibold text-ui-primary">Wallet session unlock for Messages & conversations</p>
+                  <h2 className="text-2xl font-semibold tracking-tight text-ui-primary">Unlock Secure Messages</h2>
+                  <p className="mt-2 text-sm leading-6 text-ui-secondary">
+                    Messages and conversations need a one-time wallet security check before Orina can sync your chat session. This is where the first signature should happen, not during wallet login.
+                  </p>
                 </div>
 
-                <div className="flex items-center justify-between gap-3 pt-4">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-muted">Wallet Request</p>
-                    <p className="mt-1 text-sm font-semibold text-ui-primary">One-time message signature</p>
+                <div className="px-8 pb-6">
+                  <div className="studio-glass-surface rounded-[28px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-5">
+                    <div className="border-b border-ui-border-subtle pb-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-muted">What You Are Approving</p>
+                      <p className="mt-1 text-sm font-semibold text-ui-primary">Wallet session unlock for Messages & conversations</p>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 pt-4">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-muted">Wallet Request</p>
+                        <p className="mt-1 text-sm font-semibold text-ui-primary">One-time message signature</p>
+                      </div>
+                      <div className="inline-flex items-center gap-2 rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-3 py-1.5">
+                        <LockKeyhole size={14} className="text-ui-secondary" />
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-secondary">No Gas</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-3 py-1.5">
-                    <LockKeyhole size={14} className="text-ui-secondary" />
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-secondary">No Gas</span>
+
+                  <div className="mt-4 rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-3">
+                    <p className="text-[11px] leading-5 text-ui-secondary">
+                      After you sign once, Orina will load your conversation list automatically. No transaction is sent and no token approval is requested.
+                    </p>
                   </div>
                 </div>
-              </div>
 
-              <div className="mt-4 rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-3">
-                <p className="text-[11px] leading-5 text-ui-secondary">
-                  After you sign once, Orina will load your conversation list automatically. No transaction is sent and no token approval is requested.
-                </p>
+                <div className="border-t border-ui-border-subtle px-8 py-6">
+                  <StudioActionButton
+                    type="button"
+                    onClick={() => promptChatSecurityCheck()}
+                    variant="primary"
+                    size="lg"
+                    className="w-full text-sm font-semibold uppercase tracking-[0.12em]"
+                  >
+                    Unlock Messages
+                  </StudioActionButton>
+                  <p className="mt-4 text-center text-xs text-ui-muted">
+                    Conversations stay hidden until the wallet security check is complete.
+                  </p>
+                </div>
               </div>
-            </div>
-
-            <div className="border-t border-ui-border-subtle px-8 py-6">
-              <StudioActionButton
-                type="button"
-                onClick={() => promptChatSecurityCheck()}
-                variant="primary"
-                size="lg"
-                className="w-full text-sm font-semibold uppercase tracking-[0.12em]"
-              >
-                Unlock Messages
-              </StudioActionButton>
-              <p className="mt-4 text-center text-xs text-ui-muted">
-                Conversations stay hidden until the wallet security check is complete.
-              </p>
             </div>
           </div>
+
+          <InlineAIRightRail
+            activePage="messages"
+            showAI={showAISidebar}
+            onCloseAI={onCloseAISidebar}
+            widthClassName="w-[344px]"
+            shellClassName="bg-ui-page border-l-0 p-2.5"
+          >
+            {null}
+          </InlineAIRightRail>
         </div>
       </section>
     );
@@ -1409,6 +1431,13 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
         </div>
 
         {/* User Info Sidebar */}
+        <InlineAIRightRail
+          activePage="messages"
+          showAI={showAISidebar}
+          onCloseAI={onCloseAISidebar}
+          widthClassName="w-[344px]"
+          shellClassName="bg-ui-page border-l-0 p-2.5"
+        >
         <StudioSidebarShell widthClassName="w-[344px]" className="bg-ui-page border-l-0 p-2.5">
         <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
           {(() => {
@@ -1543,6 +1572,7 @@ export function Messages({ onNavigateToUserProfile, initialConversationId }: Mes
           })()}
         </div>
         </StudioSidebarShell>
+        </InlineAIRightRail>
         </div>
       </section>
 

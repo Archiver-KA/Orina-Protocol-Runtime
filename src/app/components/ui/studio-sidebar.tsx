@@ -19,7 +19,7 @@ export function StudioSidebarShell({
     <aside
       className={cn(
         widthClassName,
-        'bg-ui-sidebar flex flex-col border-l border-[var(--color-panel-border)] overflow-hidden',
+        'bg-ui-sidebar flex flex-col overflow-hidden',
         className
       )}
       {...props}

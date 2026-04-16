@@ -27,6 +27,7 @@ import {
 } from '@/app/components/settings/delivery-address-block';
 import { ImageUpload, type UploadedImage } from '@/app/components/image-upload';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
+import { InlineAIRightRail } from '@/app/components/ui/inline-ai-right-rail';
 import { StudioFieldHint, StudioFieldLabel, StudioInputField, StudioTextareaField } from '@/app/components/ui/studio-form-fields';
 import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
 import { useTheme } from '@/app/contexts/ThemeContext';
@@ -203,7 +204,15 @@ function buildSecurityScoreSnapshot(params: {
   };
 }
 
-export function Settings() {
+interface SettingsProps {
+  showAISidebar?: boolean;
+  onCloseAISidebar?: () => void;
+}
+
+export function Settings({
+  showAISidebar = false,
+  onCloseAISidebar = () => undefined,
+}: SettingsProps) {
   const { address } = useEffectiveViewer();
   const { theme, setTheme: setRuntimeTheme } = useTheme();
   const { openSecurityCheckModal } = useWalletModalContext();
@@ -978,6 +987,13 @@ export function Settings() {
       </div>
 
       {/* Right Sidebar - Account Security */}
+      <InlineAIRightRail
+        activePage="settings"
+        showAI={showAISidebar}
+        onCloseAI={onCloseAISidebar}
+        widthClassName="w-[344px]"
+        shellClassName="bg-ui-page border-l-0 p-2.5"
+      >
       <StudioSidebarShell widthClassName="w-[344px]" className="bg-ui-page border-l-0 p-2.5">
         <div className="surface-primary-shell h-full rounded-[24px] flex flex-col overflow-hidden">
         {/* Header */}
@@ -1157,6 +1173,7 @@ export function Settings() {
         </div>
         </div>
       </StudioSidebarShell>
+      </InlineAIRightRail>
       </div>
     </section>
   );

@@ -20,6 +20,7 @@ import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { StudioStatusBadge } from '@/app/components/ui/studio-status-badge';
 import { StudioProgressBar } from '@/app/components/ui/studio-progress-bar';
 import { StudioTimelineItem } from '@/app/components/ui/studio-list-parts';
+import { InlineAIRightRail } from '@/app/components/ui/inline-ai-right-rail';
 import { ProtocolChainBanner } from '@/app/components/ui/protocol-chain-banner';
 import type { OrderUiRecord } from '@/types/order';
 import type { OrderNavigationRequest } from '@/types/orderNavigation';
@@ -244,9 +245,17 @@ interface OrdersProps {
   onNavigateToPage?: (page: string) => void;
   navigationRequest?: OrderNavigationRequest | null;
   onConsumeNavigationRequest?: (requestKey: string) => void;
+  showAISidebar?: boolean;
+  onCloseAISidebar?: () => void;
 }
 
-export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigationRequest }: OrdersProps) {
+export function Orders({
+  onNavigateToPage,
+  navigationRequest,
+  onConsumeNavigationRequest,
+  showAISidebar = false,
+  onCloseAISidebar = () => undefined,
+}: OrdersProps) {
   const { address, walletConnected } = useEffectiveViewer();
   const { assetAddress, chainId, marketplaceAddress, receiptNftAddress } = useProtocolDataNetwork();
   const publicClient = usePublicClient({ chainId: chainId ?? undefined });
@@ -740,6 +749,11 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
           </div>
         </section>
 
+        <InlineAIRightRail
+          activePage="orders"
+          showAI={showAISidebar}
+          onCloseAI={onCloseAISidebar}
+        >
         <StudioSidebarShell widthClassName="w-full" className="bg-ui-page border-l-0 p-2.5">
           <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
             <StudioSidebarHeader className="p-5 border-b border-[var(--t-border-subtle)]">
@@ -778,6 +792,7 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
             </StudioSidebarFooter>
           </div>
         </StudioSidebarShell>
+        </InlineAIRightRail>
       </>
     );
   }
@@ -1751,6 +1766,11 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
       </section>
 
       {/* Right Sidebar - Order Summary */}
+      <InlineAIRightRail
+        activePage="orders"
+        showAI={showAISidebar}
+        onCloseAI={onCloseAISidebar}
+      >
       <StudioSidebarShell widthClassName="w-full" className="bg-ui-page border-l-0 p-2.5">
         <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
           <StudioSidebarHeader className="p-5 border-b border-[var(--t-border-subtle)]">
@@ -1956,6 +1976,7 @@ export function Orders({ onNavigateToPage, navigationRequest, onConsumeNavigatio
           </StudioSidebarFooter>
         </div>
       </StudioSidebarShell>
+      </InlineAIRightRail>
 
       {/* Action Notification Modal */}
       <OrderActionNoticeModal
