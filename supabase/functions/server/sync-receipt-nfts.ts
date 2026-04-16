@@ -397,7 +397,7 @@ async function readWalletReceiptRows(
   return (data || []) as ProtocolReceiptProjectionRow[];
 }
 
-async function syncReceipts(fromBlock?: number, toBlockOverride?: number): Promise<{
+export async function syncReceipts(fromBlock?: number, toBlockOverride?: number): Promise<{
   synced: number;
   errors: number;
   fromBlock: number;
