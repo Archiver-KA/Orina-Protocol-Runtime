@@ -29,6 +29,7 @@ export const runtimeFlags = {
   enableTestWalletFixtures: readFlag('VITE_ENABLE_TEST_WALLET_FIXTURES', false),
   enableCommunityMockData: readFlag('VITE_ENABLE_COMMUNITY_MOCK_DATA', false),
   enableSearchDemoPanels: readFlag('VITE_ENABLE_SEARCH_DEMO_PANELS', false),
+  enableMarketplacePersonalization: readFlag('VITE_ENABLE_MARKETPLACE_PERSONALIZATION', true),
 } as const;
 
 export const runtimeConfig = {
