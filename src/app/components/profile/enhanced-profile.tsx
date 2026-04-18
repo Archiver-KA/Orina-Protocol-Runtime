@@ -691,7 +691,6 @@ export function EnhancedProfile({
     console.log('onNavigateToAsset function:', onNavigateToAsset);
     if (onNavigateToAsset) {
       onNavigateToAsset(assetId, 'profile');
-      toast.info(`Opening asset ${assetId}`);
     } else {
       toast.error('Navigation function not available');
     }
@@ -702,7 +701,6 @@ export function EnhancedProfile({
     if (!targetAssetId || !onNavigateToAsset) return;
 
     onNavigateToAsset(targetAssetId, 'profile');
-    toast.info(`Opening ${rating.assetName || 'related asset'}`);
   };
 
   const handleOpenReviewsTab = () => {
