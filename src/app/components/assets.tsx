@@ -604,7 +604,7 @@ export function Assets() {
                 <span>RWA Minted</span>
                 <span>{formatEthDisplay(portfolio.typeValueEth.rwa)}</span>
               </div>
-              <div className="h-2 rounded-full bg-ui-input">
+              <div className="h-2 rounded-full bg-ui-card">
                 <div
                   className="h-full rounded-full bg-[#2CC295]"
                   style={{
@@ -618,7 +618,7 @@ export function Assets() {
                 <span>Receipts</span>
                 <span>{formatEthDisplay(portfolio.typeValueEth.receipts)}</span>
               </div>
-              <div className="h-2 rounded-full bg-ui-input">
+              <div className="h-2 rounded-full bg-ui-card">
                 <div
                   className="h-full rounded-full bg-violet-400"
                   style={{
@@ -632,7 +632,7 @@ export function Assets() {
                 <span>NFT Owned</span>
                 <span>{formatEthDisplay(portfolio.typeValueEth.nfts)}</span>
               </div>
-              <div className="h-2 rounded-full bg-ui-input">
+              <div className="h-2 rounded-full bg-ui-card">
                 <div
                   className="h-full rounded-full bg-sky-400"
                   style={{

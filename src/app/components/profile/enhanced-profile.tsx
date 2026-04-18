@@ -109,6 +109,7 @@ import {
   normalizeCategoryFilterValue,
   TAXONOMY_SYNC_EVENT,
 } from '@/utils/taxonomy';
+import { getTaxonomyBadgeTone } from '@/utils/taxonomyAppearance';
 import { navigateToMarketplaceCategory } from '@/utils/appNavigation';
 
 const STORY_CHARACTER_LIMIT = 5000;
@@ -1309,6 +1310,9 @@ export function EnhancedProfile({
                   <div className="space-y-3">
                     {topProducts.map((product: TopProductListItem, index: number) => {
                       const canNavigate = Boolean(product.assetRouteId && onNavigateToAsset);
+                      const normalizedCategory = normalizeCategoryFilterValue(product.category);
+                      const categoryTone = getTaxonomyBadgeTone(normalizedCategory);
+                      const categoryLabel = getCategoryDisplayLabel(normalizedCategory);
                       const content = (
                         <div className="flex items-center gap-4 rounded-2xl bg-[var(--t-surface-5)] px-4 py-4 text-left transition-colors hover:bg-[var(--t-surface-hover)]">
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-sm font-semibold text-ui-primary">
@@ -1329,23 +1333,33 @@ export function EnhancedProfile({
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                navigateToMarketplaceCategory({ category: product.category });
-                              }}
-                              className="truncate rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-ui-muted transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#2CC295]"
-                            >
-                              {getCategoryDisplayLabel(normalizeCategoryFilterValue(product.category))}
-                            </button>
-                            <p className="mt-1 truncate text-base font-semibold text-ui-primary">
-                              {product.assetName}
-                            </p>
-                            <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-ui-secondary">
-                              <span>{product.finalizedOrderCount} orders</span>
-                              <span>{product.unitsSoldLabel}</span>
-                              <span>{product.grossVolumeLabel}</span>
+                            <div className="flex min-w-0 items-start justify-between gap-4">
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-base font-semibold text-ui-primary">
+                                  {product.assetName}
+                                </p>
+                                <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-ui-secondary">
+                                  <span>{product.finalizedOrderCount} orders</span>
+                                  <span>{product.unitsSoldLabel}</span>
+                                  <span>{product.grossVolumeLabel}</span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  navigateToMarketplaceCategory({ category: normalizedCategory });
+                                }}
+                                className="inline-flex shrink-0 self-start rounded-full border px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] transition duration-200 hover:-translate-y-px hover:brightness-110"
+                                style={{
+                                  background: categoryTone.background,
+                                  borderColor: categoryTone.borderColor,
+                                  color: categoryTone.textColor,
+                                  boxShadow: `0 14px 32px -28px ${categoryTone.shadowColor}`,
+                                }}
+                              >
+                                {categoryLabel}
+                              </button>
                             </div>
                           </div>
                         </div>

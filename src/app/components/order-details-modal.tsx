@@ -77,6 +77,10 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
   const sectionShellClass = 'studio-portal-surface rounded-[28px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-5';
   const insetShellClass = 'rounded-none border-0 bg-transparent p-0';
   const dividerClass = 'h-px bg-ui-border-subtle';
+  const sectionLabelClass = 'text-[10px] font-medium uppercase tracking-[0.16em] text-ui-muted';
+  const breakdownRowLabelClass = 'text-[11px] font-medium text-ui-secondary';
+  const breakdownValueClass = 'tabular-nums text-sm font-semibold tracking-[-0.02em] text-ui-primary';
+  const breakdownSubvalueClass = 'tabular-nums text-sm font-medium tracking-[-0.02em] text-ui-secondary';
 
   if (typeof document === 'undefined') return null;
 
@@ -251,32 +255,36 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
                   <div className={sectionShellClass}>
                     <div className="flex items-center gap-2 mb-3">
                       <DollarSign size={14} className="text-[#2CC295]" />
-                      <h3 className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">Price Breakdown</h3>
+                      <h3 className={sectionLabelClass}>Price Breakdown</h3>
                     </div>
-                    <div className={`${insetShellClass} space-y-2.5`}>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-ui-secondary">Gross Price</span>
-                        <span className="text-sm font-mono font-semibold text-ui-primary">{grossPriceLabel}</span>
+                    <div className={`${insetShellClass} space-y-3`}>
+                      <div className="flex items-end justify-between gap-4">
+                        <div>
+                          <p className={sectionLabelClass}>Gross Price</p>
+                          <p className="mt-2 tabular-nums text-[30px] font-semibold leading-none tracking-[-0.03em] text-ui-primary">
+                            {grossPriceLabel}
+                          </p>
+                        </div>
                       </div>
                       <div className={dividerClass} />
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-ui-muted">
+                        <span className={breakdownRowLabelClass}>
                           Platform Fee ({platformFeeBps / 100}%)
                         </span>
-                        <span className="text-xs font-mono text-ui-secondary">{formatPaymentValue(platformFee)}</span>
+                        <span className={breakdownSubvalueClass}>{formatPaymentValue(platformFee)}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-ui-muted">DAO Fee ({daoFeeBps / 100}%)</span>
-                        <span className="text-xs font-mono text-ui-secondary">{formatPaymentValue(daoFee)}</span>
+                        <span className={breakdownRowLabelClass}>DAO Fee ({daoFeeBps / 100}%)</span>
+                        <span className={breakdownSubvalueClass}>{formatPaymentValue(daoFee)}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-ui-muted">Burn Fee ({burnFeeBps / 100}%)</span>
-                        <span className="text-xs font-mono text-ui-secondary">{formatPaymentValue(burnFee)}</span>
+                        <span className={breakdownRowLabelClass}>Burn Fee ({burnFeeBps / 100}%)</span>
+                        <span className={breakdownSubvalueClass}>{formatPaymentValue(burnFee)}</span>
                       </div>
                       <div className={dividerClass} />
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-ui-primary">Seller Receives</span>
-                        <span className="text-sm font-mono font-semibold text-[#2CC295]">{formatPaymentValue(sellerReceives)}</span>
+                        <span className="text-sm font-semibold text-ui-primary">Seller Receives</span>
+                        <span className={`${breakdownValueClass} text-[#2CC295]`}>{formatPaymentValue(sellerReceives)}</span>
                       </div>
                     </div>
                   </div>
