@@ -1,4 +1,4 @@
-import { Sparkles, AlertCircle, Heart, Loader2, Image as ImageIcon, ChevronLeft, ChevronRight, Plus, Trash2, ExternalLink } from 'lucide-react';
+import { Sparkles, AlertCircle, Heart, Eye, Clock, Loader2, Image as ImageIcon, ChevronLeft, ChevronRight, Plus, Trash2, ExternalLink } from 'lucide-react';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { PillSegmentedToggle } from '@/app/components/pill-segmented-toggle';
 import { StandardToggle } from '@/app/components/standard-toggle';
@@ -6,6 +6,7 @@ import { ImageUpload, UploadedImage } from '@/app/components/image-upload';
 import { MultiImageUpload } from '@/app/components/multi-image-upload';
 import { MintingDeliverySection, type MintingDeliveryState } from '@/app/components/minting-delivery-section';
 import { MintingDraftsList } from '@/app/components/minting-drafts-list';
+import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { useEffect, useMemo, useState } from 'react';
 import { usePublicClient } from 'wagmi';
@@ -40,7 +41,9 @@ import {
   normalizeCategoryFilterValue,
   TAXONOMY_SYNC_EVENT,
 } from '@/utils/taxonomy';
+import { getTaxonomyBadgeTone } from '@/utils/taxonomyAppearance';
 import { getUnitDisplayLabel } from '@/utils/onchainNormalization';
+import { getMarketplaceAssetChainInfo } from '@/utils/marketplaceNetwork';
 import { ORINA_RWA_ABI } from '@/config/abis';
 import { decodeEventLog } from 'viem';
 import { useProtocolNetworkRouter } from '@/contexts/ProtocolNetworkContext';
@@ -301,6 +304,18 @@ function formatRuntimeUsd(price: number, currency: string): string {
   return `~ ${price.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${normalizedCurrency || 'USD'}`;
 }
 
+function formatMintingPreviewDuration(expiryDays: string): string {
+  const normalizedValue = String(expiryDays || '').trim();
+  if (!normalizedValue) return 'No expiry';
+
+  const parsedDays = Number(normalizedValue);
+  if (!Number.isFinite(parsedDays) || parsedDays <= 0) return 'No expiry';
+  if (parsedDays >= 1) return `${Math.floor(parsedDays)}d`;
+
+  const hours = Math.max(1, Math.round(parsedDays * 24));
+  return `${hours}h`;
+}
+
 function buildMintDeliverySnapshot(state: MintingDeliveryState | null): AssetDeliverySnapshot | undefined {
   if (!state?.isValid || !state.effectiveDraft) return undefined;
 
@@ -492,7 +507,6 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
   const [uploadedMedia, setUploadedMedia] = useState<UploadedImage | null>(null);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]); // Multi-image for RWA
   const [currentImageIndex, setCurrentImageIndex] = useState(0); // For image carousel
-  const [imageLoadError, setImageLoadError] = useState(false); // Track image load errors
   const [configurableAttributes, setConfigurableAttributes] = useState<RwaConfigurableAttributeGroup[]>([]);
   const [mintingDrafts, setMintingDrafts] = useState<MintingDraftRecord[]>([]);
   const [mintingDeliveryState, setMintingDeliveryState] = useState<MintingDeliveryState | null>(null);
@@ -561,7 +575,6 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
     setUploadedMedia(null);
     setUploadedImages([]);
     setCurrentImageIndex(0);
-    setImageLoadError(false);
     setConfigurableAttributes([]);
     setMintingDeliveryState(null);
     setDeliveryStateSeed(null);
@@ -686,7 +699,6 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
     setUploadedMedia(toUploadedImage(draft.uploadedMedia));
     setUploadedImages(toUploadedImages(draft.uploadedImages));
     setCurrentImageIndex(0);
-    setImageLoadError(false);
     setConfigurableAttributes(cloneMintingAttributeGroups(draft.configurableAttributes));
     setMintingDeliveryState((draft.deliveryState as MintingDeliveryState | null) ?? null);
     setDeliveryStateSeed((draft.deliveryState as MintingDraftDeliveryState | null) ?? null);
@@ -1050,6 +1062,34 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
     Boolean(isConnected && address && chainId && assetAddress && publicClient)
     && normalizedMintAmount !== null
     && !amountError;
+  const previewImageUrl = assetType === 'RWA'
+    ? uploadedImages[currentImageIndex]?.url || uploadedImages[0]?.url || ''
+    : uploadedMedia?.url || '';
+  const previewHasMedia = Boolean(previewImageUrl);
+  const previewMediaCount = assetType === 'RWA' ? uploadedImages.length : (uploadedMedia?.url ? 1 : 0);
+  const previewCategoryTone = useMemo(() => getTaxonomyBadgeTone(selectedMintCategory), [selectedMintCategory]);
+  const previewChainInfo = useMemo(
+    () => getMarketplaceAssetChainInfo({
+      chainId: chainId ?? selectedNetwork.chainId ?? undefined,
+      blockchain: selectedNetworkKey || blockchain,
+      network: chainId === 97 || selectedNetworkKey === 'bnb-testnet' ? 'testnet' : 'mainnet',
+    }),
+    [blockchain, chainId, selectedNetwork.chainId, selectedNetworkKey],
+  );
+  const previewPriceNumber = useMemo(() => parsePositiveNumber(price, 0), [price]);
+  const previewPriceValue = price ? `${price} ${priceCurrency}` : `0.00 ${priceCurrency}`;
+  const previewPriceUsd = previewPriceNumber > 0 ? formatRuntimeUsd(previewPriceNumber, priceCurrency) : null;
+  const previewEndingIn = useMemo(() => formatMintingPreviewDuration(resolvedExpiryDays), [resolvedExpiryDays]);
+  const previewSupplyValue = assetType === 'RWA'
+    ? `${normalizedMintAmount?.toString() || String(Math.max(1, Math.trunc(parsePositiveNumber(totalAmount, 1))))} units`
+    : '1 of 1';
+  const previewChainBadgeLabel =
+    previewChainInfo.blockchain === 'BSC'
+      ? 'BNB'
+      : previewChainInfo.blockchain.slice(0, 3).toUpperCase();
+  const previewTitle = assetName.trim() || 'Genesis Asset';
+  const previewDescription =
+    description.trim() || 'Marketplace card preview updates as you edit mint metadata, pricing, and media.';
 
   useEffect(() => {
     if (!onSidebarTelemetryChange) return;
@@ -1993,113 +2033,168 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
             <div className="xl:col-span-4">
               <div className="sticky top-0 space-y-6">
                 {/* Live Preview */}
-                <div className="bg-ui-card border border-ui-border-subtle rounded-2xl p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xs font-semibold text-ui-muted uppercase tracking-widest">Live Preview</h3>
-                    <span className="px-3 py-1 bg-ui-input backdrop-blur-md text-primary border border-[#2CC295]/30 rounded-full text-[10px] font-semibold uppercase">
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between gap-3 px-1">
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-widest text-ui-muted">Live Preview</h3>
+                      <p className="mt-1 text-xs leading-5 text-ui-muted">
+                        Marketplace card updates from the current mint draft.
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-[#2CC295]/24 bg-[#2CC295]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7CF0CB]">
                       {assetType}
                     </span>
                   </div>
-                  <div className="bg-ui-input rounded-xl overflow-hidden border border-ui-border-subtle">
-                    <div className="aspect-square bg-ui-input flex items-center justify-center relative group">
-                      {assetType === 'RWA' && uploadedImages.length > 0 ? (
-                        <>
-                          <img
-                            alt={`${assetName || 'RWA Asset'} - Image ${currentImageIndex + 1}`}
-                            className="w-full h-full object-cover"
-                            src={uploadedImages[currentImageIndex].url}
-                            onError={() => setImageLoadError(true)}
-                          />
-                          {/* Image Navigation - Only show if more than 1 image */}
-                          {uploadedImages.length > 1 && (
-                            <>
-                              {/* Previous Button */}
-                              <button
-                                onClick={() => setCurrentImageIndex(prev =>
-                                  prev === 0 ? uploadedImages.length - 1 : prev - 1
-                                )}
-                                className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-ui-dropdown hover:bg-ui-input-focus rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <ChevronLeft size={20} className="text-ui-primary" />
-                              </button>
-                              {/* Next Button */}
-                              <button
-                                onClick={() => setCurrentImageIndex(prev =>
-                                  prev === uploadedImages.length - 1 ? 0 : prev + 1
-                                )}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-ui-dropdown hover:bg-ui-input-focus rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <ChevronRight size={20} className="text-ui-primary" />
-                              </button>
-                              {/* Image Counter */}
-                              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-ui-dropdown backdrop-blur-sm rounded-full text-xs text-ui-primary font-mono">
-                                {currentImageIndex + 1} / {uploadedImages.length}
-                              </div>
-                            </>
-                          )}
-                        </>
-                      ) : assetType === 'NFT' && uploadedMedia ? (
-                        <img
-                          alt={assetName || 'Asset Preview'}
-                          className="w-full h-full object-cover"
-                          src={uploadedMedia.url}
-                          onError={() => setImageLoadError(true)}
+                  <div className="market-card-shell search-result-card-shell overflow-hidden rounded-[32px] bg-ui-card text-left">
+                    <div className="relative h-[280px] overflow-hidden bg-[var(--t-surface-10)]">
+                      {previewHasMedia ? (
+                        <ImageWithFallback
+                          src={previewImageUrl}
+                          alt={previewTitle}
+                          className="h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="relative w-full h-full bg-gradient-to-br from-[var(--t-input-bg)] via-[var(--t-surface-2)] to-[var(--t-input-focus-bg)]">
+                        <div className="relative h-full w-full bg-gradient-to-br from-[var(--t-input-bg)] via-[var(--t-surface-2)] to-[var(--t-input-focus-bg)]">
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center p-6">
-                              <ImageIcon className="text-ui-muted mx-auto mb-3" size={56} />
-                              <p className="text-ui-muted text-sm font-medium">Awaiting asset upload</p>
-                              <p className="text-ui-muted text-xs mt-1">
+                            <div className="px-6 text-center">
+                              <ImageIcon className="mx-auto mb-3 text-ui-muted" size={56} />
+                              <p className="text-sm font-medium text-ui-muted">Awaiting asset upload</p>
+                              <p className="mt-1 text-xs text-ui-muted">
                                 {assetType === 'RWA' ? 'Upload 1-5 images' : 'Upload image or video'}
                               </p>
                             </div>
                           </div>
                         </div>
                       )}
+
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/36 via-transparent to-transparent" />
+
+                      <div className="absolute bottom-3 left-3 z-10 max-w-[calc(100%-5rem)]">
+                        <span
+                          className="inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] backdrop-blur-md"
+                          style={{
+                            background: previewCategoryTone.background,
+                            borderColor: previewCategoryTone.borderColor,
+                            color: previewCategoryTone.textColor,
+                            boxShadow: `0 14px 32px -28px ${previewCategoryTone.shadowColor}`,
+                          }}
+                        >
+                          <span className="truncate">{mintCategoryLabel}</span>
+                        </span>
+                      </div>
+
+                      <div className="absolute bottom-3 right-3 z-10">
+                        <div
+                          className="relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/60 text-[10px] font-semibold uppercase backdrop-blur-md"
+                          style={{ color: previewChainInfo.color }}
+                        >
+                          {previewChainBadgeLabel}
+                          <span
+                            className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-black ${
+                              previewChainInfo.status === 'live' ? 'bg-[#2CC295]' : 'bg-zinc-500'
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      {assetType === 'RWA' && previewMediaCount > 1 ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setCurrentImageIndex((prev) => (
+                              prev === 0 ? uploadedImages.length - 1 : prev - 1
+                            ))}
+                            className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/10 bg-black/55 p-2 text-white/85 backdrop-blur-md transition-colors hover:bg-black/70"
+                          >
+                            <ChevronLeft size={18} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCurrentImageIndex((prev) => (
+                              prev === uploadedImages.length - 1 ? 0 : prev + 1
+                            ))}
+                            className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/10 bg-black/55 p-2 text-white/85 backdrop-blur-md transition-colors hover:bg-black/70"
+                          >
+                            <ChevronRight size={18} />
+                          </button>
+                          <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-black/55 px-3 py-1 text-[11px] font-mono text-white/85 backdrop-blur-md">
+                            {currentImageIndex + 1} / {uploadedImages.length}
+                          </div>
+                        </>
+                      ) : null}
                     </div>
-                    <div className="p-5">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h4 className="text-ui-primary font-semibold">{assetName || 'Genesis Asset'}</h4>
-                          <p className="text-[10px] text-ui-muted uppercase">Collection Name</p>
-                        </div>
-                        <Heart className="text-ui-muted" size={18} />
+                    <div className="market-card-info-area search-result-info-area flex flex-col px-5 pb-5 pt-4">
+                      <div className="min-w-0">
+                        <h4 className="line-clamp-2 text-[17px] font-semibold leading-[1.18] text-ui-primary">
+                          {previewTitle}
+                        </h4>
+                        <p className="mt-2 line-clamp-2 text-[13px] leading-5 text-ui-secondary">
+                          {previewDescription}
+                        </p>
                       </div>
-                      <div className="flex justify-between items-end">
-                        <div>
-                          <p className="text-[10px] text-ui-muted uppercase mb-1">Price</p>
-                          <p className="text-ui-primary font-mono font-semibold">{price ? `${price} ${priceCurrency}` : `0.00 ${priceCurrency}`}</p>
+                      <div className="card-value-row mt-5">
+                        <div className="shrink-0">
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ui-muted">Price</p>
+                          <p className="card-price-value mt-1 text-[24px] font-semibold leading-none">
+                            {previewPriceValue}
+                          </p>
+                          {previewPriceUsd ? (
+                            <p className="mt-1.5 text-[10px] text-ui-muted">{previewPriceUsd}</p>
+                          ) : null}
                         </div>
-                        <div className="text-right">
-                          <p className="text-[10px] text-ui-muted uppercase mb-1">Rarity</p>
-                          <span className="text-[10px] px-2 py-0.5 bg-[#2CC295]/10 text-primary rounded-full font-semibold">Common</span>
+
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ui-muted">Ending In</p>
+                          <div className="mt-1 flex items-center gap-1.5">
+                            <Clock size={12} className="text-primary" />
+                            <p className="text-[13px] font-semibold leading-[1.4] text-primary">{previewEndingIn}</p>
+                          </div>
+                          <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-ui-muted">Supply</p>
+                          <p className="mt-1 text-[13px] font-semibold text-ui-primary">{previewSupplyValue}</p>
                         </div>
                       </div>
-                      {assetType === 'RWA' && previewConfigurableAttributes.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-ui-border-subtle space-y-2.5">
-                          <p className="text-[10px] text-ui-muted uppercase tracking-widest font-semibold">Attributes</p>
-                          {previewConfigurableAttributes.map((group) => (
-                            <div key={group.id} className="rounded-xl bg-ui-card px-3 py-2.5">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-xs font-semibold text-ui-primary">{group.label}</p>
-                                <span className="text-[9px] font-semibold uppercase tracking-widest text-ui-muted">
-                                  {group.required ? 'Required' : 'Optional'}
-                                </span>
-                              </div>
-                              {group.helpText && (
-                                <p className="text-[10px] text-ui-muted mt-1">{group.helpText}</p>
-                              )}
-                              <p className="text-[10px] text-ui-secondary mt-1.5">
-                                {group.options.map((option) => option.label).join(' · ')}
-                              </p>
-                            </div>
-                          ))}
+
+                      <div className="mt-4 flex items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-4 text-[10px] font-medium text-ui-secondary">
+                          <div className="inline-flex items-center gap-1.5">
+                            <Eye size={14} />
+                            <span>0</span>
+                          </div>
+                          <div className="inline-flex items-center gap-1.5">
+                            <Heart size={13} />
+                            <span>0</span>
+                          </div>
                         </div>
-                      )}
+                        <span className="rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
+                          {previewChainInfo.label}
+                        </span>
+                      </div>
                     </div>
                   </div>
+
+                  {assetType === 'RWA' && previewConfigurableAttributes.length > 0 ? (
+                    <div className="space-y-2.5 rounded-2xl border border-ui-border-subtle bg-ui-card p-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">
+                        Preview Attributes
+                      </p>
+                      {previewConfigurableAttributes.map((group) => (
+                        <div key={group.id} className="rounded-xl bg-[var(--t-surface-5)] px-3 py-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-semibold text-ui-primary">{group.label}</p>
+                            <span className="text-[9px] font-semibold uppercase tracking-widest text-ui-muted">
+                              {group.required ? 'Required' : 'Optional'}
+                            </span>
+                          </div>
+                          {group.helpText ? (
+                            <p className="mt-1 text-[10px] text-ui-muted">{group.helpText}</p>
+                          ) : null}
+                          <p className="mt-1.5 text-[10px] text-ui-secondary">
+                            {group.options.map((option) => option.label).join(' / ')}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Contract Info */}

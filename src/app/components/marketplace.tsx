@@ -45,7 +45,6 @@ import {
 import {
   fetchMarketplacePersonalizationRows,
   sortMarketplaceAssetsWithPersonalization,
-  summarizeMarketplacePersonalizationRows,
   type MarketplacePersonalizationRow,
 } from '@/utils/marketplacePersonalization';
 import { PROTOCOL_NETWORK_OPTIONS } from '@/utils/protocolNetwork';
@@ -204,7 +203,6 @@ export function Marketplace({
   const [sellerProfiles, setSellerProfiles] = useState(() => loadSellerDirectorySync({ marketplaceAssets: loadMarketplaceCatalogSync() }));
   const [runtimeCollections, setRuntimeCollections] = useState<CollectionSummary[]>(() => loadRuntimeCollections());
   const [personalizationRows, setPersonalizationRows] = useState<MarketplacePersonalizationRow[]>([]);
-  const [personalizationStatus, setPersonalizationStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
   const [taxonomyVersion, setTaxonomyVersion] = useState(0);
   const { address } = useEffectiveViewer();
   const { requireWalletAction } = useRequireWalletAction(onNavigateToPage);
@@ -439,18 +437,15 @@ export function Marketplace({
   useEffect(() => {
     if (contentMode !== 'assets' || !runtimeFlags.enableMarketplacePersonalization) {
       setPersonalizationRows([]);
-      setPersonalizationStatus('idle');
       return;
     }
 
     if (filteredAssets.length === 0) {
       setPersonalizationRows([]);
-      setPersonalizationStatus('idle');
       return;
     }
 
     let cancelled = false;
-    setPersonalizationStatus('loading');
 
     const timer = window.setTimeout(() => {
       void fetchMarketplacePersonalizationRows(filteredAssets, {
@@ -459,7 +454,6 @@ export function Marketplace({
       }).then((rows) => {
         if (cancelled) return;
         setPersonalizationRows(rows);
-        setPersonalizationStatus('ready');
       });
     }, 180);
 
@@ -477,21 +471,6 @@ export function Marketplace({
     ),
     [contentMode, filteredAssets, personalizationRows],
   );
-
-  const personalizationSummary = useMemo(() => {
-    if (contentMode !== 'assets' || !runtimeFlags.enableMarketplacePersonalization || displayedAssets.length === 0) {
-      return null;
-    }
-
-    if (personalizationStatus === 'loading' && personalizationRows.length === 0) {
-      return {
-        label: 'Ranking',
-        description: 'Refreshing marketplace priorities for the current asset set.',
-      };
-    }
-
-    return summarizeMarketplacePersonalizationRows(personalizationRows);
-  }, [contentMode, displayedAssets.length, personalizationRows, personalizationStatus]);
 
   const filteredCollections = useMemo(() => {
     let filtered = [...runtimeCollections];
@@ -768,26 +747,6 @@ export function Marketplace({
                 className="scrollbar-hidden h-full overflow-y-auto px-1 pb-6 pt-2"
                 style={{ scrollbarGutter: 'stable both-edges' }}
               >
-                {contentMode === 'assets' && personalizationSummary ? (
-                  <div className="mb-4 rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-4 py-3 shadow-[0_18px_40px_-36px_rgba(0,0,0,0.35)]">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#2CC295]">
-                          {personalizationSummary.label}
-                        </p>
-                        <p className="mt-1 text-sm leading-6 text-ui-secondary">
-                          {personalizationSummary.description}
-                        </p>
-                      </div>
-                      {'rankingVersion' in personalizationSummary && personalizationSummary.rankingVersion ? (
-                        <span className="rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
-                          {personalizationSummary.rankingVersion}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-
                 {(contentMode === 'assets' && displayedAssets.length === 0) || (contentMode === 'profiles' && filteredProfiles.length === 0) || (contentMode === 'collections' && filteredCollections.length === 0) ? (
                   <EmptyStateCard
                     icon={<Search size={30} className="text-ui-muted" />}
