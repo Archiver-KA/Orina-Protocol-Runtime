@@ -1,4 +1,4 @@
-import { Search, Smile, Copy, Diamond, Coins, Zap, Flag, ArrowRight, Bot, Star, Plus, AlertTriangle, X, ArrowUp, ShieldCheck, LockKeyhole } from 'lucide-react';
+import { Search, Smile, Copy, Diamond, Coins, Zap, Flag, ArrowRight, Bot, Star, Plus, AlertTriangle, ArrowUp, ShieldCheck, LockKeyhole } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { getAvatarByUserId } from '@/app/components/user-avatars';
 import { formatUserDisplayName, shortenUserDisplayName } from '@/utils/profileUtils';
@@ -29,6 +29,7 @@ import { isBridgeAuthRequiredError } from '@/utils/supabaseAuthClaimBridge';
 import { hasWalletAuthSession } from '@/utils/walletAuthSession';
 import { BorderlessTextarea } from '@/app/components/ai/borderless-textarea';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
+import { StudioModalCloseButton } from '@/app/components/ui/studio-modal';
 import { getSupabaseFunctionUrl } from '/utils/supabase/functions';
 
 // ✅ FIX: Local image attachment type (different from UploadedImage which requires IPFS fields)
@@ -988,56 +989,50 @@ export function Messages({
         <div className="h-full flex overflow-hidden">
           <div className="relative flex-1 min-w-0">
             <div className="absolute inset-0 z-[90] flex items-center justify-center bg-black/82 p-6 backdrop-blur-[16px]">
-              <div className="studio-modal-theme studio-glass-modal wallet-security-modal relative flex w-full max-w-[520px] flex-col overflow-hidden rounded-[32px] border border-ui-border-subtle shadow-2xl">
-                <div className="px-8 pb-5 pt-8">
-                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1">
-                    <ShieldCheck size={14} className="text-[#78E5BF]" />
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#78E5BF]">Protected Area</span>
+              <div className="studio-modal-theme studio-glass-modal wallet-security-modal relative flex w-full max-w-[460px] flex-col overflow-hidden rounded-[32px] border border-ui-border-subtle shadow-2xl">
+                <div className="px-6 pb-4 pt-6">
+                  <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#7CF0CB]">
+                    <ShieldCheck size={12} className="text-[#7CF0CB]" />
+                    <span>Protected Area</span>
                   </div>
 
-                  <h2 className="text-2xl font-semibold tracking-tight text-ui-primary">Unlock Secure Messages</h2>
-                  <p className="mt-2 text-sm leading-6 text-ui-secondary">
+                  <h2 className="text-[28px] font-semibold leading-[1.08] tracking-[-0.03em] text-ui-primary">Unlock Secure Messages</h2>
+                  <p className="mt-3 text-sm leading-6 text-ui-secondary">
                     Messages and conversations need a one-time wallet security check before Orina can sync your chat session. This is where the first signature should happen, not during wallet login.
                   </p>
                 </div>
 
-                <div className="px-8 pb-6">
-                  <div className="studio-glass-surface rounded-[28px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-5">
+                <div className="px-6 pb-5">
+                  <div className="studio-glass-surface rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4 shadow-[0_24px_60px_-42px_rgba(0,0,0,0.32)]">
                     <div className="border-b border-ui-border-subtle pb-4">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-muted">What You Are Approving</p>
+                      <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-ui-muted">What You Are Approving</p>
                       <p className="mt-1 text-sm font-semibold text-ui-primary">Wallet session unlock for Messages & conversations</p>
                     </div>
 
                     <div className="flex items-center justify-between gap-3 pt-4">
                       <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-muted">Wallet Request</p>
+                        <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-ui-muted">Wallet Request</p>
                         <p className="mt-1 text-sm font-semibold text-ui-primary">One-time message signature</p>
                       </div>
-                      <div className="inline-flex items-center gap-2 rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-3 py-1.5">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ui-secondary">
                         <LockKeyhole size={14} className="text-ui-secondary" />
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ui-secondary">No Gas</span>
+                        <span>No Gas</span>
                       </div>
                     </div>
                   </div>
-
-                  <div className="mt-4 rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-3">
-                    <p className="text-[11px] leading-5 text-ui-secondary">
-                      After you sign once, Orina will load your conversation list automatically. No transaction is sent and no token approval is requested.
-                    </p>
-                  </div>
                 </div>
 
-                <div className="border-t border-ui-border-subtle px-8 py-6">
+                <div className="border-t border-ui-border-subtle px-6 py-5">
                   <StudioActionButton
                     type="button"
                     onClick={() => promptChatSecurityCheck()}
                     variant="primary"
                     size="lg"
-                    className="w-full text-sm font-semibold uppercase tracking-[0.12em]"
+                    className="w-full justify-center py-4 text-sm font-semibold"
                   >
                     Unlock Messages
                   </StudioActionButton>
-                  <p className="mt-4 text-center text-xs text-ui-muted">
+                  <p className="mt-3 text-center text-[11px] text-ui-muted">
                     Conversations stay hidden until the wallet security check is complete.
                   </p>
                 </div>
@@ -1585,128 +1580,110 @@ export function Messages({
 
       {/* Report User Modal */}
       {reportModalOpen && reportTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setReportModalOpen(false)} />
-          <div className="relative w-full max-w-md bg-[#0f0f11] rounded-xl border border-[#27272a] shadow-2xl overflow-hidden">
-            <style>{`
-              .report-animate-in {
-                animation: reportFadeIn 0.3s ease-out, reportZoomIn 0.3s ease-out;
-              }
-              @keyframes reportFadeIn { from { opacity: 0; } to { opacity: 1; } }
-              @keyframes reportZoomIn { from { transform: scale(0.95); } to { transform: scale(1); } }
-            `}</style>
-            
-            <div className="report-animate-in">
-              {/* Header */}
-              <div className="p-6 border-b border-[#27272a]">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-                      <AlertTriangle size={20} className="text-red-400" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-white tracking-tight">Report User</h2>
-                      <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5">
-                        {reportTarget.name}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setReportModalOpen(false)}
-                    className="w-10 h-10 flex items-center justify-center rounded-lg border border-[#27272a] bg-zinc-900/50 hover:bg-zinc-800 transition-colors"
-                  >
-                    <X className="text-zinc-400" size={18} />
-                  </button>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/85 backdrop-blur-[14px]" onClick={() => setReportModalOpen(false)} />
+          <div className="studio-modal-theme studio-glass-modal relative flex w-full max-w-[460px] flex-col overflow-hidden rounded-[32px] border border-ui-border-subtle shadow-2xl">
+            <StudioModalCloseButton
+              onClick={() => setReportModalOpen(false)}
+              iconSize={16}
+              className="studio-glass-secondary absolute right-3 top-3 z-10 rounded-full"
+            />
+
+            <div className="px-6 pb-4 pt-6">
+              <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-red-300">
+                <AlertTriangle size={12} className="text-red-300" />
+                <span>Moderation Report</span>
+              </div>
+              <h2 className="text-[28px] font-semibold leading-[1.08] tracking-[-0.03em] text-ui-primary">Report User</h2>
+              <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.16em] text-ui-muted">{reportTarget.name}</p>
+            </div>
+
+            <div className="px-6 pb-5">
+              <div className="rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-4 shadow-[0_24px_60px_-42px_rgba(0,0,0,0.32)]">
+                <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.16em] text-ui-muted">Reason For Report</p>
+                <div className="space-y-2">
+                  {[
+                    'Spam or scam',
+                    'Harassment or abuse',
+                    'Impersonation',
+                    'Suspicious activity',
+                    'Other'
+                  ].map((reason) => (
+                    <button
+                      key={reason}
+                      onClick={() => setReportReason(reason)}
+                      className={`w-full rounded-[18px] border px-4 py-3 text-left text-sm font-semibold transition-colors ${
+                        reportReason === reason
+                          ? 'border-red-500/30 bg-red-500/10 text-red-300'
+                          : 'border-ui-border-subtle bg-[var(--t-surface-2)] text-ui-primary hover:border-red-500/20 hover:text-red-200'
+                      }`}
+                    >
+                      {reason}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Body */}
-              <div className="p-6 space-y-5">
-                <div>
-                  <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest block mb-3">
-                    Reason for Report
-                  </label>
-                  <div className="space-y-2">
-                    {[
-                      'Spam or scam',
-                      'Harassment or abuse',
-                      'Impersonation',
-                      'Suspicious activity',
-                      'Other'
-                    ].map((reason) => (
-                      <button
-                        key={reason}
-                        onClick={() => setReportReason(reason)}
-                        className={`w-full text-left p-3 rounded-xl border text-sm font-medium transition-all ${
-                          reportReason === reason
-                            ? 'bg-red-500/10 border-red-500/30 text-red-400'
-                            : 'bg-zinc-900/40 border-[#27272a] text-zinc-300 hover:border-zinc-600'
-                        }`}
-                      >
-                        {reason}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Info */}
-                <div className="bg-[rgba(255,255,255,0.02)] border-0 rounded-xl p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                      <span className="text-blue-400 text-sm">i</span>
-                    </div>
-                    <p className="text-[10px] text-zinc-400 leading-relaxed">
-                      Reports are submitted securely to the server for moderation review. Blockchain addresses associated with reports are flagged for community safety.
-                    </p>
-                  </div>
-                </div>
+              <div className="mt-4 rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-4 py-3">
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-ui-muted">Moderation Note</p>
+                <p className="mt-2 text-[11px] leading-6 text-ui-secondary">
+                  Reports are submitted securely for moderation review. Blockchain addresses associated with reports are flagged for community safety.
+                </p>
               </div>
+            </div>
 
-              {/* Actions */}
-              <div className="p-6 pt-0 flex gap-3">
-                <button
-                  onClick={() => setReportModalOpen(false)}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-3 rounded-xl transition-all text-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!reportReason) {
-                      toast.error('Please select a reason');
-                      return;
+            <div className="grid grid-cols-2 gap-3 border-t border-ui-border-subtle px-6 py-5">
+              <StudioActionButton
+                type="button"
+                onClick={() => setReportModalOpen(false)}
+                variant="secondary"
+                size="lg"
+                className="justify-center py-4 text-sm font-semibold"
+              >
+                Cancel
+              </StudioActionButton>
+              <StudioActionButton
+                type="button"
+                onClick={async () => {
+                  if (!reportReason) {
+                    toast.error('Please select a reason');
+                    return;
+                  }
+                  try {
+                    const reportUrl = getSupabaseFunctionUrl('messages/report', 'orina-chat-v1');
+                    if (!reportUrl) {
+                      throw new Error('Supabase Functions endpoint is not configured');
                     }
-                    // Submit report to server-side moderation table
-                    try {
-                      const reportUrl = getSupabaseFunctionUrl('messages/report', 'orina-chat-v1');
-                      if (!reportUrl) {
-                        throw new Error('Supabase Functions endpoint is not configured');
-                      }
 
-                      await fetch(reportUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          targetWallet: reportTarget.address,
-                          targetName: reportTarget.name,
-                          reason: reportReason,
-                        }),
-                      });
-                      toast.success('Report submitted successfully');
-                    } catch (err) {
-                      console.error('[Messages] Report submit error:', err);
-                      toast.error('Failed to submit report');
-                    }
-                    setReportModalOpen(false);
-                    setReportTarget(null);
-                    setReportReason('');
-                  }}
-                  disabled={!reportReason}
-                  className="flex-1 bg-red-500/80 hover:bg-red-500 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  Submit Report
-                </button>
-              </div>
+                    await fetch(reportUrl, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        targetWallet: reportTarget.address,
+                        targetName: reportTarget.name,
+                        reason: reportReason,
+                      }),
+                    });
+                    toast.success('Report submitted successfully');
+                  } catch (err) {
+                    console.error('[Messages] Report submit error:', err);
+                    toast.error('Failed to submit report');
+                  }
+                  setReportModalOpen(false);
+                  setReportTarget(null);
+                  setReportReason('');
+                }}
+                disabled={!reportReason}
+                variant="primary"
+                size="lg"
+                className="justify-center py-4 text-sm font-semibold disabled:opacity-45"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.92), rgba(153, 27, 27, 0.92))',
+                  boxShadow: '0 16px 40px -24px rgba(239, 68, 68, 0.7)',
+                }}
+              >
+                Submit Report
+              </StudioActionButton>
             </div>
           </div>
         </div>

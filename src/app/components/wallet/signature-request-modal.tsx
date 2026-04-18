@@ -12,8 +12,8 @@ interface SignatureRequestModalProps {
 export function SignatureRequestModal({ data, isSigning = false, onSign, onCancel }: SignatureRequestModalProps) {
   const { origin, action, message } = data;
   const isAuthSession = action === 'Authenticate Session';
-  const panelSurfaceClass = 'rounded-[28px] border border-ui-border-subtle bg-[var(--t-surface-5)]';
-  const insetSurfaceClass = 'rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)]';
+  const panelSurfaceClass = 'rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-5)]';
+  const insetSurfaceClass = 'rounded-[20px] border border-ui-border-subtle bg-[var(--t-surface-2)]';
 
   // Format message for display
   const messageJson = isAuthSession
@@ -58,44 +58,27 @@ export function SignatureRequestModal({ data, isSigning = false, onSign, onCance
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4 backdrop-blur-[14px]"
     >
       <div className="studio-modal-theme studio-glass-modal relative flex w-full max-w-[460px] flex-col overflow-hidden rounded-[32px] border border-ui-border-subtle shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)]">
-        <div className="absolute right-5 top-5 z-10">
-          <StudioModalCloseButton onClick={onCancel} disabled={isSigning} className="rounded-full disabled:cursor-not-allowed disabled:opacity-50" />
+        <div className="absolute right-3 top-3 z-10">
+          <StudioModalCloseButton
+            onClick={onCancel}
+            disabled={isSigning}
+            className="rounded-full disabled:cursor-not-allowed disabled:opacity-50"
+          />
         </div>
 
-        {/* Header with Avatar */}
-        <div className="px-8 pb-6 pt-8 text-center">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1">
+        {/* Header */}
+        <div className="px-6 pb-5 pt-6 text-center">
+          <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1.5">
             <span
-              className="material-symbols-outlined text-[14px] text-[#2CC295]"
+              className="material-symbols-outlined text-[12px] text-[#7CF0CB]"
               style={{ fontVariationSettings: '"FILL" 1' }}
             >
               shield
             </span>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#2CC295]">
-              Wallet Signature
-            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#7CF0CB]">Wallet Signature</span>
           </div>
-          <div className="relative mb-5">
-            <div className="h-24 w-24 rounded-full border border-[#2CC295]/20 bg-[linear-gradient(180deg,rgba(44,194,149,0.18),rgba(44,194,149,0.02))] p-1">
-              <div className="h-full w-full overflow-hidden rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)]">
-                <img
-                  alt="User Avatar"
-                  className="h-full w-full object-cover"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuBV9LOw8mk_TRIqixi4KjeUkaV2fnnryXRsltc2ukfEYdSAq_611pibGjXTRn9UjB6CpAODr4k8ggAFl75uyt_aPiE4EFaP85X1UDQrmwvg1db3D5t3RzL4hLx2_p8h6jFSiYDvTBRp2b22xUOzH-N3oxuoNXN2kcX-yMOKNqd_50XmvYQ1sxBFYcrSllCqomCWbwDBt0J_Pcy8XabqldGZs0xDZUUhlYiWA-jrRWb6aQosFCILH8I1Q-2LeQncxx8X83IORmdjPKyQ"
-                />
-              </div>
-            </div>
-            <div className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full border-4 border-[var(--t-surface-1)] bg-[#2CC295] shadow-lg">
-              <span
-                className="material-symbols-outlined text-black text-[20px] font-semibold"
-                style={{ fontVariationSettings: '"FILL" 1' }}
-              >
-                shield
-              </span>
-            </div>
-          </div>
-          <h2 className="mb-1.5 text-2xl font-semibold tracking-tight text-ui-primary">Signature Required</h2>
-          <p className="mx-auto max-w-[320px] text-sm font-medium text-ui-secondary">
+          <h2 className="mb-1.5 text-[28px] font-semibold leading-[1.08] tracking-[-0.03em] text-ui-primary">Signature Required</h2>
+          <p className="mx-auto max-w-[320px] text-sm leading-6 text-ui-secondary">
             {isAuthSession
               ? 'Sign once to authenticate your wallet session. This does not send a transaction and does not use gas.'
               : 'Review the request details below before signing with your wallet.'}
@@ -103,10 +86,10 @@ export function SignatureRequestModal({ data, isSigning = false, onSign, onCance
         </div>
 
         {/* Transaction Details */}
-        <div className="space-y-5 px-8">
-          <div className={`${panelSurfaceClass} space-y-4 p-5`}>
+        <div className="space-y-4 px-6 pb-5">
+          <div className={`${panelSurfaceClass} space-y-4 p-4`}>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-ui-muted">Origin</span>
+              <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-ui-muted">Origin</span>
               <span className="flex items-center gap-2 text-sm font-semibold text-ui-primary">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)]">
                   <span className="material-symbols-outlined text-[14px] text-ui-muted">language</span>
@@ -115,7 +98,7 @@ export function SignatureRequestModal({ data, isSigning = false, onSign, onCance
               </span>
             </div>
             <div className="flex items-center justify-between border-t border-ui-border-subtle pt-4">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-ui-muted">Action</span>
+              <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-ui-muted">Action</span>
               <span className="text-sm font-semibold text-[#2CC295]">{action}</span>
             </div>
           </div>
@@ -123,28 +106,28 @@ export function SignatureRequestModal({ data, isSigning = false, onSign, onCance
           {/* Message Section */}
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-ui-muted">Message</span>
-              <div className="flex items-center gap-1.5 rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)] px-2 py-1">
-                <span className="text-[9px] font-mono font-semibold uppercase tracking-wider text-ui-secondary">
+              <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-ui-muted">Message</span>
+              <div className="flex items-center gap-1.5 rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)] px-2.5 py-1">
+                <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ui-secondary">
                   {isAuthSession ? 'MESSAGE SIGN' : 'EIP-712'}
                 </span>
               </div>
             </div>
-            <div className={`${insetSurfaceClass} h-44 overflow-y-auto p-5 font-mono text-[11px] leading-relaxed text-ui-secondary custom-scrollbar`}>
+            <div className={`${insetSurfaceClass} h-40 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed text-ui-secondary custom-scrollbar`}>
               <pre className="whitespace-pre-wrap">{messageJson}</pre>
             </div>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-3 border-t border-ui-border-subtle p-8 pt-6">
+        <div className="grid grid-cols-2 gap-3 border-t border-ui-border-subtle px-6 py-5">
           <StudioActionButton
             type="button"
             onClick={onCancel}
             disabled={isSigning}
             variant="secondary"
             size="lg"
-            className="disabled:cursor-not-allowed disabled:opacity-50"
+            className="justify-center py-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
           >
             Cancel
           </StudioActionButton>
@@ -154,14 +137,14 @@ export function SignatureRequestModal({ data, isSigning = false, onSign, onCance
             disabled={isSigning}
             variant="primary"
             size="lg"
-            className="disabled:cursor-not-allowed disabled:opacity-70"
+            className="justify-center py-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isSigning ? 'Open Wallet...' : isAuthSession ? 'Authenticate' : 'Sign Message'}
           </StudioActionButton>
         </div>
 
         {/* Progress Indicator */}
-        <div className="flex justify-center pb-6">
+        <div className="flex justify-center pb-5">
           <div className="flex gap-1.5">
             <div className="h-1.5 w-1.5 rounded-full bg-ui-border-subtle"></div>
             <div className="h-1.5 w-4 rounded-full bg-[#2CC295]/70"></div>
