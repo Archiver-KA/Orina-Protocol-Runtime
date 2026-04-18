@@ -78,6 +78,70 @@ interface SearchPageProps {
 
 type AISearchStatus = 'idle' | 'loading' | 'success' | 'error';
 
+const AI_SEARCH_REASONING_MARKERS = [
+  'we should output',
+  'the user says',
+  'that\'s contradictory',
+  'we need to summarize',
+  'we need 1-2 short sentences',
+  'make sure it\'s english',
+  'the user wrote in english',
+  'let\'s craft:',
+  'could add another',
+  'that\'s one sentence',
+  'done',
+] as const;
+
+function normalizeAISearchSummaryWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function sanitizeAISearchSummary(value: string): string {
+  const normalized = normalizeAISearchSummaryWhitespace(
+    String(value || '')
+      .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
+      .replace(/```[\s\S]*?```/g, ' '),
+  );
+
+  if (!normalized) return '';
+
+  const lowered = normalized.toLowerCase();
+  const looksLikeReasoningLeak = AI_SEARCH_REASONING_MARKERS.some((marker) => lowered.includes(marker));
+  if (!looksLikeReasoningLeak) {
+    return normalized;
+  }
+
+  const quotedCandidates = Array.from(normalized.matchAll(/"([^"\r\n]{16,})"/g))
+    .map((match) => normalizeAISearchSummaryWhitespace(match[1]))
+    .filter((candidate) => {
+      if (candidate.split(/\s+/).length < 5) return false;
+      const candidateLowered = candidate.toLowerCase();
+      return !AI_SEARCH_REASONING_MARKERS.some((marker) => candidateLowered.includes(marker));
+    });
+
+  if (quotedCandidates.length > 0) {
+    return quotedCandidates.slice(-2).join(' ');
+  }
+
+  const labeledCandidate = normalized.match(
+    /(?:final answer|answer|summary|summarize|let's craft)\s*:\s*(.+)$/i,
+  )?.[1];
+
+  if (labeledCandidate) {
+    const cleanedCandidate = normalizeAISearchSummaryWhitespace(
+      labeledCandidate
+        .replace(/\s+(?:That|Could|Make sure|Done|We need|The user)\b[\s\S]*$/i, '')
+        .replace(/^"+|"+$/g, ''),
+    );
+
+    if (cleanedCandidate.split(/\s+/).length >= 5) {
+      return cleanedCandidate;
+    }
+  }
+
+  return '';
+}
+
 interface AISearchFallbackCardProps {
   product: AIProductResult;
   viewMode: 'grid' | 'list';
@@ -387,7 +451,7 @@ export function SearchPage({
 
         setAiSearchStatus('success');
         setAiSearchProducts(response.results ?? []);
-        setAiSearchSummary(String(response.chatResponse || '').trim());
+        setAiSearchSummary(sanitizeAISearchSummary(String(response.chatResponse || '')));
         setAiExtractedQuery(String(response.extractedQuery || query).trim() || query);
         setAiSearchError('');
         setIsAISemanticSearch(response.isVectorSearch === true);

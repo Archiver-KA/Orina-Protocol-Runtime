@@ -1,5 +1,6 @@
 # Service Boundary Separation: Chat, AI, And Automation
 
+
 ## Purpose
 
 This spec defines the runtime separation between the Chat service, the AI workspace, and the future Seller AI Auto-Reply automation layer.

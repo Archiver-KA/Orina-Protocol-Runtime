@@ -65,28 +65,54 @@ function AIFlowerIcon({ className = '' }: { className?: string }) {
 
 const AI_SIDEBAR_PILL_CLASS =
   'studio-glass-chip rounded-full border-0 bg-[var(--t-surface-10)] text-ui-secondary transition-colors hover:bg-[var(--t-input-focus-bg)] hover:text-ui-primary';
+const AI_LINK_ONLY_LINE_REGEX = /^(?:[-*]\s*)?(?:(?:\u{1F517}|\u{1F587}\u{FE0F}|\u{1F4CE})\s*)?\[([^\]]+)\]\((https?:\/\/[^\)]+)\)$/u;
+const AI_LINK_ICON_PREFIX_REGEX = /(^|[\s])(?:(?:\u{1F517}|\u{1F587}\u{FE0F}|\u{1F4CE})\s*)(?=\[[^\]]+\]\((https?:\/\/[^\)]+)\))/gu;
 
 // ── Simple inline markdown renderer ─────────────────────────────────────────
 function renderMarkdown(text: string) {
   // Split into lines, handle each
   return text.split('\n').map((line, li) => {
+    const trimmedLine = line.trim();
+    const linkOnlyMatch = trimmedLine.match(AI_LINK_ONLY_LINE_REGEX);
+    if (linkOnlyMatch) {
+      return (
+        <span key={li} className="block">
+          <a
+            href={linkOnlyMatch[2]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-2.5 py-1 text-[10px] font-semibold tracking-[0.01em] text-ui-secondary no-underline transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#7CF0CB]"
+          >
+            {linkOnlyMatch[1]}
+          </a>
+          {li < text.split('\n').length - 1 && <br />}
+        </span>
+      );
+    }
+
+    const normalizedLine = line.replace(AI_LINK_ICON_PREFIX_REGEX, '$1');
     // Parse inline: **bold**, *italic*, [label](url)
     const parts: React.ReactNode[] = [];
     const regex = /\*\*(.+?)\*\*|\*(.+?)\*|\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
     let last = 0, m: RegExpExecArray | null;
-    while ((m = regex.exec(line)) !== null) {
-      if (m.index > last) parts.push(line.slice(last, m.index));
+    while ((m = regex.exec(normalizedLine)) !== null) {
+      if (m.index > last) parts.push(normalizedLine.slice(last, m.index));
       if (m[1] !== undefined) parts.push(<strong key={m.index} className="font-semibold">{m[1]}</strong>);
       else if (m[2] !== undefined) parts.push(<em key={m.index} className="italic">{m[2]}</em>);
       else if (m[3] !== undefined) parts.push(
-        <a key={m.index} href={m[4]} target="_blank" rel="noopener noreferrer"
-          className="text-primary underline underline-offset-2 hover:opacity-80 break-all">
+        <a
+          key={m.index}
+          href={m[4]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-2.5 py-1 text-[10px] font-semibold tracking-[0.01em] text-ui-secondary no-underline transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#7CF0CB]"
+        >
           {m[3]}
         </a>
       );
       last = m.index + m[0].length;
     }
-    if (last < line.length) parts.push(line.slice(last));
+    if (last < normalizedLine.length) parts.push(normalizedLine.slice(last));
     return <span key={li}>{parts}{li < text.split('\n').length - 1 && <br />}</span>;
   });
 }
@@ -359,7 +385,7 @@ function AIClarificationCard({
 function AISidebarLoadingState() {
   return (
     <div className="mb-3 flex justify-start">
-      <div className="w-full max-w-[96%] rounded-[24px] bg-[var(--t-surface-5)] px-4 py-4">
+      <div className="w-full max-w-[96%] px-1 py-2">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-ui-primary">
             <AIFlowerIcon className="h-6 w-6 animate-spin object-contain" />
