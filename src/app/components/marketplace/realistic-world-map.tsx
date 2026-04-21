@@ -9,7 +9,7 @@
 
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { Layers, ShieldCheck, TrendingUp, Users } from 'lucide-react';
-import { Map, MapRef } from '@/app/components/ui/map';
+import { Map as MapCanvas, MapRef } from '@/app/components/ui/map';
 import { Marker } from 'react-map-gl/maplibre';
 import { Clock } from 'lucide-react';
 
@@ -417,7 +417,7 @@ export function RealisticWorldMap({
       </div>
 
       {/* Map */}
-      <Map
+      <MapCanvas
         ref={mapRef}
         viewState={viewState}
         styles={getMapStyles()}
@@ -576,7 +576,7 @@ export function RealisticWorldMap({
             </Marker>
           );
         })}
-      </Map>
+      </MapCanvas>
     </div>
   );
 }
