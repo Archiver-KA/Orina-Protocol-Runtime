@@ -27,13 +27,13 @@ import { InlineAIRightRail } from '@/app/components/ui/inline-ai-right-rail';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { StudioTransientState } from '@/app/components/ui/studio-transient-state';
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
-import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
 import { COLLECTIONS_SYNC_EVENT, loadCollectionFavorites, loadRuntimeCollections, toggleCollectionFavorite } from '@/utils/collectionsUtils';
 import type { CollectionSummary } from '@/types/collection';
 import { runtimeFlags } from '/utils/runtimeConfig';
 import { PROFILE_SYNC_EVENT } from '@/utils/profileUtils';
 import { AIAgentClient } from '@/utils/aiAgentClient';
 import { resolveAISearchResults } from '@/utils/aiSearchUtils';
+import { sanitizeAIVisibleText } from '@/utils/aiTextSanitizer';
 import {
   hydrateSellerDirectoryFromSupabase,
   loadSellerDirectorySync,
@@ -56,7 +56,6 @@ import {
   normalizeTaxonomySearchKey,
   TAXONOMY_SYNC_EVENT,
 } from '@/utils/taxonomy';
-import { navigateToMarketplaceCategory } from '@/utils/appNavigation';
 import {
   buildSearchNavigationFilters,
   type SearchNavigationRequest,
@@ -77,191 +76,6 @@ interface SearchPageProps {
 }
 
 type AISearchStatus = 'idle' | 'loading' | 'success' | 'error';
-
-const AI_SEARCH_REASONING_MARKERS = [
-  'we should output',
-  'the user says',
-  'that\'s contradictory',
-  'we need to summarize',
-  'we need 1-2 short sentences',
-  'make sure it\'s english',
-  'the user wrote in english',
-  'let\'s craft:',
-  'could add another',
-  'that\'s one sentence',
-  'done',
-] as const;
-
-function normalizeAISearchSummaryWhitespace(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
-}
-
-function sanitizeAISearchSummary(value: string): string {
-  const normalized = normalizeAISearchSummaryWhitespace(
-    String(value || '')
-      .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
-      .replace(/```[\s\S]*?```/g, ' '),
-  );
-
-  if (!normalized) return '';
-
-  const lowered = normalized.toLowerCase();
-  const looksLikeReasoningLeak = AI_SEARCH_REASONING_MARKERS.some((marker) => lowered.includes(marker));
-  if (!looksLikeReasoningLeak) {
-    return normalized;
-  }
-
-  const quotedCandidates = Array.from(normalized.matchAll(/"([^"\r\n]{16,})"/g))
-    .map((match) => normalizeAISearchSummaryWhitespace(match[1]))
-    .filter((candidate) => {
-      if (candidate.split(/\s+/).length < 5) return false;
-      const candidateLowered = candidate.toLowerCase();
-      return !AI_SEARCH_REASONING_MARKERS.some((marker) => candidateLowered.includes(marker));
-    });
-
-  if (quotedCandidates.length > 0) {
-    return quotedCandidates.slice(-2).join(' ');
-  }
-
-  const labeledCandidate = normalized.match(
-    /(?:final answer|answer|summary|summarize|let's craft)\s*:\s*(.+)$/i,
-  )?.[1];
-
-  if (labeledCandidate) {
-    const cleanedCandidate = normalizeAISearchSummaryWhitespace(
-      labeledCandidate
-        .replace(/\s+(?:That|Could|Make sure|Done|We need|The user)\b[\s\S]*$/i, '')
-        .replace(/^"+|"+$/g, ''),
-    );
-
-    if (cleanedCandidate.split(/\s+/).length >= 5) {
-      return cleanedCandidate;
-    }
-  }
-
-  return '';
-}
-
-interface AISearchFallbackCardProps {
-  product: AIProductResult;
-  viewMode: 'grid' | 'list';
-}
-
-function AISearchFallbackCard({ product, viewMode }: AISearchFallbackCardProps) {
-  const similarityLabel =
-    typeof product.similarity === 'number' ? `${product.similarity}% match` : 'AI match';
-  const categoryLabel = getCategoryDisplayLabel(product.category);
-  const handleCategoryRoute = () => {
-    navigateToMarketplaceCategory({ category: product.category });
-  };
-  const shellClass =
-    'group w-full overflow-hidden rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-2)] transition-colors hover:bg-[var(--t-surface-5)]';
-
-  if (viewMode === 'grid') {
-    return (
-      <div className={`${shellClass} flex h-full flex-col`}>
-        <div className="relative h-[240px] overflow-hidden bg-black">
-          <ImageWithFallback
-            src={product.imageUrl || ''}
-            alt={product.title}
-            className="h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
-          <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-[#2CC295]/20 bg-[rgba(255,255,255,0.84)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1f9f7d] shadow-[0_10px_24px_-18px_rgba(15,23,42,0.22)] dark:bg-[rgba(18,19,23,0.78)] dark:text-[#7CF0CB]">
-            <Sparkles size={12} />
-            {similarityLabel}
-          </div>
-        </div>
-
-        <div className="flex flex-1 flex-col gap-3 px-5 pb-5 pt-5">
-          <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={handleCategoryRoute}
-              className="truncate rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-ui-muted transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#2CC295]"
-            >
-              {categoryLabel}
-            </button>
-            <span className="rounded-full border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
-              Syncing
-            </span>
-          </div>
-
-          <h3 className="line-clamp-2 text-[18px] font-semibold leading-[1.3] text-ui-primary">
-            {product.title}
-          </h3>
-
-          <p className="text-sm leading-6 text-ui-secondary">
-            Catalog details are syncing for this AI match. Retry the search in a moment to open the full listing.
-          </p>
-
-          <div className="mt-auto flex items-end justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-ui-muted">Price</p>
-              <p className="mt-1 text-lg font-semibold text-ui-primary">{product.price || 'Pending sync'}</p>
-            </div>
-            <span className="text-[11px] font-medium text-[#7CF0CB]">AI semantic candidate</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={`${shellClass} flex flex-col lg:h-[240px] lg:flex-row`}>
-      <div className="relative h-[240px] shrink-0 overflow-hidden bg-black lg:h-full lg:w-[395px]">
-        <ImageWithFallback
-          src={product.imageUrl || ''}
-          alt={product.title}
-          className="h-full w-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
-        <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-[#2CC295]/20 bg-[rgba(255,255,255,0.84)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1f9f7d] shadow-[0_10px_24px_-18px_rgba(15,23,42,0.22)] dark:bg-[rgba(18,19,23,0.78)] dark:text-[#7CF0CB]">
-          <Sparkles size={12} />
-          {similarityLabel}
-        </div>
-      </div>
-
-      <div className="flex min-w-0 flex-1 flex-col gap-4 px-5 pb-5 pt-5 lg:px-6 lg:py-5">
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={handleCategoryRoute}
-            className="truncate rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-ui-muted transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#2CC295]"
-          >
-            {categoryLabel}
-          </button>
-          <span className="rounded-full border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
-            Syncing
-          </span>
-        </div>
-
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <h3 className="line-clamp-2 text-[20px] font-semibold leading-[1.25] text-ui-primary">
-              {product.title}
-            </h3>
-            <p className="mt-2 max-w-[32rem] text-sm leading-6 text-ui-secondary">
-              AI found this listing, but the full marketplace projection has not hydrated into the page yet.
-            </p>
-          </div>
-
-          <div className="shrink-0 lg:min-w-[150px] lg:text-right">
-            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-ui-muted">Price</p>
-            <p className="mt-1 text-[24px] font-semibold leading-none text-ui-primary">
-              {product.price || 'Pending sync'}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-auto flex items-center justify-between gap-4">
-          <span className="text-sm font-medium text-[#7CF0CB]">AI semantic candidate</span>
-          <span className="text-xs text-ui-muted">Refresh search if details do not appear yet.</span>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function SearchPage({
   initialQuery = '',
@@ -451,7 +265,7 @@ export function SearchPage({
 
         setAiSearchStatus('success');
         setAiSearchProducts(response.results ?? []);
-        setAiSearchSummary(sanitizeAISearchSummary(String(response.chatResponse || '')));
+        setAiSearchSummary(sanitizeAIVisibleText(String(response.chatResponse || '')));
         setAiExtractedQuery(String(response.extractedQuery || query).trim() || query);
         setAiSearchError('');
         setIsAISemanticSearch(response.isVectorSearch === true);
@@ -477,25 +291,6 @@ export function SearchPage({
     () => filterMarketplaceResultsWithOptions(resolvedAISearchResults.assets, filters, { includeQuery: false }),
     [filters, resolvedAISearchResults.assets],
   );
-
-  const hasAdvancedAssetRefinements =
-    filters.blockchains.length > 0 ||
-    filters.priceRange.min !== null ||
-    filters.priceRange.max !== null ||
-    filters.verifiedOnly;
-
-  const aiFallbackProducts = useMemo(() => {
-    if (hasAdvancedAssetRefinements) return [];
-
-    const normalizedCategories = filters.categories.map((category) => normalizeCategoryFilterValue(category));
-    if (normalizedCategories.length === 0) {
-      return resolvedAISearchResults.unresolved;
-    }
-
-    return resolvedAISearchResults.unresolved.filter((product) =>
-      normalizedCategories.includes(normalizeCategoryFilterValue(product.category)),
-    );
-  }, [filters.categories, hasAdvancedAssetRefinements, resolvedAISearchResults.unresolved]);
 
   const filteredCollections = useMemo(() => {
     let filtered = [...runtimeCollections];
@@ -712,10 +507,9 @@ export function SearchPage({
   const showingAISearchResults =
     aiSearchActive &&
     aiSearchStatus === 'success' &&
-    (aiFilteredAssets.length > 0 || aiFallbackProducts.length > 0);
+    aiFilteredAssets.length > 0;
   const displayedAssets = showingAISearchResults ? aiFilteredAssets : filteredAssets;
-  const displayedAssetCount =
-    displayedAssets.length + (showingAISearchResults ? aiFallbackProducts.length : 0);
+  const displayedAssetCount = displayedAssets.length;
   const showAssetEmptyState =
     displayedAssetCount === 0 &&
     !(aiSearchActive && aiSearchStatus === 'loading');
@@ -763,12 +557,12 @@ export function SearchPage({
         ? 'Browse Collections'
         : 'Browse All Assets';
   const searchSubtitle = filters.query
-    ? 'Search stays connected to the live marketplace catalog, semantic AI results, and your active filters.'
+    ? 'Search stays connected to the live marketplace catalog, AI-assisted ranking, and your active filters.'
     : contentMode === 'profiles'
       ? 'Review verified seller profiles and marketplace reputation signals in one place.'
       : contentMode === 'collections'
         ? 'Browse collection surfaces mapped from the same canonical marketplace system.'
-        : 'Search the live catalog with keyword and semantic discovery while keeping filters visible.';
+        : 'Search the live catalog with keyword and AI-assisted discovery while keeping filters visible.';
   const filterSectionClassName =
     'rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] p-5 shadow-none';
 
@@ -780,12 +574,12 @@ export function SearchPage({
         div::-webkit-scrollbar-thumb { background: var(--t-border-medium); border-radius: 10px; }
       `}</style>
 
-      <div className="h-full flex overflow-hidden">
-      <div className="flex-1 min-w-0 overflow-hidden px-6 py-6 lg:px-8 lg:py-8">
+      <div className="flex h-full min-w-0 overflow-hidden">
+      <div className="min-w-0 flex-1 overflow-hidden px-5 py-5 lg:px-7 lg:py-6">
 
       {/* Center Column - Results */}
-      <section className="h-full overflow-y-auto custom-scrollbar relative z-10">
-        <div className="mx-auto max-w-6xl">
+      <section className="relative z-10 h-full overflow-y-auto overflow-x-hidden custom-scrollbar">
+        <div className="mx-auto w-full max-w-6xl">
         <StudioPanel className="mb-8 rounded-[32px] p-5 sm:p-6">
           <StudioPageHeader
             className="mb-6 flex-col items-start gap-5 xl:flex-row xl:items-end xl:justify-between"
@@ -859,9 +653,9 @@ export function SearchPage({
         </StudioPanel>
 
         {contentMode === 'assets' && filters.query.trim() && (
-          <StudioPanel className="mb-6 rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-2)] p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-3">
+          <StudioPanel className="mb-6 overflow-hidden rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-2)] p-5">
+            <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1 rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#2CC295]">
                     <Sparkles size={12} />
@@ -869,17 +663,12 @@ export function SearchPage({
                   </span>
                   {aiSearchStatus === 'success' && (
                     <span className="rounded-full border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
-                      {isAISemanticSearch ? 'Vector semantic' : 'Keyword fallback'}
+                      {isAISemanticSearch ? 'AI ranked' : 'Catalog match'}
                     </span>
                   )}
                   {showingAISearchResults && resolvedAISearchResults.assets.length > 0 && (
                     <span className="rounded-full border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
-                      {resolvedAISearchResults.assets.length} synced cards
-                    </span>
-                  )}
-                  {showingAISearchResults && aiFallbackProducts.length > 0 && (
-                    <span className="rounded-full border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
-                      {aiFallbackProducts.length} pending sync
+                      {resolvedAISearchResults.assets.length} matching listings
                     </span>
                   )}
                 </div>
@@ -887,8 +676,8 @@ export function SearchPage({
                 {aiSearchStatus === 'loading' ? (
                   <StudioLoadingIndicator
                     tone="muted"
-                    label="Analyzing search intent"
-                    subLabel="Checking semantic matches in the marketplace catalog."
+                    label="Checking listings"
+                    subLabel="Reviewing matching products in the marketplace catalog."
                     className="text-sm text-ui-secondary"
                     labelClassName="text-ui-primary"
                     subLabelClassName="text-ui-muted"
@@ -902,27 +691,29 @@ export function SearchPage({
                   />
                 ) : aiSearchStatus === 'success' ? (
                   <div className="space-y-2">
-                    <p className="text-sm leading-6 text-ui-secondary">
-                      {aiSearchSummary || 'AI search completed. Rendering semantic marketplace matches below.'}
+                    <p className="max-w-full break-words text-sm leading-6 text-ui-secondary">
+                      {resolvedAISearchResults.assets.length > 0
+                        ? aiSearchSummary || 'AI search completed. Matching marketplace listings are shown below.'
+                        : 'AI search did not find active listings for this query. Showing keyword matches from the marketplace catalog.'}
                     </p>
                     {aiExtractedQuery && aiExtractedQuery !== filters.query.trim() && (
                       <p className="text-xs text-ui-muted">
                         AI interpreted your request as <span className="font-semibold text-ui-primary">"{aiExtractedQuery}"</span>.
                       </p>
                     )}
-                    {aiSearchProducts.length === 0 && (
+                    {resolvedAISearchResults.assets.length === 0 && (
                       <StudioTransientState
                         variant="info"
                         inline={false}
-                        title="No semantic matches found"
-                        description="Showing keyword matches from the marketplace catalog so the page still stays useful."
+                        title="No active listings found"
+                        description="Adjust the query or filters to look across the current marketplace catalog."
                       />
                     )}
                   </div>
                 ) : null}
               </div>
 
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2 lg:pl-4">
                 <StudioActionButton
                   onClick={handleRetryAISearch}
                   variant="secondary"
@@ -943,7 +734,7 @@ export function SearchPage({
               size={24}
               tone="muted"
               label="ORINA AI is searching the catalog"
-              subLabel="Semantic results will appear here when the response is ready."
+              subLabel="Matching listings will appear here when the response is ready."
               labelClassName="text-ui-primary"
               subLabelClassName="text-ui-muted"
             />
@@ -1002,18 +793,6 @@ export function SearchPage({
                     />
                   </motion.div>
                 ))}
-                {showingAISearchResults &&
-                  aiFallbackProducts.map((product) => (
-                    <motion.div
-                      key={`ai-fallback-${product.id}`}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      <AISearchFallbackCard product={product} viewMode={viewMode} />
-                    </motion.div>
-                  ))}
               </AnimatePresence>
             ) : contentMode === 'profiles' ? (
               filteredProfiles.map((profile) => (

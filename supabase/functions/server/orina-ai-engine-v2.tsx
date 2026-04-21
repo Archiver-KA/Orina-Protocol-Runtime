@@ -2324,28 +2324,37 @@ Reply format exactly (no other text): {"en": "english translation here", "keywor
           .sort((a, b) => b.similarity - a.similarity)
           .slice(0, limit);
         const ids = sorted.map(({ r }) => String(r.product_id ?? r.id)).filter(Boolean);
-        const { data: details, error: detailsError } = await supabase
+        let detailsQuery = supabase
           .from('assets_catalog')
           .select('id, asset_uid, title, category, cover_image_url, attributes')
           .in('id', ids)
           .eq('is_active', true);
+        if (category) detailsQuery = detailsQuery.eq('category', category);
+
+        const { data: details, error: detailsError } = await detailsQuery;
         if (detailsError) console.error('❌ Asset details fetch error:', detailsError);
         const detailMap = new Map((details ?? []).map((d: any) => [String(d.id), d]));
-        const products: AIProductResult[] = sorted.map(({ r, similarity }) => {
+        const products: AIProductResult[] = sorted.flatMap(({ r, similarity }) => {
           const id = String(r.product_id ?? r.id);
-          const d = detailMap.get(id) ?? {};
+          const d = detailMap.get(id);
+          if (!d) return [];
+
           const price = d.attributes?.estimated_price?.suggested;
           const frontendId = String(d.asset_uid ?? d.id ?? id);
-          return {
+          return [{
             id: frontendId, title: d.title || r.product_name || 'Untitled Product',
             category: d.category || 'General',
             price: price ? `$${price.toLocaleString()}` : undefined,
             imageUrl: d.cover_image_url || undefined,
             similarity: Math.round(similarity * 100),
-          };
+          }];
         });
-        console.log('✅ Dual-embedding vector search:', products.length, 'products');
-        return { results: products, isVectorSearch: true };
+        if (products.length > 0) {
+          console.log('✅ Dual-embedding vector search:', products.length, 'active products');
+          return { results: products, isVectorSearch: true };
+        }
+
+        console.log('Vector candidates had no active catalog rows, falling back to text search');
       }
 
       // Enhanced text fallback: search title + subcategory + category + description + translated terms

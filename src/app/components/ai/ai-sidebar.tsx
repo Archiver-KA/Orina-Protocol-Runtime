@@ -12,18 +12,21 @@ import {
   MarketAnalysis,
   OrderAction,
 } from '@/app/types/ai-agent';
+import type { MarketplaceAsset } from '@/app/types/asset';
 import { AIAgentClient } from '@/utils/aiAgentClient';
+import { resolveAISearchResults } from '@/utils/aiSearchUtils';
+import { sanitizeAIVisibleText } from '@/utils/aiTextSanitizer';
 import { BorderlessTextarea } from './borderless-textarea';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
 import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 import {
   dispatchAppNavigation,
   navigateToSearchCategory,
-  navigateToSearchResults,
 } from '@/utils/appNavigation';
 import {
-  getMarketplaceCatalogAssetById,
+  hydrateMarketplaceCatalogFromSupabase,
   loadMarketplaceCatalogSync,
+  MARKETPLACE_CATALOG_SYNC_EVENT,
 } from '@/utils/marketplaceCatalog';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -119,7 +122,9 @@ function renderMarkdown(text: string) {
 
 function ChatBubble({ entry, animateResponse = false }: { entry: AIChatEntry; animateResponse?: boolean }) {
   const isUser = entry.role === 'user';
-  const fullText = entry.text ?? '';
+  const fullText = isUser
+    ? entry.text ?? ''
+    : sanitizeAIVisibleText(entry.text ?? '', 'I found a response, but it needs a cleaner retry.');
   const shouldTypeOnMountRef = useRef(!isUser && animateResponse);
   const [visibleLength, setVisibleLength] = useState(() =>
     shouldTypeOnMountRef.current ? 0 : fullText.length
@@ -176,31 +181,31 @@ function ChatBubble({ entry, animateResponse = false }: { entry: AIChatEntry; an
 }
 
 
-function AIProductCard({ product, onView }: { product: AIProductResult; onView: (p: AIProductResult) => void }) {
-  const categoryLabel = getCategoryDisplayLabel(product.category);
+function AIProductCard({ asset, onView }: { asset: MarketplaceAsset; onView: (asset: MarketplaceAsset) => void }) {
+  const categoryLabel = getCategoryDisplayLabel(asset.category);
   return (
     <div className="flex items-center gap-2.5 rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-5)] p-5 transition-colors hover:bg-[var(--t-surface-hover)] group">
       <div className="w-10 h-10 rounded-lg bg-[var(--t-input-bg)] overflow-hidden shrink-0">
-        {product.imageUrl
-          ? <img src={product.imageUrl} alt={product.title} className="w-full h-full object-cover" />
+        {asset.image
+          ? <img src={asset.image} alt={asset.name} className="w-full h-full object-cover" />
           : <div className="w-full h-full bg-ui-input" />}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[12px] font-semibold text-ui-primary truncate">{product.title}</p>
+        <p className="text-[12px] font-semibold text-ui-primary truncate">{asset.name}</p>
         <div className="mt-0.5 flex items-center gap-1 text-[11px] text-ui-muted">
           <button
             type="button"
-            onClick={() => navigateToSearchCategory({ category: product.category })}
+            onClick={() => navigateToSearchCategory({ category: asset.category })}
             className="truncate transition-colors hover:text-primary"
           >
             {categoryLabel}
           </button>
-          {product.price ? <span className="shrink-0">· {product.price}</span> : null}
+          {asset.price ? <span className="shrink-0">· {asset.price}</span> : null}
         </div>
       </div>
       <button
         type="button"
-        onClick={() => onView(product)}
+        onClick={() => onView(asset)}
         className="opacity-0 group-hover:opacity-100 shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 transition-all hover:bg-violet-500/30"
       >
         View
@@ -484,26 +489,34 @@ export function AISidebar({
   const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [sessionRestored, setSessionRestored] = useState(false);
   const [animatedAiEntryId, setAnimatedAiEntryId] = useState<string | null>(null);
+  const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
-  const handleViewProduct = useCallback((product: AIProductResult) => {
-    const syncedAsset = getMarketplaceCatalogAssetById(product.id, loadMarketplaceCatalogSync());
+  useEffect(() => {
+    const syncCatalog = () => {
+      setMarketplaceAssets(loadMarketplaceCatalogSync());
+    };
 
-    if (syncedAsset) {
-      dispatchAppNavigation({
-        assetId: syncedAsset.id,
-        fromPage: activePage,
-      });
-      onClose();
-      return;
-    }
+    syncCatalog();
+    void hydrateMarketplaceCatalogFromSupabase().then(syncCatalog).catch(() => undefined);
+    window.addEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
+    return () => {
+      window.removeEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
+    };
+  }, []);
 
-    navigateToSearchResults({
-      query: product.title,
-      category: product.category,
+  const resolveEntryProducts = useCallback(
+    (products?: AIProductResult[]) => resolveAISearchResults(products ?? [], marketplaceAssets).assets,
+    [marketplaceAssets],
+  );
+
+  const handleViewProduct = useCallback((asset: MarketplaceAsset) => {
+    dispatchAppNavigation({
+      assetId: asset.id,
+      fromPage: activePage,
     });
     onClose();
   }, [activePage, onClose]);
@@ -637,7 +650,10 @@ export function AISidebar({
     const aiEntry: AIChatEntry = {
       id: createRuntimeId(),
       role: 'ai',
-      text: response.text,
+      text: sanitizeAIVisibleText(
+        response.text,
+        'I found a response, but it needs a cleaner retry. Please send the request again.',
+      ),
       action: response.action,
       products: response.products,
       orders: response.orders,
@@ -961,13 +977,18 @@ export function AISidebar({
                   {/* Structured content under AI messages */}
                   {entry.role === 'ai' && (
                     <div className="ml-8 space-y-1.5 mb-2">
-                      {entry.products && entry.products.length > 0 && (
-                        <div className="space-y-1.5">
-                          {entry.products.map(p => (
-                            <AIProductCard key={p.id} product={p} onView={handleViewProduct} />
-                          ))}
-                        </div>
-                      )}
+                      {entry.products && entry.products.length > 0 && (() => {
+                        const resolvedProducts = resolveEntryProducts(entry.products);
+                        if (resolvedProducts.length === 0) return null;
+
+                        return (
+                          <div className="space-y-1.5">
+                            {resolvedProducts.map((asset) => (
+                              <AIProductCard key={asset.id} asset={asset} onView={handleViewProduct} />
+                            ))}
+                          </div>
+                        );
+                      })()}
                       {entry.orders && entry.orders.length > 0 && (
                         <div className="space-y-1.5">
                           {entry.orders.map(o => (

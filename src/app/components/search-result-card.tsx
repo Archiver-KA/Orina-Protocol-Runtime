@@ -28,6 +28,26 @@ const CHAIN_COLORS: Record<string, string> = {
   Base: '#0052FF',
 };
 
+const INTERNAL_DESCRIPTION_MARKERS = [
+  'buyer-ready rwa listing',
+  'search intent',
+  'product data mapped',
+  'asset is positioned',
+  'canonical marketplace',
+] as const;
+
+function getPublicAssetDescription(asset: MarketplaceAsset, categoryLabel: string): string {
+  const fallback = 'Marketplace listing with live pricing, availability, and ownership details.';
+  const rawDescription = String(asset.description || '').replace(/\s+/g, ' ').trim();
+  if (!rawDescription) return fallback;
+
+  const lowered = rawDescription.toLowerCase();
+  const exposesInternalDescription = INTERNAL_DESCRIPTION_MARKERS.some((marker) => lowered.includes(marker));
+  if (!exposesInternalDescription) return rawDescription;
+
+  return `${asset.name} is listed in ${categoryLabel} with live marketplace pricing and availability details.`;
+}
+
 // ============================================================================
 // BLOCKCHAIN SVG ICONS
 // ============================================================================
@@ -362,6 +382,7 @@ function SearchResultCardComponent({
   asset, viewMode, onLike, onClick, isLiked = false,
 }: SearchResultCardProps) {
   const categoryLabel = getCategoryDisplayLabel(asset.category);
+  const publicDescription = getPublicAssetDescription(asset, categoryLabel);
   const isFractionalListing =
     typeof asset.availableSlots === 'number' && typeof asset.totalSlots === 'number';
   const availabilityValue = isFractionalListing
@@ -579,7 +600,7 @@ function SearchResultCardComponent({
               {asset.name}
             </h3>
             <p className="mt-2 line-clamp-2 max-w-[32rem] text-[13px] leading-5 text-ui-secondary">
-              {asset.description || 'Verified marketplace listing with on-chain ownership metadata and live market activity.'}
+              {publicDescription}
             </p>
           </div>
 
