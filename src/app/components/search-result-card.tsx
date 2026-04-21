@@ -7,7 +7,7 @@
  */
 
 import { Heart, Eye, TrendingUp, Clock } from 'lucide-react';
-import { useState, useRef, useEffect, useCallback, useLayoutEffect, type MouseEvent } from 'react';
+import { memo, useState, useRef, useEffect, useCallback, useLayoutEffect, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { MarketplaceAsset } from '@/app/types/asset';
 import { ImageWithFallback } from './figma/ImageWithFallback';
@@ -358,7 +358,7 @@ interface SearchResultCardProps {
   isLiked?: boolean;
 }
 
-export function SearchResultCard({
+function SearchResultCardComponent({
   asset, viewMode, onLike, onClick, isLiked = false,
 }: SearchResultCardProps) {
   const categoryLabel = getCategoryDisplayLabel(asset.category);
@@ -608,3 +608,5 @@ export function SearchResultCard({
     </div>
   );
 }
+
+export const SearchResultCard = memo(SearchResultCardComponent);

@@ -1,4 +1,4 @@
-import { Heart, Layers, MessageSquare, Star, Minus, Plus, Shield, ExternalLink, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Heart, Layers, MessageSquare, Star, Minus, Plus, Shield, ExternalLink, Clock } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { MarketplaceAsset, RwaConfigurableAttributeGroup, RwaSelectedAttribute } from '@/app/types/asset';
 import type { Rating } from '@/types/reputation';
@@ -240,6 +240,16 @@ export function AssetDetailsModal({
     }
   };
 
+  const handlePreviousImage = () => {
+    if (images.length <= 1) return;
+    setCurrentImageIndex((current) => (current - 1 + images.length) % images.length);
+  };
+
+  const handleNextImage = () => {
+    if (images.length <= 1) return;
+    setCurrentImageIndex((current) => (current + 1) % images.length);
+  };
+
   const handleAttributeSelection = (
     group: RwaConfigurableAttributeGroup,
     optionLabel: string
@@ -367,20 +377,41 @@ export function AssetDetailsModal({
                         Featured
                       </div>
                     )}
-                    {/* Image Carousel Dots */}
+                    {/* Image Carousel Controls */}
                     {images.length > 1 && (
-                      <div className="studio-glass-chip absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-1.5 rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-3 py-2 backdrop-blur-md">
-                        {images.map((_: string, index: number) => (
-                          <button
-                            key={index}
-                            type="button"
-                            onClick={() => setCurrentImageIndex(index)}
-                            className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                              currentImageIndex === index ? 'bg-[#2CC295]' : 'bg-ui-border'
-                            }`}
-                          />
-                        ))}
-                      </div>
+                      <>
+                        <button
+                          type="button"
+                          onClick={handlePreviousImage}
+                          className="studio-glass-chip absolute bottom-6 left-6 inline-flex h-10 w-10 items-center justify-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] text-ui-primary shadow-[0_18px_35px_-28px_rgba(0,0,0,0.45)] backdrop-blur-md transition-colors hover:border-[#2CC295]/35 hover:bg-[#2CC295]/12 hover:text-[#7CF0CB]"
+                          aria-label="Previous image"
+                          title="Previous image"
+                        >
+                          <ChevronLeft size={18} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleNextImage}
+                          className="studio-glass-chip absolute bottom-6 right-6 inline-flex h-10 w-10 items-center justify-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] text-ui-primary shadow-[0_18px_35px_-28px_rgba(0,0,0,0.45)] backdrop-blur-md transition-colors hover:border-[#2CC295]/35 hover:bg-[#2CC295]/12 hover:text-[#7CF0CB]"
+                          aria-label="Next image"
+                          title="Next image"
+                        >
+                          <ChevronRight size={18} />
+                        </button>
+                        <div className="studio-glass-chip absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-1.5 rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-3 py-2 backdrop-blur-md">
+                          {images.map((_: string, index: number) => (
+                            <button
+                              key={index}
+                              type="button"
+                              onClick={() => setCurrentImageIndex(index)}
+                              className={`h-1.5 w-1.5 rounded-full transition-colors ${
+                                currentImageIndex === index ? 'bg-[#2CC295]' : 'bg-ui-border'
+                              }`}
+                              aria-label={`Show image ${index + 1}`}
+                            />
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
 

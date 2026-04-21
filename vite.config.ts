@@ -17,6 +17,10 @@ export default defineConfig({
     },
   },
   build: {
+    // MapLibre is isolated behind the marketplace map lazy boundary. Keep the
+    // warning threshold above that intentional chunk so unexpected growth in
+    // initial/runtime chunks remains visible without flagging the map payload.
+    chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
         manualChunks(id) {

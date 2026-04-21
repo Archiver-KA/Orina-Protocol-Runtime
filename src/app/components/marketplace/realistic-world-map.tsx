@@ -8,14 +8,15 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { Layers, ShieldCheck, TrendingUp, Users } from 'lucide-react';
+import { Gauge, Layers, MapPin, ShieldCheck, TrendingUp, Users } from 'lucide-react';
 import { Map as MapCanvas, MapRef } from '@/app/components/ui/map';
 import { Marker } from 'react-map-gl/maplibre';
-import { Clock } from 'lucide-react';
+import { getTaxonomyBadgeTone } from '@/utils/taxonomyAppearance';
 
 interface MarketplaceAsset {
   id: number;
   name: string;
+  category: string;
   categoryLabel: string;
   price: string;
   usdPrice: string;
@@ -79,6 +80,7 @@ interface MapDisplayMarker {
   trustScore: number;
   successfulSales: number;
   displayScore: number;
+  category: string;
   categoryLabel: string;
   verified: boolean;
 }
@@ -119,16 +121,23 @@ function createMarkerFromAssets(
   const successfulSales = sorted.reduce((sum, asset) => sum + Math.max(0, normalizeScore(asset.successfulSales, 0)), 0);
   const trustScore = sorted.reduce((sum, asset) => sum + getTrustScore(asset), 0) / sorted.length;
   const displayScore = sorted.reduce((sum, asset) => sum + getAssetScore(asset), 0);
-  const categoryCounts = new Map<string, number>();
+  const categoryCounts = new Map<string, { label: string; count: number }>();
 
   sorted.forEach((asset) => {
-    categoryCounts.set(asset.categoryLabel, (categoryCounts.get(asset.categoryLabel) || 0) + 1);
+    const categoryKey = asset.category || asset.categoryLabel || 'uncategorized';
+    const current = categoryCounts.get(categoryKey) || { label: asset.categoryLabel, count: 0 };
+    categoryCounts.set(categoryKey, {
+      label: current.label || asset.categoryLabel,
+      count: current.count + 1,
+    });
   });
 
-  const topCategory = [...categoryCounts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] || representative.categoryLabel;
+  const topCategory = [...categoryCounts.entries()].sort((left, right) => right[1].count - left[1].count)[0];
+  const topCategoryKey = topCategory?.[0] || representative.category || 'uncategorized';
+  const topCategoryLabel = topCategory?.[1].label || representative.categoryLabel;
   const subtitle =
     level === 'country'
-      ? `${sorted.length} assets - ${topCategory}`
+      ? `${sorted.length} assets - ${topCategoryLabel}`
       : level === 'supplier'
         ? `${representative.seller.name} - ${sorted.length} listings`
         : level === 'grid'
@@ -149,7 +158,8 @@ function createMarkerFromAssets(
     trustScore,
     successfulSales,
     displayScore,
-    categoryLabel: topCategory,
+    category: topCategoryKey,
+    categoryLabel: topCategoryLabel,
     verified: sorted.some((asset) => asset.verified),
   };
 }
@@ -334,33 +344,41 @@ export function RealisticWorldMap({
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-transparent">
-      {/* Compact Stats Bar */}
+      {/* Hover-expand Stats Bar */}
       <div className="absolute left-4 top-4 z-20 pointer-events-auto">
         <div
-          className="flex items-center gap-3 rounded-full bg-[rgba(18,19,23,0.82)] px-4 py-3 backdrop-blur-[12px] shadow-[0_18px_34px_-22px_rgba(0,0,0,0.58)] select-none"
+          className="group flex max-w-[calc(100vw-7rem)] items-center gap-1 overflow-hidden rounded-full border border-white/[0.06] bg-[rgba(18,19,23,0.72)] px-2 py-2 backdrop-blur-[12px] shadow-[0_18px_34px_-22px_rgba(0,0,0,0.58)] transition-all duration-300 select-none hover:gap-2 hover:bg-[rgba(18,19,23,0.9)] hover:px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/45"
+          role="group"
+          tabIndex={0}
           title={`${filteredAssets.length.toLocaleString()} visible assets of ${totalListings.toLocaleString()} total listings; ${verifiedCount.toLocaleString()} verified assets`}
+          aria-label={`${filteredAssets.length.toLocaleString()} visible assets, ${displayMarkers.length.toLocaleString()} pins, ${visibleSupplierCount.toLocaleString()} suppliers, ${totalSuccessfulSales.toLocaleString()} sales`}
         >
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1 transition-colors duration-300 group-hover:bg-white/[0.04] group-focus-within:bg-white/[0.04]">
             <div className="h-2.5 w-2.5 rounded-full bg-[#2CC295]" />
-            <span className="text-[13px] font-semibold text-white">{filteredAssets.length.toLocaleString()}</span>
-            <span className="text-[13px] text-[rgba(203,213,225,0.9)]">Assets</span>
+            <span className="text-[12px] font-semibold text-white group-hover:hidden group-focus-within:hidden">{formatCompactCount(filteredAssets.length)}</span>
+            <span className="hidden text-[13px] font-semibold text-white group-hover:inline group-focus-within:inline">{filteredAssets.length.toLocaleString()}</span>
+            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] text-[rgba(203,213,225,0.9)] opacity-0 transition-all duration-300 group-hover:max-w-[52px] group-hover:opacity-100 group-focus-within:max-w-[52px] group-focus-within:opacity-100">Assets</span>
           </div>
-          <div className="h-4 w-px bg-white/10" />
-          <div className="flex items-center gap-2 shrink-0">
-            <Clock size={13} className="text-[rgba(148,163,184,0.82)]" />
-            <span className="text-[13px] font-semibold text-white">{displayMarkers.length.toLocaleString()}</span>
-            <span className="hidden text-[13px] text-[rgba(203,213,225,0.9)] sm:inline">Pins</span>
+          <div className="h-4 w-px scale-y-0 bg-white/10 opacity-0 transition-all duration-300 group-hover:scale-y-100 group-hover:opacity-100 group-focus-within:scale-y-100 group-focus-within:opacity-100" />
+          <div className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1 transition-colors duration-300 group-hover:bg-white/[0.04] group-focus-within:bg-white/[0.04]">
+            <MapPin size={13} className="text-[rgba(148,163,184,0.82)]" />
+            <span className="text-[12px] font-semibold text-white group-hover:hidden group-focus-within:hidden">{formatCompactCount(displayMarkers.length)}</span>
+            <span className="hidden text-[13px] font-semibold text-white group-hover:inline group-focus-within:inline">{displayMarkers.length.toLocaleString()}</span>
+            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] text-[rgba(203,213,225,0.9)] opacity-0 transition-all duration-300 group-hover:max-w-[32px] group-hover:opacity-100 group-focus-within:max-w-[32px] group-focus-within:opacity-100">Pins</span>
           </div>
-          <div className="h-4 w-px bg-white/10" />
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="h-4 w-px scale-y-0 bg-white/10 opacity-0 transition-all duration-300 group-hover:scale-y-100 group-hover:opacity-100 group-focus-within:scale-y-100 group-focus-within:opacity-100" />
+          <div className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1 transition-colors duration-300 group-hover:bg-white/[0.04] group-focus-within:bg-white/[0.04]">
             <Users size={13} className="text-[rgba(148,163,184,0.82)]" />
-            <span className="text-[13px] font-semibold text-white">{visibleSupplierCount.toLocaleString()}</span>
-            <span className="hidden text-[13px] text-[rgba(203,213,225,0.9)] sm:inline">Suppliers</span>
+            <span className="text-[12px] font-semibold text-white group-hover:hidden group-focus-within:hidden">{formatCompactCount(visibleSupplierCount)}</span>
+            <span className="hidden text-[13px] font-semibold text-white group-hover:inline group-focus-within:inline">{visibleSupplierCount.toLocaleString()}</span>
+            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] text-[rgba(203,213,225,0.9)] opacity-0 transition-all duration-300 group-hover:max-w-[66px] group-hover:opacity-100 group-focus-within:max-w-[66px] group-focus-within:opacity-100">Suppliers</span>
           </div>
-          <div className="h-4 w-px bg-white/10" />
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="h-4 w-px scale-y-0 bg-white/10 opacity-0 transition-all duration-300 group-hover:scale-y-100 group-hover:opacity-100 group-focus-within:scale-y-100 group-focus-within:opacity-100" />
+          <div className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1 transition-colors duration-300 group-hover:bg-white/[0.04] group-focus-within:bg-white/[0.04]">
             <TrendingUp size={13} className="text-[rgba(148,163,184,0.82)]" />
-            <span className="text-[13px] font-semibold text-white">{totalSuccessfulSales.toLocaleString()}</span>
+            <span className="text-[12px] font-semibold text-white group-hover:hidden group-focus-within:hidden">{formatCompactCount(totalSuccessfulSales)}</span>
+            <span className="hidden text-[13px] font-semibold text-white group-hover:inline group-focus-within:inline">{totalSuccessfulSales.toLocaleString()}</span>
+            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] text-[rgba(203,213,225,0.9)] opacity-0 transition-all duration-300 group-hover:max-w-[42px] group-hover:opacity-100 group-focus-within:max-w-[42px] group-focus-within:opacity-100">Sales</span>
           </div>
         </div>
       </div>
@@ -392,27 +410,37 @@ export function RealisticWorldMap({
         </button>
       </div>
 
-      <div className="pointer-events-none absolute bottom-4 left-4 z-20 max-w-[310px] rounded-[24px] border border-white/10 bg-[rgba(18,19,23,0.76)] px-4 py-3 text-[11px] text-[rgba(226,232,240,0.82)] shadow-[0_18px_34px_-24px_rgba(0,0,0,0.62)] backdrop-blur-[14px]">
-        <div className="flex items-center justify-between gap-4">
-          <span className="font-semibold uppercase tracking-[0.16em] text-white/52">Map Density</span>
+      <div
+        className="group pointer-events-auto absolute bottom-4 left-4 z-20 max-w-[min(310px,calc(100vw-2rem))] overflow-hidden rounded-full border border-white/[0.08] bg-[rgba(18,19,23,0.72)] text-[11px] text-[rgba(226,232,240,0.82)] shadow-[0_18px_34px_-24px_rgba(0,0,0,0.62)] backdrop-blur-[14px] transition-all duration-300 hover:rounded-[18px] hover:bg-[rgba(18,19,23,0.9)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/45"
+        role="group"
+        tabIndex={0}
+        aria-label={`Map density: ${zoomModeLabel}`}
+      >
+        <div className="flex items-center justify-between gap-3 px-3 py-2">
+          <span className="inline-flex items-center gap-2 font-semibold uppercase tracking-[0.16em] text-white/52">
+            <Gauge size={13} className="text-[#2CC295]" />
+            Density
+          </span>
           <span className="font-semibold text-white">{zoomModeLabel}</span>
         </div>
-        <p className="mt-2 leading-5 text-white/60">
-          Zoomed-out views rank pins by sales, trust, seller scale, and engagement. Zoom in to reveal denser suppliers and individual assets.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-2 py-1">
-            <span className="h-2 w-2 rounded-full bg-[#f5b84b]" />
-            Sales
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-2 py-1">
-            <span className="h-2 w-2 rounded-full bg-[#2CC295]" />
-            Trusted
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-2 py-1">
-            <span className="h-2 w-2 rounded-full bg-[#8da3ad]" />
-            Standard
-          </span>
+        <div className="max-h-0 overflow-hidden px-3 opacity-0 transition-all duration-300 group-hover:max-h-[140px] group-hover:pb-3 group-hover:opacity-100 group-focus-within:max-h-[140px] group-focus-within:pb-3 group-focus-within:opacity-100">
+          <p className="leading-5 text-white/60">
+            Zoomed-out views rank pins by sales, trust, seller scale, and engagement. Zoom in to reveal denser suppliers and individual assets.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-2 py-1">
+              <span className="h-2 w-2 rounded-full bg-[#f5b84b]" />
+              Sales
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-2 py-1">
+              <span className="h-2 w-2 rounded-full bg-[#2CC295]" />
+              Trusted
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-2 py-1">
+              <span className="h-2 w-2 rounded-full bg-[#8da3ad]" />
+              Standard
+            </span>
+          </div>
         </div>
       </div>
 
@@ -431,6 +459,8 @@ export function RealisticWorldMap({
           const markerSize = getMarkerSize(marker);
           const markerTone = getMarkerTone(marker);
           const isCluster = marker.level !== 'asset';
+          const markerZIndex = isHovered || isSelected ? 50000 : hoveredMarkerKey ? 1 : isCluster ? 30 : 10;
+          const categoryTone = getTaxonomyBadgeTone(marker.category || asset.category);
 
           return (
             <Marker
@@ -438,12 +468,11 @@ export function RealisticWorldMap({
               longitude={marker.longitude}
               latitude={marker.latitude}
               anchor="center"
+              style={{ zIndex: markerZIndex }}
             >
               <div
-                className="relative"
-                style={{
-                  zIndex: isHovered || isSelected ? 9999 : hoveredMarkerKey ? 1 : isCluster ? 30 : 10,
-                }}
+                className="relative isolate"
+                style={{ zIndex: markerZIndex }}
               >
                 {/* Marker Point */}
                 <div
@@ -504,7 +533,7 @@ export function RealisticWorldMap({
                 {/* Hover Card */}
                 {isHovered && (
                   <div
-                    className="absolute pointer-events-none z-[10000]"
+                    className="absolute pointer-events-none z-[50001]"
                     style={{
                       left: '50%',
                       bottom: '26px',
@@ -522,9 +551,16 @@ export function RealisticWorldMap({
                         />
 
                         <div
-                          className="absolute right-1 top-1 inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-5)] px-2 py-0.5 text-[7px] font-semibold uppercase tracking-[0.12em] text-ui-secondary backdrop-blur-md"
+                          className="absolute right-1 top-1 inline-flex max-w-[calc(100%-0.5rem)] items-center rounded-full border px-2 py-0.5 text-[7px] font-semibold uppercase tracking-[0.12em] backdrop-blur-md"
+                          style={{
+                            background: categoryTone.background,
+                            borderColor: categoryTone.borderColor,
+                            color: categoryTone.textColor,
+                            boxShadow: `0 14px 32px -28px ${categoryTone.shadowColor}`,
+                          }}
+                          title={marker.categoryLabel}
                         >
-                          {marker.level === 'asset' ? asset.categoryLabel : marker.level}
+                          <span className="truncate">{marker.categoryLabel}</span>
                         </div>
 
                         {marker.verified && (

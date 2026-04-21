@@ -1,9 +1,10 @@
 import { Compass, Globe2, LoaderCircle, ShieldCheck, Sparkles } from 'lucide-react';
-import { Suspense, useEffect, useMemo, type ReactNode } from 'react';
+import { Suspense, useMemo, type ReactNode } from 'react';
 
 interface MarketplaceMapAsset {
   id: number;
   name: string;
+  category: string;
   categoryLabel: string;
   price: string;
   usdPrice: string;
@@ -39,24 +40,6 @@ interface ProgressiveMarketplaceMapSurfaceProps {
   verifiedOnly?: boolean;
   onToggleVerified?: (value: boolean) => void;
   children: ReactNode;
-}
-
-type IdleSchedulerWindow = Window & {
-  requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-  cancelIdleCallback?: (handle: number) => void;
-};
-
-function scheduleDeferredMapActivation(task: () => void) {
-  if (typeof window === 'undefined') return () => undefined;
-
-  const idleWindow = window as IdleSchedulerWindow;
-  if (typeof idleWindow.requestIdleCallback === 'function') {
-    const handle = idleWindow.requestIdleCallback(task, { timeout: 900 });
-    return () => idleWindow.cancelIdleCallback?.(handle);
-  }
-
-  const handle = window.setTimeout(task, 260);
-  return () => window.clearTimeout(handle);
 }
 
 function formatCompactCount(value: number): string {
@@ -284,11 +267,6 @@ export function ProgressiveMarketplaceMapSurface({
   onToggleVerified,
   children,
 }: ProgressiveMarketplaceMapSurfaceProps) {
-  useEffect(() => {
-    if (mapEngineRequested) return;
-    return scheduleDeferredMapActivation(onRequestMapEngine);
-  }, [mapEngineRequested, onRequestMapEngine]);
-
   const shell = (
     <MarketplaceMapShell
       filteredAssets={filteredAssets}
@@ -305,5 +283,11 @@ export function ProgressiveMarketplaceMapSurface({
     return shell;
   }
 
-  return <Suspense fallback={shell}>{children}</Suspense>;
+  return (
+    <Suspense fallback={shell}>
+      <div className="h-full w-full animate-in fade-in duration-300">
+        {children}
+      </div>
+    </Suspense>
+  );
 }
