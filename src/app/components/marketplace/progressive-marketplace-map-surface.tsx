@@ -11,6 +11,18 @@ interface MarketplaceMapAsset {
   latitude: number;
   longitude: number;
   city: string;
+  countryCode?: string;
+  locationPrecision?: string;
+  assetKey?: string;
+  supplierKey?: string;
+  trustScore?: number;
+  successfulSales?: number;
+  views?: number;
+  likes?: number;
+  rank?: number;
+  totalSlots?: number;
+  availableSlots?: number;
+  displayScore?: number;
   seller: {
     name: string;
     rating: string;

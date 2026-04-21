@@ -530,6 +530,24 @@ export function Marketplace({
               asset.assetLocationSnapshot?.geoPath[asset.assetLocationSnapshot.geoPath.length - 1]?.name ||
               asset.assetLocationSnapshot?.countryNameSnapshot ||
               'Unknown',
+            countryCode: asset.assetLocationSnapshot?.countryCode || '',
+            locationPrecision: asset.assetLocationSnapshot?.precision || 'unstructured',
+            assetKey: asset.id,
+            supplierKey: asset.seller.address || asset.seller.ensName || 'unknown-supplier',
+            trustScore: Math.max(0, Math.min(100, asset.seller.reputation ?? (asset.seller.verified ? 80 : 50))),
+            successfulSales: Math.max(0, (asset.totalSlots || 0) - (asset.availableSlots || 0)),
+            views: asset.views || 0,
+            likes: asset.likes || 0,
+            rank: asset.rank,
+            totalSlots: asset.totalSlots || 0,
+            availableSlots: asset.availableSlots || 0,
+            displayScore:
+              Math.max(0, Math.min(100, asset.seller.reputation ?? (asset.seller.verified ? 80 : 50))) * 0.45 +
+              Math.max(0, (asset.totalSlots || 0) - (asset.availableSlots || 0)) * 3 +
+              Math.log1p(asset.views || 0) * 7 +
+              Math.log1p(asset.likes || 0) * 10 +
+              (asset.verified ? 18 : 0) +
+              (typeof asset.rank === 'number' && asset.rank > 0 ? Math.max(0, 40 - asset.rank) : 0),
             seller: {
               name: asset.seller.ensName || asset.seller.address.slice(0, 10),
               rating: `${asset.seller.reputation}%`,
