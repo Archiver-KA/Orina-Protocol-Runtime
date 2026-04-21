@@ -77,6 +77,16 @@ interface SearchPageProps {
 
 type AISearchStatus = 'idle' | 'loading' | 'success' | 'error';
 
+interface AISearchRequest {
+  query: string;
+  filterKey: string;
+  selectedCategory?: string;
+}
+
+function buildAISearchFilterKey(categories: string[]): string {
+  return [...categories].sort().join('\u001f');
+}
+
 export function SearchPage({
   initialQuery = '',
   navigationRequest,
@@ -113,7 +123,7 @@ export function SearchPage({
   const [aiExtractedQuery, setAiExtractedQuery] = useState('');
   const [aiSearchError, setAiSearchError] = useState('');
   const [isAISemanticSearch, setIsAISemanticSearch] = useState(false);
-  const [aiSearchNonce, setAiSearchNonce] = useState(0);
+  const [aiSearchRequest, setAiSearchRequest] = useState<AISearchRequest | null>(null);
   const aiSearchRequestRef = useRef(0);
 
   useEffect(() => {
@@ -181,6 +191,10 @@ export function SearchPage({
   );
   const marketplacePriceRange = useMemo(() => getMarketplacePriceRange(marketplaceAssets), [marketplaceAssets]);
   const visibleCategoryOptions = contentMode === 'collections' ? collectionCategoryOptions : marketplaceCategoryOptions;
+  const currentAISearchFilterKey = useMemo(
+    () => buildAISearchFilterKey(filters.categories),
+    [filters.categories],
+  );
 
   useEffect(() => {
     const syncCatalog = () => {
@@ -218,7 +232,13 @@ export function SearchPage({
 
   useEffect(() => {
     const query = filters.query.trim();
-    if (contentMode !== 'assets' || !query) {
+    if (
+      contentMode !== 'assets' ||
+      !query ||
+      aiSearchRequest === null ||
+      aiSearchRequest.query !== query ||
+      aiSearchRequest.filterKey !== currentAISearchFilterKey
+    ) {
       aiSearchRequestRef.current += 1;
       setAiSearchStatus('idle');
       setAiSearchProducts([]);
@@ -226,6 +246,9 @@ export function SearchPage({
       setAiExtractedQuery('');
       setAiSearchError('');
       setIsAISemanticSearch(false);
+      if (aiSearchRequest !== null) {
+        setAiSearchRequest(null);
+      }
       return;
     }
 
@@ -240,14 +263,13 @@ export function SearchPage({
 
     const timer = window.setTimeout(() => {
       void (async () => {
-        const selectedCategory = filters.categories.length === 1 ? filters.categories[0] : undefined;
         const language =
           typeof navigator !== 'undefined'
             ? String(navigator.language || '').split('-')[0] || undefined
             : undefined;
-        const response = await AIAgentClient.searchProducts(query, {
-          category: selectedCategory,
-          limit: selectedCategory ? 18 : 12,
+        const response = await AIAgentClient.searchProducts(aiSearchRequest.query, {
+          category: aiSearchRequest.selectedCategory,
+          limit: aiSearchRequest.selectedCategory ? 18 : 12,
           lang: language,
         });
 
@@ -257,7 +279,7 @@ export function SearchPage({
           setAiSearchStatus('error');
           setAiSearchProducts([]);
           setAiSearchSummary('');
-          setAiExtractedQuery(query);
+          setAiExtractedQuery(aiSearchRequest.query);
           setAiSearchError('ORINA AI search is unavailable right now. Showing keyword matches from the marketplace catalog.');
           setIsAISemanticSearch(false);
           return;
@@ -266,7 +288,7 @@ export function SearchPage({
         setAiSearchStatus('success');
         setAiSearchProducts(response.results ?? []);
         setAiSearchSummary(sanitizeAIVisibleText(String(response.chatResponse || '')));
-        setAiExtractedQuery(String(response.extractedQuery || query).trim() || query);
+        setAiExtractedQuery(String(response.extractedQuery || aiSearchRequest.query).trim() || aiSearchRequest.query);
         setAiSearchError('');
         setIsAISemanticSearch(response.isVectorSearch === true);
       })();
@@ -275,7 +297,7 @@ export function SearchPage({
     return () => {
       window.clearTimeout(timer);
     };
-  }, [aiSearchNonce, contentMode, filters.categories, filters.query]);
+  }, [aiSearchRequest, contentMode, currentAISearchFilterKey, filters.query]);
 
   // Filter results
   const filteredAssets = useMemo(() => {
@@ -503,7 +525,14 @@ export function SearchPage({
       .catch(() => undefined);
   };
 
-  const aiSearchActive = contentMode === 'assets' && filters.query.trim().length > 0;
+  const trimmedQuery = filters.query.trim();
+  const aiSearchAvailable = contentMode === 'assets' && trimmedQuery.length > 0;
+  const aiSearchActive =
+    aiSearchAvailable &&
+    aiSearchRequest !== null &&
+    aiSearchRequest.query === trimmedQuery &&
+    aiSearchRequest.filterKey === currentAISearchFilterKey;
+  const canStartAISearch = aiSearchAvailable && aiSearchStatus !== 'loading';
   const showingAISearchResults =
     aiSearchActive &&
     aiSearchStatus === 'success' &&
@@ -539,8 +568,19 @@ export function SearchPage({
     }
   };
 
+  const handleStartAISearch = () => {
+    const query = filters.query.trim();
+    if (contentMode !== 'assets' || !query) return;
+
+    setAiSearchRequest({
+      query,
+      filterKey: currentAISearchFilterKey,
+      selectedCategory: filters.categories.length === 1 ? filters.categories[0] : undefined,
+    });
+  };
+
   const handleRetryAISearch = () => {
-    setAiSearchNonce((value) => value + 1);
+    handleStartAISearch();
   };
 
   const resultLabel =
@@ -557,12 +597,12 @@ export function SearchPage({
         ? 'Browse Collections'
         : 'Browse All Assets';
   const searchSubtitle = filters.query
-    ? 'Search stays connected to the live marketplace catalog, AI-assisted ranking, and your active filters.'
+    ? 'Search stays connected to the live marketplace catalog and your active filters.'
     : contentMode === 'profiles'
       ? 'Review verified seller profiles and marketplace reputation signals in one place.'
       : contentMode === 'collections'
         ? 'Browse collection surfaces mapped from the same canonical marketplace system.'
-        : 'Search the live catalog with keyword and AI-assisted discovery while keeping filters visible.';
+        : 'Search the live catalog with keyword discovery while keeping filters visible.';
   const filterSectionClassName =
     'rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] p-5 shadow-none';
 
@@ -630,6 +670,22 @@ export function SearchPage({
                     <Grid3x3 size={18} />
                   </StudioPillButton>
                 </StudioPillGroup>
+
+                {contentMode === 'assets' && (
+                  <StudioActionButton
+                    type="button"
+                    onClick={handleStartAISearch}
+                    disabled={!canStartAISearch}
+                    variant={aiSearchActive ? 'primary' : 'secondary'}
+                    size="icon"
+                    aria-label="Search with ORINA AI"
+                    title="Search with ORINA AI"
+                    className="h-11 w-11 border-[#2CC295]/25 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Sparkles size={18} aria-hidden="true" />
+                    <span className="sr-only">Search with ORINA AI</span>
+                  </StudioActionButton>
+                )}
               </div>
 
               <div className="text-sm text-ui-secondary">
@@ -652,7 +708,7 @@ export function SearchPage({
           </div>
         </StudioPanel>
 
-        {contentMode === 'assets' && filters.query.trim() && (
+        {aiSearchActive && (
           <StudioPanel className="mb-6 overflow-hidden rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-2)] p-5">
             <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1 space-y-3">
