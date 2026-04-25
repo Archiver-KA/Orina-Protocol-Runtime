@@ -1,30 +1,8 @@
 import { Hono } from "npm:hono";
 import { requireAuthenticatedWallet } from "./request-auth.ts";
+import { checkRateLimit, rateLimitExceededResponse } from "./rate-limiter.ts";
 
 const ipfsRouter = new Hono();
-
-/** Per-wallet upload cap (same order of magnitude as AI assist rate limits). */
-const uploadRateLimit = new Map<string, { count: number; resetAt: number }>();
-const UPLOAD_RATE_LIMIT = 30;
-const UPLOAD_RATE_WINDOW_MS = 60_000;
-
-function checkUploadRate(wallet: string): { allowed: boolean; retryAfterMs: number } {
-  const now = Date.now();
-  const key = String(wallet || "").trim().toLowerCase();
-  if (!key) {
-    return { allowed: true, retryAfterMs: 0 };
-  }
-  const entry = uploadRateLimit.get(key);
-  if (!entry || now >= entry.resetAt) {
-    uploadRateLimit.set(key, { count: 1, resetAt: now + UPLOAD_RATE_WINDOW_MS });
-    return { allowed: true, retryAfterMs: 0 };
-  }
-  if (entry.count >= UPLOAD_RATE_LIMIT) {
-    return { allowed: false, retryAfterMs: Math.max(0, entry.resetAt - now) };
-  }
-  entry.count += 1;
-  return { allowed: true, retryAfterMs: 0 };
-}
 
 /**
  * Check IPFS configuration status
@@ -56,6 +34,14 @@ ipfsRouter.get("/check", async (c) => {
  */
 ipfsRouter.post("/upload", async (c) => {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+
+    const rate = await checkRateLimit("ipfs_upload", auth.identity.walletAddress);
+    if (!rate.allowed) {
+      return rateLimitExceededResponse(c, rate);
+    }
+
     const PINATA_JWT = Deno.env.get("PINATA_JWT");
     
     if (!PINATA_JWT) {
@@ -104,7 +90,7 @@ ipfsRouter.post("/upload", async (c) => {
       name: file.name,
       keyvalues: {
         uploadedAt: new Date().toISOString(),
-        uploadedBy: "Orina",
+        uploadedBy: auth.identity.walletAddress,
       },
     });
     pinataFormData.append("pinataMetadata", metadata);
@@ -172,12 +158,9 @@ ipfsRouter.post("/upload-multiple", async (c) => {
     const auth = await requireAuthenticatedWallet(c);
     if (!auth.ok) return auth.response;
 
-    const rate = checkUploadRate(auth.identity.walletAddress);
+    const rate = await checkRateLimit("ipfs_upload_batch", auth.identity.walletAddress);
     if (!rate.allowed) {
-      return c.json(
-        { error: "Too many uploads. Try again shortly.", retryAfterMs: rate.retryAfterMs },
-        429,
-      );
+      return rateLimitExceededResponse(c, rate);
     }
 
     const PINATA_JWT = Deno.env.get("PINATA_JWT");
@@ -238,7 +221,7 @@ ipfsRouter.post("/upload-multiple", async (c) => {
           name: file.name,
           keyvalues: {
             uploadedAt: new Date().toISOString(),
-            uploadedBy: "Orina",
+            uploadedBy: auth.identity.walletAddress,
             batchIndex: i,
           },
         });

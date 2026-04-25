@@ -32,6 +32,8 @@ export const RATE_BUDGETS: Record<string, RateBudget> = {
   chat_send:        { maxRequests: 20,  windowMs: 60_000 },       // 20 / min
   chat_send_conv:   { maxRequests: 5,   windowMs: 60_000 },       // 5 / min / conversation
   chat_read:        { maxRequests: 120, windowMs: 60_000 },       // 120 / min
+  ipfs_upload:      { maxRequests: 30,  windowMs: 60_000 },       // 30 / min
+  ipfs_upload_batch:{ maxRequests: 10,  windowMs: 60_000 },       // 10 / min
   ai_assist:        { maxRequests: 10,  windowMs: 60_000 },       // 10 / min
   ai_assist_daily:  { maxRequests: 200, windowMs: 24 * 3600_000 },// 200 / day
   ai_assist_image:  { maxRequests: 3,   windowMs: 60_000 },       // 3 / min

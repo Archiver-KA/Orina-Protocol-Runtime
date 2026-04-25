@@ -1,42 +1,19 @@
-/**
- * ORINA Chat v1 (Clean Routes)
- *
- * Goals:
- * - No duplicated prefix routing.
- * - Backward compatible with current frontend (simple REST).
- * - CORS-friendly (avoid preflight surprises).
- *
- * NOTE:
- * - This function uses the canonical C5 messaging handler.
- * - Chat persistence now comes from the real conversation/message tables.
- */
-
-import { Hono } from "npm:hono";
-import { cors } from "npm:hono/cors";
-import { logger } from "npm:hono/logger";
-
+import { createEdgeApp, registerHealthRoute } from "../server/edge-app.ts";
 import * as messagesHandler from "../server/messages-handler-c5.ts";
 
-const app = new Hono();
+const app = createEdgeApp();
 const PREFIX = "/orina-chat-v1";
 
-app.use("*", logger(console.log));
-
-app.use(
-  "/*",
-  cors({
-    origin: "*",
-    allowHeaders: ["Content-Type", "Authorization", "apikey", "x-client-info"],
-    allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
-    exposeHeaders: ["Content-Length"],
-    maxAge: 600,
-  }),
-);
-
-// Supabase forwards the function slug as part of the request pathname:
-//   /functions/v1/<slug>/health   -> pathname seen by the function: /<slug>/health
-// So routes must include the slug prefix to match.
-app.get(`${PREFIX}/health`, (c) => c.json({ ok: true, name: "orina-chat-v1" }));
+registerHealthRoute(app, "/health", {
+  ok: true,
+  function: "orina-chat-v1",
+  scope: "messaging",
+});
+registerHealthRoute(app, `${PREFIX}/health`, {
+  ok: true,
+  function: "orina-chat-v1",
+  scope: "messaging",
+});
 
 // Clean messages endpoints (no extra prefix).
 app.post(`${PREFIX}/messages/conversation`, messagesHandler.handleCreateConversation);

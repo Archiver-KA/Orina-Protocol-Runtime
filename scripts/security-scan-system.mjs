@@ -160,7 +160,146 @@ function scanClientM2MSecrets() {
   };
 }
 
-function buildAggregate(vuln, m2mScan) {
+function scanMessagingModule() {
+  const filePath = path.join(ROOT, 'supabase', 'functions', 'server', 'messages-handler-c5.ts');
+  if (!fs.existsSync(filePath)) {
+    return { ok: false, items: ['messages-handler-c5.ts not found'], checks: {} };
+  }
+
+  const text = fs.readFileSync(filePath, 'utf8');
+  const authCalls = (text.match(/requireAuthenticatedWallet\(/g) || []).length;
+  const walletMatchCalls = (text.match(/assertAuthenticatedWalletMatch\(/g) || []).length;
+  const membershipGuard =
+    text.includes('User is not a participant of this conversation') &&
+    text.includes('participantRows.some((p) => p.user_id === userProfile.id)');
+  const reportTracksAuthenticatedWallet = text.includes('reporter_wallet: auth.identity.walletAddress');
+
+  const checks = {
+    minAuthHandlers: authCalls >= 7,
+    walletMatchPresent: walletMatchCalls >= 6,
+    membershipGuard,
+    reportTracksAuthenticatedWallet,
+  };
+
+  const items = [
+    `requireAuthenticatedWallet call sites: ${authCalls}`,
+    `assertAuthenticatedWalletMatch call sites: ${walletMatchCalls}`,
+    membershipGuard
+      ? 'Conversation reads enforce server-side participant membership before returning messages.'
+      : 'WARNING: missing explicit conversation membership guard in getConversationMessagesImpl.',
+    reportTracksAuthenticatedWallet
+      ? 'Message reports bind reporter_wallet to the authenticated bridge identity.'
+      : 'WARNING: moderation reports do not appear to bind reporter_wallet to the authenticated identity.',
+  ];
+
+  return { ok: Object.values(checks).every(Boolean), items, checks };
+}
+
+function extractRouteBlock(text, routeSignature, nextRouteSignature) {
+  const start = text.indexOf(routeSignature);
+  if (start === -1) return '';
+  const end = nextRouteSignature ? text.indexOf(nextRouteSignature, start + routeSignature.length) : -1;
+  return text.slice(start, end === -1 ? text.length : end);
+}
+
+function scanIpfsModule() {
+  const filePath = path.join(ROOT, 'supabase', 'functions', 'server', 'ipfs-upload.tsx');
+  if (!fs.existsSync(filePath)) {
+    return { ok: false, items: ['ipfs-upload.tsx not found'], checks: {} };
+  }
+
+  const text = fs.readFileSync(filePath, 'utf8');
+  const singleUploadBlock = extractRouteBlock(text, 'ipfsRouter.post("/upload"', 'ipfsRouter.post("/upload-multiple"');
+  const batchUploadBlock = extractRouteBlock(text, 'ipfsRouter.post("/upload-multiple"', 'ipfsRouter.get("/info/:hash"');
+
+  const checks = {
+    singleUploadRequiresAuth: /requireAuthenticatedWallet\(/.test(singleUploadBlock),
+    singleUploadRateLimited: /checkRateLimit\("ipfs_upload"/.test(singleUploadBlock),
+    batchUploadRequiresAuth: /requireAuthenticatedWallet\(/.test(batchUploadBlock),
+    batchUploadRateLimited: /checkRateLimit\("ipfs_upload_batch"/.test(batchUploadBlock),
+  };
+
+  const items = [
+    checks.singleUploadRequiresAuth
+      ? 'Single-file IPFS upload requires an authenticated H1 wallet token.'
+      : 'CRITICAL: single-file IPFS upload does not require authenticated wallet access.',
+    checks.singleUploadRateLimited
+      ? 'Single-file IPFS upload uses the distributed rate limiter.'
+      : 'WARNING: single-file IPFS upload is not covered by the distributed rate limiter.',
+    checks.batchUploadRequiresAuth
+      ? 'Batch IPFS upload requires an authenticated H1 wallet token.'
+      : 'WARNING: batch IPFS upload does not require authenticated wallet access.',
+    checks.batchUploadRateLimited
+      ? 'Batch IPFS upload uses the distributed rate limiter.'
+      : 'WARNING: batch IPFS upload is not covered by the distributed rate limiter.',
+    'IPFS check/info routes remain public read-only helpers and do not expose Pinata credentials.',
+  ];
+
+  return { ok: Object.values(checks).every(Boolean), items, checks };
+}
+
+function scanAuditServiceRoleAliases() {
+  const auditDir = path.join(ROOT, 'supabase', 'audit');
+  if (!fs.existsSync(auditDir)) {
+    return { ok: false, items: ['supabase/audit directory not found'], offenders: [] };
+  }
+
+  const offenders = [];
+  const stack = [auditDir];
+  while (stack.length) {
+    const current = stack.pop();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+        continue;
+      }
+      if (!/\.(cjs|mjs|js|ts|tsx)$/.test(entry.name)) continue;
+      const text = fs.readFileSync(fullPath, 'utf8');
+      if (text.includes('VITE_SUPABASE_SERVICE_ROLE_KEY')) {
+        offenders.push(path.relative(ROOT, fullPath));
+      }
+    }
+  }
+
+  return {
+    ok: offenders.length === 0,
+    offenders,
+    items: offenders.length
+      ? [`WARNING: audit tooling still accepts VITE_SUPABASE_SERVICE_ROLE_KEY in ${offenders.join(', ')}`]
+      : ['Audit tooling does not accept VITE_SUPABASE_SERVICE_ROLE_KEY aliases.'],
+  };
+}
+
+function scanCorsConfigurations() {
+  const functionsDir = path.join(ROOT, 'supabase', 'functions');
+  if (!fs.existsSync(functionsDir)) {
+    return { ok: false, items: ['supabase/functions directory not found'], offenders: [] };
+  }
+
+  const offenders = [];
+  const files = walk(functionsDir);
+  for (const file of files) {
+    const text = fs.readFileSync(file, 'utf8');
+    const rel = path.relative(ROOT, file);
+    if (/origin\s*:\s*["']\*["']/.test(text)) {
+      offenders.push(`${rel}: wildcard cors origin`);
+    }
+    if (/Access-Control-Allow-Origin["'`]\s*,\s*["']\*["']/.test(text)) {
+      offenders.push(`${rel}: explicit ACAO wildcard`);
+    }
+  }
+
+  return {
+    ok: offenders.length === 0,
+    offenders,
+    items: offenders.length
+      ? [`WARNING: wildcard CORS configuration present in ${offenders.join(', ')}`]
+      : ['No explicit wildcard CORS configuration found under supabase/functions.'],
+  };
+}
+
+function buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, auditAliasScan, corsScan) {
   const areas = {
     dependencies: {
       status: vuln && (vuln.critical > 0 || vuln.high > 0) ? 'action_required' : vuln?.moderate ? 'review' : 'ok',
@@ -184,30 +323,48 @@ function buildAggregate(vuln, m2mScan) {
       summary: 'KV key routes require H1 JWT + wallet match (index.tsx).',
     },
     messaging: {
-      status: 'risk',
-      summary: 'Chat REST trusts addresses from body/query; harden with JWT + membership when required.',
+      status: messagingScan?.ok ? 'ok' : 'review',
+      summary: messagingScan?.ok
+        ? 'Chat handlers require H1 JWT + wallet match; conversation reads enforce membership.'
+        : 'Review chat route authentication and membership enforcement.',
     },
     ipfsPinata: {
-      status: 'review',
-      summary:
-        'Upload routes require H1 bridge JWT + per-wallet rate limit (ipfs-upload.tsx); monitor Pinata quota.',
+      status: ipfsScan?.ok ? 'ok' : 'risk',
+      summary: ipfsScan?.ok
+        ? 'Single and batch upload routes require H1 JWT + distributed per-wallet rate limits.'
+        : 'Pinata-backed upload surface still exposes unauthenticated or unthrottled routes.',
     },
     cors: {
-      status: 'review',
-      summary: 'make-server allowlist; orina-chat-v1 uses origin *.',
+      status: corsScan?.ok ? 'ok' : 'review',
+      summary: corsScan?.ok
+        ? 'No explicit wildcard CORS config found; shared edge app gates origins by allowlist/pattern.'
+        : 'Review wildcard CORS usage in edge functions and restrict to the shared edge app policy.',
+    },
+    auditTooling: {
+      status: auditAliasScan?.ok ? 'ok' : 'review',
+      summary: auditAliasScan?.ok
+        ? 'Audit scripts do not accept VITE-prefixed service-role aliases.'
+        : 'Audit tooling still accepts VITE-prefixed service-role aliases and should be cleaned up.',
     },
   };
 
   const oneLine = [
     areas.dependencies.status === 'ok' ? 'deps:ok' : 'deps:check',
+    areas.messaging.status === 'ok' ? 'messaging:ok' : 'messaging:review',
+    areas.ipfsPinata.status === 'ok' ? 'ipfs:ok' : 'ipfs:risk',
     areas.m2mDelegatedAiWallet.status === 'ok' ? 'm2m:ok' : 'm2m:review',
-    'messaging/ipfs: residual risk if publicly exposed',
+    areas.cors.status === 'ok' ? 'cors:ok' : 'cors:review',
   ].join(' | ');
 
   return { generatedAt: new Date().toISOString(), oneLineSummary: oneLine, areas };
 }
 
 function main() {
+  const messagingScan = scanMessagingModule();
+  const ipfsScan = scanIpfsModule();
+  const auditAliasScan = scanAuditServiceRoleAliases();
+  const corsScan = scanCorsConfigurations();
+
   // 1) Client privileged secrets (existing script)
   try {
     execSync(`node "${path.join(ROOT, 'scripts', 'check-client-no-privileged-supabase-secrets.mjs')}"`, {
@@ -264,9 +421,9 @@ function main() {
     [
       'API routes under /make-server-b0d68fc8/api/v1 require sk_seller_* API key (see api-endpoints.tsx).',
       'POST /keys/* now require H1 bridge JWT + wallet match (request-auth.ts).',
-      'Messaging (orina-chat-v1 + messages-handler-c5): trust sender/receiver from body — harden with JWT + participant checks when threat model requires.',
-      'IPFS upload (ipfs-upload.tsx): anon-upload to Pinata cost; consider ATP2_IPFS_REQUIRE_AUTH or rate limits.',
-      'CORS: make-server uses origin allowlist; orina-chat-v1 uses origin * — restrict for production if needed.',
+      'Messaging (orina-chat-v1 + messages-handler-c5): H1 JWT + wallet match enforced, with participant membership checks on message reads.',
+      'IPFS upload (ipfs-upload.tsx): single and batch routes require H1 JWT and distributed per-wallet rate limits.',
+      'CORS: shared edge app applies origin allowlist/pattern gating; review deployed origins periodically.',
     ],
     'info'
   );
@@ -281,7 +438,14 @@ function main() {
     !m2mScan.clientM2M?.ok;
   if (m2mBlocking) REPORT.exitCode = 1;
 
-  REPORT.aggregate = buildAggregate(vuln, m2mScan);
+  addSection('Messaging auth / authorization (messages-handler-c5.ts)', messagingScan.items, messagingScan.ok ? 'info' : 'critical');
+  addSection('IPFS upload protection (ipfs-upload.tsx)', ipfsScan.items, ipfsScan.ok ? 'info' : 'critical');
+  addSection('Audit tooling secret aliases', auditAliasScan.items, auditAliasScan.ok ? 'info' : 'moderate');
+  addSection('Edge function CORS posture', corsScan.items, corsScan.ok ? 'info' : 'moderate');
+
+  if (!messagingScan.ok || !ipfsScan.ok) REPORT.exitCode = 1;
+
+  REPORT.aggregate = buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, auditAliasScan, corsScan);
 
   console.log(JSON.stringify(REPORT, null, 2));
   process.exit(REPORT.exitCode);

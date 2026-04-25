@@ -67,10 +67,8 @@ async function main() {
   const serviceRoleKey = firstNonEmpty(
     process.env.SUPABASE_SERVICE_ROLE_KEY,
     process.env.ATP2_SUPABASE_SERVICE_ROLE_KEY,
-    process.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
     rootEnv.SUPABASE_SERVICE_ROLE_KEY,
     rootEnv.ATP2_SUPABASE_SERVICE_ROLE_KEY,
-    rootEnv.VITE_SUPABASE_SERVICE_ROLE_KEY,
   );
   const sharedFnName = firstNonEmpty(rootEnv.VITE_SUPABASE_SHARED_SERVER_FN_NAME, 'make-server-b0d68fc8');
   const authBridgeFnName = firstNonEmpty(rootEnv.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME, 'orina-auth-bridge-v1');

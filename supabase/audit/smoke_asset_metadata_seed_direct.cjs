@@ -42,7 +42,7 @@ async function main() {
   const foundryEnv = loadFoundryEnv(process.cwd());
   const baseUrl = String(env.VITE_SUPABASE_URL || '').replace(/\/+$/, '');
   const anonKey = env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
-  const serviceRoleKey = env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+  const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY || env.ATP2_SUPABASE_SERVICE_ROLE_KEY || '';
   const authBridgeFnName = env.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME || 'orina-auth-bridge-v1';
   const routePrefix = env.VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX || '';
   const sellerPrivateKey = foundryEnv.SMOKE_SELLER_PRIVATE_KEY || '';
