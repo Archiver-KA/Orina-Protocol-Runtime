@@ -394,12 +394,24 @@ async function findClickableByText(session, selectors, label) {
     const targetLabel = ${JSON.stringify(label)};
     const simplifiedTargetLabel = simplify(targetLabel);
     const candidates = Array.from(document.querySelectorAll(${JSON.stringify(selectors)})).filter(isVisible);
+    const centerPoint = (element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        x: Math.max(rect.left + Math.min(rect.width / 2, Math.max(rect.width - 1, 0)), 0),
+        y: Math.max(rect.top + Math.min(rect.height / 2, Math.max(rect.height - 1, 0)), 0),
+      };
+    };
+    const isTopLayerMatch = (element) => {
+      const point = centerPoint(element);
+      const top = document.elementFromPoint(point.x, point.y);
+      return !!top && (top === element || element.contains(top) || top.contains(element));
+    };
     const matchesTarget = (candidate) => Boolean(candidate) && (
       candidate === simplifiedTargetLabel ||
       candidate.includes(simplifiedTargetLabel) ||
       simplifiedTargetLabel.includes(candidate)
     );
-    const target = candidates.find((element) => {
+    const matches = candidates.filter((element) => {
       const visibleText = normalize(
         element.textContent ||
         element.getAttribute('aria-label') ||
@@ -417,6 +429,9 @@ async function findClickableByText(session, selectors, label) {
         matchesTarget(simplifiedFallbackTitle)
       );
     });
+    const target = [...matches].reverse().find((element) => isTopLayerMatch(element))
+      || [...matches].reverse()[0]
+      || null;
 
     if (!target) {
       return {

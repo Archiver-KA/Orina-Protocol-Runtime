@@ -488,15 +488,30 @@ async function clickText(session, labels) {
       element.getAttribute('title') ||
       element.value || ''
     );
+    const centerPoint = (element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        x: Math.max(rect.left + Math.min(rect.width / 2, Math.max(rect.width - 1, 0)), 0),
+        y: Math.max(rect.top + Math.min(rect.height / 2, Math.max(rect.height - 1, 0)), 0),
+      };
+    };
+    const isTopLayerMatch = (element) => {
+      const point = centerPoint(element);
+      const top = document.elementFromPoint(point.x, point.y);
+      return !!top && (top === element || element.contains(top) || top.contains(element));
+    };
 
     const candidates = Array.from(document.querySelectorAll('button, [role="button"], a, input[type="button"], input[type="submit"]')).filter(isVisible);
     for (const requested of labels) {
       const normalizedRequested = simplify(requested);
-      const target = candidates.find((element) => {
+      const matches = candidates.filter((element) => {
         const current = simplify(readLabel(element));
         if (!current) return false;
         return current === normalizedRequested || current.includes(normalizedRequested) || normalizedRequested.includes(current);
       });
+      const target = [...matches].reverse().find((element) => isTopLayerMatch(element))
+        || [...matches].reverse().find((element) => isVisible(element))
+        || null;
       if (!target) continue;
       target.scrollIntoView({ block: 'center', inline: 'center' });
       target.focus?.();
