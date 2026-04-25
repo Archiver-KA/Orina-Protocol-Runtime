@@ -82,6 +82,30 @@ function restHeaders(token, extra = {}) {
   };
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withTransientRetry(label, fn, options = {}) {
+  const attempts = Math.max(1, Number(options.attempts || 3));
+  const baseDelayMs = Math.max(100, Number(options.baseDelayMs || 750));
+  let lastResult = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const result = await fn();
+    lastResult = result;
+    if (!result || ![429, 502, 503, 504].includes(Number(result.status || 0))) {
+      return result;
+    }
+    if (attempt >= attempts) {
+      return result;
+    }
+    await sleep(baseDelayMs * attempt);
+  }
+
+  return lastResult;
+}
+
 async function rest(pathnameWithQuery, token, init = {}) {
   return requestJson(`${restBase}${pathnameWithQuery}`, {
     ...init,
@@ -282,7 +306,10 @@ async function main() {
     raw: {},
   };
 
-  result.raw.bridgeHealth = await bridge('/health');
+  result.raw.bridgeHealth = await withTransientRetry(
+    'bridge-health',
+    () => bridge('/health'),
+  );
   result.checks.h1_health_ok = result.raw.bridgeHealth.status === 200 && result.raw.bridgeHealth.json?.ok === true;
 
   result.raw.exchangeA = {
@@ -335,8 +362,14 @@ async function main() {
   }
 
   for (const evt of events) {
-    const first = await communityNotify(evt, walletA, walletB, actorName, aToken);
-    const second = await communityNotify(evt, walletA, walletB, actorName, aToken);
+    const first = await withTransientRetry(
+      `${evt.eventCode}:first`,
+      () => communityNotify(evt, walletA, walletB, actorName, aToken),
+    );
+    const second = await withTransientRetry(
+      `${evt.eventCode}:second`,
+      () => communityNotify(evt, walletA, walletB, actorName, aToken),
+    );
     const rowsRes = await listNotificationsBySourceIds(bToken, bProfileId, [evt.sourceId]);
     const rows = Array.isArray(rowsRes.json) ? rowsRes.json : [];
     const row = rowBySourceId(rows, evt.sourceId);

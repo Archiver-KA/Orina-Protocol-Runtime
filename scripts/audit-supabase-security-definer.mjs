@@ -5,13 +5,43 @@ import path from 'node:path';
 const APP_FUNCTION_RULES = new Map([
   ['asset_catalog_metadata_defaults_v1(asset assets_catalog)', { roles: ['postgres', 'service_role'], searchPath: 'public' }],
   ['assets_catalog_apply_metadata_defaults_v1()', { roles: ['postgres', 'service_role'], searchPath: 'public' }],
+  ['assets_catalog_projection_is_visible_v1(p_asset_id uuid, p_chain_id bigint, p_contract_address text, p_token_id text)', { roles: ['anon', 'authenticated', 'postgres', 'service_role'], searchPath: 'public' }],
+  ['agent_thread_sync_stats(tid text)', { roles: ['postgres', 'service_role'], searchPath: 'public' }],
   ['atp2_is_conversation_participant_v1(p_conversation_id uuid)', { roles: ['authenticated', 'postgres', 'service_role'], searchPath: 'public' }],
   ['get_asset_listing_stats_v1(p_asset_uids text[])', { roles: ['anon', 'authenticated', 'postgres', 'service_role'], searchPath: 'public' }],
   ['increment_thread_message_count(tid text)', { roles: ['postgres', 'service_role'], searchPath: 'public' }],
+  ['protocol_projection_is_visible_v1(p_entity_type text, p_chain_id bigint, p_contract_address text, p_entity_uid text)', { roles: ['anon', 'authenticated', 'postgres', 'service_role'], searchPath: 'public' }],
   ['rate_limit_cleanup()', { roles: ['postgres', 'service_role'], searchPath: 'public' }],
   ['rate_limit_increment(p_scope_key text, p_endpoint text, p_wallet text, p_window_start timestamp with time zone)', { roles: ['postgres', 'service_role'], searchPath: 'public' }],
   ['record_asset_view_v1(p_asset_uid text, p_viewer_key text, p_wallet_address text)', { roles: ['anon', 'authenticated', 'postgres', 'service_role'], searchPath: 'public' }],
   ['rls_auto_enable()', { roles: ['anon', 'authenticated', 'postgres', 'public', 'service_role'], searchPath: 'pg_catalog' }],
+]);
+
+const REVIEWED_PRIVILEGED_FUNCTION_RULES = new Map([
+  [
+    'configure_order_autotime_keeper_cron(p_schedule text, p_job_name text, p_limit integer, p_batch_size integer, p_sync_receipts boolean)',
+    {
+      roles: ['postgres', 'service_role'],
+      searchPath: ['public', 'public, extensions'],
+      note: 'Operator-only cron scheduler. Reads Vault secrets and programs pg_cron + pg_net jobs.',
+    },
+  ],
+  [
+    'disable_order_autotime_keeper_cron(p_job_name text)',
+    {
+      roles: ['postgres', 'service_role'],
+      searchPath: ['public', 'public, extensions'],
+      note: 'Operator-only cron control surface for disabling the autotime keeper job.',
+    },
+  ],
+  [
+    'get_personalized_marketplace_assets_v1(p_asset_uids text[], p_surface text, p_limit integer)',
+    {
+      roles: ['anon', 'authenticated', 'postgres', 'service_role'],
+      searchPath: 'public',
+      note: 'Viewer-aware ranking RPC. SECURITY DEFINER is intentional because it reads ranking config and affinity tables while binding viewer identity to JWT claims, not caller-supplied parameters.',
+    },
+  ],
 ]);
 
 const IGNORED_FUNCTION_KEYS = new Set([
@@ -103,6 +133,13 @@ function setsEqual(left, right) {
   return true;
 }
 
+function searchPathMatches(expected, actual) {
+  if (Array.isArray(expected)) {
+    return expected.includes(actual);
+  }
+  return expected === actual;
+}
+
 function formatFunctionKey(row) {
   return `${row.proname}(${row.args || ''})`;
 }
@@ -173,6 +210,7 @@ if (result.status !== 0) {
 const rows = parseSupabaseJson(result.stdout);
 const findings = [];
 const seen = new Set();
+const reviewedPrivileged = [];
 
 for (const row of rows) {
   const functionKey = formatFunctionKey(row);
@@ -180,13 +218,19 @@ for (const row of rows) {
     continue;
   }
 
-  const expected = APP_FUNCTION_RULES.get(functionKey);
+  const expected = APP_FUNCTION_RULES.get(functionKey) || REVIEWED_PRIVILEGED_FUNCTION_RULES.get(functionKey);
   if (!expected) {
     findings.push(`Unexpected SECURITY DEFINER function in public: ${functionKey}`);
     continue;
   }
 
   seen.add(functionKey);
+  if (REVIEWED_PRIVILEGED_FUNCTION_RULES.has(functionKey)) {
+    reviewedPrivileged.push({
+      function: functionKey,
+      note: REVIEWED_PRIVILEGED_FUNCTION_RULES.get(functionKey).note,
+    });
+  }
 
   const actualRoles = parseExecuteRoles(row.proacl);
   const expectedRoles = new Set(expected.roles);
@@ -197,14 +241,17 @@ for (const row of rows) {
   }
 
   const actualSearchPath = parseSearchPath(row.proconfig);
-  if (actualSearchPath !== expected.searchPath) {
+  if (!searchPathMatches(expected.searchPath, actualSearchPath)) {
+    const expectedLabel = Array.isArray(expected.searchPath)
+      ? expected.searchPath.join(' | ')
+      : expected.searchPath;
     findings.push(
-      `${functionKey} search_path mismatch. expected=${expected.searchPath} actual=${actualSearchPath ?? 'NULL'}`,
+      `${functionKey} search_path mismatch. expected=${expectedLabel} actual=${actualSearchPath ?? 'NULL'}`,
     );
   }
 }
 
-for (const functionKey of APP_FUNCTION_RULES.keys()) {
+for (const functionKey of [...APP_FUNCTION_RULES.keys(), ...REVIEWED_PRIVILEGED_FUNCTION_RULES.keys()]) {
   if (!seen.has(functionKey) && !IGNORED_FUNCTION_KEYS.has(functionKey)) {
     findings.push(`Expected SECURITY DEFINER function missing from audit result: ${functionKey}`);
   }
@@ -216,6 +263,7 @@ const summary = {
   auditedFunctions: rows.length,
   checkedFunctions: sorted(seen),
   ignoredFunctions: sorted(IGNORED_FUNCTION_KEYS),
+  reviewedPrivilegedFunctions: reviewedPrivileged,
   findings,
   pass: findings.length === 0,
 };
