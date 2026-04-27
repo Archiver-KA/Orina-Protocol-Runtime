@@ -427,7 +427,13 @@ function SearchResultCardComponent({
 
   const media = (
     <div className="relative h-[240px] overflow-hidden bg-[var(--t-surface-10)]">
-      <ImageWithFallback src={asset.image} alt={asset.name} className="card-hover-media h-full w-full object-cover" />
+      <ImageWithFallback
+        src={asset.image}
+        alt={asset.name}
+        loading="lazy"
+        decoding="async"
+        className="card-hover-media h-full w-full object-cover"
+      />
       <div className="card-hover-overlay absolute inset-0 bg-gradient-to-t from-black/28 via-transparent to-transparent" />
       {viewMode === 'grid' ? (
         <div className="absolute bottom-3 left-3 z-10 max-w-[calc(100%-4.75rem)]">

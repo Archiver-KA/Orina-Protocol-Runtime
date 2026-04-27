@@ -86,6 +86,9 @@ const MARKETPLACE_LIST_INITIAL_RENDER_COUNT = 16;
 const MARKETPLACE_RENDER_INCREMENT = 24;
 const MARKETPLACE_SCROLL_PREFETCH_PX = 720;
 const MAP_PREFETCH_IDLE_TIMEOUT_MS = 1800;
+const MARKETPLACE_CATALOG_BOOTSTRAP_LIMIT = 160;
+
+type MarketplaceCatalogHydrationStatus = 'loading' | 'ready' | 'error';
 
 function readInitialMarketplaceViewMode(): 'grid' | 'list' | 'map' {
   if (typeof window === 'undefined') return 'grid';
@@ -168,6 +171,75 @@ function scheduleMarketplaceIdleTask(task: () => void, timeout = MAP_PREFETCH_ID
 
   const handle = window.setTimeout(task, Math.min(timeout, 700));
   return () => window.clearTimeout(handle);
+}
+
+function MarketplaceAssetSkeletonGrid() {
+  return (
+    <div
+      aria-label="Loading marketplace assets"
+      className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+    >
+      {Array.from({ length: 8 }).map((_, index) => (
+        <div
+          key={index}
+          className="market-card-shell search-result-card-shell h-[436px] overflow-hidden rounded-[32px]"
+        >
+          <div className="h-[240px] animate-pulse bg-[var(--t-surface-10)]" />
+          <div className="space-y-5 px-5 pb-5 pt-4">
+            <div className="h-4 w-3/4 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+            <div className="flex items-end justify-between gap-5 pt-24">
+              <div className="h-8 w-24 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+              <div className="h-10 w-20 animate-pulse rounded-2xl bg-[var(--t-surface-10)]" />
+            </div>
+            <div className="flex gap-3">
+              <div className="h-4 w-12 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+              <div className="h-4 w-12 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MarketplaceAssetSkeletonList() {
+  return (
+    <div aria-label="Loading marketplace assets" className="space-y-4">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div
+          key={index}
+          className="market-card-shell search-result-card-shell flex flex-col overflow-hidden rounded-[32px] lg:h-[240px] lg:flex-row"
+        >
+          <div className="h-[240px] shrink-0 animate-pulse bg-[var(--t-surface-10)] lg:h-full lg:w-[395px]" />
+          <div className="flex min-w-0 flex-1 flex-col px-5 pb-5 pt-5 lg:px-6 lg:py-5">
+            <div className="grid flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_236px] lg:gap-x-8">
+              <div className="space-y-3">
+                <div className="h-4 w-3/5 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+                <div className="h-3 w-full max-w-[32rem] animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+                <div className="h-3 w-4/5 max-w-[28rem] animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+              </div>
+              <div className="space-y-4 lg:text-right">
+                <div className="ml-auto h-7 w-28 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+                <div className="ml-auto h-9 w-32 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+                <div className="flex gap-2.5 lg:justify-end">
+                  <div className="h-7 w-16 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+                  <div className="h-7 w-16 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+                </div>
+              </div>
+            </div>
+            <div className="mt-auto flex gap-5 pt-5">
+              <div className="h-10 w-28 animate-pulse rounded-2xl bg-[var(--t-surface-10)]" />
+              <div className="h-10 w-28 animate-pulse rounded-2xl bg-[var(--t-surface-10)]" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MarketplaceAssetsLoadingState({ viewMode }: { viewMode: 'grid' | 'list' }) {
+  return viewMode === 'list' ? <MarketplaceAssetSkeletonList /> : <MarketplaceAssetSkeletonGrid />;
 }
 
 interface MarketplaceProps {
@@ -288,6 +360,9 @@ export function Marketplace({
   const [mapEngineRequested, setMapEngineRequested] = useState(() => initialViewMode === 'map');
   const [initialMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
   const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(initialMarketplaceAssets);
+  const [catalogHydrationStatus, setCatalogHydrationStatus] = useState<MarketplaceCatalogHydrationStatus>(
+    () => (initialMarketplaceAssets.length > 0 ? 'ready' : 'loading')
+  );
   const [sellerProfiles, setSellerProfiles] = useState(() => loadSellerDirectorySync({ marketplaceAssets: initialMarketplaceAssets }));
   const [runtimeCollections, setRuntimeCollections] = useState<CollectionSummary[]>(() => loadRuntimeCollections());
   const [personalizationRows, setPersonalizationRows] = useState<MarketplacePersonalizationRow[]>([]);
@@ -386,17 +461,41 @@ export function Marketplace({
   }, [marketplaceAssets]);
 
   useEffect(() => {
+    let cancelled = false;
+
     const syncCatalog = () => {
       const nextAssets = loadMarketplaceCatalogSync();
+      if (nextAssets.length > 0 && !cancelled) {
+        setCatalogHydrationStatus('ready');
+      }
       setMarketplaceAssets((currentAssets) => (
         areMarketplaceAssetListsEquivalent(currentAssets, nextAssets) ? currentAssets : nextAssets
       ));
     };
 
     syncCatalog();
-    void hydrateMarketplaceCatalogFromSupabase().then(syncCatalog);
+    if (loadMarketplaceCatalogSync().length === 0) {
+      setCatalogHydrationStatus('loading');
+    }
+    void hydrateMarketplaceCatalogFromSupabase({ limit: MARKETPLACE_CATALOG_BOOTSTRAP_LIMIT })
+      .then(() => {
+        if (cancelled) return;
+        syncCatalog();
+        setCatalogHydrationStatus('ready');
+        void hydrateMarketplaceCatalogFromSupabase({ force: true })
+          .then(() => {
+            if (!cancelled) syncCatalog();
+          })
+          .catch(() => undefined);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        syncCatalog();
+        setCatalogHydrationStatus(loadMarketplaceCatalogSync().length > 0 ? 'ready' : 'error');
+      });
     window.addEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
     return () => {
+      cancelled = true;
       window.removeEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
     };
   }, []);
@@ -788,6 +887,15 @@ export function Marketplace({
     () => marketplaceAssets.filter((asset) => asset.verified).length,
     [marketplaceAssets]
   );
+  const isAssetsCatalogLoading =
+    contentMode === 'assets' &&
+    catalogHydrationStatus === 'loading' &&
+    marketplaceAssets.length === 0;
+  const showEmptyResults =
+    (contentMode === 'assets' && displayedAssets.length === 0 && !isAssetsCatalogLoading) ||
+    (contentMode === 'profiles' && filteredProfiles.length === 0) ||
+    (contentMode === 'collections' && filteredCollections.length === 0);
+
   return (
     <div className="marketplace-page-theme h-full flex flex-col bg-ui-page overflow-hidden relative">
       {/* Main Content */}
@@ -915,7 +1023,9 @@ export function Marketplace({
                 onScroll={handleResultsScroll}
                 style={{ scrollbarGutter: 'stable both-edges' }}
               >
-                {(contentMode === 'assets' && displayedAssets.length === 0) || (contentMode === 'profiles' && filteredProfiles.length === 0) || (contentMode === 'collections' && filteredCollections.length === 0) ? (
+                {isAssetsCatalogLoading ? (
+                  <MarketplaceAssetsLoadingState viewMode={viewMode === 'list' ? 'list' : 'grid'} />
+                ) : showEmptyResults ? (
                   <EmptyStateCard
                     icon={<Search size={30} className="text-ui-muted" />}
                     title={contentMode === 'assets' ? 'No assets found' : contentMode === 'profiles' ? 'No profiles found' : 'No collections found'}

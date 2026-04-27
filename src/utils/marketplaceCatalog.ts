@@ -111,6 +111,12 @@ let cachedAssets: MarketplaceAsset[] = (() => {
   return [];
 })();
 let hydratePromise: Promise<MarketplaceAsset[]> | null = null;
+const MARKETPLACE_REST_IN_CHUNK_SIZE = 120;
+
+type MarketplaceCatalogHydrateOptions = {
+  force?: boolean;
+  limit?: number;
+};
 
 function normalizeAssetUid(value: string | null | undefined): string {
   return String(value || '').trim().toLowerCase();
@@ -130,6 +136,25 @@ function asStringArray(value: unknown): string[] {
 function asNumber(value: unknown): number | null {
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeHydrateLimit(value: unknown): number | undefined {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return Math.max(1, Math.floor(parsed));
+}
+
+function uniqueNormalizedValues(values: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));
+}
+
+function chunkArray<T>(values: T[], chunkSize = MARKETPLACE_REST_IN_CHUNK_SIZE): T[][] {
+  if (values.length === 0) return [];
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += chunkSize) {
+    chunks.push(values.slice(index, index + chunkSize));
+  }
+  return chunks;
 }
 
 function asBoolean(value: unknown, fallback: boolean): boolean {
@@ -409,10 +434,20 @@ async function fetchCanonicalListingStats(assetIds: string[]): Promise<Map<strin
   }
 
   try {
-    const rows = await restRpc<AssetListingStatsRow[]>('get_asset_listing_stats_v1', {
-      p_asset_uids: uniqueIds,
-    });
-    if (!Array.isArray(rows)) return new Map();
+    const rowGroups = await Promise.all(
+      chunkArray(uniqueIds).map(async (assetUidChunk) => {
+        try {
+          const rows = await restRpc<AssetListingStatsRow[]>('get_asset_listing_stats_v1', {
+            p_asset_uids: assetUidChunk,
+          });
+          return Array.isArray(rows) ? rows : [];
+        } catch (error) {
+          console.debug('[MarketplaceCatalog] Stats RPC chunk hydrate skipped:', error);
+          return [];
+        }
+      }),
+    );
+    const rows = rowGroups.flat();
 
     return new Map(
       rows
@@ -490,19 +525,29 @@ function formatDerivedUsdValue(amount: number, currency?: string): string | unde
 async function fetchSellerProfilesById(
   sellerUserIds: string[],
 ): Promise<Map<string, AssetCatalogSellerProfileRow>> {
-  const uniqueIds = Array.from(new Set(sellerUserIds.map((value) => String(value || '').trim()).filter(Boolean)));
+  const uniqueIds = uniqueNormalizedValues(sellerUserIds);
   if (uniqueIds.length === 0 || !isSupabaseRestEnabled()) {
     return new Map();
   }
 
   try {
-    const rows = await restSelect<AssetCatalogSellerProfileRow>(
-      'profiles',
-      toQuery({
-        select: 'id,wallet_address,display_name,username,is_verified,status',
-        id: encodeIn(uniqueIds),
+    const rowGroups = await Promise.all(
+      chunkArray(uniqueIds).map(async (idChunk) => {
+        try {
+          return await restSelect<AssetCatalogSellerProfileRow>(
+            'profiles',
+            toQuery({
+              select: 'id,wallet_address,display_name,username,is_verified,status',
+              id: encodeIn(idChunk),
+            }),
+          );
+        } catch (error) {
+          console.debug('[MarketplaceCatalog] Seller profile chunk hydrate skipped:', error);
+          return [];
+        }
       }),
     );
+    const rows = rowGroups.flat();
 
     return new Map(
       rows
@@ -518,19 +563,29 @@ async function fetchSellerProfilesById(
 async function fetchAssetProtocolLinksByAssetId(
   assetIds: string[],
 ): Promise<Map<string, AssetProtocolLinkRow>> {
-  const uniqueIds = Array.from(new Set(assetIds.map((value) => String(value || '').trim()).filter(Boolean)));
+  const uniqueIds = uniqueNormalizedValues(assetIds);
   if (uniqueIds.length === 0 || !isSupabaseRestEnabled()) {
     return new Map();
   }
 
   try {
-    const rows = await restSelect<AssetProtocolLinkRow>(
-      'asset_protocol_links',
-      toQuery({
-        select: 'asset_id,chain_id,contract_address,token_id,link_type',
-        asset_id: encodeIn(uniqueIds),
+    const rowGroups = await Promise.all(
+      chunkArray(uniqueIds).map(async (assetIdChunk) => {
+        try {
+          return await restSelect<AssetProtocolLinkRow>(
+            'asset_protocol_links',
+            toQuery({
+              select: 'asset_id,chain_id,contract_address,token_id,link_type',
+              asset_id: encodeIn(assetIdChunk),
+            }),
+          );
+        } catch (error) {
+          console.debug('[MarketplaceCatalog] Asset protocol link chunk hydrate skipped:', error);
+          return [];
+        }
       }),
     );
+    const rows = rowGroups.flat();
 
     const byAssetId = new Map<string, AssetProtocolLinkRow>();
     for (const row of rows) {
@@ -584,14 +639,24 @@ async function fetchProtocolAssetAvailabilityByProjection(
   }
 
   try {
-    const protocolRows = await restSelect<ProtocolAssetAvailabilityRow>(
-      'protocol_assets',
-      toQuery({
-        select: 'chain_id,asset_contract,token_id,available_amount,total_amount,metadata',
-        token_id: encodeIn(uniqueTokenIds),
-        limit: String(Math.max(200, uniqueTokenIds.length * 4)),
+    const rowGroups = await Promise.all(
+      chunkArray(uniqueTokenIds).map(async (tokenIdChunk) => {
+        try {
+          return await restSelect<ProtocolAssetAvailabilityRow>(
+            'protocol_assets',
+            toQuery({
+              select: 'chain_id,asset_contract,token_id,available_amount,total_amount,metadata',
+              token_id: encodeIn(tokenIdChunk),
+              limit: String(Math.max(200, tokenIdChunk.length * 4)),
+            }),
+          );
+        } catch (error) {
+          console.debug('[MarketplaceCatalog] Protocol asset availability chunk hydrate skipped:', error);
+          return [];
+        }
       }),
     );
+    const protocolRows = rowGroups.flat();
 
     const exactMatches = new Map<string, ProtocolAssetAvailabilityRow>();
     const aliasBuckets = new Map<string, ProtocolAssetAvailabilityRow[]>();
@@ -667,14 +732,24 @@ async function fetchProtocolOrderReservedAmountsByProjection(
   }
 
   try {
-    const orderRows = await restSelect<ProtocolOrderAvailabilityRow>(
-      'protocol_orders',
-      toQuery({
-        select: 'chain_id,marketplace_contract,asset_contract,asset_token_id,status,amount,metadata',
-        asset_token_id: encodeIn(uniqueTokenIds),
-        limit: String(Math.max(300, uniqueTokenIds.length * 20)),
+    const rowGroups = await Promise.all(
+      chunkArray(uniqueTokenIds).map(async (tokenIdChunk) => {
+        try {
+          return await restSelect<ProtocolOrderAvailabilityRow>(
+            'protocol_orders',
+            toQuery({
+              select: 'chain_id,marketplace_contract,asset_contract,asset_token_id,status,amount,metadata',
+              asset_token_id: encodeIn(tokenIdChunk),
+              limit: String(Math.max(300, tokenIdChunk.length * 20)),
+            }),
+          );
+        } catch (error) {
+          console.debug('[MarketplaceCatalog] Protocol order availability chunk hydrate skipped:', error);
+          return [];
+        }
       }),
     );
+    const orderRows = rowGroups.flat();
 
     const exactTotals = new Map<string, number>();
     const aliasBuckets = new Map<string, ProtocolOrderAvailabilityRow[]>();
@@ -1042,12 +1117,22 @@ export function loadMarketplaceCatalogSync(): MarketplaceAsset[] {
   return [];
 }
 
-export async function hydrateMarketplaceCatalogFromSupabase(): Promise<MarketplaceAsset[]> {
+export async function hydrateMarketplaceCatalogFromSupabase(
+  options: MarketplaceCatalogHydrateOptions = {},
+): Promise<MarketplaceAsset[]> {
   if (!isSupabaseRestEnabled()) {
     return cachedAssets;
   }
 
-  if (hydratePromise) return hydratePromise;
+  if (hydratePromise) {
+    if (!options.force) return hydratePromise;
+    return hydratePromise.then(
+      () => hydrateMarketplaceCatalogFromSupabase({ ...options, force: false }),
+      () => hydrateMarketplaceCatalogFromSupabase({ ...options, force: false }),
+    );
+  }
+
+  const hydrateLimit = normalizeHydrateLimit(options.limit);
 
   hydratePromise = (async () => {
     try {
@@ -1056,26 +1141,35 @@ export async function hydrateMarketplaceCatalogFromSupabase(): Promise<Marketpla
         toQuery({
           select:
             'id,asset_uid,title,category,description,cover_image_url,gallery_images,attributes,metadata,seller_user_id,contract_address,token_id,chain_id,is_active,created_at,updated_at',
+          is_active: 'eq.true',
           order: 'updated_at.desc',
+          limit: hydrateLimit ? String(hydrateLimit) : undefined,
         })
       );
-      const sellerProfilesById = await fetchSellerProfilesById(
-        rows.map((row: AssetCatalogRemoteRow) => row.seller_user_id || '').filter(Boolean),
-      );
-      const listingStatsByAssetUid = await fetchCanonicalListingStats(
-        rows.map((row: AssetCatalogRemoteRow) => row.asset_uid),
-      );
-      const protocolLinksByAssetId = await fetchAssetProtocolLinksByAssetId(
-        rows.map((row: AssetCatalogRemoteRow) => row.id),
-      );
-      const protocolAvailabilityByProjectionKey = await fetchProtocolAssetAvailabilityByProjection(
-        rows,
-        protocolLinksByAssetId,
-      );
-      const protocolReservedAmountsByProjectionKey = await fetchProtocolOrderReservedAmountsByProjection(
-        rows,
-        protocolLinksByAssetId,
-      );
+      const [sellerProfilesById, listingStatsByAssetUid, protocolLinksByAssetId] = await Promise.all([
+        fetchSellerProfilesById(
+          rows.map((row: AssetCatalogRemoteRow) => row.seller_user_id || '').filter(Boolean),
+        ),
+        fetchCanonicalListingStats(
+          rows.map((row: AssetCatalogRemoteRow) => row.asset_uid),
+        ),
+        fetchAssetProtocolLinksByAssetId(
+          rows.map((row: AssetCatalogRemoteRow) => row.id),
+        ),
+      ]);
+      const [
+        protocolAvailabilityByProjectionKey,
+        protocolReservedAmountsByProjectionKey,
+      ] = await Promise.all([
+        fetchProtocolAssetAvailabilityByProjection(
+          rows,
+          protocolLinksByAssetId,
+        ),
+        fetchProtocolOrderReservedAmountsByProjection(
+          rows,
+          protocolLinksByAssetId,
+        ),
+      ]);
       const remoteCatalog = buildCatalogFromRemoteRows(rows, {
         fallbackAssets: cachedAssets,
         sellerProfilesById,
