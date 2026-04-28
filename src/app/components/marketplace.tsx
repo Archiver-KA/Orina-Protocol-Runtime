@@ -88,7 +88,7 @@ const MARKETPLACE_SCROLL_PREFETCH_PX = 720;
 const MAP_PREFETCH_IDLE_TIMEOUT_MS = 1800;
 const MARKETPLACE_CATALOG_BOOTSTRAP_LIMIT = 160;
 
-type MarketplaceCatalogHydrationStatus = 'loading' | 'ready' | 'error';
+type MarketplaceCatalogHydrationStatus = 'loading' | 'preview' | 'ready' | 'error';
 
 function readInitialMarketplaceViewMode(): 'grid' | 'list' | 'map' {
   if (typeof window === 'undefined') return 'grid';
@@ -361,7 +361,7 @@ export function Marketplace({
   const [initialMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
   const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(initialMarketplaceAssets);
   const [catalogHydrationStatus, setCatalogHydrationStatus] = useState<MarketplaceCatalogHydrationStatus>(
-    () => (initialMarketplaceAssets.length > 0 ? 'ready' : 'loading')
+    () => (initialMarketplaceAssets.length > 0 ? 'preview' : 'loading')
   );
   const [sellerProfiles, setSellerProfiles] = useState(() => loadSellerDirectorySync({ marketplaceAssets: initialMarketplaceAssets }));
   const [runtimeCollections, setRuntimeCollections] = useState<CollectionSummary[]>(() => loadRuntimeCollections());
@@ -465,9 +465,6 @@ export function Marketplace({
 
     const syncCatalog = () => {
       const nextAssets = loadMarketplaceCatalogSync();
-      if (nextAssets.length > 0 && !cancelled) {
-        setCatalogHydrationStatus('ready');
-      }
       setMarketplaceAssets((currentAssets) => (
         areMarketplaceAssetListsEquivalent(currentAssets, nextAssets) ? currentAssets : nextAssets
       ));
@@ -481,17 +478,23 @@ export function Marketplace({
       .then(() => {
         if (cancelled) return;
         syncCatalog();
-        setCatalogHydrationStatus('ready');
+        setCatalogHydrationStatus(loadMarketplaceCatalogSync().length > 0 ? 'preview' : 'loading');
         void hydrateMarketplaceCatalogFromSupabase({ force: true })
           .then(() => {
-            if (!cancelled) syncCatalog();
+            if (cancelled) return;
+            syncCatalog();
+            setCatalogHydrationStatus('ready');
           })
-          .catch(() => undefined);
+          .catch(() => {
+            if (cancelled) return;
+            syncCatalog();
+            setCatalogHydrationStatus('error');
+          });
       })
       .catch(() => {
         if (cancelled) return;
         syncCatalog();
-        setCatalogHydrationStatus(loadMarketplaceCatalogSync().length > 0 ? 'ready' : 'error');
+        setCatalogHydrationStatus('error');
       });
     window.addEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
     return () => {
@@ -636,8 +639,13 @@ export function Marketplace({
     return filtered;
   }, [marketplaceAssets, debouncedSearchQuery, selectedCategory, selectedBlockchain, taxonomyVersion, verifiedOnly]);
 
+  const canApplyMarketplacePersonalization =
+    runtimeFlags.enableMarketplacePersonalization &&
+    contentMode === 'assets' &&
+    catalogHydrationStatus === 'ready';
+
   useEffect(() => {
-    if (contentMode !== 'assets' || !runtimeFlags.enableMarketplacePersonalization) {
+    if (!canApplyMarketplacePersonalization) {
       setPersonalizationRows([]);
       return;
     }
@@ -663,15 +671,15 @@ export function Marketplace({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [address, contentMode, filteredAssets]);
+  }, [address, canApplyMarketplacePersonalization, filteredAssets]);
 
   const displayedAssets = useMemo(
     () => (
-      runtimeFlags.enableMarketplacePersonalization && contentMode === 'assets'
+      canApplyMarketplacePersonalization
         ? sortMarketplaceAssetsWithPersonalization(filteredAssets, personalizationRows)
         : filteredAssets
     ),
-    [contentMode, filteredAssets, personalizationRows],
+    [canApplyMarketplacePersonalization, filteredAssets, personalizationRows],
   );
 
   const filteredCollections = useMemo(() => {
