@@ -39,11 +39,6 @@ import {
   getMarketplaceCatalogCategories,
   type MarketplaceCatalogPageCursor,
 } from '@/utils/marketplaceCatalog';
-import {
-  fetchMarketplacePersonalizationRows,
-  sortMarketplaceAssetsWithPersonalization,
-  type MarketplacePersonalizationRow,
-} from '@/utils/marketplacePersonalization';
 import { PROTOCOL_NETWORK_OPTIONS } from '@/utils/protocolNetwork';
 import {
   getCategoryDisplayLabel,
@@ -55,7 +50,6 @@ import {
   normalizeTaxonomySearchKey,
   TAXONOMY_SYNC_EVENT,
 } from '@/utils/taxonomy';
-import { runtimeFlags } from '/utils/runtimeConfig';
 
 let realisticWorldMapPromise: Promise<typeof import('./marketplace/realistic-world-map')> | null = null;
 
@@ -85,12 +79,10 @@ const MARKETPLACE_LIST_INITIAL_RENDER_COUNT = 8;
 const MARKETPLACE_RENDER_INCREMENT = 12;
 const MARKETPLACE_SCROLL_PREFETCH_PX = 720;
 const MAP_PREFETCH_IDLE_TIMEOUT_MS = 1800;
-const MARKETPLACE_RANKING_TIMEOUT_MS = 3000;
 const MARKETPLACE_CARD_RENDER_ROOT_MARGIN = '720px 0px';
 const MARKETPLACE_CATALOG_PAGE_SIZE = 48;
 
 type MarketplaceCatalogHydrationStatus = 'loading' | 'ready' | 'error';
-type MarketplaceRankingStatus = 'idle' | 'loading' | 'ready' | 'error' | 'timeout';
 type MarketplaceEntityPageStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 function readInitialMarketplaceViewMode(): 'grid' | 'list' | 'map' {
@@ -470,13 +462,9 @@ export function Marketplace({
   const [marketplaceCollectionCursor, setMarketplaceCollectionCursor] = useState<MarketplaceCollectionPageCursor | null>(null);
   const [hasMoreMarketplaceCollections, setHasMoreMarketplaceCollections] = useState(false);
   const [isLoadingMoreMarketplaceCollections, setIsLoadingMoreMarketplaceCollections] = useState(false);
-  const [personalizationRows, setPersonalizationRows] = useState<MarketplacePersonalizationRow[]>([]);
-  const [marketplaceRankingStatus, setMarketplaceRankingStatus] = useState<MarketplaceRankingStatus>('idle');
-  const [marketplaceRankingAssetKey, setMarketplaceRankingAssetKey] = useState('');
   const catalogRequestIdRef = useRef(0);
   const profileRequestIdRef = useRef(0);
   const collectionRequestIdRef = useRef(0);
-  const rankingRequestIdRef = useRef(0);
   const resultsScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const resultsLoadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const [taxonomyVersion, setTaxonomyVersion] = useState(0);
@@ -853,93 +841,9 @@ export function Marketplace({
     return filtered;
   }, [marketplaceAssets, debouncedSearchQuery, selectedCategory, selectedBlockchain, taxonomyVersion, verifiedOnly]);
 
-  const filteredAssetRankingKey = useMemo(
-    () => filteredAssets.map((asset) => asset.assetUid || asset.id).join('|'),
-    [filteredAssets],
-  );
-
-  useEffect(() => {
-    rankingRequestIdRef.current += 1;
-    const requestId = rankingRequestIdRef.current;
-
-    if (contentMode !== 'assets' || catalogHydrationStatus !== 'ready') {
-      setPersonalizationRows([]);
-      setMarketplaceRankingStatus('idle');
-      setMarketplaceRankingAssetKey('');
-      return;
-    }
-
-    if (!runtimeFlags.enableMarketplacePersonalization || filteredAssets.length === 0) {
-      setPersonalizationRows([]);
-      setMarketplaceRankingStatus('ready');
-      setMarketplaceRankingAssetKey(filteredAssetRankingKey);
-      return;
-    }
-
-    let cancelled = false;
-    const canPreservePreviousRanking =
-      marketplaceRankingAssetKey.length > 0 &&
-      filteredAssetRankingKey.startsWith(`${marketplaceRankingAssetKey}|`);
-    // Keep the previous ranking while appended pages are being scored so infinite scroll does not collapse/reorder the grid.
-    setMarketplaceRankingStatus('loading');
-
-    const fallbackTimer = window.setTimeout(() => {
-      if (cancelled || rankingRequestIdRef.current !== requestId) return;
-      rankingRequestIdRef.current += 1;
-      if (!canPreservePreviousRanking) {
-        setPersonalizationRows([]);
-      }
-      setMarketplaceRankingStatus('timeout');
-      setMarketplaceRankingAssetKey(canPreservePreviousRanking ? marketplaceRankingAssetKey : filteredAssetRankingKey);
-    }, MARKETPLACE_RANKING_TIMEOUT_MS);
-
-    void fetchMarketplacePersonalizationRows(filteredAssets, {
-      surface: 'marketplace_browse',
-      limit: filteredAssets.length,
-    }).then((rows) => {
-      if (cancelled || rankingRequestIdRef.current !== requestId) return;
-      window.clearTimeout(fallbackTimer);
-      setPersonalizationRows(rows);
-      setMarketplaceRankingStatus('ready');
-      setMarketplaceRankingAssetKey(filteredAssetRankingKey);
-    }).catch(() => {
-      if (cancelled || rankingRequestIdRef.current !== requestId) return;
-      window.clearTimeout(fallbackTimer);
-      if (!canPreservePreviousRanking) {
-        setPersonalizationRows([]);
-      }
-      setMarketplaceRankingStatus('error');
-      setMarketplaceRankingAssetKey(canPreservePreviousRanking ? marketplaceRankingAssetKey : filteredAssetRankingKey);
-    });
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(fallbackTimer);
-    };
-  }, [catalogHydrationStatus, contentMode, filteredAssetRankingKey]);
-
-  const shouldApplyPersonalizedOrder =
-    runtimeFlags.enableMarketplacePersonalization &&
-    contentMode === 'assets' &&
-    personalizationRows.length > 0 &&
-    (
-      (
-        marketplaceRankingStatus === 'ready' &&
-        marketplaceRankingAssetKey === filteredAssetRankingKey
-      ) ||
-      (
-        marketplaceRankingAssetKey.length > 0 &&
-        filteredAssetRankingKey.startsWith(`${marketplaceRankingAssetKey}|`)
-      )
-    );
-
   const displayedAssets = useMemo(
-    () => (
-      shouldApplyPersonalizedOrder
-        ? sortMarketplaceAssetsWithPersonalization(filteredAssets, personalizationRows)
-        : filteredAssets
-    ),
-    [filteredAssets, personalizationRows, shouldApplyPersonalizedOrder],
+    () => filteredAssets,
+    [filteredAssets],
   );
 
   const filteredCollections = useMemo(() => {
