@@ -502,17 +502,10 @@ export function Marketplace({
 
   const assetCategoryOptions = useMemo(
     () => {
-      const liveValues = new Set(getMarketplaceCatalogCategories(marketplaceAssets));
       const taxonomyOptions = getTaxonomyCategoryOptions();
-      if (!liveValues.size) return taxonomyOptions;
-
-      const orderedLiveOptions = taxonomyOptions.filter((option) => liveValues.has(option.value));
-      const knownValues = new Set(orderedLiveOptions.map((option) => option.value));
-      const fallbackOptions = Array.from(liveValues)
-        .filter((value) => !knownValues.has(value))
-        .map((value) => ({ value, label: getCategoryDisplayLabel(value) }));
-
-      return [...orderedLiveOptions, ...fallbackOptions];
+      const fallbackOptions = getCategoryOptionsFromValues(getMarketplaceCatalogCategories(marketplaceAssets))
+        .filter((option) => !taxonomyOptions.some((taxonomyOption) => taxonomyOption.value === option.value));
+      return [...taxonomyOptions, ...fallbackOptions];
     },
     [marketplaceAssets, taxonomyVersion]
   );

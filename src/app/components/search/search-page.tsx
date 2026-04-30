@@ -217,10 +217,15 @@ export function SearchPage({
     onConsumeNavigationRequest?.(navigationRequest.requestKey);
   }, [navigationRequest, onConsumeNavigationRequest]);
 
-  const marketplaceCategories = useMemo(() => getMarketplaceCatalogCategories(marketplaceAssets), [marketplaceAssets]);
   const marketplaceCategoryOptions = useMemo(
-    () => marketplaceCategories.map((category) => ({ value: category, label: getCategoryDisplayLabel(category) })),
-    [marketplaceCategories, taxonomyVersion]
+    () => {
+      const taxonomyOptions = getTaxonomyCategoryOptions();
+      const fallbackOptions = getMarketplaceCatalogCategories(marketplaceAssets)
+        .filter((category) => !taxonomyOptions.some((option) => option.value === category))
+        .map((category) => ({ value: category, label: getCategoryDisplayLabel(category) }));
+      return [...taxonomyOptions, ...fallbackOptions];
+    },
+    [marketplaceAssets, taxonomyVersion]
   );
   const collectionCategoryOptions = useMemo(
     () => {
