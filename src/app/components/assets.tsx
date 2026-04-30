@@ -757,7 +757,7 @@ export function Assets() {
           )}
 
           {!showWarehouseSection && hasVisibleAssets && (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-2 gap-[var(--t-market-grid-gap)] md:grid-cols-2 xl:grid-cols-3">
               {visibleAssets.map((asset) => {
                 if (asset.type === 'RWA') {
                   return (

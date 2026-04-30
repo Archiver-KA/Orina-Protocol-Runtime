@@ -172,9 +172,12 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
       return (
         <button
           onClick={handleConnect}
-          className="ui-secondary-button flex w-full items-center justify-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition-all"
+          aria-label="Connect Wallet"
+          title="Connect Wallet"
+          className="ui-secondary-button flex h-[var(--t-shell-icon-button)] w-[var(--t-shell-icon-button)] items-center justify-center gap-2 rounded-full px-0 text-xs font-semibold transition-all sm:w-full sm:px-3 sm:py-2"
         >
-          <span>Connect Wallet</span>
+          <Wallet size={16} className="shrink-0" aria-hidden="true" />
+          <span className="hidden sm:inline">Connect Wallet</span>
         </button>
       );
   }
@@ -208,9 +211,9 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
       <button
         onMouseEnter={handleMouseEnter}
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        className="wallet-dropdown-trigger flex h-[var(--t-shell-icon-button)] min-w-[132px] max-w-[220px] items-center justify-between gap-2 rounded-full bg-[rgba(18,18,18,0.5)] px-3 shadow-none transition-all hover:bg-[rgba(18,18,18,0.65)]"
+        className="wallet-dropdown-trigger flex h-[var(--t-shell-icon-button)] min-w-[132px] max-w-[220px] items-center justify-between gap-2 rounded-full bg-[rgba(18,18,18,0.5)] px-3 shadow-none transition-all hover:bg-[rgba(18,18,18,0.65)] max-sm:w-[var(--t-shell-icon-button)] max-sm:min-w-0 max-sm:justify-center max-sm:px-0"
       >
-        <div className="min-w-0 flex-1 text-left">
+        <div className="hidden min-w-0 flex-1 text-left sm:block">
           <span className="text-[14px] leading-none font-semibold text-[rgba(241,245,249,0.96)] block truncate">
             {navLabel}
           </span>

@@ -85,6 +85,20 @@ function formatAssetReviewDate(timestamp: number): string {
   }
 }
 
+function getAssetListingDurationDisplay(asset: MarketplaceAsset): string | null {
+  if (typeof asset.expiresAt !== 'number' || !Number.isFinite(asset.expiresAt)) return null;
+
+  const existingLabel = String(asset.listingDuration || '').trim();
+  if (existingLabel && existingLabel.toLowerCase() !== 'no expiry') return existingLabel;
+
+  const diff = asset.expiresAt - Date.now();
+  if (diff <= 0) return 'Expired';
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  return `${days}d ${hours}h ${minutes}m`;
+}
+
 export function AssetDetailsModal({
   asset: initialAsset,
   onClose,
@@ -116,6 +130,7 @@ export function AssetDetailsModal({
       || initialAsset
     );
   }, [catalogRevision, initialAsset]);
+  const assetListingDuration = useMemo(() => getAssetListingDurationDisplay(asset), [asset]);
   const { address } = useEffectiveViewer();
   const access = useAccessMode();
   const protocolChain = useProtocolChain();
@@ -500,7 +515,9 @@ export function AssetDetailsModal({
                               <span className="text-ui-secondary">Listed by {sellerDisplayName}</span>
                               <span className="font-semibold text-ui-primary">{asset.price}</span>
                             </div>
-                            <p className="mt-1 text-[10px] text-ui-muted">{asset.listingDuration}</p>
+                            {assetListingDuration ? (
+                              <p className="mt-1 text-[10px] text-ui-muted">{assetListingDuration}</p>
+                            ) : null}
                           </div>
                           <div className={compactCardClassName}>
                             <div className="flex items-center justify-between text-xs">
@@ -626,11 +643,11 @@ export function AssetDetailsModal({
                     <div>
                       <h2 className="mb-2 text-[32px] font-semibold leading-[1.08] tracking-[-0.03em] text-ui-primary">{asset.name}</h2>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        {asset.listingDuration && (
+                        {assetListingDuration && (
                           <div className="flex items-center gap-1.5 text-xs">
                             <Clock size={12} className="text-[#2CC295]" />
                             <span className="font-medium text-ui-muted">Listing Ends In</span>
-                            <span className="font-semibold text-ui-primary">{asset.listingDuration}</span>
+                            <span className="font-semibold text-ui-primary">{assetListingDuration}</span>
                           </div>
                         )}
                       </div>

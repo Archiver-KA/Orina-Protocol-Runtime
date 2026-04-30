@@ -280,7 +280,7 @@ export function FavoritesFollowingPage({
                     className="py-16 px-6 text-center"
                   />
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-start">
+                  <div className="grid grid-cols-2 gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 items-start">
                     {sortedAssets.map((asset) => (
                       <div key={asset.id} className="w-full">
                         <SearchResultCard

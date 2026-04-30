@@ -73,7 +73,7 @@
 
   --t-card-radius-lg: 24px;
   --t-card-radius-xl: 32px;
-  --t-market-card-grid-h: 436px;
+  --t-market-card-grid-h: 408px;
   --t-market-card-media-h: 240px;
   --t-market-card-list-h: 240px;
   --t-market-card-list-mobile-h: 520px;
@@ -155,7 +155,7 @@
 
     --t-card-radius-lg: 22px;
     --t-card-radius-xl: 28px;
-    --t-market-card-grid-h: 392px;
+    --t-market-card-grid-h: 372px;
     --t-market-card-media-h: 216px;
     --t-market-card-list-h: 216px;
     --t-market-card-list-mobile-h: 468px;
@@ -167,6 +167,28 @@
     --t-market-collection-list-h: 252px;
     --t-market-collection-media-h: 205px;
     --t-market-collection-media-w: 317px;
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --t-shell-nav-h: 64px;
+    --t-shell-nav-x: 12px;
+    --t-shell-nav-radius: 18px;
+    --t-shell-nav-search-h: 36px;
+    --t-shell-control-h: 36px;
+    --t-shell-icon-button: 36px;
+
+    --t-card-radius-lg: 16px;
+    --t-card-radius-xl: 20px;
+    --t-market-card-grid-h: 312px;
+    --t-market-card-media-h: 150px;
+    --t-market-card-list-mobile-h: 440px;
+    --t-market-grid-gap: 10px;
+    --t-market-profile-card-h: 316px;
+    --t-market-profile-media-h: 180px;
+    --t-market-collection-placeholder-h: 300px;
+    --t-market-collection-media-h: 180px;
   }
 }
 
@@ -637,16 +659,208 @@
   transition: background-color 0.18s ease;
 }
 
+.mobile-command-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-command-row::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-command-cluster {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+@media (min-width: 1280px) {
+  .mobile-command-row {
+    overflow: visible;
+  }
+}
+
 .card-value-row {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
   padding-top: 1rem;
 }
 
+.asset-card-summary-panel {
+  min-width: 0;
+  text-align: right;
+}
+
+.asset-card-bottom-grid {
+  display: grid;
+  grid-template-columns: minmax(8.75rem, 1fr) minmax(5.75rem, max-content);
+  align-items: end;
+  gap: 0.625rem;
+  padding-top: 1rem;
+}
+
+.asset-card-expiry-row {
+  min-width: 0;
+  margin-bottom: 0.375rem;
+}
+
+.asset-card-availability-row {
+  display: flex;
+  min-width: 0;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.asset-card-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.875rem;
+}
+
+.asset-card-footer-stats,
+.asset-card-stat-row {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.625rem;
+  padding-bottom: 0.125rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .search-result-card-grid .search-result-info-area,
+  .my-asset-card-shell .my-asset-info-area {
+    padding: 0.625rem 0.625rem 0.75rem !important;
+  }
+
+  .search-result-card-grid h3,
+  .my-asset-card-shell h3 {
+    font-size: 12px !important;
+    line-height: 1.18 !important;
+  }
+
+  .asset-category-badge {
+    padding: 0.28rem 0.55rem !important;
+    font-size: 8px !important;
+    letter-spacing: 0.12em !important;
+  }
+
+  .asset-card-bottom-grid {
+    grid-template-columns: minmax(4.65rem, 1fr) minmax(3.45rem, max-content);
+    gap: 0.45rem;
+    padding-top: 0.65rem;
+  }
+
+  .card-value-row {
+    gap: 0.5rem;
+    padding-top: 0.65rem;
+  }
+
+  .my-asset-card-shell .my-asset-subtitle {
+    margin-top: 0.35rem !important;
+    font-size: 10px !important;
+  }
+
+  .my-asset-card-shell .my-asset-footer-actions {
+    gap: 0.45rem;
+    margin-top: 0.7rem !important;
+  }
+
+  .my-asset-card-shell .my-asset-action-button {
+    min-height: 2.25rem !important;
+    padding-left: 0.55rem !important;
+    padding-right: 0.55rem !important;
+  }
+
+  .asset-card-summary-panel {
+    text-align: right;
+  }
+
+  .asset-card-expiry-row {
+    margin-bottom: 0.25rem;
+  }
+
+  .asset-card-expiry-row > div {
+    gap: 0.25rem;
+  }
+
+  .asset-card-footer-row {
+    gap: 0.45rem;
+    margin-top: 0.6rem;
+  }
+
+  .asset-card-footer-stats,
+  .asset-card-stat-row {
+    gap: 0.45rem;
+    padding-bottom: 0;
+  }
+}
+
+@media (max-width: 380px) {
+  .asset-card-bottom-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .asset-card-summary-panel,
+  .asset-card-expiry-row {
+    text-align: left;
+  }
+
+  .asset-card-expiry-row > div,
+  .asset-card-availability-row,
+  .asset-card-footer-row,
+  .asset-card-footer-stats,
+  .asset-card-stat-row {
+    justify-content: flex-start;
+  }
+}
+
 .card-price-value {
   color: var(--t-text-primary) !important;
+  display: inline-block;
+  max-width: min(100%, 12rem);
+  overflow: hidden;
+  font-size: 20px !important;
+  font-weight: 600;
+  line-height: 1.04 !important;
+  letter-spacing: 0 !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+@media (max-width: 767px) {
+  .card-price-value {
+    max-width: min(100%, 6rem);
+    font-size: 15px !important;
+    line-height: 1.02 !important;
+  }
+
+  .market-card-shell .asset-card-availability-value,
+  .market-card-shell .asset-card-expiry-value,
+  .my-asset-card-shell .asset-card-detail-value {
+    font-size: 11px !important;
+    line-height: 1.22 !important;
+  }
+
+  .market-card-shell .asset-card-price-usd {
+    margin-top: 0.25rem !important;
+    font-size: 9px !important;
+  }
 }
 
 [data-theme="dark"] .card-price-value-accent {

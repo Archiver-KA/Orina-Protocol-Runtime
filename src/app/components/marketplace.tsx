@@ -192,27 +192,168 @@ function ViewportRenderSlot({
   );
 }
 
+const marketplaceSkeletonPillClass = 'animate-pulse rounded-full bg-[var(--t-surface-10)]';
+const marketplaceSkeletonBlockClass = 'animate-pulse rounded-[var(--t-card-radius-lg)] bg-[var(--t-surface-10)]';
+
 function MarketplaceAssetSkeletonGrid() {
   return (
     <div
       aria-label="Loading marketplace assets"
-      className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+      className="grid grid-cols-2 gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
     >
       {Array.from({ length: 8 }).map((_, index) => (
         <div
           key={index}
-          className="market-card-shell search-result-card-shell h-[var(--t-market-card-grid-h)] overflow-hidden rounded-[var(--t-card-radius-xl)]"
+          className="market-card-shell search-result-card-shell search-result-card-grid flex h-full min-h-[var(--t-market-card-grid-h)] flex-col overflow-hidden rounded-[var(--t-card-radius-xl)]"
         >
-          <div className="h-[var(--t-market-card-media-h)] animate-pulse bg-[var(--t-surface-10)]" />
-          <div className="space-y-5 px-5 pb-5 pt-4">
-            <div className="h-4 w-3/4 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
-            <div className="flex items-end justify-between gap-5 pt-24">
-              <div className="h-8 w-24 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
-              <div className="h-10 w-20 animate-pulse rounded-2xl bg-[var(--t-surface-10)]" />
+          <div className="relative h-[var(--t-market-card-media-h)] shrink-0 overflow-hidden bg-[var(--t-surface-10)]">
+            <div className={`absolute bottom-3 left-3 h-7 w-40 max-w-[calc(100%-4.75rem)] ${marketplaceSkeletonPillClass}`} />
+            <div className={`absolute bottom-3 right-3 h-6 w-6 ${marketplaceSkeletonPillClass}`} />
+          </div>
+
+          <div className="market-card-info-area search-result-info-area flex min-h-0 flex-1 flex-col px-5 pb-4 pt-3.5">
+            <div className="space-y-2">
+              <div className={`h-4 w-4/5 ${marketplaceSkeletonPillClass}`} />
+              <div className={`h-4 w-3/5 ${marketplaceSkeletonPillClass}`} />
             </div>
-            <div className="flex gap-3">
-              <div className="h-4 w-12 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
-              <div className="h-4 w-12 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+
+            <div className="asset-card-bottom-grid mt-auto">
+              <div className="min-w-0 space-y-2">
+                <div className={`h-2.5 w-14 ${marketplaceSkeletonPillClass}`} />
+                <div className={`h-5 w-24 max-w-full ${marketplaceSkeletonPillClass}`} />
+                <div className={`h-2.5 w-16 ${marketplaceSkeletonPillClass}`} />
+              </div>
+              <div className="asset-card-summary-panel space-y-2">
+                <div className={`ml-auto h-2.5 w-16 max-w-full ${marketplaceSkeletonPillClass}`} />
+                <div className={`ml-auto h-3.5 w-20 max-w-full ${marketplaceSkeletonPillClass}`} />
+              </div>
+            </div>
+
+            <div className="asset-card-footer-row">
+              <div className="asset-card-footer-stats">
+                <div className={`h-3.5 w-9 ${marketplaceSkeletonPillClass}`} />
+                <div className={`h-3.5 w-9 ${marketplaceSkeletonPillClass}`} />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MarketplaceProfileSkeletonGrid() {
+  return (
+    <div
+      aria-label="Loading marketplace profiles"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+    >
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div
+          key={index}
+          className="market-card-shell profile-search-card-shell card-hover-grid w-full overflow-hidden rounded-[var(--t-card-radius-xl)]"
+        >
+          <div className="relative h-[var(--t-market-profile-media-h)] overflow-hidden bg-[var(--t-surface-10)]">
+            <div className={`absolute left-4 top-4 h-7 w-28 ${marketplaceSkeletonPillClass}`} />
+            <div className={`absolute right-4 top-4 h-7 w-20 ${marketplaceSkeletonPillClass}`} />
+            <div className="absolute inset-x-4 bottom-5 grid grid-cols-4 gap-2">
+              {Array.from({ length: 4 }).map((__, statIndex) => (
+                <div key={statIndex} className="space-y-2">
+                  <div className={`mx-auto h-2 w-10 ${marketplaceSkeletonPillClass}`} />
+                  <div className={`mx-auto h-3 w-8 ${marketplaceSkeletonPillClass}`} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="market-card-info-area px-5 pb-5 pt-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className={`h-12 w-12 shrink-0 ${marketplaceSkeletonPillClass}`} />
+                <div className="min-w-0 space-y-2">
+                  <div className={`h-4 w-32 max-w-full ${marketplaceSkeletonPillClass}`} />
+                  <div className={`h-3 w-24 max-w-full ${marketplaceSkeletonPillClass}`} />
+                </div>
+              </div>
+              <div className={`h-8 w-20 shrink-0 ${marketplaceSkeletonPillClass}`} />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MarketplaceCollectionSkeletonGrid() {
+  return (
+    <div
+      aria-label="Loading marketplace collections"
+      className="grid grid-cols-1 items-start gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3"
+    >
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div
+          key={index}
+          className="market-card-shell collection-card-grid card-hover-grid flex min-h-[var(--t-market-collection-placeholder-h)] flex-col overflow-hidden rounded-[var(--t-card-radius-xl)]"
+        >
+          <div className="relative h-[var(--t-market-collection-media-h)] shrink-0 overflow-hidden bg-[var(--t-surface-10)]">
+            <div className="absolute left-4 right-4 top-4 flex items-start justify-between gap-3">
+              <div className="min-w-0 space-y-3">
+                <div className={`h-7 w-36 max-w-full ${marketplaceSkeletonPillClass}`} />
+                <div className={`h-5 w-44 max-w-full ${marketplaceSkeletonPillClass}`} />
+                <div className={`h-5 w-32 max-w-full ${marketplaceSkeletonPillClass}`} />
+              </div>
+              <div className={`h-9 w-9 shrink-0 ${marketplaceSkeletonPillClass}`} />
+            </div>
+            <div className="absolute inset-x-4 bottom-5 grid grid-cols-4 gap-2">
+              {Array.from({ length: 4 }).map((__, statIndex) => (
+                <div key={statIndex} className="space-y-2">
+                  <div className={`mx-auto h-2 w-10 ${marketplaceSkeletonPillClass}`} />
+                  <div className={`mx-auto h-3 w-8 ${marketplaceSkeletonPillClass}`} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="market-card-info-area flex flex-1 flex-col px-5 pb-5 pt-4">
+            <div className="space-y-2">
+              <div className={`h-3 w-full ${marketplaceSkeletonPillClass}`} />
+              <div className={`h-3 w-4/5 ${marketplaceSkeletonPillClass}`} />
+            </div>
+            <div className="mt-auto flex flex-col gap-4 pt-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0 space-y-2">
+                <div className={`h-2.5 w-16 ${marketplaceSkeletonPillClass}`} />
+                <div className={`h-3.5 w-24 ${marketplaceSkeletonPillClass}`} />
+              </div>
+              <div className={`h-10 w-36 shrink-0 ${marketplaceSkeletonBlockClass}`} />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MarketplaceCollectionSkeletonList() {
+  return (
+    <div aria-label="Loading marketplace collections" className="space-y-4">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div
+          key={index}
+          className="market-card-shell collection-card-list card-hover-list flex flex-col overflow-hidden rounded-[var(--t-card-radius-xl)] lg:h-[var(--t-market-collection-list-h)] lg:flex-row"
+        >
+          <div className="h-[var(--t-market-collection-media-h)] shrink-0 bg-[var(--t-surface-10)] lg:h-full lg:w-[var(--t-market-collection-media-w)]" />
+          <div className="market-card-info-area flex min-w-0 flex-1 flex-col px-5 pb-5 pt-4 lg:px-6 lg:py-5">
+            <div className="space-y-3">
+              <div className={`h-4 w-2/3 ${marketplaceSkeletonPillClass}`} />
+              <div className={`h-3 w-full max-w-[32rem] ${marketplaceSkeletonPillClass}`} />
+              <div className={`h-3 w-4/5 max-w-[28rem] ${marketplaceSkeletonPillClass}`} />
+            </div>
+            <div className="mt-auto flex flex-col gap-4 pt-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-2">
+                <div className={`h-2.5 w-16 ${marketplaceSkeletonPillClass}`} />
+                <div className={`h-3.5 w-24 ${marketplaceSkeletonPillClass}`} />
+              </div>
+              <div className={`h-10 w-36 shrink-0 ${marketplaceSkeletonBlockClass}`} />
             </div>
           </div>
         </div>
@@ -233,22 +374,22 @@ function MarketplaceAssetSkeletonList() {
           <div className="flex min-w-0 flex-1 flex-col px-5 pb-5 pt-5 lg:px-6 lg:py-5">
             <div className="grid flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_236px] lg:gap-x-8">
               <div className="space-y-3">
-                <div className="h-4 w-3/5 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
-                <div className="h-3 w-full max-w-[32rem] animate-pulse rounded-full bg-[var(--t-surface-10)]" />
-                <div className="h-3 w-4/5 max-w-[28rem] animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+                <div className={`h-4 w-3/5 ${marketplaceSkeletonPillClass}`} />
+                <div className={`h-3 w-full max-w-[32rem] ${marketplaceSkeletonPillClass}`} />
+                <div className={`h-3 w-4/5 max-w-[28rem] ${marketplaceSkeletonPillClass}`} />
               </div>
               <div className="space-y-4 lg:text-right">
-                <div className="ml-auto h-7 w-28 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
-                <div className="ml-auto h-9 w-32 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+                <div className={`ml-auto h-7 w-28 ${marketplaceSkeletonPillClass}`} />
+                <div className={`ml-auto h-9 w-32 ${marketplaceSkeletonPillClass}`} />
                 <div className="flex gap-2.5 lg:justify-end">
-                  <div className="h-7 w-16 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
-                  <div className="h-7 w-16 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
+                  <div className={`h-7 w-16 ${marketplaceSkeletonPillClass}`} />
+                  <div className={`h-7 w-16 ${marketplaceSkeletonPillClass}`} />
                 </div>
               </div>
             </div>
             <div className="mt-auto flex gap-5 pt-5">
-              <div className="h-10 w-28 animate-pulse rounded-2xl bg-[var(--t-surface-10)]" />
-              <div className="h-10 w-28 animate-pulse rounded-2xl bg-[var(--t-surface-10)]" />
+              <div className={`h-10 w-28 ${marketplaceSkeletonBlockClass}`} />
+              <div className={`h-10 w-28 ${marketplaceSkeletonBlockClass}`} />
             </div>
           </div>
         </div>
@@ -257,7 +398,17 @@ function MarketplaceAssetSkeletonList() {
   );
 }
 
-function MarketplaceAssetsLoadingState({ viewMode }: { viewMode: 'grid' | 'list' }) {
+function MarketplaceLoadingState({
+  contentMode,
+  viewMode,
+}: {
+  contentMode: 'assets' | 'profiles' | 'collections';
+  viewMode: 'grid' | 'list';
+}) {
+  if (contentMode === 'profiles') return <MarketplaceProfileSkeletonGrid />;
+  if (contentMode === 'collections') {
+    return viewMode === 'list' ? <MarketplaceCollectionSkeletonList /> : <MarketplaceCollectionSkeletonGrid />;
+  }
   return viewMode === 'list' ? <MarketplaceAssetSkeletonList /> : <MarketplaceAssetSkeletonGrid />;
 }
 
@@ -1274,14 +1425,14 @@ export function Marketplace({
     <div className="marketplace-page-theme h-full flex flex-col bg-ui-page overflow-hidden relative">
       {/* Main Content */}
       <div className="flex-1 relative flex flex-col overflow-hidden">
-        <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col px-6 py-3 lg:px-8">
-          <div className="flex flex-col gap-3 px-1 xl:flex-row xl:items-center">
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col px-3 py-2 sm:px-4 lg:px-8 lg:py-3">
+          <div className="mobile-command-row px-0 sm:px-1 xl:items-center">
+            <div className="mobile-command-cluster">
               <StudioPillGroup className="rounded-full bg-[var(--t-surface-2)] shadow-none">
                 <StudioPillButton
                   onClick={() => setContentMode('assets')}
                   active={contentMode === 'assets'}
-                  className={contentMode === 'assets' ? 'rounded-full bg-[var(--t-card-bg)] px-4 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-4 py-2.5 text-ui-muted hover:text-ui-primary'}
+                  className={contentMode === 'assets' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2 text-[11px] text-ui-primary shadow-none sm:px-4 sm:py-2.5 sm:text-xs' : 'rounded-full px-3 py-2 text-[11px] text-ui-muted hover:text-ui-primary sm:px-4 sm:py-2.5 sm:text-xs'}
                 >
                   Assets
                 </StudioPillButton>
@@ -1291,7 +1442,7 @@ export function Marketplace({
                     if (viewMode === 'map') handleSetViewMode('grid');
                   }}
                   active={contentMode === 'profiles'}
-                  className={contentMode === 'profiles' ? 'rounded-full bg-[var(--t-card-bg)] px-4 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-4 py-2.5 text-ui-muted hover:text-ui-primary'}
+                  className={contentMode === 'profiles' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2 text-[11px] text-ui-primary shadow-none sm:px-4 sm:py-2.5 sm:text-xs' : 'rounded-full px-3 py-2 text-[11px] text-ui-muted hover:text-ui-primary sm:px-4 sm:py-2.5 sm:text-xs'}
                 >
                   Profiles
                 </StudioPillButton>
@@ -1301,7 +1452,7 @@ export function Marketplace({
                     if (viewMode === 'map') handleSetViewMode('grid');
                   }}
                   active={contentMode === 'collections'}
-                  className={contentMode === 'collections' ? 'rounded-full bg-[var(--t-card-bg)] px-4 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-4 py-2.5 text-ui-muted hover:text-ui-primary'}
+                  className={contentMode === 'collections' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2 text-[11px] text-ui-primary shadow-none sm:px-4 sm:py-2.5 sm:text-xs' : 'rounded-full px-3 py-2 text-[11px] text-ui-muted hover:text-ui-primary sm:px-4 sm:py-2.5 sm:text-xs'}
                 >
                   Collections
                 </StudioPillButton>
@@ -1311,14 +1462,14 @@ export function Marketplace({
                 <StudioPillButton
                   onClick={() => handleSetViewMode('grid')}
                   active={viewMode === 'grid'}
-                  className={viewMode === 'grid' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-3 py-2.5 text-ui-muted hover:text-ui-primary'}
+                  className={viewMode === 'grid' ? 'rounded-full bg-[var(--t-card-bg)] px-2.5 py-2 text-ui-primary shadow-none sm:px-3 sm:py-2.5' : 'rounded-full px-2.5 py-2 text-ui-muted hover:text-ui-primary sm:px-3 sm:py-2.5'}
                 >
                   <Grid size={16} />
                 </StudioPillButton>
                 <StudioPillButton
                   onClick={() => handleSetViewMode('list')}
                   active={viewMode === 'list'}
-                  className={viewMode === 'list' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-3 py-2.5 text-ui-muted hover:text-ui-primary'}
+                  className={viewMode === 'list' ? 'rounded-full bg-[var(--t-card-bg)] px-2.5 py-2 text-ui-primary shadow-none sm:px-3 sm:py-2.5' : 'rounded-full px-2.5 py-2 text-ui-muted hover:text-ui-primary sm:px-3 sm:py-2.5'}
                 >
                   <List size={16} />
                 </StudioPillButton>
@@ -1336,16 +1487,16 @@ export function Marketplace({
                   }}
                   active={viewMode === 'map'}
                   disabled={contentMode !== 'assets'}
-                  className={`${viewMode === 'map' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-3 py-2.5 text-ui-muted hover:text-ui-primary'} ${contentMode !== 'assets' ? 'cursor-not-allowed opacity-40' : ''}`}
+                  className={`${viewMode === 'map' ? 'rounded-full bg-[var(--t-card-bg)] px-2.5 py-2 text-ui-primary shadow-none sm:px-3 sm:py-2.5' : 'rounded-full px-2.5 py-2 text-ui-muted hover:text-ui-primary sm:px-3 sm:py-2.5'} ${contentMode !== 'assets' ? 'cursor-not-allowed opacity-40' : ''}`}
                 >
                   <MapIcon size={16} />
                 </StudioPillButton>
               </StudioPillGroup>
             </div>
 
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 xl:flex-nowrap">
-              <div className="relative min-w-[280px] flex-[1.25]">
-                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-ui-muted" />
+            <div className="mobile-command-cluster xl:min-w-0 xl:flex-1 xl:gap-3">
+              <div className="relative w-[10rem] shrink-0 sm:w-[14rem] xl:min-w-[280px] xl:flex-[1.25]">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-muted sm:left-4" />
                 <input
                   type="text"
                   value={searchQuery}
@@ -1357,11 +1508,11 @@ export function Marketplace({
                         ? 'Search collections...'
                         : 'Search assets...'
                   }
-                  className="h-[var(--t-shell-control-h)] w-full rounded-full border border-ui-border-subtle bg-ui-input pl-11 pr-4 text-sm text-ui-primary placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295] focus:ring-2 focus:ring-[#2CC295]/20 transition-all"
+                  className="h-[var(--t-shell-control-h)] w-full rounded-full border border-ui-border-subtle bg-ui-input pl-9 pr-3 text-[12px] text-ui-primary placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295] focus:ring-2 focus:ring-[#2CC295]/20 transition-all sm:pl-11 sm:pr-4 sm:text-sm"
                 />
               </div>
 
-              <div className={`min-w-[188px] flex-[0.78] xl:max-w-[212px] ${contentMode === 'profiles' ? 'opacity-50 pointer-events-none' : ''}`}>
+              <div className={`w-[8.75rem] shrink-0 sm:w-[11.75rem] xl:max-w-[212px] xl:flex-[0.78] ${contentMode === 'profiles' ? 'opacity-50 pointer-events-none' : ''}`}>
                 <CustomDropdown
                   defaultValue={selectedCategory}
                   onChange={setSelectedCategory}
@@ -1371,35 +1522,38 @@ export function Marketplace({
                   ]}
                   variant="compact"
                   className="w-full"
-                  triggerClassName="h-[var(--t-shell-control-h)] text-[13px]"
+                  triggerClassName="h-[var(--t-shell-control-h)] text-[11px] sm:text-[13px]"
                   menuMinWidth={228}
                 />
               </div>
 
-              <div className={`min-w-[188px] flex-[0.78] xl:max-w-[212px] ${contentMode !== 'assets' ? 'opacity-50 pointer-events-none' : ''}`}>
+              <div className={`w-[8.75rem] shrink-0 sm:w-[11.75rem] xl:max-w-[212px] xl:flex-[0.78] ${contentMode !== 'assets' ? 'opacity-50 pointer-events-none' : ''}`}>
                 <CustomDropdown
                   defaultValue={selectedBlockchain}
                   onChange={setSelectedBlockchain}
                     options={blockchainOptions}
                     variant="compact"
                     className="w-full"
-                    triggerClassName="h-[var(--t-shell-control-h)] text-[13px]"
+                    triggerClassName="h-[var(--t-shell-control-h)] text-[11px] sm:text-[13px]"
                     menuMinWidth={228}
                   />
                 </div>
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 pt-7">
+          <div className="min-h-0 flex-1 pt-3 sm:pt-5 lg:pt-7">
             {viewMode !== 'map' && (
               <div
                 ref={resultsScrollContainerRef}
-                className="scrollbar-hidden h-full overflow-y-auto px-1 pb-6 pt-2"
+                className="scrollbar-hidden h-full overflow-y-auto px-0 pb-6 pt-2 sm:px-1"
                 onScroll={handleResultsScroll}
                 style={{ scrollbarGutter: 'stable both-edges' }}
               >
                 {isCurrentModeLoading ? (
-                  <MarketplaceAssetsLoadingState viewMode={viewMode === 'list' ? 'list' : 'grid'} />
+                  <MarketplaceLoadingState
+                    contentMode={contentMode}
+                    viewMode={viewMode === 'list' ? 'list' : 'grid'}
+                  />
                 ) : showEmptyResults ? (
                   <EmptyStateCard
                     icon={<Search size={30} className="text-ui-muted" />}
@@ -1417,7 +1571,7 @@ export function Marketplace({
                           ? 'grid grid-cols-1 items-start gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3'
                           : 'space-y-4'
                         : viewMode === 'grid'
-                        ? 'grid grid-cols-1 gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                        ? 'grid grid-cols-2 gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
                         : 'space-y-4'
                       }
                     `}>

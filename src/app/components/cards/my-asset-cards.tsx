@@ -54,12 +54,12 @@ export type MyAssetNft = {
 };
 
 const cardShellClass =
-  "market-card-shell card-hover-shell card-hover-grid my-asset-card-shell group flex h-full flex-col overflow-hidden rounded-[32px] text-left";
+  "market-card-shell card-hover-shell card-hover-grid my-asset-card-shell group flex h-full min-h-[var(--t-market-card-grid-h)] flex-col overflow-hidden rounded-[var(--t-card-radius-xl)] text-left";
 const infoAreaClass =
   "market-card-info-area my-asset-info-area flex flex-1 flex-col px-5 pb-5 pt-4";
 const metricLabelClass =
   "text-[9px] font-semibold uppercase tracking-[0.14em] text-ui-muted";
-const detailValueClass = "mt-1 text-[13px] font-semibold leading-[1.35] text-ui-primary";
+const detailValueClass = "asset-card-detail-value mt-1 text-[13px] font-semibold leading-[1.35] text-ui-primary";
 
 function coerceText(value: unknown, fallback = ""): string {
   if (typeof value === "string") {
@@ -152,7 +152,7 @@ function AssetCardMedia({
   children?: ReactNode;
 }) {
   return (
-    <div className="relative h-[240px] overflow-hidden bg-[var(--t-surface-10)]">
+    <div className="relative h-[var(--t-market-card-media-h)] overflow-hidden bg-[var(--t-surface-10)]">
       <ImageWithFallback
         src={image}
         alt={alt}
@@ -180,13 +180,13 @@ function AssetValuePanel({
     <div className="shrink-0">
       <p className={metricLabelClass}>{label}</p>
       <p
-        className={`card-price-value mt-1 text-[24px] font-semibold leading-none ${
+        className={`card-price-value mt-1 ${
           accent ? "card-price-value-accent" : ""
         }`}
       >
         {value}
       </p>
-      {subValue ? <p className="mt-1.5 text-[10px] text-ui-muted">{subValue}</p> : null}
+      {subValue ? <p className="asset-card-price-usd mt-1.5 text-[10px] text-ui-muted">{subValue}</p> : null}
     </div>
   );
 }
@@ -232,11 +232,11 @@ function AssetContent({
   return (
     <div className={infoAreaClass}>
       <div className="min-w-0">
-        <h3 className="line-clamp-2 text-[17px] font-semibold leading-[1.18] text-ui-primary">
+        <h3 className="line-clamp-2 text-[15px] font-semibold leading-[1.2] text-ui-primary">
           {title}
         </h3>
         {subtitle ? (
-          <p className="mt-2 line-clamp-1 text-[12px] text-ui-secondary">{subtitle}</p>
+          <p className="my-asset-subtitle mt-2 line-clamp-1 text-[12px] text-ui-secondary">{subtitle}</p>
         ) : null}
       </div>
 
@@ -245,7 +245,7 @@ function AssetContent({
         <AssetDetailStack rows={detailRows} />
       </div>
 
-      <div className="mt-4 flex items-center gap-3">{footer}</div>
+      <div className="my-asset-footer-actions mt-4 flex items-center gap-3">{footer}</div>
     </div>
   );
 }
@@ -265,7 +265,7 @@ function AssetActionButton({
       variant={variant}
       size="md"
       onClick={onClick}
-      className="min-h-12 flex-1 text-[13px]"
+      className="my-asset-action-button min-h-10 flex-1 text-[11px] sm:min-h-12 sm:text-[13px]"
     >
       {children}
     </StudioActionButton>

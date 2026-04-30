@@ -304,12 +304,12 @@ function formatRuntimeUsd(price: number, currency: string): string {
   return `~ ${price.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${normalizedCurrency || 'USD'}`;
 }
 
-function formatMintingPreviewDuration(expiryDays: string): string {
+function formatMintingPreviewDuration(expiryDays: string): string | null {
   const normalizedValue = String(expiryDays || '').trim();
-  if (!normalizedValue) return 'No expiry';
+  if (!normalizedValue) return null;
 
   const parsedDays = Number(normalizedValue);
-  if (!Number.isFinite(parsedDays) || parsedDays <= 0) return 'No expiry';
+  if (!Number.isFinite(parsedDays) || parsedDays <= 0) return null;
   if (parsedDays >= 1) return `${Math.floor(parsedDays)}d`;
 
   const hours = Math.max(1, Math.round(parsedDays * 24));
@@ -2125,17 +2125,17 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
                     </div>
                     <div className="market-card-info-area search-result-info-area flex flex-col px-5 pb-5 pt-4">
                       <div className="min-w-0">
-                        <h4 className="line-clamp-2 text-[17px] font-semibold leading-[1.18] text-ui-primary">
+                        <h4 className="line-clamp-2 text-[15px] font-semibold leading-[1.2] text-ui-primary">
                           {previewTitle}
                         </h4>
                         <p className="mt-2 line-clamp-2 text-[13px] leading-5 text-ui-secondary">
                           {previewDescription}
                         </p>
                       </div>
-                      <div className="card-value-row mt-5">
+                      <div className="asset-card-bottom-grid mt-5">
                         <div className="shrink-0">
                           <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ui-muted">Price</p>
-                          <p className="card-price-value mt-1 text-[24px] font-semibold leading-none">
+                          <p className="card-price-value mt-1">
                             {previewPriceValue}
                           </p>
                           {previewPriceUsd ? (
@@ -2143,19 +2143,25 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
                           ) : null}
                         </div>
 
-                        <div className="min-w-0">
-                          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ui-muted">Ending In</p>
-                          <div className="mt-1 flex items-center gap-1.5">
-                            <Clock size={12} className="text-primary" />
-                            <p className="text-[13px] font-semibold leading-[1.4] text-primary">{previewEndingIn}</p>
+                        <div className="asset-card-summary-panel min-w-0">
+                          {previewEndingIn ? (
+                            <div className="asset-card-expiry-row">
+                              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ui-muted">Ending In</p>
+                              <div className="mt-1 flex items-center justify-end gap-1.5">
+                                <Clock size={12} className="text-primary" />
+                                <p className="text-[13px] font-semibold leading-[1.4] text-primary">{previewEndingIn}</p>
+                              </div>
+                            </div>
+                          ) : null}
+                          <div className="min-w-0">
+                            <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ui-muted">Supply</p>
+                            <p className="mt-1 text-[13px] font-semibold text-ui-primary">{previewSupplyValue}</p>
                           </div>
-                          <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-ui-muted">Supply</p>
-                          <p className="mt-1 text-[13px] font-semibold text-ui-primary">{previewSupplyValue}</p>
                         </div>
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-4 text-[10px] font-medium text-ui-secondary">
+                      <div className="asset-card-footer-row">
+                        <div className="asset-card-footer-stats text-[10px] font-medium text-ui-secondary">
                           <div className="inline-flex items-center gap-1.5">
                             <Eye size={14} />
                             <span>0</span>

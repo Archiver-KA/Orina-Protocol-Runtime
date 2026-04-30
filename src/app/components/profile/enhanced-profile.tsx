@@ -1411,8 +1411,8 @@ export function EnhancedProfile({
                   <div
                     className={
                       isOwnProfile
-                        ? 'grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3'
-                        : 'grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4'
+                        ? 'grid grid-cols-2 gap-[var(--t-market-grid-gap)] md:grid-cols-2 xl:grid-cols-3'
+                        : 'grid grid-cols-2 gap-[var(--t-market-grid-gap)] md:grid-cols-2 xl:grid-cols-4'
                     }
                   >
                     {isOwnProfile

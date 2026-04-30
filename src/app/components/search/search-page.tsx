@@ -154,7 +154,7 @@ export function SearchPage({
     ...getDefaultFilters(),
     query: initialQuery,
   }));
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [contentMode, setContentMode] = useState<'assets' | 'profiles' | 'collections'>('assets');
   const [likedAssets, setLikedAssets] = useState<Set<string>>(new Set());
   const [likedCollections, setLikedCollections] = useState<Set<string>>(new Set());
@@ -922,7 +922,7 @@ export function SearchPage({
       `}</style>
 
       <div className="flex h-full min-w-0 overflow-hidden">
-      <div className="min-w-0 flex-1 overflow-hidden px-5 py-5 lg:px-7 lg:py-6">
+      <div className="min-w-0 flex-1 overflow-hidden px-3 py-3 sm:px-4 sm:py-4 lg:px-7 lg:py-6">
 
       {/* Center Column - Results */}
       <section
@@ -931,35 +931,35 @@ export function SearchPage({
         onScroll={handleResultsScroll}
       >
         <div className="mx-auto w-full max-w-6xl">
-        <StudioPanel className="mb-8 rounded-[var(--t-card-radius-xl)] p-5 sm:p-6">
+        <StudioPanel className="mb-4 rounded-[var(--t-card-radius-xl)] p-3 sm:mb-8 sm:p-6">
           <StudioPageHeader
-            className="mb-6 flex-col items-start gap-5 xl:flex-row xl:items-end xl:justify-between"
-            title={<span className="text-[32px] font-semibold tracking-[-0.03em] text-ui-primary">{searchTitle}</span>}
-            subtitle={<span className="max-w-2xl text-[15px] leading-7 text-ui-secondary">{searchSubtitle}</span>}
+            className="mb-4 flex-col items-start gap-3 sm:mb-6 sm:gap-5 xl:flex-row xl:items-end xl:justify-between"
+            title={<span className="text-[20px] font-semibold tracking-[-0.01em] text-ui-primary sm:text-[32px] sm:tracking-[-0.03em]">{searchTitle}</span>}
+            subtitle={<span className="hidden max-w-2xl text-[15px] leading-7 text-ui-secondary sm:block">{searchSubtitle}</span>}
           />
 
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="mobile-command-row">
                 <StudioPillGroup className="rounded-full bg-[var(--t-surface-2)] shadow-none" compact>
                   <StudioPillButton
                     onClick={() => handleContentModeChange('assets')}
                     active={contentMode === 'assets'}
-                    className={contentMode === 'assets' ? 'rounded-full bg-[var(--t-card-bg)] px-4 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-4 py-2.5 text-ui-muted hover:text-ui-primary'}
+                    className={contentMode === 'assets' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2 text-[11px] text-ui-primary shadow-none sm:px-4 sm:py-2.5 sm:text-xs' : 'rounded-full px-3 py-2 text-[11px] text-ui-muted hover:text-ui-primary sm:px-4 sm:py-2.5 sm:text-xs'}
                   >
                     Assets
                   </StudioPillButton>
                   <StudioPillButton
                     onClick={() => handleContentModeChange('profiles')}
                     active={contentMode === 'profiles'}
-                    className={contentMode === 'profiles' ? 'rounded-full bg-[var(--t-card-bg)] px-4 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-4 py-2.5 text-ui-muted hover:text-ui-primary'}
+                    className={contentMode === 'profiles' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2 text-[11px] text-ui-primary shadow-none sm:px-4 sm:py-2.5 sm:text-xs' : 'rounded-full px-3 py-2 text-[11px] text-ui-muted hover:text-ui-primary sm:px-4 sm:py-2.5 sm:text-xs'}
                   >
                     Profiles
                   </StudioPillButton>
                   <StudioPillButton
                     onClick={() => handleContentModeChange('collections')}
                     active={contentMode === 'collections'}
-                    className={contentMode === 'collections' ? 'rounded-full bg-[var(--t-card-bg)] px-4 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-4 py-2.5 text-ui-muted hover:text-ui-primary'}
+                    className={contentMode === 'collections' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2 text-[11px] text-ui-primary shadow-none sm:px-4 sm:py-2.5 sm:text-xs' : 'rounded-full px-3 py-2 text-[11px] text-ui-muted hover:text-ui-primary sm:px-4 sm:py-2.5 sm:text-xs'}
                   >
                     Collections
                   </StudioPillButton>
@@ -969,14 +969,14 @@ export function SearchPage({
                   <StudioPillButton
                     onClick={() => setViewMode('list')}
                     active={viewMode === 'list'}
-                    className={viewMode === 'list' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-3 py-2.5 text-ui-muted hover:text-ui-primary'}
+                    className={viewMode === 'list' ? 'rounded-full bg-[var(--t-card-bg)] px-2.5 py-2 text-ui-primary shadow-none sm:px-3 sm:py-2.5' : 'rounded-full px-2.5 py-2 text-ui-muted hover:text-ui-primary sm:px-3 sm:py-2.5'}
                   >
                     <List size={18} />
                   </StudioPillButton>
                   <StudioPillButton
                     onClick={() => setViewMode('grid')}
                     active={viewMode === 'grid'}
-                    className={viewMode === 'grid' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2.5 text-ui-primary shadow-none' : 'rounded-full px-3 py-2.5 text-ui-muted hover:text-ui-primary'}
+                    className={viewMode === 'grid' ? 'rounded-full bg-[var(--t-card-bg)] px-2.5 py-2 text-ui-primary shadow-none sm:px-3 sm:py-2.5' : 'rounded-full px-2.5 py-2 text-ui-muted hover:text-ui-primary sm:px-3 sm:py-2.5'}
                   >
                     <Grid3x3 size={18} />
                   </StudioPillButton>
@@ -991,7 +991,7 @@ export function SearchPage({
                     size="icon"
                     aria-label="Search with ORINA AI"
                     title="Search with ORINA AI"
-                    className="h-11 w-11 border-[#2CC295]/25 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="h-[var(--t-shell-control-h)] w-[var(--t-shell-control-h)] border-[#2CC295]/25 disabled:cursor-not-allowed disabled:opacity-40 sm:h-11 sm:w-11"
                   >
                     <Sparkles size={18} aria-hidden="true" />
                     <span className="sr-only">Search with ORINA AI</span>
@@ -999,7 +999,7 @@ export function SearchPage({
                 )}
               </div>
 
-              <div className="text-sm text-ui-secondary">
+              <div className="hidden text-sm text-ui-secondary sm:block">
                 <span className="font-semibold text-ui-primary">{resultCount.toLocaleString()}</span> {resultLabel}
                 {filters.query ? (
                   <>
@@ -1148,7 +1148,7 @@ export function SearchPage({
                   ? 'grid grid-cols-1 items-start gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3'
                   : 'space-y-4'
                 : viewMode === 'grid'
-                ? 'grid grid-cols-1 gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3'
+                ? 'grid grid-cols-2 gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3'
                 : 'space-y-4'
               }
             `}>
