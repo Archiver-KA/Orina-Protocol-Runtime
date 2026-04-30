@@ -3,6 +3,7 @@ dist/
 
 # Local env / secrets
 supabasekey_CLI.md
+supabaseJWT.md
 .env
 .env.local
 .env.*.local
