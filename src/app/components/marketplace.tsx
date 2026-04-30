@@ -6,7 +6,7 @@
  */
 
 import { Search, Grid, List, Map as MapIcon } from 'lucide-react';
-import { Suspense, useCallback, useEffect, useMemo, useState, lazy, type UIEvent } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, lazy, type ReactNode, type UIEvent } from 'react';
 import { toast } from 'sonner';
 import { SearchResultCard } from './search-result-card';
 import { ProfileSearchCard } from './profile-search-card';
@@ -33,12 +33,11 @@ import {
 import type { MarketplaceAsset } from '@/app/types/asset';
 import type { CollectionSummary } from '@/types/collection';
 import {
+  fetchMarketplaceCatalogPageFromSupabase,
   getMarketplaceCatalogAssetById,
   getMarketplaceCatalogBlockchains,
   getMarketplaceCatalogCategories,
-  hydrateMarketplaceCatalogFromSupabase,
-  loadMarketplaceCatalogSync,
-  MARKETPLACE_CATALOG_SYNC_EVENT,
+  type MarketplaceCatalogPageCursor,
 } from '@/utils/marketplaceCatalog';
 import {
   fetchMarketplacePersonalizationRows,
@@ -81,14 +80,17 @@ const CollectionDetailsModal = lazy(async () => {
 });
 
 const MARKETPLACE_VIEW_MODE_KEY = 'orina_marketplace_view_mode';
-const MARKETPLACE_GRID_INITIAL_RENDER_COUNT = 32;
-const MARKETPLACE_LIST_INITIAL_RENDER_COUNT = 16;
-const MARKETPLACE_RENDER_INCREMENT = 24;
+const MARKETPLACE_GRID_INITIAL_RENDER_COUNT = 16;
+const MARKETPLACE_LIST_INITIAL_RENDER_COUNT = 8;
+const MARKETPLACE_RENDER_INCREMENT = 12;
 const MARKETPLACE_SCROLL_PREFETCH_PX = 720;
 const MAP_PREFETCH_IDLE_TIMEOUT_MS = 1800;
-const MARKETPLACE_CATALOG_BOOTSTRAP_LIMIT = 160;
+const MARKETPLACE_RANKING_TIMEOUT_MS = 3000;
+const MARKETPLACE_CARD_RENDER_ROOT_MARGIN = '720px 0px';
+const MARKETPLACE_CATALOG_PAGE_SIZE = 48;
 
-type MarketplaceCatalogHydrationStatus = 'loading' | 'preview' | 'ready' | 'error';
+type MarketplaceCatalogHydrationStatus = 'loading' | 'ready' | 'error';
+type MarketplaceRankingStatus = 'idle' | 'loading' | 'ready' | 'error' | 'timeout';
 
 function readInitialMarketplaceViewMode(): 'grid' | 'list' | 'map' {
   if (typeof window === 'undefined') return 'grid';
@@ -103,30 +105,6 @@ function readInitialMarketplaceViewMode(): 'grid' | 'list' | 'map' {
 
 function getInitialResultRenderLimit(viewMode: 'grid' | 'list' | 'map') {
   return viewMode === 'list' ? MARKETPLACE_LIST_INITIAL_RENDER_COUNT : MARKETPLACE_GRID_INITIAL_RENDER_COUNT;
-}
-
-function areMarketplaceAssetListsEquivalent(left: MarketplaceAsset[], right: MarketplaceAsset[]) {
-  if (left === right) return true;
-  if (left.length !== right.length) return false;
-
-  for (let index = 0; index < left.length; index += 1) {
-    const leftAsset = left[index];
-    const rightAsset = right[index];
-    if (
-      leftAsset.id !== rightAsset.id ||
-      leftAsset.updatedAt !== rightAsset.updatedAt ||
-      leftAsset.views !== rightAsset.views ||
-      leftAsset.likes !== rightAsset.likes ||
-      leftAsset.availableSlots !== rightAsset.availableSlots ||
-      leftAsset.totalSlots !== rightAsset.totalSlots ||
-      leftAsset.price !== rightAsset.price ||
-      leftAsset.verified !== rightAsset.verified
-    ) {
-      return false;
-    }
-  }
-
-  return true;
 }
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {
@@ -171,6 +149,54 @@ function scheduleMarketplaceIdleTask(task: () => void, timeout = MAP_PREFETCH_ID
 
   const handle = window.setTimeout(task, Math.min(timeout, 700));
   return () => window.clearTimeout(handle);
+}
+
+function ViewportRenderSlot({
+  children,
+  className,
+  placeholderClassName,
+  initiallyRendered = false,
+}: {
+  children: ReactNode;
+  className?: string;
+  placeholderClassName: string;
+  initiallyRendered?: boolean;
+}) {
+  const slotRef = useRef<HTMLDivElement | null>(null);
+  const [shouldRender, setShouldRender] = useState(initiallyRendered);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') {
+      setShouldRender(true);
+      return undefined;
+    }
+
+    const node = slotRef.current;
+    if (!node) {
+      setShouldRender(true);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setShouldRender((current) => (current === entry.isIntersecting ? current : entry.isIntersecting));
+      },
+      {
+        root: null,
+        rootMargin: MARKETPLACE_CARD_RENDER_ROOT_MARGIN,
+        threshold: 0,
+      },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={slotRef} className={className}>
+      {shouldRender ? children : <div aria-hidden="true" className={placeholderClassName} />}
+    </div>
+  );
 }
 
 function MarketplaceAssetSkeletonGrid() {
@@ -328,6 +354,41 @@ function getMarketplaceCatalogBlockchainOption(
   }
 }
 
+const MARKETPLACE_BLOCKCHAIN_CHAIN_IDS: Record<string, number> = {
+  'bnb-testnet': 97,
+  bsc: 56,
+  ethereum: 1,
+  'ethereum-testnet': 11155111,
+  polygon: 137,
+  arbitrum: 42161,
+  base: 8453,
+  avalanche: 43114,
+};
+
+function getMarketplaceCatalogChainIdFilter(blockchain: string): number | null {
+  const normalized = normalizeMarketplaceBlockchainValue(blockchain);
+  if (!normalized || normalized === 'all') return null;
+
+  const protocolNetwork = PROTOCOL_NETWORK_OPTIONS.find((network) => network.key === normalized);
+  if (typeof protocolNetwork?.chainId === 'number') return protocolNetwork.chainId;
+
+  return MARKETPLACE_BLOCKCHAIN_CHAIN_IDS[normalized] ?? null;
+}
+
+function mergeMarketplaceAssetsById(currentAssets: MarketplaceAsset[], nextAssets: MarketplaceAsset[]) {
+  if (nextAssets.length === 0) return currentAssets;
+
+  const seen = new Set(currentAssets.map((asset) => asset.assetUid || asset.id));
+  const merged = [...currentAssets];
+  nextAssets.forEach((asset) => {
+    const key = asset.assetUid || asset.id;
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push(asset);
+  });
+  return merged;
+}
+
 export function Marketplace({
   onNavigateToPage,
   onNavigateToAsset,
@@ -358,17 +419,23 @@ export function Marketplace({
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
   const [mapEngineRequested, setMapEngineRequested] = useState(() => initialViewMode === 'map');
-  const [initialMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
-  const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(initialMarketplaceAssets);
-  const [catalogHydrationStatus, setCatalogHydrationStatus] = useState<MarketplaceCatalogHydrationStatus>(
-    () => (initialMarketplaceAssets.length > 0 ? 'preview' : 'loading')
-  );
+  const [initialMarketplaceAssets] = useState<MarketplaceAsset[]>([]);
+  const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>([]);
+  const [catalogHydrationStatus, setCatalogHydrationStatus] = useState<MarketplaceCatalogHydrationStatus>('loading');
+  const [marketplaceCatalogCursor, setMarketplaceCatalogCursor] = useState<MarketplaceCatalogPageCursor | null>(null);
+  const [hasMoreMarketplaceAssets, setHasMoreMarketplaceAssets] = useState(false);
+  const [isLoadingMoreMarketplaceAssets, setIsLoadingMoreMarketplaceAssets] = useState(false);
   const [sellerProfiles, setSellerProfiles] = useState(() => loadSellerDirectorySync({ marketplaceAssets: initialMarketplaceAssets }));
   const [runtimeCollections, setRuntimeCollections] = useState<CollectionSummary[]>(() => loadRuntimeCollections());
   const [personalizationRows, setPersonalizationRows] = useState<MarketplacePersonalizationRow[]>([]);
+  const [marketplaceRankingStatus, setMarketplaceRankingStatus] = useState<MarketplaceRankingStatus>('idle');
+  const [marketplaceRankingAssetKey, setMarketplaceRankingAssetKey] = useState('');
+  const catalogRequestIdRef = useRef(0);
+  const rankingRequestIdRef = useRef(0);
   const [taxonomyVersion, setTaxonomyVersion] = useState(0);
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 140);
-  const { address } = useEffectiveViewer();
+  const viewer = useEffectiveViewer();
+  const { address } = viewer;
   const { requireWalletAction } = useRequireWalletAction(onNavigateToPage);
 
   const requestMapEngine = useCallback(() => {
@@ -436,8 +503,32 @@ export function Marketplace({
     ];
   }, [blockchains]);
   const visibleCategoryOptions = contentMode === 'collections' ? collectionCategoryOptions : assetCategoryOptions;
+  const selectedMarketplaceChainId = useMemo(
+    () => getMarketplaceCatalogChainIdFilter(selectedBlockchain),
+    [selectedBlockchain],
+  );
+  const marketplaceCatalogQuery = useMemo(
+    () => ({
+      searchQuery: debouncedSearchQuery.trim(),
+      category: selectedCategory !== 'all' ? selectedCategory : undefined,
+      blockchain: selectedBlockchain !== 'all' ? selectedBlockchain : undefined,
+      chainId: selectedMarketplaceChainId,
+      verifiedOnly,
+    }),
+    [debouncedSearchQuery, selectedBlockchain, selectedCategory, selectedMarketplaceChainId, verifiedOnly],
+  );
+  const marketplaceCatalogQueryKey = useMemo(
+    () => JSON.stringify(marketplaceCatalogQuery),
+    [marketplaceCatalogQuery],
+  );
+
   useEffect(() => {
     const refresh = () => {
+      if (marketplaceAssets.length === 0) {
+        setSellerProfiles(loadSellerDirectorySync({ marketplaceAssets: [] }));
+        return;
+      }
+
       const syncProfiles = loadSellerDirectorySync({ marketplaceAssets });
       setSellerProfiles((prev) => (syncProfiles.length > 0 || prev.length === 0 ? syncProfiles : prev));
       void hydrateSellerDirectoryFromSupabase({ marketplaceAssets })
@@ -461,47 +552,48 @@ export function Marketplace({
   }, [marketplaceAssets]);
 
   useEffect(() => {
+    catalogRequestIdRef.current += 1;
+    const requestId = catalogRequestIdRef.current;
     let cancelled = false;
 
-    const syncCatalog = () => {
-      const nextAssets = loadMarketplaceCatalogSync();
-      setMarketplaceAssets((currentAssets) => (
-        areMarketplaceAssetListsEquivalent(currentAssets, nextAssets) ? currentAssets : nextAssets
-      ));
-    };
-
-    syncCatalog();
-    if (loadMarketplaceCatalogSync().length === 0) {
-      setCatalogHydrationStatus('loading');
+    if (contentMode !== 'assets') {
+      setCatalogHydrationStatus('ready');
+      setIsLoadingMoreMarketplaceAssets(false);
+      setHasMoreMarketplaceAssets(false);
+      return () => {
+        cancelled = true;
+      };
     }
-    void hydrateMarketplaceCatalogFromSupabase({ limit: MARKETPLACE_CATALOG_BOOTSTRAP_LIMIT })
-      .then(() => {
-        if (cancelled) return;
-        syncCatalog();
-        setCatalogHydrationStatus(loadMarketplaceCatalogSync().length > 0 ? 'preview' : 'loading');
-        void hydrateMarketplaceCatalogFromSupabase({ force: true })
-          .then(() => {
-            if (cancelled) return;
-            syncCatalog();
-            setCatalogHydrationStatus('ready');
-          })
-          .catch(() => {
-            if (cancelled) return;
-            syncCatalog();
-            setCatalogHydrationStatus('error');
-          });
+
+    setCatalogHydrationStatus('loading');
+    setIsLoadingMoreMarketplaceAssets(false);
+    setHasMoreMarketplaceAssets(false);
+    setMarketplaceCatalogCursor(null);
+    setMarketplaceAssets([]);
+
+    void fetchMarketplaceCatalogPageFromSupabase({
+      ...marketplaceCatalogQuery,
+      limit: MARKETPLACE_CATALOG_PAGE_SIZE,
+    })
+      .then((page) => {
+        if (cancelled || catalogRequestIdRef.current !== requestId) return;
+        setMarketplaceAssets(page.assets);
+        setMarketplaceCatalogCursor(page.nextCursor);
+        setHasMoreMarketplaceAssets(page.hasMore);
+        setCatalogHydrationStatus('ready');
       })
       .catch(() => {
-        if (cancelled) return;
-        syncCatalog();
+        if (cancelled || catalogRequestIdRef.current !== requestId) return;
+        setMarketplaceAssets([]);
+        setMarketplaceCatalogCursor(null);
+        setHasMoreMarketplaceAssets(false);
         setCatalogHydrationStatus('error');
       });
-    window.addEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
+
     return () => {
       cancelled = true;
-      window.removeEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
     };
-  }, []);
+  }, [contentMode, marketplaceCatalogQuery, marketplaceCatalogQueryKey]);
 
   useEffect(() => {
     if (!selectedAsset) return;
@@ -587,14 +679,10 @@ export function Marketplace({
       return;
     }
 
-    if (selectedBlockchain !== 'all' && !blockchainOptions.some((option) => option.value === selectedBlockchain)) {
-      setSelectedBlockchain('all');
-    }
-
     if (selectedCategory !== 'all' && !assetCategoryOptions.some((option) => option.value === selectedCategory)) {
       setSelectedCategory('all');
     }
-  }, [assetCategoryOptions, blockchainOptions, collectionCategoryOptions, contentMode, selectedBlockchain, selectedCategory]);
+  }, [assetCategoryOptions, collectionCategoryOptions, contentMode, selectedBlockchain, selectedCategory]);
 
   useEffect(() => {
     if (contentMode !== 'assets' || viewMode !== 'map') {
@@ -639,47 +727,86 @@ export function Marketplace({
     return filtered;
   }, [marketplaceAssets, debouncedSearchQuery, selectedCategory, selectedBlockchain, taxonomyVersion, verifiedOnly]);
 
-  const canApplyMarketplacePersonalization =
-    runtimeFlags.enableMarketplacePersonalization &&
-    contentMode === 'assets' &&
-    catalogHydrationStatus === 'ready';
+  const filteredAssetRankingKey = useMemo(
+    () => filteredAssets.map((asset) => asset.assetUid || asset.id).join('|'),
+    [filteredAssets],
+  );
 
   useEffect(() => {
-    if (!canApplyMarketplacePersonalization) {
+    rankingRequestIdRef.current += 1;
+    const requestId = rankingRequestIdRef.current;
+
+    if (contentMode !== 'assets' || catalogHydrationStatus !== 'ready') {
       setPersonalizationRows([]);
+      setMarketplaceRankingStatus('idle');
+      setMarketplaceRankingAssetKey('');
       return;
     }
 
-    if (filteredAssets.length === 0) {
+    if (!runtimeFlags.enableMarketplacePersonalization || filteredAssets.length === 0) {
       setPersonalizationRows([]);
+      setMarketplaceRankingStatus('ready');
+      setMarketplaceRankingAssetKey(filteredAssetRankingKey);
       return;
     }
 
     let cancelled = false;
+    setPersonalizationRows([]);
+    setMarketplaceRankingStatus('loading');
 
-    const timer = window.setTimeout(() => {
-      void fetchMarketplacePersonalizationRows(filteredAssets, {
-        surface: 'marketplace_browse',
-        limit: filteredAssets.length,
-      }).then((rows) => {
-        if (cancelled) return;
-        setPersonalizationRows(rows);
-      });
-    }, 180);
+    const fallbackTimer = window.setTimeout(() => {
+      if (cancelled || rankingRequestIdRef.current !== requestId) return;
+      rankingRequestIdRef.current += 1;
+      setPersonalizationRows([]);
+      setMarketplaceRankingStatus('timeout');
+      setMarketplaceRankingAssetKey(filteredAssetRankingKey);
+    }, MARKETPLACE_RANKING_TIMEOUT_MS);
+
+    void fetchMarketplacePersonalizationRows(filteredAssets, {
+      surface: 'marketplace_browse',
+      limit: filteredAssets.length,
+    }).then((rows) => {
+      if (cancelled || rankingRequestIdRef.current !== requestId) return;
+      window.clearTimeout(fallbackTimer);
+      setPersonalizationRows(rows);
+      setMarketplaceRankingStatus('ready');
+      setMarketplaceRankingAssetKey(filteredAssetRankingKey);
+    }).catch(() => {
+      if (cancelled || rankingRequestIdRef.current !== requestId) return;
+      window.clearTimeout(fallbackTimer);
+      setPersonalizationRows([]);
+      setMarketplaceRankingStatus('error');
+      setMarketplaceRankingAssetKey(filteredAssetRankingKey);
+    });
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      window.clearTimeout(fallbackTimer);
     };
-  }, [address, canApplyMarketplacePersonalization, filteredAssets]);
+  }, [catalogHydrationStatus, contentMode, filteredAssetRankingKey]);
+
+  const isRankingSettledForCurrentAssets =
+    marketplaceRankingAssetKey === filteredAssetRankingKey &&
+    (
+      marketplaceRankingStatus === 'ready' ||
+      marketplaceRankingStatus === 'error' ||
+      marketplaceRankingStatus === 'timeout'
+    );
+
+  const shouldApplyPersonalizedOrder =
+    runtimeFlags.enableMarketplacePersonalization &&
+    contentMode === 'assets' &&
+    marketplaceRankingStatus === 'ready' &&
+    marketplaceRankingAssetKey === filteredAssetRankingKey &&
+    personalizationRows.length > 0;
 
   const displayedAssets = useMemo(
     () => (
-      canApplyMarketplacePersonalization
+      shouldApplyPersonalizedOrder
         ? sortMarketplaceAssetsWithPersonalization(filteredAssets, personalizationRows)
         : filteredAssets
     ),
-    [canApplyMarketplacePersonalization, filteredAssets, personalizationRows],
+    [filteredAssets, personalizationRows, shouldApplyPersonalizedOrder],
   );
 
   const filteredCollections = useMemo(() => {
@@ -726,6 +853,45 @@ export function Marketplace({
       : contentMode === 'profiles'
         ? filteredProfiles.length
         : filteredCollections.length;
+  const loadMoreMarketplaceAssets = useCallback(() => {
+    if (
+      contentMode !== 'assets' ||
+      !hasMoreMarketplaceAssets ||
+      !marketplaceCatalogCursor ||
+      isLoadingMoreMarketplaceAssets ||
+      catalogHydrationStatus !== 'ready'
+    ) {
+      return;
+    }
+
+    const requestId = catalogRequestIdRef.current;
+    setIsLoadingMoreMarketplaceAssets(true);
+    void fetchMarketplaceCatalogPageFromSupabase({
+      ...marketplaceCatalogQuery,
+      cursor: marketplaceCatalogCursor,
+      limit: MARKETPLACE_CATALOG_PAGE_SIZE,
+    })
+      .then((page) => {
+        if (catalogRequestIdRef.current !== requestId) return;
+        setMarketplaceAssets((currentAssets) => mergeMarketplaceAssetsById(currentAssets, page.assets));
+        setMarketplaceCatalogCursor(page.nextCursor);
+        setHasMoreMarketplaceAssets(page.hasMore);
+        setResultRenderLimit((currentLimit) => currentLimit + Math.min(MARKETPLACE_RENDER_INCREMENT, page.assets.length));
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (catalogRequestIdRef.current === requestId) {
+          setIsLoadingMoreMarketplaceAssets(false);
+        }
+      });
+  }, [
+    catalogHydrationStatus,
+    contentMode,
+    hasMoreMarketplaceAssets,
+    isLoadingMoreMarketplaceAssets,
+    marketplaceCatalogCursor,
+    marketplaceCatalogQuery,
+  ]);
   const visibleDisplayedAssets = useMemo(
     () => displayedAssets.slice(0, resultRenderLimit),
     [displayedAssets, resultRenderLimit],
@@ -738,7 +904,13 @@ export function Marketplace({
     () => filteredCollections.slice(0, resultRenderLimit),
     [filteredCollections, resultRenderLimit],
   );
-  const hasMoreResults = viewMode !== 'map' && resultRenderLimit < currentResultCount;
+  const hasMoreLoadedResults = viewMode !== 'map' && resultRenderLimit < currentResultCount;
+  const hasMoreRemoteAssetResults =
+    viewMode !== 'map' &&
+    contentMode === 'assets' &&
+    catalogHydrationStatus === 'ready' &&
+    hasMoreMarketplaceAssets;
+  const hasMoreResults = hasMoreLoadedResults || hasMoreRemoteAssetResults;
 
   useEffect(() => {
     setResultRenderLimit(getInitialResultRenderLimit(viewMode));
@@ -752,15 +924,26 @@ export function Marketplace({
     ));
   }, [currentResultCount]);
 
+  const requestMoreResults = useCallback(() => {
+    if (hasMoreLoadedResults) {
+      increaseResultRenderLimit();
+      return;
+    }
+
+    if (hasMoreRemoteAssetResults) {
+      loadMoreMarketplaceAssets();
+    }
+  }, [hasMoreLoadedResults, hasMoreRemoteAssetResults, increaseResultRenderLimit, loadMoreMarketplaceAssets]);
+
   const handleResultsScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
     if (!hasMoreResults) return;
 
     const target = event.currentTarget;
     const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
     if (distanceToBottom <= MARKETPLACE_SCROLL_PREFETCH_PX) {
-      increaseResultRenderLimit();
+      requestMoreResults();
     }
-  }, [hasMoreResults, increaseResultRenderLimit]);
+  }, [hasMoreResults, requestMoreResults]);
 
   const mapAssets = useMemo(
     () => {
@@ -895,10 +1078,14 @@ export function Marketplace({
     () => marketplaceAssets.filter((asset) => asset.verified).length,
     [marketplaceAssets]
   );
+  const isAssetRankingLoading =
+    runtimeFlags.enableMarketplacePersonalization &&
+    catalogHydrationStatus === 'ready' &&
+    !isRankingSettledForCurrentAssets &&
+    filteredAssets.length > 0;
   const isAssetsCatalogLoading =
     contentMode === 'assets' &&
-    catalogHydrationStatus === 'loading' &&
-    marketplaceAssets.length === 0;
+    (catalogHydrationStatus === 'loading' || isAssetRankingLoading);
   const showEmptyResults =
     (contentMode === 'assets' && displayedAssets.length === 0 && !isAssetsCatalogLoading) ||
     (contentMode === 'profiles' && filteredProfiles.length === 0) ||
@@ -1055,15 +1242,21 @@ export function Marketplace({
                       }
                     `}>
                       {contentMode === 'assets' ? (
-                        visibleDisplayedAssets.map((asset) => (
-                          <SearchResultCard
+                        visibleDisplayedAssets.map((asset, index) => (
+                          <ViewportRenderSlot
                             key={asset.id}
-                            asset={asset}
-                            viewMode={viewMode}
-                            onLike={handleLike}
-                            onClick={handleAssetClick}
-                            isLiked={likedAssets.has(asset.id)}
-                          />
+                            className={viewMode === 'grid' ? 'h-full min-h-[436px]' : 'min-h-[520px] lg:min-h-[240px]'}
+                            placeholderClassName={viewMode === 'grid' ? 'h-[436px] rounded-[32px]' : 'min-h-[520px] rounded-[32px] lg:min-h-[240px]'}
+                            initiallyRendered={index < (viewMode === 'grid' ? 8 : 4)}
+                          >
+                            <SearchResultCard
+                              asset={asset}
+                              viewMode={viewMode}
+                              onLike={handleLike}
+                              onClick={handleAssetClick}
+                              isLiked={likedAssets.has(asset.id)}
+                            />
+                          </ViewportRenderSlot>
                         ))
                       ) : (
                         contentMode === 'profiles' ? (
@@ -1094,10 +1287,11 @@ export function Marketplace({
                       <div className="flex justify-center py-6">
                         <button
                           type="button"
-                          onClick={increaseResultRenderLimit}
+                          onClick={requestMoreResults}
+                          disabled={isLoadingMoreMarketplaceAssets}
                           className="inline-flex h-11 items-center justify-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)] px-5 text-[13px] font-semibold text-ui-secondary transition-colors hover:bg-[var(--t-card-bg)] hover:text-ui-primary"
                         >
-                          Load more results
+                          {isLoadingMoreMarketplaceAssets ? 'Loading results...' : 'Load more results'}
                         </button>
                       </div>
                     )}

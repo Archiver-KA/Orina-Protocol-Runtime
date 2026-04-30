@@ -531,16 +531,12 @@
 .surface-primary-shell {
   background-color: var(--t-card-bg) !important;
   border: none !important;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
   box-shadow: none !important;
 }
 
 .market-card-shell {
   background-color: var(--t-card-bg) !important;
   border: none !important;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
   box-shadow: none !important;
 }
 

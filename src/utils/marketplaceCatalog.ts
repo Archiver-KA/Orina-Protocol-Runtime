@@ -46,6 +46,10 @@ type AssetCatalogRemoteRow = {
   updated_at: string | null;
 };
 
+type AssetCatalogPageRpcRow = AssetCatalogRemoteRow & {
+  page_has_more?: boolean | null;
+};
+
 type AssetCatalogSellerProfileRow = {
   id: string;
   wallet_address: string | null;
@@ -118,6 +122,32 @@ type MarketplaceCatalogHydrateOptions = {
   limit?: number;
 };
 
+export type MarketplaceCatalogPageCursor = {
+  updatedAt: string;
+  id: string;
+};
+
+export type MarketplaceCatalogPageOptions = {
+  limit?: number;
+  cursor?: MarketplaceCatalogPageCursor | null;
+  searchQuery?: string;
+  category?: string;
+  blockchain?: string;
+  chainId?: number | null;
+  verifiedOnly?: boolean;
+};
+
+export type MarketplaceCatalogPageResult = {
+  assets: MarketplaceAsset[];
+  nextCursor: MarketplaceCatalogPageCursor | null;
+  hasMore: boolean;
+};
+
+const MARKETPLACE_CATALOG_SELECT =
+  'id,asset_uid,title,category,description,cover_image_url,gallery_images,attributes,metadata,seller_user_id,contract_address,token_id,chain_id,is_active,created_at,updated_at';
+const MARKETPLACE_CATALOG_DEFAULT_PAGE_LIMIT = 48;
+const MARKETPLACE_CATALOG_MAX_PAGE_LIMIT = 96;
+
 function normalizeAssetUid(value: string | null | undefined): string {
   return String(value || '').trim().toLowerCase();
 }
@@ -142,6 +172,115 @@ function normalizeHydrateLimit(value: unknown): number | undefined {
   const parsed = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
   return Math.max(1, Math.floor(parsed));
+}
+
+function normalizeCatalogPageLimit(value: unknown): number {
+  const parsed = normalizeHydrateLimit(value);
+  if (!parsed) return MARKETPLACE_CATALOG_DEFAULT_PAGE_LIMIT;
+  return Math.min(parsed, MARKETPLACE_CATALOG_MAX_PAGE_LIMIT);
+}
+
+function encodePostgrestFilterValue(value: string | number | boolean): string {
+  return encodeURIComponent(String(value));
+}
+
+function normalizeCatalogSearchTerm(value?: string | null): string {
+  return String(value || '')
+    .replace(/[*,()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 96);
+}
+
+function normalizeCatalogCursorUpdatedAt(value?: string | number | null): string {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return new Date(value).toISOString();
+  }
+
+  const rawValue = String(value || '').trim();
+  if (!rawValue) return '';
+  const parsed = Date.parse(rawValue);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : rawValue;
+}
+
+function buildMarketplaceCatalogPageQuery(options: MarketplaceCatalogPageOptions, requestLimit: number): string {
+  const params: Record<string, string | undefined> = {
+    select: MARKETPLACE_CATALOG_SELECT,
+    is_active: 'eq.true',
+    order: 'updated_at.desc,id.desc',
+    limit: String(requestLimit),
+  };
+  const logicalClauses: string[] = [];
+  const category = String(options.category || '').trim();
+  const blockchain = String(options.blockchain || '').trim();
+  const chainId = typeof options.chainId === 'number' && Number.isFinite(options.chainId)
+    ? Math.floor(options.chainId)
+    : null;
+  const searchTerm = normalizeCatalogSearchTerm(options.searchQuery);
+  const cursorUpdatedAt = normalizeCatalogCursorUpdatedAt(options.cursor?.updatedAt);
+  const cursorId = String(options.cursor?.id || '').trim();
+
+  if (category && category !== 'all') {
+    params.category = `eq.${encodePostgrestFilterValue(category)}`;
+  }
+
+  if (chainId !== null) {
+    params.chain_id = `eq.${chainId}`;
+  } else if (blockchain && blockchain !== 'all') {
+    params['metadata->>blockchain'] = `ilike.${encodePostgrestFilterValue(blockchain)}`;
+  }
+
+  if (options.verifiedOnly) {
+    params['metadata->>verified'] = 'eq.true';
+  }
+
+  if (cursorUpdatedAt && cursorId) {
+    logicalClauses.push(
+      `or(updated_at.lt.${encodePostgrestFilterValue(cursorUpdatedAt)},and(updated_at.eq.${encodePostgrestFilterValue(cursorUpdatedAt)},id.lt.${encodePostgrestFilterValue(cursorId)}))`,
+    );
+  }
+
+  if (searchTerm) {
+    const encodedTerm = encodePostgrestFilterValue(searchTerm);
+    logicalClauses.push(
+      `or(title.ilike.*${encodedTerm}*,description.ilike.*${encodedTerm}*,category.ilike.*${encodedTerm}*)`,
+    );
+  }
+
+  if (logicalClauses.length === 1) {
+    const clause = logicalClauses[0];
+    params[clause.startsWith('or(') ? 'or' : 'and'] = clause.replace(/^(or|and)\((.*)\)$/, '($2)');
+  } else if (logicalClauses.length > 1) {
+    params.and = `(${logicalClauses.join(',')})`;
+  }
+
+  return toQuery(params);
+}
+
+async function fetchMarketplaceCatalogPageRowsViaRpc(
+  options: MarketplaceCatalogPageOptions,
+  limit: number,
+): Promise<AssetCatalogPageRpcRow[] | null> {
+  try {
+    return await restRpc<AssetCatalogPageRpcRow[]>(
+      'get_marketplace_catalog_page_v1',
+      {
+        p_limit: limit,
+        p_cursor_updated_at: options.cursor?.updatedAt || null,
+        p_cursor_id: options.cursor?.id || null,
+        p_search_query: normalizeCatalogSearchTerm(options.searchQuery) || null,
+        p_category: options.category && options.category !== 'all' ? options.category : null,
+        p_chain_id: typeof options.chainId === 'number' && Number.isFinite(options.chainId)
+          ? Math.floor(options.chainId)
+          : null,
+        p_blockchain: options.blockchain && options.blockchain !== 'all' ? options.blockchain : null,
+        p_verified_only: Boolean(options.verifiedOnly),
+      },
+    );
+  } catch (error) {
+    console.debug('[MarketplaceCatalog] Indexed catalog RPC unavailable, falling back to REST page:', error);
+    return null;
+  }
 }
 
 function uniqueNormalizedValues(values: Array<string | null | undefined>): string[] {
@@ -1112,6 +1251,45 @@ function updateCache(nextAssets: MarketplaceAsset[]): MarketplaceAsset[] {
   return cachedAssets;
 }
 
+async function buildCatalogFromFetchedRows(
+  rows: AssetCatalogRemoteRow[],
+  fallbackAssets: MarketplaceAsset[] = cachedAssets,
+): Promise<MarketplaceAsset[]> {
+  const [sellerProfilesById, listingStatsByAssetUid, protocolLinksByAssetId] = await Promise.all([
+    fetchSellerProfilesById(
+      rows.map((row: AssetCatalogRemoteRow) => row.seller_user_id || '').filter(Boolean),
+    ),
+    fetchCanonicalListingStats(
+      rows.map((row: AssetCatalogRemoteRow) => row.asset_uid),
+    ),
+    fetchAssetProtocolLinksByAssetId(
+      rows.map((row: AssetCatalogRemoteRow) => row.id),
+    ),
+  ]);
+  const [
+    protocolAvailabilityByProjectionKey,
+    protocolReservedAmountsByProjectionKey,
+  ] = await Promise.all([
+    fetchProtocolAssetAvailabilityByProjection(
+      rows,
+      protocolLinksByAssetId,
+    ),
+    fetchProtocolOrderReservedAmountsByProjection(
+      rows,
+      protocolLinksByAssetId,
+    ),
+  ]);
+
+  return buildCatalogFromRemoteRows(rows, {
+    fallbackAssets,
+    sellerProfilesById,
+    listingStatsByAssetUid,
+    protocolLinksByAssetId,
+    protocolAvailabilityByProjectionKey,
+    protocolReservedAmountsByProjectionKey,
+  });
+}
+
 export function loadMarketplaceCatalogSync(): MarketplaceAsset[] {
   if (cachedAssets.length > 0) return cachedAssets;
   return [];
@@ -1139,45 +1317,13 @@ export async function hydrateMarketplaceCatalogFromSupabase(
       const rows = await restSelect<AssetCatalogRemoteRow>(
         'assets_catalog',
         toQuery({
-          select:
-            'id,asset_uid,title,category,description,cover_image_url,gallery_images,attributes,metadata,seller_user_id,contract_address,token_id,chain_id,is_active,created_at,updated_at',
+          select: MARKETPLACE_CATALOG_SELECT,
           is_active: 'eq.true',
           order: 'updated_at.desc',
           limit: hydrateLimit ? String(hydrateLimit) : undefined,
         })
       );
-      const [sellerProfilesById, listingStatsByAssetUid, protocolLinksByAssetId] = await Promise.all([
-        fetchSellerProfilesById(
-          rows.map((row: AssetCatalogRemoteRow) => row.seller_user_id || '').filter(Boolean),
-        ),
-        fetchCanonicalListingStats(
-          rows.map((row: AssetCatalogRemoteRow) => row.asset_uid),
-        ),
-        fetchAssetProtocolLinksByAssetId(
-          rows.map((row: AssetCatalogRemoteRow) => row.id),
-        ),
-      ]);
-      const [
-        protocolAvailabilityByProjectionKey,
-        protocolReservedAmountsByProjectionKey,
-      ] = await Promise.all([
-        fetchProtocolAssetAvailabilityByProjection(
-          rows,
-          protocolLinksByAssetId,
-        ),
-        fetchProtocolOrderReservedAmountsByProjection(
-          rows,
-          protocolLinksByAssetId,
-        ),
-      ]);
-      const remoteCatalog = buildCatalogFromRemoteRows(rows, {
-        fallbackAssets: cachedAssets,
-        sellerProfilesById,
-        listingStatsByAssetUid,
-        protocolLinksByAssetId,
-        protocolAvailabilityByProjectionKey,
-        protocolReservedAmountsByProjectionKey,
-      });
+      const remoteCatalog = await buildCatalogFromFetchedRows(rows, cachedAssets);
       return updateCache(remoteCatalog);
     } catch (error) {
       console.debug('[MarketplaceCatalog] Remote hydrate skipped:', error);
@@ -1188,6 +1334,58 @@ export async function hydrateMarketplaceCatalogFromSupabase(
   })();
 
   return hydratePromise;
+}
+
+export async function fetchMarketplaceCatalogPageFromSupabase(
+  options: MarketplaceCatalogPageOptions = {},
+): Promise<MarketplaceCatalogPageResult> {
+  if (!isSupabaseRestEnabled()) {
+    const limit = normalizeCatalogPageLimit(options.limit);
+    const fallbackAssets = cachedAssets.slice(0, limit);
+    return {
+      assets: fallbackAssets,
+      nextCursor: null,
+      hasMore: cachedAssets.length > fallbackAssets.length,
+    };
+  }
+
+  const limit = normalizeCatalogPageLimit(options.limit);
+  const rpcRows = await fetchMarketplaceCatalogPageRowsViaRpc(options, limit);
+  if (rpcRows) {
+    const pageRows = rpcRows.slice(0, limit);
+    const assets = await buildCatalogFromFetchedRows(pageRows, cachedAssets);
+    const lastRow = pageRows[pageRows.length - 1];
+
+    return {
+      assets,
+      nextCursor: lastRow?.updated_at && lastRow?.id
+        ? {
+            updatedAt: lastRow.updated_at,
+            id: lastRow.id,
+          }
+        : null,
+      hasMore: rpcRows.some((row) => row.page_has_more === true),
+    };
+  }
+
+  const rows = await restSelect<AssetCatalogRemoteRow>(
+    'assets_catalog',
+    buildMarketplaceCatalogPageQuery(options, limit + 1),
+  );
+  const pageRows = rows.slice(0, limit);
+  const assets = await buildCatalogFromFetchedRows(pageRows, cachedAssets);
+  const lastRow = pageRows[pageRows.length - 1];
+
+  return {
+    assets,
+    nextCursor: lastRow?.updated_at && lastRow?.id
+      ? {
+          updatedAt: lastRow.updated_at,
+          id: lastRow.id,
+        }
+      : null,
+    hasMore: rows.length > limit,
+  };
 }
 
 export function getMarketplaceCatalogAssetById(
