@@ -586,7 +586,7 @@ export function Settings({
 
       {/* Main Content - with relative positioning for footer */}
       <div className="flex-1 min-w-0 p-2.5 pr-0 overflow-hidden">
-        <div className="surface-primary-shell h-full rounded-[24px] relative flex flex-col overflow-hidden">
+        <div className="surface-primary-shell h-full rounded-[var(--t-card-radius-lg)] relative flex flex-col overflow-hidden">
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           <div className="p-8 pb-32 relative z-10 max-w-5xl mx-auto">
@@ -991,11 +991,11 @@ export function Settings({
         activePage="settings"
         showAI={showAISidebar}
         onCloseAI={onCloseAISidebar}
-        widthClassName="w-[344px]"
+        widthClassName="w-[var(--t-shell-right-rail-w)]"
         shellClassName="bg-ui-page border-l-0 p-2.5"
       >
-      <StudioSidebarShell widthClassName="w-[344px]" className="bg-ui-page border-l-0 p-2.5">
-        <div className="surface-primary-shell h-full rounded-[24px] flex flex-col overflow-hidden">
+      <StudioSidebarShell widthClassName="w-[var(--t-shell-right-rail-w)]" className="bg-ui-page border-l-0 p-2.5">
+        <div className="surface-primary-shell h-full rounded-[var(--t-card-radius-lg)] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="p-6 bg-gradient-to-b from-[var(--t-surface-2)] to-transparent">
           <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">

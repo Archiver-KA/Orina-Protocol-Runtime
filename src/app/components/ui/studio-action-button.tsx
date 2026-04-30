@@ -25,12 +25,12 @@ export function StudioActionButton({
 
   const sizeClass =
     size === 'icon'
-      ? 'h-11 w-11 p-0'
+      ? 'h-[var(--t-shell-control-h)] w-[var(--t-shell-control-h)] p-0'
       : size === 'lg'
-        ? 'min-h-12 px-6 py-3 text-[13px]'
+        ? 'min-h-[calc(var(--t-shell-control-h)_+_4px)] px-6 py-3 text-[13px]'
         : size === 'sm'
       ? 'min-h-8 px-3 py-1.5 text-[11px]'
-      : 'min-h-11 px-4 py-2 text-[12px]';
+      : 'min-h-[var(--t-shell-control-h)] px-4 py-2 text-[12px]';
 
   const variantClass =
     variant === 'primary'

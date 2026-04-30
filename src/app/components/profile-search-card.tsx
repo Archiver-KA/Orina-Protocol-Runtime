@@ -64,7 +64,7 @@ export function ProfileSearchCard({ profile, viewMode, onViewProfile, onFollowCh
   };
 
   const containerClass =
-    'market-card-shell card-hover-shell profile-search-card-shell group w-full cursor-pointer overflow-hidden rounded-[32px] text-left';
+    'market-card-shell card-hover-shell profile-search-card-shell group w-full cursor-pointer overflow-hidden rounded-[var(--t-card-radius-xl)] text-left';
   const bannerMetricLabelClass = 'text-[8px] font-semibold uppercase tracking-[0.14em] text-white/62';
   const bannerMetricValueClass = 'mt-1 text-[12px] font-semibold text-white';
   const summaryCards = [
@@ -189,7 +189,7 @@ export function ProfileSearchCard({ profile, viewMode, onViewProfile, onFollowCh
       onKeyDown={handleCardKeyDown}
       className={viewMode === 'list' ? `${containerClass} card-hover-grid flex h-full flex-col` : `${containerClass} card-hover-grid`}
     >
-      <div className="h-[214px]">
+      <div className="h-[var(--t-market-profile-media-h)]">
         {bannerSurface}
       </div>
 

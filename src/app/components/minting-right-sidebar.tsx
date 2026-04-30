@@ -187,7 +187,7 @@ export function MintingRightSidebar({ telemetry = null }: MintingRightSidebarPro
       <style>{`
         .hidden-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
-      <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+      <div className="h-full rounded-[var(--t-card-radius-lg)] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
         <div className="p-6 bg-gradient-to-b from-[var(--t-surface-2)] to-transparent">
           <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
             <Coins className="text-primary" size={18} />

@@ -90,7 +90,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
         <button
           onClick={handleToggle}
           onMouseEnter={handleMouseEnter}
-          className="group relative w-[43px] h-[43px] flex items-center justify-center bg-[rgba(18,18,18,0.5)] hover:bg-[rgba(18,18,18,0.65)] rounded-[50px] transition-colors"
+          className="group relative flex h-[var(--t-shell-icon-button)] w-[var(--t-shell-icon-button)] items-center justify-center rounded-full bg-[rgba(18,18,18,0.5)] transition-colors hover:bg-[rgba(18,18,18,0.65)]"
           title="Notifications"
         >
           <Bell size={20} className="text-zinc-400 group-hover:text-zinc-200 transition-colors" />
@@ -113,7 +113,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
               className="absolute right-0 top-full mt-2 w-[470px] max-w-[calc(100vw-2rem)] z-50"
             >
               <div
-                className="nativebar-dropdown-panel dropdown-panel rounded-[24px] overflow-hidden"
+                className="nativebar-dropdown-panel dropdown-panel rounded-[var(--t-card-radius-lg)] overflow-hidden"
                 style={{
                   background: 'rgba(18, 18, 18, 1)',
                   backdropFilter: 'blur(20px) saturate(140%)',

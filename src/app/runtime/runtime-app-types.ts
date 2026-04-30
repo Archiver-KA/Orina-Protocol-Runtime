@@ -36,6 +36,5 @@ export interface RuntimeAppProps {
   handleSearch: (query: string) => void;
   handleNavigateToUserProfile: (walletAddress: string, initialTab?: ProfileTab) => void;
   handleNavigateToMessages: (walletAddress: string) => void;
-  getGridLayout: () => string;
   connectRequestKey: number;
 }

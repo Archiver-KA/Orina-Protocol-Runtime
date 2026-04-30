@@ -392,7 +392,7 @@ function SearchResultCardComponent({
   const metricLabelClass = 'text-[9px] font-semibold uppercase tracking-[0.14em] text-ui-muted';
   const footerMetricClass = 'inline-flex items-center gap-1.5 text-[10px] font-medium text-ui-secondary';
   const containerClass =
-    'market-card-shell card-hover-shell search-result-card-shell group w-full cursor-pointer overflow-hidden rounded-[32px] text-left';
+    'market-card-shell card-hover-shell search-result-card-shell group w-full cursor-pointer overflow-hidden rounded-[var(--t-card-radius-xl)] text-left';
 
   const getListingDuration = () => {
     if (!asset.expiresAt) return asset.listingDuration || 'No expiry';
@@ -426,7 +426,7 @@ function SearchResultCardComponent({
   };
 
   const media = (
-    <div className="relative h-[240px] overflow-hidden bg-[var(--t-surface-10)]">
+    <div className="relative h-[var(--t-market-card-media-h)] overflow-hidden bg-[var(--t-surface-10)]">
       <ImageWithFallback
         src={asset.image}
         alt={asset.name}
@@ -594,8 +594,8 @@ function SearchResultCardComponent({
   }
 
   return (
-    <div onClick={handleClick} className={`${containerClass} card-hover-list search-result-card-list flex flex-col lg:h-[240px] lg:flex-row`}>
-      <div className="relative h-[240px] shrink-0 overflow-hidden bg-[var(--t-surface-10)] lg:h-full lg:w-[395px]">
+    <div onClick={handleClick} className={`${containerClass} card-hover-list search-result-card-list flex flex-col lg:h-[var(--t-market-card-list-h)] lg:flex-row`}>
+      <div className="relative h-[var(--t-market-card-media-h)] shrink-0 overflow-hidden bg-[var(--t-surface-10)] lg:h-full lg:w-[var(--t-market-card-list-media-w)]">
         {media}
       </div>
 

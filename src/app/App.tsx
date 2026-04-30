@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { AppSeo } from '@/app/components/seo/app-seo';
 import { PublicShell } from '@/app/components/public/public-shell';
+import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { APP_NAVIGATION_EVENT, type AppNavigationEventDetail } from '@/utils/appNavigation';
 import { buildAppHref, parseAppLocation } from '@/utils/appRoutes';
 import { isGuestModeForced } from '@/utils/guestMode';
@@ -54,10 +55,13 @@ function shouldEnableRuntimeOnBoot(route: ReturnType<typeof readInitialRouteStat
 function RuntimeLoadingSurface({ label }: { label: string }) {
   return (
     <div className="flex h-screen min-h-screen items-center justify-center bg-ui-page px-6 py-8 text-ui-secondary">
-      <div className="flex items-center gap-3 rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-5 py-4 text-sm shadow-[0_18px_60px_-42px_rgba(0,0,0,0.6)]">
-        <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#2CC295]" aria-hidden="true" />
-        <span>{label}</span>
-      </div>
+      <StudioLoadingIndicator
+        layout="stacked"
+        tone="muted"
+        size={24}
+        label={label}
+        labelClassName="text-sm font-medium text-ui-secondary"
+      />
     </div>
   );
 }
@@ -470,16 +474,6 @@ export default function App() {
     }));
   };
 
-  const getGridLayout = () => {
-    const sidebarWidth = sidebarCollapsed ? '88px' : '248px';
-
-    if (activePage === 'marketplace' || activePage === 'market-insights' || activePage === 'messages' || activePage === 'profile' || activePage === 'settings' || activePage === 'agent-settings' || activePage === 'asset-details' || activePage === 'collection-details' || activePage === 'favorites' || activePage === 'search') {
-      return `grid-cols-[${sidebarWidth}_1fr]`;
-    }
-
-    return `grid-cols-[${sidebarWidth}_1fr_344px]`;
-  };
-
   const shouldRenderRuntime = runtimeEnabled || activePage !== 'home' || connectRequestKey > 0;
 
   const runtimeProps: RuntimeAppProps = {
@@ -509,7 +503,6 @@ export default function App() {
     handleSearch,
     handleNavigateToUserProfile,
     handleNavigateToMessages,
-    getGridLayout,
     connectRequestKey,
   };
 

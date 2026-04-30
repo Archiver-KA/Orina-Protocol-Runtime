@@ -201,9 +201,9 @@ function MarketplaceAssetSkeletonGrid() {
       {Array.from({ length: 8 }).map((_, index) => (
         <div
           key={index}
-          className="market-card-shell search-result-card-shell h-[436px] overflow-hidden rounded-[32px]"
+          className="market-card-shell search-result-card-shell h-[var(--t-market-card-grid-h)] overflow-hidden rounded-[var(--t-card-radius-xl)]"
         >
-          <div className="h-[240px] animate-pulse bg-[var(--t-surface-10)]" />
+          <div className="h-[var(--t-market-card-media-h)] animate-pulse bg-[var(--t-surface-10)]" />
           <div className="space-y-5 px-5 pb-5 pt-4">
             <div className="h-4 w-3/4 animate-pulse rounded-full bg-[var(--t-surface-10)]" />
             <div className="flex items-end justify-between gap-5 pt-24">
@@ -227,9 +227,9 @@ function MarketplaceAssetSkeletonList() {
       {Array.from({ length: 5 }).map((_, index) => (
         <div
           key={index}
-          className="market-card-shell search-result-card-shell flex flex-col overflow-hidden rounded-[32px] lg:h-[240px] lg:flex-row"
+          className="market-card-shell search-result-card-shell flex flex-col overflow-hidden rounded-[var(--t-card-radius-xl)] lg:h-[var(--t-market-card-list-h)] lg:flex-row"
         >
-          <div className="h-[240px] shrink-0 animate-pulse bg-[var(--t-surface-10)] lg:h-full lg:w-[395px]" />
+          <div className="h-[var(--t-market-card-media-h)] shrink-0 animate-pulse bg-[var(--t-surface-10)] lg:h-full lg:w-[var(--t-market-card-list-media-w)]" />
           <div className="flex min-w-0 flex-1 flex-col px-5 pb-5 pt-5 lg:px-6 lg:py-5">
             <div className="grid flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_236px] lg:gap-x-8">
               <div className="space-y-3">
@@ -1357,7 +1357,7 @@ export function Marketplace({
                         ? 'Search collections...'
                         : 'Search assets...'
                   }
-                  className="h-[44px] w-full rounded-full border border-ui-border-subtle bg-ui-input pl-11 pr-4 text-sm text-ui-primary placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295] focus:ring-2 focus:ring-[#2CC295]/20 transition-all"
+                  className="h-[var(--t-shell-control-h)] w-full rounded-full border border-ui-border-subtle bg-ui-input pl-11 pr-4 text-sm text-ui-primary placeholder:text-ui-muted focus:outline-none focus:border-[#2CC295] focus:ring-2 focus:ring-[#2CC295]/20 transition-all"
                 />
               </div>
 
@@ -1371,7 +1371,7 @@ export function Marketplace({
                   ]}
                   variant="compact"
                   className="w-full"
-                  triggerClassName="h-[44px] text-[13px]"
+                  triggerClassName="h-[var(--t-shell-control-h)] text-[13px]"
                   menuMinWidth={228}
                 />
               </div>
@@ -1383,7 +1383,7 @@ export function Marketplace({
                     options={blockchainOptions}
                     variant="compact"
                     className="w-full"
-                    triggerClassName="h-[44px] text-[13px]"
+                    triggerClassName="h-[var(--t-shell-control-h)] text-[13px]"
                     menuMinWidth={228}
                   />
                 </div>
@@ -1405,7 +1405,7 @@ export function Marketplace({
                     icon={<Search size={30} className="text-ui-muted" />}
                     title={contentMode === 'assets' ? 'No assets found' : contentMode === 'profiles' ? 'No profiles found' : 'No collections found'}
                     description="Try adjusting your filters, search terms, or content mode to reveal more live marketplace results."
-                    className="rounded-[32px] py-20"
+                    className="rounded-[var(--t-card-radius-xl)] py-20"
                   />
                 ) : (
                   <>
@@ -1414,10 +1414,10 @@ export function Marketplace({
                         ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'
                         : contentMode === 'collections'
                         ? viewMode === 'grid'
-                          ? 'grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3'
+                          ? 'grid grid-cols-1 items-start gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3'
                           : 'space-y-4'
                         : viewMode === 'grid'
-                        ? 'grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                        ? 'grid grid-cols-1 gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
                         : 'space-y-4'
                       }
                     `}>
@@ -1425,8 +1425,8 @@ export function Marketplace({
                         visibleDisplayedAssets.map((asset, index) => (
                           <ViewportRenderSlot
                             key={asset.id}
-                            className={viewMode === 'grid' ? 'h-full min-h-[436px]' : 'min-h-[520px] lg:min-h-[240px]'}
-                            placeholderClassName={viewMode === 'grid' ? 'h-[436px] rounded-[32px]' : 'min-h-[520px] rounded-[32px] lg:min-h-[240px]'}
+                            className={viewMode === 'grid' ? 'h-full min-h-[var(--t-market-card-grid-h)]' : 'min-h-[var(--t-market-card-list-mobile-h)] lg:min-h-[var(--t-market-card-list-h)]'}
+                            placeholderClassName={viewMode === 'grid' ? 'h-[var(--t-market-card-grid-h)] rounded-[var(--t-card-radius-xl)]' : 'min-h-[var(--t-market-card-list-mobile-h)] rounded-[var(--t-card-radius-xl)] lg:min-h-[var(--t-market-card-list-h)]'}
                             initiallyRendered={index < (viewMode === 'grid' ? 8 : 4)}
                           >
                             <SearchResultCard
@@ -1443,8 +1443,8 @@ export function Marketplace({
                           visibleFilteredProfiles.map((profile, index) => (
                             <ViewportRenderSlot
                               key={profile.address}
-                              className="h-full min-h-[360px]"
-                              placeholderClassName="h-[360px] rounded-[32px]"
+                              className="h-full min-h-[var(--t-market-profile-card-h)]"
+                              placeholderClassName="h-[var(--t-market-profile-card-h)] rounded-[var(--t-card-radius-xl)]"
                               initiallyRendered={index < (viewMode === 'grid' ? 6 : 4)}
                             >
                               <ProfileSearchCard
@@ -1459,8 +1459,8 @@ export function Marketplace({
                           visibleFilteredCollections.map((collection, index) => (
                             <ViewportRenderSlot
                               key={collection.id}
-                              className={viewMode === 'grid' ? 'h-full min-h-[440px]' : 'min-h-[520px] lg:min-h-[280px]'}
-                              placeholderClassName={viewMode === 'grid' ? 'h-[440px] rounded-[32px]' : 'min-h-[520px] rounded-[32px] lg:min-h-[280px]'}
+                              className="w-full"
+                              placeholderClassName={viewMode === 'grid' ? 'h-[var(--t-market-collection-placeholder-h)] rounded-[var(--t-card-radius-xl)]' : 'min-h-[var(--t-market-collection-placeholder-h)] rounded-[var(--t-card-radius-xl)] lg:min-h-[var(--t-market-collection-list-h)]'}
                               initiallyRendered={index < (viewMode === 'grid' ? 6 : 4)}
                             >
                               <CollectionCard
@@ -1496,7 +1496,7 @@ export function Marketplace({
             )}
 
             {viewMode === 'map' && contentMode === 'assets' && (
-              <div className="h-full overflow-hidden rounded-[32px] bg-[var(--t-surface-2)] shadow-[0_24px_60px_-42px_rgba(0,0,0,0.34)]">
+              <div className="h-full overflow-hidden rounded-[var(--t-card-radius-xl)] bg-[var(--t-surface-2)] shadow-[0_24px_60px_-42px_rgba(0,0,0,0.34)]">
                 <ProgressiveMarketplaceMapSurface
                   mapEngineRequested={mapEngineRequested}
                   onRequestMapEngine={requestMapEngine}

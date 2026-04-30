@@ -1790,11 +1790,11 @@ export function EnhancedProfile({
         activePage="profile"
         showAI={showAISidebar}
         onCloseAI={onCloseAISidebar}
-        widthClassName="w-[368px]"
+        widthClassName="w-[var(--t-shell-wide-rail-w)]"
         shellClassName="bg-ui-page border-l-0 p-4"
       >
       {isOwnProfile ? (
-      <StudioSidebarShell widthClassName="w-[368px]" className="bg-ui-page border-l-0 p-4">
+      <StudioSidebarShell widthClassName="w-[var(--t-shell-wide-rail-w)]" className="bg-ui-page border-l-0 p-4">
         {activeTab === 'story' ? (
           <div className="h-full rounded-[28px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto hidden-scrollbar p-6 space-y-6">
             <div className="rounded-[24px] bg-ui-input border border-ui-border-subtle p-6 space-y-6">

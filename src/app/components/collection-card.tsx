@@ -55,7 +55,7 @@ export function CollectionCard({
   };
 
   const containerClass =
-    'market-card-shell card-hover-shell group w-full cursor-pointer overflow-hidden rounded-[32px] text-left';
+    'market-card-shell card-hover-shell group w-full cursor-pointer overflow-hidden rounded-[var(--t-card-radius-xl)] text-left';
   const likeButtonClass =
     'flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-black/35 text-white/80 backdrop-blur-md transition-colors hover:bg-black/45 hover:text-white';
   const statLabelClass = 'text-[8px] font-semibold uppercase tracking-[0.14em] text-white/62';
@@ -139,7 +139,7 @@ export function CollectionCard({
         onClick={handleCardClick}
         className={`${containerClass} card-hover-grid collection-card-grid flex h-full flex-col`}
       >
-        <div className="h-[228px]">
+        <div className="h-[var(--t-market-collection-media-h)]">
           {media}
         </div>
 
@@ -157,9 +157,9 @@ export function CollectionCard({
   return (
     <div
       onClick={handleCardClick}
-      className={`${containerClass} card-hover-list collection-card-list flex flex-col lg:h-[280px] lg:flex-row`}
+      className={`${containerClass} card-hover-list collection-card-list flex flex-col lg:h-[var(--t-market-collection-list-h)] lg:flex-row`}
     >
-      <div className="h-[228px] shrink-0 lg:h-full lg:w-[352px]">
+      <div className="h-[var(--t-market-collection-media-h)] shrink-0 lg:h-full lg:w-[var(--t-market-collection-media-w)]">
         {media}
       </div>
 

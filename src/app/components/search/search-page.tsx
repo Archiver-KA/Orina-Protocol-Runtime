@@ -911,7 +911,7 @@ export function SearchPage({
         ? 'Browse collection surfaces mapped from the same canonical marketplace system.'
         : 'Search the live catalog with keyword discovery while keeping filters visible.';
   const filterSectionClassName =
-    'rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] p-5 shadow-none';
+    'rounded-[var(--t-card-radius-lg)] border border-ui-border-subtle bg-[var(--t-surface-2)] p-5 shadow-none';
 
   return (
     <div className="search-page-theme h-full bg-ui-page overflow-hidden">
@@ -931,7 +931,7 @@ export function SearchPage({
         onScroll={handleResultsScroll}
       >
         <div className="mx-auto w-full max-w-6xl">
-        <StudioPanel className="mb-8 rounded-[32px] p-5 sm:p-6">
+        <StudioPanel className="mb-8 rounded-[var(--t-card-radius-xl)] p-5 sm:p-6">
           <StudioPageHeader
             className="mb-6 flex-col items-start gap-5 xl:flex-row xl:items-end xl:justify-between"
             title={<span className="text-[32px] font-semibold tracking-[-0.03em] text-ui-primary">{searchTitle}</span>}
@@ -1020,7 +1020,7 @@ export function SearchPage({
         </StudioPanel>
 
         {aiSearchActive && (
-          <StudioPanel className="mb-6 overflow-hidden rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-2)] p-5">
+          <StudioPanel className="mb-6 overflow-hidden rounded-[var(--t-card-radius-lg)] border border-[var(--t-border-subtle)] bg-[var(--t-surface-2)] p-5">
             <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1095,7 +1095,7 @@ export function SearchPage({
 
         {/* Results */}
         {showAssetLoadingState || isEntityLoading ? (
-          <StudioPanel className="flex min-h-[220px] items-center justify-center rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-2)]">
+          <StudioPanel className="flex min-h-[calc(var(--t-market-card-media-h)-20px)] items-center justify-center rounded-[var(--t-card-radius-lg)] border border-[var(--t-border-subtle)] bg-[var(--t-surface-2)]">
             <StudioLoadingIndicator
               layout="stacked"
               size={24}
@@ -1145,10 +1145,10 @@ export function SearchPage({
                 ? 'grid grid-cols-1 md:grid-cols-2 gap-4'
                 : contentMode === 'collections'
                 ? viewMode === 'grid'
-                  ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                  ? 'grid grid-cols-1 items-start gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3'
                   : 'space-y-4'
                 : viewMode === 'grid'
-                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                ? 'grid grid-cols-1 gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3'
                 : 'space-y-4'
               }
             `}>
@@ -1231,10 +1231,10 @@ export function SearchPage({
         activePage="search"
         showAI={showAISidebar}
         onCloseAI={onCloseAISidebar}
-        widthClassName="w-[368px]"
+        widthClassName="w-[var(--t-shell-wide-rail-w)]"
         shellClassName="bg-transparent border-l-0 p-4"
       >
-      <StudioSidebarShell widthClassName="w-[368px]" className="bg-transparent border-l-0 p-4">
+      <StudioSidebarShell widthClassName="w-[var(--t-shell-wide-rail-w)]" className="bg-transparent border-l-0 p-4">
         <div className="flex h-full flex-col overflow-hidden rounded-[28px] bg-[var(--t-card-bg)] shadow-[0_24px_60px_-42px_rgba(0,0,0,0.34)]">
         {/* Header - Fixed */}
         <StudioSidebarHeader className="border-b border-ui-border-subtle px-6 py-5">

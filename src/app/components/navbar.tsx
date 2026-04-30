@@ -241,7 +241,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
 
   return (
     <nav
-      className="relative mt-2.5 mx-2.5 h-[80px] rounded-[24px] px-6 flex items-center gap-4 z-20"
+      className="relative mx-2.5 mt-2.5 flex h-[var(--t-shell-nav-h)] items-center gap-4 rounded-[var(--t-shell-nav-radius)] px-[var(--t-shell-nav-x)] z-20"
       style={{
         background: 'rgba(18, 18, 18, 1)',
         borderBottom: '0.666667px solid #000000',
@@ -258,14 +258,14 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
             className="flex items-center gap-2 rounded-full px-1.5 py-1 text-white transition-opacity hover:opacity-85"
             aria-label="Go to home"
           >
-            <div className="h-9 w-9 flex-shrink-0">
+            <div className="h-[calc(var(--t-shell-icon-button)_-_7px)] w-[calc(var(--t-shell-icon-button)_-_7px)] flex-shrink-0">
               <OrinaMark />
             </div>
             <OrinaWordmark className="hidden h-[18px] w-auto lg:block" />
           </button>
         )}
 
-        <div className="flex items-center gap-1 rounded-full bg-white/[0.03] p-1">
+        <div className="flex items-center gap-7">
           {PRIMARY_NAV_LINKS.map((item) => {
             const isActive = activePage === item.id;
             return (
@@ -273,10 +273,10 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
                 key={item.id}
                 type="button"
                 onClick={() => setActivePage(item.id)}
-                className={`rounded-full px-3 py-2 text-[13px] font-medium leading-none transition-all ${
+                className={`px-0 py-2 text-[13px] font-medium leading-none transition-colors ${
                   isActive
-                    ? 'bg-white/[0.08] text-white'
-                    : 'text-[rgba(226,232,240,0.97)] hover:bg-[rgba(255,255,255,0.05)] hover:text-white'
+                    ? 'text-white'
+                    : 'text-[rgba(226,232,240,0.72)] hover:text-white'
                 }`}
                 style={{ fontFamily: "'Space Grotesk', var(--font-sans)" }}
               >
@@ -287,10 +287,10 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
         </div>
       </div>
 
-      <div ref={searchWrapRef} className="relative min-w-0 flex-1 max-w-[640px] md:ml-[80px]">
+      <div ref={searchWrapRef} className="relative min-w-0 flex-1 max-w-[var(--t-shell-nav-search-max-w)] md:ml-[var(--t-shell-nav-search-offset)]">
         <form onSubmit={handleSearchSubmit}>
           <div
-            className="relative h-[43px] rounded-full"
+            className="relative h-[var(--t-shell-nav-search-h)] rounded-full"
             style={{
               background: 'rgba(18, 18, 18, 0.5)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -323,7 +323,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
-              className="nativebar-search-dropdown absolute top-full mt-2 w-full dropdown-panel rounded-[24px] overflow-hidden z-50"
+              className="nativebar-search-dropdown absolute top-full mt-2 w-full dropdown-panel rounded-[var(--t-card-radius-lg)] overflow-hidden z-50"
               style={{
                 background: 'rgba(18, 18, 18, 1)',
                 backdropFilter: 'blur(20px) saturate(140%)',
@@ -396,7 +396,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
           <button
             type="button"
             onClick={onToggleAI}
-            className={`group relative w-[43px] h-[43px] flex items-center justify-center rounded-[50px] transition-colors bg-transparent`}
+            className="group relative flex h-[var(--t-shell-icon-button)] w-[var(--t-shell-icon-button)] items-center justify-center rounded-full bg-transparent transition-colors"
             title="ORINA AI"
           >
             <img src="/flower-static.svg" alt="AI" className={`w-[20px] h-[20px] transition-opacity ${aiActive ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`} />

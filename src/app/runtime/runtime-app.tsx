@@ -394,7 +394,7 @@ function RuntimeAppContent({
   const aiUsesEmbeddedRightRail = showAISidebar && AI_EMBEDDED_RAIL_PAGES.has(activePage);
   const mainGridColumns =
     hasNativeShellRightRail || aiUsesEmbeddedRightRail || LEGACY_GRID_RAIL_PAGES.has(activePage)
-      ? '1fr 344px'
+      ? '1fr var(--t-shell-right-rail-w)'
       : '1fr';
 
   if (!effectiveConnectedAddress && activePage === 'home') {
@@ -531,7 +531,7 @@ function RuntimeAppContent({
                 </LazySurface>
               ) : (
                 <div className="flex h-full items-center justify-center px-6">
-                  <div className="max-w-lg rounded-[24px] border border-ui-border-subtle bg-[var(--t-surface-2)] px-8 py-10 text-center">
+                  <div className="max-w-lg rounded-[var(--t-card-radius-lg)] border border-ui-border-subtle bg-[var(--t-surface-2)] px-8 py-10 text-center">
                     <h2 className="text-xl font-semibold text-ui-primary">Profile is ready for public viewing</h2>
                     <p className="mt-3 text-sm leading-6 text-ui-secondary">
                       Open a seller profile from Marketplace, Search, or Community, or connect your wallet to open your own profile.

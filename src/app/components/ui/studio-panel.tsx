@@ -15,7 +15,7 @@ export function StudioPanel({
   return (
     <div
       className={cn(
-        'ui-card-surface rounded-[24px] bg-ui-card backdrop-blur-[14px]',
+        'ui-card-surface rounded-[var(--t-card-radius-lg)] bg-ui-card backdrop-blur-[14px]',
         elevation === 'default' ? 'shadow-[0_24px_60px_-42px_rgba(0,0,0,0.34)]' : 'shadow-none',
         className
       )}

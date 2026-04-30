@@ -1123,7 +1123,7 @@ export function AISidebar({
         animate={{ x: 0, opacity: 1 }}
         exit={{ x: 360, opacity: 0 }}
         transition={panelTransition}
-        className="fixed right-0 top-0 z-[60] h-[100dvh] w-[344px] p-2.5 pointer-events-none"
+        className="fixed right-0 top-0 z-[60] h-[100dvh] w-[var(--t-shell-right-rail-w)] p-2.5 pointer-events-none"
         style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden' }}
       >
         {sharedStyles}

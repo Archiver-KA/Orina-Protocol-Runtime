@@ -1044,7 +1044,7 @@ export function Messages({
             activePage="messages"
             showAI={showAISidebar}
             onCloseAI={onCloseAISidebar}
-            widthClassName="w-[344px]"
+            widthClassName="w-[var(--t-shell-right-rail-w)]"
             shellClassName="bg-ui-page border-l-0 p-2.5"
           >
             {null}
@@ -1430,11 +1430,11 @@ export function Messages({
           activePage="messages"
           showAI={showAISidebar}
           onCloseAI={onCloseAISidebar}
-          widthClassName="w-[344px]"
+          widthClassName="w-[var(--t-shell-right-rail-w)]"
           shellClassName="bg-ui-page border-l-0 p-2.5"
         >
-        <StudioSidebarShell widthClassName="w-[344px]" className="bg-ui-page border-l-0 p-2.5">
-        <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+        <StudioSidebarShell widthClassName="w-[var(--t-shell-right-rail-w)]" className="bg-ui-page border-l-0 p-2.5">
+        <div className="h-full rounded-[var(--t-card-radius-lg)] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
           {(() => {
             const activeConv = activeConversationRecord;
             const userInfo = activeConv?.userInfo;

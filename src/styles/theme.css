@@ -58,10 +58,33 @@
 
   --t-shell-nav-h: 80px;
   --t-shell-nav-x: 24px;
+  --t-shell-nav-radius: 24px;
+  --t-shell-nav-search-h: 43px;
+  --t-shell-nav-search-max-w: 640px;
+  --t-shell-nav-search-offset: 80px;
+  --t-shell-control-h: 44px;
+  --t-shell-icon-button: 43px;
   --t-shell-sidebar-w: 248px;
   --t-shell-sidebar-collapsed-w: 88px;
   --t-shell-sidebar-header-x: 20px;
   --t-shell-sidebar-section-p: 16px;
+  --t-shell-right-rail-w: 344px;
+  --t-shell-wide-rail-w: 368px;
+
+  --t-card-radius-lg: 24px;
+  --t-card-radius-xl: 32px;
+  --t-market-card-grid-h: 436px;
+  --t-market-card-media-h: 240px;
+  --t-market-card-list-h: 240px;
+  --t-market-card-list-mobile-h: 520px;
+  --t-market-card-list-media-w: 395px;
+  --t-market-grid-gap: 24px;
+  --t-market-profile-card-h: 360px;
+  --t-market-profile-media-h: 214px;
+  --t-market-collection-placeholder-h: 360px;
+  --t-market-collection-list-h: 280px;
+  --t-market-collection-media-h: 228px;
+  --t-market-collection-media-w: 352px;
 
   --color-primary-custom: #2cc295;
   --color-studio-bg: #0a0a0a;
@@ -111,6 +134,40 @@
   --t-notice-error-border: rgba(239, 68, 68, 0.3);
   --t-notice-error-title: #f87171;
   --t-notice-error-body: rgba(248, 113, 113, 0.84);
+}
+
+@media (min-width: 1024px) and (max-width: 1536px) {
+  :root {
+    --t-shell-nav-h: 72px;
+    --t-shell-nav-x: 22px;
+    --t-shell-nav-radius: 22px;
+    --t-shell-nav-search-h: 39px;
+    --t-shell-nav-search-max-w: 576px;
+    --t-shell-nav-search-offset: 72px;
+    --t-shell-control-h: 40px;
+    --t-shell-icon-button: 39px;
+    --t-shell-sidebar-w: 224px;
+    --t-shell-sidebar-collapsed-w: 80px;
+    --t-shell-sidebar-header-x: 18px;
+    --t-shell-sidebar-section-p: 14px;
+    --t-shell-right-rail-w: 310px;
+    --t-shell-wide-rail-w: 331px;
+
+    --t-card-radius-lg: 22px;
+    --t-card-radius-xl: 28px;
+    --t-market-card-grid-h: 392px;
+    --t-market-card-media-h: 216px;
+    --t-market-card-list-h: 216px;
+    --t-market-card-list-mobile-h: 468px;
+    --t-market-card-list-media-w: 356px;
+    --t-market-grid-gap: 22px;
+    --t-market-profile-card-h: 324px;
+    --t-market-profile-media-h: 193px;
+    --t-market-collection-placeholder-h: 340px;
+    --t-market-collection-list-h: 252px;
+    --t-market-collection-media-h: 205px;
+    --t-market-collection-media-w: 317px;
+  }
 }
 
 [data-theme="light"] {

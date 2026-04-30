@@ -95,7 +95,7 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
 
   const renderWalletDropdown = (align: 'right' | 'left') => (
     <div
-      className={`wallet-dropdown-panel nativebar-dropdown-panel absolute ${align === 'right' ? 'right-0' : 'left-full ml-2'} top-full mt-2 w-[264px] dropdown-panel overflow-hidden rounded-[24px] z-50 pb-[5px]`}
+      className={`wallet-dropdown-panel nativebar-dropdown-panel absolute ${align === 'right' ? 'right-0' : 'left-full ml-2'} top-full mt-2 w-[264px] dropdown-panel overflow-hidden rounded-[var(--t-card-radius-lg)] z-50 pb-[5px]`}
       style={dropdownPanelStyle}
     >
       <style>{`@keyframes walletDropdownIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }`}</style>
@@ -208,7 +208,7 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
       <button
         onMouseEnter={handleMouseEnter}
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        className="wallet-dropdown-trigger flex items-center justify-between gap-2 min-w-[132px] max-w-[220px] h-[43px] px-3 bg-[rgba(18,18,18,0.5)] hover:bg-[rgba(18,18,18,0.65)] rounded-[50px] transition-all shadow-none"
+        className="wallet-dropdown-trigger flex h-[var(--t-shell-icon-button)] min-w-[132px] max-w-[220px] items-center justify-between gap-2 rounded-full bg-[rgba(18,18,18,0.5)] px-3 shadow-none transition-all hover:bg-[rgba(18,18,18,0.65)]"
       >
         <div className="min-w-0 flex-1 text-left">
           <span className="text-[14px] leading-none font-semibold text-[rgba(241,245,249,0.96)] block truncate">
