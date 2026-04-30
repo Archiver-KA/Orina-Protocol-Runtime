@@ -1,5 +1,5 @@
 import { Search, List, Grid3x3, Sparkles } from 'lucide-react';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, type UIEvent } from 'react';
 import { toast } from 'sonner';
 import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
 import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
@@ -17,7 +17,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { AssetDetailsModal } from '@/app/components/asset-details-modal';
 import { loadFavorites, toggleFavorite } from '@/utils/favoritesUtils';
-import { REPUTATION_SYNC_EVENT } from '@/utils/profileReputationSync';
 import { StudioPanel } from '@/app/components/ui/studio-panel';
 import { EmptyStateCard } from '@/app/components/ui/empty-state-card';
 import { StudioPageHeader } from '@/app/components/ui/studio-page-header';
@@ -27,16 +26,22 @@ import { InlineAIRightRail } from '@/app/components/ui/inline-ai-right-rail';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
 import { StudioTransientState } from '@/app/components/ui/studio-transient-state';
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
-import { COLLECTIONS_SYNC_EVENT, loadCollectionFavorites, loadRuntimeCollections, toggleCollectionFavorite } from '@/utils/collectionsUtils';
+import {
+  COLLECTIONS_SYNC_EVENT,
+  fetchMarketplaceCollectionPageFromSupabase,
+  loadCollectionFavorites,
+  toggleCollectionFavorite,
+  type MarketplaceCollectionPageCursor,
+} from '@/utils/collectionsUtils';
 import type { CollectionSummary } from '@/types/collection';
 import { runtimeFlags } from '/utils/runtimeConfig';
-import { PROFILE_SYNC_EVENT } from '@/utils/profileUtils';
 import { AIAgentClient } from '@/utils/aiAgentClient';
 import { resolveAISearchResults } from '@/utils/aiSearchUtils';
 import { sanitizeAIVisibleText } from '@/utils/aiTextSanitizer';
 import {
-  hydrateSellerDirectoryFromSupabase,
-  loadSellerDirectorySync,
+  fetchMarketplaceProfilePageFromSupabase,
+  type MarketplaceProfilePageCursor,
+  type SellerProfileCardData,
 } from '@/utils/sellerDirectory';
 import {
   getMarketplaceCatalogAssetById,
@@ -48,12 +53,9 @@ import {
 } from '@/utils/marketplaceCatalog';
 import {
   getCategoryDisplayLabel,
-  getCategoryOptionsFromValues,
-  getSubcategoryDisplayLabel,
-  getTaxonomySearchText,
+  getTaxonomyCategoryOptions,
   hydrateTaxonomyFromSupabase,
   normalizeCategoryFilterValue,
-  normalizeTaxonomySearchKey,
   TAXONOMY_SYNC_EVENT,
 } from '@/utils/taxonomy';
 import {
@@ -76,6 +78,7 @@ interface SearchPageProps {
 }
 
 type AISearchStatus = 'idle' | 'loading' | 'success' | 'error';
+type SearchEntityPageStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 interface AISearchRequest {
   query: string;
@@ -83,8 +86,55 @@ interface AISearchRequest {
   selectedCategory?: string;
 }
 
+const SEARCH_ENTITY_PAGE_SIZE = 48;
+const SEARCH_SCROLL_PREFETCH_PX = 720;
+
 function buildAISearchFilterKey(categories: string[]): string {
   return [...categories].sort().join('\u001f');
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebouncedValue(value), delayMs);
+    return () => window.clearTimeout(handle);
+  }, [delayMs, value]);
+
+  return debouncedValue;
+}
+
+function mergeProfilesByAddress(
+  currentProfiles: SellerProfileCardData[],
+  nextProfiles: SellerProfileCardData[],
+) {
+  if (nextProfiles.length === 0) return currentProfiles;
+
+  const seen = new Set(currentProfiles.map((profile) => profile.address.toLowerCase()));
+  const merged = [...currentProfiles];
+  nextProfiles.forEach((profile) => {
+    const key = profile.address.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push(profile);
+  });
+  return merged;
+}
+
+function mergeCollectionsById(
+  currentCollections: CollectionSummary[],
+  nextCollections: CollectionSummary[],
+) {
+  if (nextCollections.length === 0) return currentCollections;
+
+  const seen = new Set(currentCollections.map((collection) => collection.id));
+  const merged = [...currentCollections];
+  nextCollections.forEach((collection) => {
+    if (seen.has(collection.id)) return;
+    seen.add(collection.id);
+    merged.push(collection);
+  });
+  return merged;
 }
 
 export function SearchPage({
@@ -114,8 +164,18 @@ export function SearchPage({
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
   const { address } = useEffectiveViewer();
   const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
-  const [sellerProfiles, setSellerProfiles] = useState(() => loadSellerDirectorySync({ marketplaceAssets: loadMarketplaceCatalogSync() }));
-  const [runtimeCollections, setRuntimeCollections] = useState<CollectionSummary[]>(() => loadRuntimeCollections());
+  const [sellerProfiles, setSellerProfiles] = useState<SellerProfileCardData[]>([]);
+  const [profilePageStatus, setProfilePageStatus] = useState<SearchEntityPageStatus>('idle');
+  const [profilePageQueryKey, setProfilePageQueryKey] = useState('');
+  const [profilePageCursor, setProfilePageCursor] = useState<MarketplaceProfilePageCursor | null>(null);
+  const [hasMoreProfiles, setHasMoreProfiles] = useState(false);
+  const [isLoadingMoreProfiles, setIsLoadingMoreProfiles] = useState(false);
+  const [runtimeCollections, setRuntimeCollections] = useState<CollectionSummary[]>([]);
+  const [collectionPageStatus, setCollectionPageStatus] = useState<SearchEntityPageStatus>('idle');
+  const [collectionPageQueryKey, setCollectionPageQueryKey] = useState('');
+  const [collectionPageCursor, setCollectionPageCursor] = useState<MarketplaceCollectionPageCursor | null>(null);
+  const [hasMoreCollections, setHasMoreCollections] = useState(false);
+  const [isLoadingMoreCollections, setIsLoadingMoreCollections] = useState(false);
   const [taxonomyVersion, setTaxonomyVersion] = useState(0);
   const [aiSearchStatus, setAiSearchStatus] = useState<AISearchStatus>('idle');
   const [aiSearchProducts, setAiSearchProducts] = useState<AIProductResult[]>([]);
@@ -125,30 +185,11 @@ export function SearchPage({
   const [isAISemanticSearch, setIsAISemanticSearch] = useState(false);
   const [aiSearchRequest, setAiSearchRequest] = useState<AISearchRequest | null>(null);
   const aiSearchRequestRef = useRef(0);
-
-  useEffect(() => {
-    const refresh = () => {
-      const syncProfiles = loadSellerDirectorySync({ marketplaceAssets });
-      setSellerProfiles((prev) => (syncProfiles.length > 0 || prev.length === 0 ? syncProfiles : prev));
-      void hydrateSellerDirectoryFromSupabase({ marketplaceAssets })
-        .then((nextProfiles) => {
-          setSellerProfiles(nextProfiles);
-        })
-        .catch(() => undefined);
-    };
-
-    refresh();
-    window.addEventListener('focus', refresh);
-    window.addEventListener('storage', refresh);
-    window.addEventListener(PROFILE_SYNC_EVENT, refresh as EventListener);
-    window.addEventListener(REPUTATION_SYNC_EVENT, refresh as EventListener);
-    return () => {
-      window.removeEventListener('focus', refresh);
-      window.removeEventListener('storage', refresh);
-      window.removeEventListener(PROFILE_SYNC_EVENT, refresh as EventListener);
-      window.removeEventListener(REPUTATION_SYNC_EVENT, refresh as EventListener);
-    };
-  }, [marketplaceAssets]);
+  const profileRequestIdRef = useRef(0);
+  const collectionRequestIdRef = useRef(0);
+  const resultsScrollContainerRef = useRef<HTMLElement | null>(null);
+  const resultsLoadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const debouncedSearchQuery = useDebouncedValue(filters.query, 160);
 
   // Update query when initialQuery changes
   useEffect(() => {
@@ -182,7 +223,14 @@ export function SearchPage({
     [marketplaceCategories, taxonomyVersion]
   );
   const collectionCategoryOptions = useMemo(
-    () => getCategoryOptionsFromValues(runtimeCollections.map((collection) => collection.category)),
+    () => {
+      const liveValues = new Set(runtimeCollections.map((collection) => normalizeCategoryFilterValue(collection.category)).filter(Boolean));
+      const taxonomyOptions = getTaxonomyCategoryOptions();
+      const fallbackOptions = Array.from(liveValues)
+        .filter((value) => !taxonomyOptions.some((option) => option.value === value))
+        .map((value) => ({ value, label: getCategoryDisplayLabel(value) }));
+      return [...taxonomyOptions, ...fallbackOptions];
+    },
     [runtimeCollections, taxonomyVersion]
   );
   const marketplaceNetworkOptions = useMemo(
@@ -194,6 +242,32 @@ export function SearchPage({
   const currentAISearchFilterKey = useMemo(
     () => buildAISearchFilterKey(filters.categories),
     [filters.categories],
+  );
+  const collectionCategoryFilter = contentMode === 'collections' && filters.categories.length === 1
+    ? filters.categories[0]
+    : undefined;
+  const profilePageQuery = useMemo(
+    () => ({
+      searchQuery: debouncedSearchQuery.trim(),
+      verifiedOnly: filters.verifiedOnly,
+    }),
+    [debouncedSearchQuery, filters.verifiedOnly],
+  );
+  const profileQueryKey = useMemo(
+    () => JSON.stringify(profilePageQuery),
+    [profilePageQuery],
+  );
+  const collectionPageQuery = useMemo(
+    () => ({
+      searchQuery: debouncedSearchQuery.trim(),
+      category: collectionCategoryFilter,
+      verifiedOnly: filters.verifiedOnly,
+    }),
+    [collectionCategoryFilter, debouncedSearchQuery, filters.verifiedOnly],
+  );
+  const collectionQueryKey = useMemo(
+    () => JSON.stringify(collectionPageQuery),
+    [collectionPageQuery],
   );
 
   useEffect(() => {
@@ -208,6 +282,96 @@ export function SearchPage({
       window.removeEventListener(MARKETPLACE_CATALOG_SYNC_EVENT, syncCatalog as EventListener);
     };
   }, []);
+
+  useEffect(() => {
+    profileRequestIdRef.current += 1;
+    const requestId = profileRequestIdRef.current;
+    let cancelled = false;
+
+    if (contentMode !== 'profiles') {
+      setProfilePageStatus('idle');
+      setIsLoadingMoreProfiles(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setProfilePageStatus('loading');
+    setIsLoadingMoreProfiles(false);
+    setHasMoreProfiles(false);
+    setProfilePageCursor(null);
+    setSellerProfiles([]);
+
+    void fetchMarketplaceProfilePageFromSupabase({
+      ...profilePageQuery,
+      limit: SEARCH_ENTITY_PAGE_SIZE,
+    })
+      .then((page) => {
+        if (cancelled || profileRequestIdRef.current !== requestId) return;
+        setSellerProfiles(page.profiles);
+        setProfilePageCursor(page.nextCursor);
+        setHasMoreProfiles(page.hasMore);
+        setProfilePageQueryKey(profileQueryKey);
+        setProfilePageStatus('ready');
+      })
+      .catch(() => {
+        if (cancelled || profileRequestIdRef.current !== requestId) return;
+        setSellerProfiles([]);
+        setProfilePageCursor(null);
+        setHasMoreProfiles(false);
+        setProfilePageQueryKey(profileQueryKey);
+        setProfilePageStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [contentMode, profilePageQuery, profileQueryKey]);
+
+  useEffect(() => {
+    collectionRequestIdRef.current += 1;
+    const requestId = collectionRequestIdRef.current;
+    let cancelled = false;
+
+    if (contentMode !== 'collections') {
+      setCollectionPageStatus('idle');
+      setIsLoadingMoreCollections(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setCollectionPageStatus('loading');
+    setIsLoadingMoreCollections(false);
+    setHasMoreCollections(false);
+    setCollectionPageCursor(null);
+    setRuntimeCollections([]);
+
+    void fetchMarketplaceCollectionPageFromSupabase({
+      ...collectionPageQuery,
+      limit: SEARCH_ENTITY_PAGE_SIZE,
+    })
+      .then((page) => {
+        if (cancelled || collectionRequestIdRef.current !== requestId) return;
+        setRuntimeCollections(page.collections);
+        setCollectionPageCursor(page.nextCursor);
+        setHasMoreCollections(page.hasMore);
+        setCollectionPageQueryKey(collectionQueryKey);
+        setCollectionPageStatus('ready');
+      })
+      .catch(() => {
+        if (cancelled || collectionRequestIdRef.current !== requestId) return;
+        setRuntimeCollections([]);
+        setCollectionPageCursor(null);
+        setHasMoreCollections(false);
+        setCollectionPageQueryKey(collectionQueryKey);
+        setCollectionPageStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [collectionPageQuery, collectionQueryKey, contentMode]);
 
   useEffect(() => {
     const syncTaxonomy = () => {
@@ -315,42 +479,12 @@ export function SearchPage({
   );
 
   const filteredCollections = useMemo(() => {
-    let filtered = [...runtimeCollections];
-
-    if (filters.query.trim()) {
-      const query = normalizeTaxonomySearchKey(filters.query);
-      filtered = filtered.filter((collection) =>
-        normalizeTaxonomySearchKey(collection.name).includes(query) ||
-        normalizeTaxonomySearchKey(collection.description).includes(query) ||
-        normalizeTaxonomySearchKey(getTaxonomySearchText(collection.category)).includes(query) ||
-        collection.tags.some((tag) => normalizeTaxonomySearchKey(tag).includes(query))
-      );
-    }
-
-    if (filters.categories.length > 0) {
-      filtered = filtered.filter((collection) =>
-        filters.categories.includes(normalizeCategoryFilterValue(collection.category))
-      );
-    }
-
-    if (filters.verifiedOnly) {
-      filtered = filtered.filter((collection) => collection.verified);
-    }
-
-    return filtered;
-  }, [filters.categories, filters.query, filters.verifiedOnly, runtimeCollections, taxonomyVersion]);
+    return runtimeCollections;
+  }, [runtimeCollections]);
 
   const filteredProfiles = useMemo(() => {
-    const q = filters.query.trim().toLowerCase();
-    const base = q
-      ? sellerProfiles.filter((profile) =>
-      profile.displayName.toLowerCase().includes(q) ||
-      profile.username.toLowerCase().includes(q) ||
-      profile.address.toLowerCase().includes(q)
-    )
-      : sellerProfiles;
-    return filters.verifiedOnly ? base.filter((p) => p.verified) : base;
-  }, [filters.query, sellerProfiles, filters.verifiedOnly]);
+    return sellerProfiles;
+  }, [sellerProfiles]);
 
   // Save search to history when query changes
   useEffect(() => {
@@ -383,17 +517,6 @@ export function SearchPage({
   }, [address]);
 
   useEffect(() => {
-    const syncCollections = () => {
-      setRuntimeCollections(loadRuntimeCollections());
-    };
-
-    window.addEventListener(COLLECTIONS_SYNC_EVENT, syncCollections as EventListener);
-    return () => {
-      window.removeEventListener(COLLECTIONS_SYNC_EVENT, syncCollections as EventListener);
-    };
-  }, []);
-
-  useEffect(() => {
     if (contentMode === 'profiles') {
       if (filters.categories.length > 0 || filters.blockchains.length > 0 || filters.priceRange.min !== null || filters.priceRange.max !== null) {
         setFilters((prev) => ({
@@ -409,7 +532,7 @@ export function SearchPage({
     if (contentMode === 'collections') {
       const nextCategories = filters.categories.filter((category) =>
         collectionCategoryOptions.some((option) => option.value === category)
-      );
+      ).slice(0, 1);
       if (
         nextCategories.length !== filters.categories.length ||
         filters.blockchains.length > 0 ||
@@ -488,6 +611,17 @@ export function SearchPage({
       else next.delete(collectionId);
       return next;
     });
+    setRuntimeCollections((prevCollections) => (
+      prevCollections.map((collection) => (
+        collection.id === collectionId
+          ? {
+              ...collection,
+              viewerFavorited: isFav,
+              likedCount: Math.max(0, collection.likedCount + (isFav ? 1 : -1)),
+            }
+          : collection
+      ))
+    ));
     toast.success(isFav ? 'Added collection to favorites' : 'Removed collection from favorites');
   };
 
@@ -515,14 +649,22 @@ export function SearchPage({
     setIsCollectionModalOpen(true);
   };
 
-  const handleProfileFollowChange = () => {
-    const syncProfiles = loadSellerDirectorySync({ marketplaceAssets });
-    setSellerProfiles((prev) => (syncProfiles.length > 0 || prev.length === 0 ? syncProfiles : prev));
-    void hydrateSellerDirectoryFromSupabase({ marketplaceAssets })
-      .then((nextProfiles) => {
-        setSellerProfiles(nextProfiles);
-      })
-      .catch(() => undefined);
+  const handleProfileFollowChange = (walletAddress: string, following: boolean) => {
+    const normalizedAddress = walletAddress.toLowerCase();
+    setSellerProfiles((prevProfiles) => (
+      prevProfiles.map((profile) => (
+        profile.address.toLowerCase() === normalizedAddress
+          ? {
+              ...profile,
+              isFollowing: following,
+              metrics: {
+                ...profile.metrics,
+                followerCount: Math.max(0, profile.metrics.followerCount + (following ? 1 : -1)),
+              },
+            }
+          : profile
+      ))
+    ));
   };
 
   const trimmedQuery = filters.query.trim();
@@ -544,6 +686,22 @@ export function SearchPage({
     !(aiSearchActive && aiSearchStatus === 'loading');
   const showAssetLoadingState =
     aiSearchActive && aiSearchStatus === 'loading' && displayedAssets.length === 0;
+  const isProfilesLoading =
+    contentMode === 'profiles' &&
+    (
+      profilePageStatus === 'idle' ||
+      profilePageStatus === 'loading' ||
+      profilePageQueryKey !== profileQueryKey
+    );
+  const isCollectionsLoading =
+    contentMode === 'collections' &&
+    (
+      collectionPageStatus === 'idle' ||
+      collectionPageStatus === 'loading' ||
+      collectionPageQueryKey !== collectionQueryKey
+    );
+  const isEntityLoading = isProfilesLoading || isCollectionsLoading;
+  const isLoadingMoreEntityResults = isLoadingMoreProfiles || isLoadingMoreCollections;
 
   const resultCount =
     contentMode === 'profiles'
@@ -551,6 +709,150 @@ export function SearchPage({
       : contentMode === 'collections'
       ? filteredCollections.length
       : displayedAssetCount;
+  const hasMoreEntityResults =
+    (
+      contentMode === 'profiles' &&
+      profilePageStatus === 'ready' &&
+      profilePageQueryKey === profileQueryKey &&
+      hasMoreProfiles
+    ) ||
+    (
+      contentMode === 'collections' &&
+      collectionPageStatus === 'ready' &&
+      collectionPageQueryKey === collectionQueryKey &&
+      hasMoreCollections
+    );
+
+  const loadMoreProfiles = useCallback(() => {
+    if (
+      contentMode !== 'profiles' ||
+      !hasMoreProfiles ||
+      !profilePageCursor ||
+      isLoadingMoreProfiles ||
+      profilePageStatus !== 'ready' ||
+      profilePageQueryKey !== profileQueryKey
+    ) {
+      return;
+    }
+
+    const requestId = profileRequestIdRef.current;
+    setIsLoadingMoreProfiles(true);
+    void fetchMarketplaceProfilePageFromSupabase({
+      ...profilePageQuery,
+      cursor: profilePageCursor,
+      limit: SEARCH_ENTITY_PAGE_SIZE,
+    })
+      .then((page) => {
+        if (profileRequestIdRef.current !== requestId) return;
+        setSellerProfiles((currentProfiles) => mergeProfilesByAddress(currentProfiles, page.profiles));
+        setProfilePageCursor(page.nextCursor);
+        setHasMoreProfiles(page.hasMore);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (profileRequestIdRef.current === requestId) {
+          setIsLoadingMoreProfiles(false);
+        }
+      });
+  }, [
+    contentMode,
+    hasMoreProfiles,
+    isLoadingMoreProfiles,
+    profilePageCursor,
+    profilePageQuery,
+    profilePageQueryKey,
+    profilePageStatus,
+    profileQueryKey,
+  ]);
+
+  const loadMoreCollections = useCallback(() => {
+    if (
+      contentMode !== 'collections' ||
+      !hasMoreCollections ||
+      !collectionPageCursor ||
+      isLoadingMoreCollections ||
+      collectionPageStatus !== 'ready' ||
+      collectionPageQueryKey !== collectionQueryKey
+    ) {
+      return;
+    }
+
+    const requestId = collectionRequestIdRef.current;
+    setIsLoadingMoreCollections(true);
+    void fetchMarketplaceCollectionPageFromSupabase({
+      ...collectionPageQuery,
+      cursor: collectionPageCursor,
+      limit: SEARCH_ENTITY_PAGE_SIZE,
+    })
+      .then((page) => {
+        if (collectionRequestIdRef.current !== requestId) return;
+        setRuntimeCollections((currentCollections) => mergeCollectionsById(currentCollections, page.collections));
+        setCollectionPageCursor(page.nextCursor);
+        setHasMoreCollections(page.hasMore);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (collectionRequestIdRef.current === requestId) {
+          setIsLoadingMoreCollections(false);
+        }
+      });
+  }, [
+    collectionPageCursor,
+    collectionPageQuery,
+    collectionPageQueryKey,
+    collectionPageStatus,
+    collectionQueryKey,
+    contentMode,
+    hasMoreCollections,
+    isLoadingMoreCollections,
+  ]);
+
+  const requestMoreEntityResults = useCallback(() => {
+    if (contentMode === 'profiles') {
+      loadMoreProfiles();
+      return;
+    }
+
+    if (contentMode === 'collections') {
+      loadMoreCollections();
+    }
+  }, [contentMode, loadMoreCollections, loadMoreProfiles]);
+
+  const handleResultsScroll = useCallback((event: UIEvent<HTMLElement>) => {
+    if (!hasMoreEntityResults || isLoadingMoreEntityResults) return;
+
+    const target = event.currentTarget;
+    const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+    if (distanceToBottom <= SEARCH_SCROLL_PREFETCH_PX) {
+      requestMoreEntityResults();
+    }
+  }, [hasMoreEntityResults, isLoadingMoreEntityResults, requestMoreEntityResults]);
+
+  useEffect(() => {
+    if (!hasMoreEntityResults || typeof IntersectionObserver === 'undefined') {
+      return undefined;
+    }
+
+    const root = resultsScrollContainerRef.current;
+    const sentinel = resultsLoadMoreSentinelRef.current;
+    if (!root || !sentinel) return undefined;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting && !isLoadingMoreEntityResults) {
+          requestMoreEntityResults();
+        }
+      },
+      {
+        root,
+        rootMargin: `0px 0px ${SEARCH_SCROLL_PREFETCH_PX}px 0px`,
+        threshold: 0,
+      },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreEntityResults, isLoadingMoreEntityResults, requestMoreEntityResults]);
 
   const handleContentModeChange = (nextMode: 'assets' | 'profiles' | 'collections') => {
     setContentMode(nextMode);
@@ -560,7 +862,7 @@ export function SearchPage({
         categories: nextMode === 'collections'
           ? prev.categories.filter((category) =>
               collectionCategoryOptions.some((option) => option.value === category)
-            )
+            ).slice(0, 1)
           : [],
         blockchains: [],
         priceRange: { min: null, max: null },
@@ -618,7 +920,11 @@ export function SearchPage({
       <div className="min-w-0 flex-1 overflow-hidden px-5 py-5 lg:px-7 lg:py-6">
 
       {/* Center Column - Results */}
-      <section className="relative z-10 h-full overflow-y-auto overflow-x-hidden custom-scrollbar">
+      <section
+        ref={resultsScrollContainerRef}
+        className="relative z-10 h-full overflow-y-auto overflow-x-hidden custom-scrollbar"
+        onScroll={handleResultsScroll}
+      >
         <div className="mx-auto w-full max-w-6xl">
         <StudioPanel className="mb-8 rounded-[32px] p-5 sm:p-6">
           <StudioPageHeader
@@ -783,14 +1089,24 @@ export function SearchPage({
         )}
 
         {/* Results */}
-        {showAssetLoadingState ? (
+        {showAssetLoadingState || isEntityLoading ? (
           <StudioPanel className="flex min-h-[220px] items-center justify-center rounded-[24px] border border-[var(--t-border-subtle)] bg-[var(--t-surface-2)]">
             <StudioLoadingIndicator
               layout="stacked"
               size={24}
               tone="muted"
-              label="ORINA AI is searching the catalog"
-              subLabel="Matching listings will appear here when the response is ready."
+              label={
+                showAssetLoadingState
+                  ? 'ORINA AI is searching the catalog'
+                  : contentMode === 'profiles'
+                    ? 'Loading profiles'
+                    : 'Loading collections'
+              }
+              subLabel={
+                showAssetLoadingState
+                  ? 'Matching listings will appear here when the response is ready.'
+                  : 'Fetching the first ranked page from the marketplace index.'
+              }
               labelClassName="text-ui-primary"
               subLabelClassName="text-ui-muted"
             />
@@ -818,70 +1134,88 @@ export function SearchPage({
           />
         ) : (
           // Results List/Grid
-          <div className={`
-            ${contentMode === 'profiles'
-              ? 'grid grid-cols-1 md:grid-cols-2 gap-4'
-              : contentMode === 'collections'
-              ? viewMode === 'grid'
+          <>
+            <div className={`
+              ${contentMode === 'profiles'
+                ? 'grid grid-cols-1 md:grid-cols-2 gap-4'
+                : contentMode === 'collections'
+                ? viewMode === 'grid'
+                  ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                  : 'space-y-4'
+                : viewMode === 'grid'
                 ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
                 : 'space-y-4'
-              : viewMode === 'grid'
-              ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-              : 'space-y-4'
-            }
-          `}>
-            {contentMode === 'assets' ? (
-              <AnimatePresence mode="popLayout">
-                {displayedAssets.map((asset) => (
-                  <motion.div
-                    key={asset.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ duration: 0.3 }}
+              }
+            `}>
+              {contentMode === 'assets' ? (
+                <AnimatePresence mode="popLayout">
+                  {displayedAssets.map((asset) => (
+                    <motion.div
+                      key={asset.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <SearchResultCard
+                        asset={asset}
+                        viewMode={viewMode}
+                        onLike={handleLike}
+                        onClick={handleAssetClick}
+                        isLiked={likedAssets.has(asset.id)}
+                      />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              ) : contentMode === 'profiles' ? (
+                filteredProfiles.map((profile) => (
+                  <ProfileSearchCard
+                    key={profile.address}
+                    profile={profile}
+                    viewMode={viewMode}
+                    onViewProfile={onNavigateToUserProfile}
+                    onFollowChange={handleProfileFollowChange}
+                  />
+                ))
+              ) : (
+                <AnimatePresence mode="popLayout">
+                  {filteredCollections.map((collection) => (
+                    <motion.div
+                      key={collection.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <CollectionCard
+                        collection={collection}
+                        viewMode={viewMode}
+                        onLike={handleCollectionLike}
+                        onClick={handleCollectionClick}
+                        isLiked={likedCollections.has(collection.id) || Boolean(collection.viewerFavorited)}
+                      />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              )}
+            </div>
+            {hasMoreEntityResults && (
+              <>
+                <div ref={resultsLoadMoreSentinelRef} aria-hidden="true" className="h-px" />
+                <div className="flex justify-center py-6">
+                  <StudioActionButton
+                    type="button"
+                    onClick={requestMoreEntityResults}
+                    disabled={isLoadingMoreEntityResults}
+                    variant="secondary"
+                    className="px-5 py-2.5 text-sm"
                   >
-                    <SearchResultCard
-                      asset={asset}
-                      viewMode={viewMode}
-                      onLike={handleLike}
-                      onClick={handleAssetClick}
-                      isLiked={likedAssets.has(asset.id)}
-                    />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            ) : contentMode === 'profiles' ? (
-              filteredProfiles.map((profile) => (
-                <ProfileSearchCard
-                  key={profile.address}
-                  profile={profile}
-                  viewMode={viewMode}
-                  onViewProfile={onNavigateToUserProfile}
-                  onFollowChange={handleProfileFollowChange}
-                />
-              ))
-            ) : (
-              <AnimatePresence mode="popLayout">
-                {filteredCollections.map((collection) => (
-                  <motion.div
-                    key={collection.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <CollectionCard
-                      collection={collection}
-                      viewMode={viewMode}
-                      onLike={handleCollectionLike}
-                      onClick={handleCollectionClick}
-                      isLiked={likedCollections.has(collection.id)}
-                    />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+                    {isLoadingMoreEntityResults ? 'Loading results...' : 'Load more results'}
+                  </StudioActionButton>
+                </div>
+              </>
             )}
-          </div>
+          </>
         )}
         </div>
       </section>
@@ -1005,9 +1339,13 @@ export function SearchPage({
                     <button
                       key={category.value}
                       onClick={() => {
-                        const newCategories = filters.categories.includes(category.value)
-                          ? filters.categories.filter(c => c !== category.value)
-                          : [...filters.categories, category.value];
+                        const newCategories = contentMode === 'collections'
+                          ? filters.categories.includes(category.value)
+                            ? []
+                            : [category.value]
+                          : filters.categories.includes(category.value)
+                            ? filters.categories.filter(c => c !== category.value)
+                            : [...filters.categories, category.value];
                         setFilters({ ...filters, categories: newCategories });
                       }}
                       className={`

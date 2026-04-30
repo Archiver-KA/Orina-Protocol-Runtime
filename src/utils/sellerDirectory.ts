@@ -5,6 +5,7 @@ import { hydrateReputationFromSupabase } from '@/utils/profileReputationSync';
 import {
   encodeIn,
   isSupabaseRestEnabled,
+  restRpc,
   restSelect,
   toQuery,
   dispatchSyncEvent,
@@ -28,8 +29,13 @@ export interface SellerProfileCardData {
   floorPriceEth: string;
   itemsListed: string;
   verified: boolean;
+  isFollowing?: boolean;
+  isSelf?: boolean;
   directoryRank: number;
   rankScore: number;
+  rankingVersion?: string;
+  personalized?: boolean;
+  reasonCodes?: string[];
   metrics: {
     overallScore: number;
     totalVolume: number;
@@ -67,10 +73,59 @@ type SellerDirectoryOptions = {
   marketplaceAssets?: MarketplaceAsset[];
 };
 
+export type MarketplaceProfilePageCursor = {
+  score: number;
+  updatedAt: string;
+  userId: string;
+};
+
+export type MarketplaceProfilePageOptions = {
+  limit?: number;
+  cursor?: MarketplaceProfilePageCursor | null;
+  searchQuery?: string;
+  verifiedOnly?: boolean;
+};
+
+export type MarketplaceProfilePageResult = {
+  profiles: SellerProfileCardData[];
+  nextCursor: MarketplaceProfilePageCursor | null;
+  hasMore: boolean;
+  rankingVersion?: string;
+  personalized: boolean;
+};
+
+type MarketplaceProfilePageRpcRow = {
+  user_id: string | null;
+  wallet_address: string | null;
+  display_name: string | null;
+  username: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  banner_url: string | null;
+  is_verified: boolean | null;
+  reputation_score: number | string | null;
+  total_volume: number | string | null;
+  average_rating: number | string | null;
+  total_reviews: number | string | null;
+  follower_count: number | string | null;
+  items_listed: number | string | null;
+  floor_price_numeric: number | string | null;
+  score: number | string | null;
+  reason_codes: string[] | null;
+  ranking_version: string | null;
+  personalized: boolean | null;
+  is_self: boolean | null;
+  is_following: boolean | null;
+  updated_at: string | null;
+  page_has_more: boolean | null;
+};
+
 export const SELLER_DIRECTORY_SYNC_EVENT = 'orina:seller-directory-changed';
 
 const sellerDirectoryCache = new Map<string, SellerProfileCardData>();
 const sellerDirectoryHydrateInFlight = new Map<string, Promise<SellerProfileCardData[]>>();
+const MARKETPLACE_PROFILE_PAGE_DEFAULT_LIMIT = 48;
+const MARKETPLACE_PROFILE_PAGE_MAX_LIMIT = 96;
 
 function normalizeAddress(address?: string | null): string {
   return String(address || '').trim().toLowerCase();
@@ -88,6 +143,16 @@ function toNumber(value: unknown): number {
 function parseMarketplacePrice(price?: string | null): number {
   const parsed = Number.parseFloat(String(price || '').replace(/[^\d.]/g, ''));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeProfilePageLimit(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return MARKETPLACE_PROFILE_PAGE_DEFAULT_LIMIT;
+  return Math.max(1, Math.min(Math.floor(parsed), MARKETPLACE_PROFILE_PAGE_MAX_LIMIT));
+}
+
+function normalizeProfileSearchTerm(value?: string | null): string {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 96);
 }
 
 function formatCompactCount(value: number): string {
@@ -307,6 +372,79 @@ function readCachedProfiles(addresses: string[], listingStats: Map<string, Selle
   });
 }
 
+function mapMarketplaceProfilePageRow(row: MarketplaceProfilePageRpcRow, index: number): SellerProfileCardData | null {
+  const address = normalizeAddress(row.wallet_address);
+  if (!address) return null;
+
+  const followerCount = Math.max(0, Math.round(toNumber(row.follower_count)));
+  const itemsListed = Math.max(0, Math.round(toNumber(row.items_listed)));
+  const floorPriceEth = Math.max(0, toNumber(row.floor_price_numeric));
+  const totalVolume = Math.max(0, toNumber(row.total_volume));
+  const averageRating = Math.max(0, toNumber(row.average_rating));
+  const totalReviews = Math.max(0, Math.round(toNumber(row.total_reviews)));
+  const overallScore = Math.max(0, Math.min(100, Math.round(toNumber(row.reputation_score))));
+  const score = toNumber(row.score);
+  const displayName = row.display_name || shortenUserDisplayName(address);
+  const username = row.username || `@${address.slice(2, 10)}`;
+
+  const profile: SellerProfileCardData = {
+    address,
+    displayName,
+    username,
+    bio: row.bio || '',
+    avatarUrl: row.avatar_url || undefined,
+    bannerUrl: row.banner_url || undefined,
+    totalSalesEth: formatEth(totalVolume),
+    followers: formatCompactCount(followerCount),
+    rating: totalReviews > 0 && averageRating > 0 ? averageRating.toFixed(1) : 'No reviews',
+    hasReviews: totalReviews > 0,
+    floorPriceEth: formatEth(floorPriceEth),
+    itemsListed: `${itemsListed}`,
+    verified: row.is_verified === true,
+    isFollowing: row.is_following === true,
+    isSelf: row.is_self === true,
+    directoryRank: index + 1,
+    rankScore: score,
+    rankingVersion: String(row.ranking_version || '').trim() || undefined,
+    personalized: row.personalized === true,
+    reasonCodes: Array.isArray(row.reason_codes) ? row.reason_codes.filter(Boolean) : [],
+    metrics: {
+      overallScore,
+      totalVolume,
+      averageRating,
+      totalReviews,
+      followerCount,
+      itemsListed,
+      floorPriceEth,
+    },
+  };
+
+  sellerDirectoryCache.set(address, profile);
+  return profile;
+}
+
+function filterFallbackProfilesForPage(
+  profiles: SellerProfileCardData[],
+  options: MarketplaceProfilePageOptions,
+): SellerProfileCardData[] {
+  const searchTerm = normalizeProfileSearchTerm(options.searchQuery).toLowerCase();
+  let filtered = profiles;
+
+  if (searchTerm) {
+    filtered = filtered.filter((profile) => (
+      profile.displayName.toLowerCase().includes(searchTerm) ||
+      profile.username.toLowerCase().includes(searchTerm) ||
+      profile.address.toLowerCase().includes(searchTerm)
+    ));
+  }
+
+  if (options.verifiedOnly) {
+    filtered = filtered.filter((profile) => profile.verified);
+  }
+
+  return filtered;
+}
+
 function updateCache(nextProfiles: SellerProfileCardData[]): void {
   let changed = false;
 
@@ -431,4 +569,64 @@ export async function hydrateSellerDirectoryFromSupabase(
 
   sellerDirectoryHydrateInFlight.set(inFlightKey, request);
   return request;
+}
+
+export async function fetchMarketplaceProfilePageFromSupabase(
+  options: MarketplaceProfilePageOptions = {},
+): Promise<MarketplaceProfilePageResult> {
+  const limit = normalizeProfilePageLimit(options.limit);
+
+  if (!isSupabaseRestEnabled()) {
+    const fallbackProfiles = filterFallbackProfilesForPage(loadSellerDirectorySync(), options).slice(0, limit);
+    return {
+      profiles: fallbackProfiles,
+      nextCursor: null,
+      hasMore: false,
+      personalized: false,
+    };
+  }
+
+  try {
+    const rows = await restRpc<MarketplaceProfilePageRpcRow[]>(
+      'get_marketplace_profile_page_v1',
+      {
+        p_limit: limit,
+        p_cursor_score: options.cursor?.score ?? null,
+        p_cursor_updated_at: options.cursor?.updatedAt || null,
+        p_cursor_user_id: options.cursor?.userId || null,
+        p_search_query: normalizeProfileSearchTerm(options.searchQuery) || null,
+        p_verified_only: Boolean(options.verifiedOnly),
+        p_sort: 'personalized',
+      },
+    );
+
+    const pageRows = Array.isArray(rows) ? rows.slice(0, limit) : [];
+    const profiles = pageRows
+      .map((row, index) => mapMarketplaceProfilePageRow(row, index))
+      .filter((profile): profile is SellerProfileCardData => Boolean(profile));
+    const lastRow = pageRows[pageRows.length - 1];
+
+    return {
+      profiles,
+      nextCursor: lastRow?.user_id && lastRow?.updated_at
+        ? {
+            score: toNumber(lastRow.score),
+            updatedAt: lastRow.updated_at,
+            userId: lastRow.user_id,
+          }
+        : null,
+      hasMore: pageRows.some((row) => row.page_has_more === true),
+      rankingVersion: profiles[0]?.rankingVersion,
+      personalized: profiles.some((profile) => profile.personalized === true),
+    };
+  } catch (error) {
+    console.debug('[SellerDirectory] Profile browse RPC skipped:', error);
+    const fallbackProfiles = filterFallbackProfilesForPage(loadSellerDirectorySync(), options).slice(0, limit);
+    return {
+      profiles: fallbackProfiles,
+      nextCursor: null,
+      hasMore: false,
+      personalized: false,
+    };
+  }
 }

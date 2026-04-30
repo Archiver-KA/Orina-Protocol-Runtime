@@ -22,6 +22,7 @@ import {
   encodeEq,
   isSupabaseRestEnabled,
   restDelete,
+  restRpc,
   restSelect,
   restUpsert,
   toQuery,
@@ -98,6 +99,61 @@ type DbCollectionAssetRow = {
   metadata: Record<string, unknown> | null;
   added_at: string;
 };
+
+export type MarketplaceCollectionPageCursor = {
+  score: number;
+  updatedAt: string;
+  id: string;
+};
+
+export type MarketplaceCollectionPageOptions = {
+  limit?: number;
+  cursor?: MarketplaceCollectionPageCursor | null;
+  searchQuery?: string;
+  category?: string;
+  verifiedOnly?: boolean;
+};
+
+export type MarketplaceCollectionPageResult = {
+  collections: CollectionSummary[];
+  nextCursor: MarketplaceCollectionPageCursor | null;
+  hasMore: boolean;
+  rankingVersion?: string;
+  personalized: boolean;
+};
+
+type MarketplaceCollectionPageRpcRow = {
+  id: string | null;
+  slug: string | null;
+  name: string | null;
+  category: string | null;
+  description: string | null;
+  cover_image: string | null;
+  bio: string | null;
+  tags: unknown;
+  owner_user_id: string | null;
+  owner_wallet_snapshot: string | null;
+  verified: boolean | null;
+  featured: boolean | null;
+  item_count: number | string | null;
+  floor_price_numeric: number | string | null;
+  volume_numeric: number | string | null;
+  liked_count: number | string | null;
+  follower_count: number | string | null;
+  score: number | string | null;
+  reason_codes: string[] | null;
+  ranking_version: string | null;
+  personalized: boolean | null;
+  is_owner: boolean | null;
+  is_favorited: boolean | null;
+  is_following: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+  page_has_more: boolean | null;
+};
+
+const MARKETPLACE_COLLECTION_PAGE_DEFAULT_LIMIT = 48;
+const MARKETPLACE_COLLECTION_PAGE_MAX_LIMIT = 96;
 
 function walletKey(walletAddress: string): string {
   return String(walletAddress || '').toLowerCase();
@@ -176,6 +232,25 @@ function shortWallet(walletAddress: string): string {
 function parseEthAmount(value: string): number {
   const parsed = Number.parseFloat(String(value || '').replace(/[^\d.]/g, ''));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toNumber(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+}
+
+function normalizeCollectionPageLimit(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return MARKETPLACE_COLLECTION_PAGE_DEFAULT_LIMIT;
+  return Math.max(1, Math.min(Math.floor(parsed), MARKETPLACE_COLLECTION_PAGE_MAX_LIMIT));
+}
+
+function normalizeCollectionSearchTerm(value?: string | null): string {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 96);
 }
 
 function formatEthAmount(value: number): string {
@@ -292,6 +367,77 @@ function sortCollections(collections: CollectionSummary[]): CollectionSummary[] 
     }
     return b.updatedAt - a.updatedAt;
   });
+}
+
+function timestampToMs(value?: string | null): number {
+  const parsed = Date.parse(String(value || ''));
+  return Number.isFinite(parsed) ? parsed : Date.now();
+}
+
+function mapMarketplaceCollectionPageRow(row: MarketplaceCollectionPageRpcRow): CollectionSummary | null {
+  const id = String(row.id || '').trim();
+  if (!id) return null;
+
+  const name = String(row.name || '').trim() || 'Untitled Collection';
+  const category = normalizeCategoryFilterValue(row.category || 'uncategorized');
+  const floorPrice = Math.max(0, toNumber(row.floor_price_numeric));
+  const volume = Math.max(0, toNumber(row.volume_numeric));
+  const tags = uniqueStrings(row.tags);
+
+  return {
+    id,
+    slug: String(row.slug || '').trim() || slugify(name),
+    name,
+    category,
+    description: String(row.description || row.bio || '').trim(),
+    coverImage: String(row.cover_image || '').trim() || DEFAULT_COLLECTION_COVER,
+    ownerWallet: walletKey(String(row.owner_wallet_snapshot || '')),
+    bio: String(row.bio || row.description || '').trim(),
+    tags,
+    itemIds: [],
+    itemCount: Math.max(0, Math.round(toNumber(row.item_count))),
+    floorPrice: formatEthAmount(floorPrice),
+    volume: formatEthAmount(volume),
+    followerCount: Math.max(0, Math.round(toNumber(row.follower_count))),
+    likedCount: Math.max(0, Math.round(toNumber(row.liked_count))),
+    verified: row.verified === true,
+    featured: row.featured === true,
+    viewerFavorited: row.is_favorited === true,
+    viewerFollowing: row.is_following === true,
+    viewerOwner: row.is_owner === true,
+    rankingVersion: String(row.ranking_version || '').trim() || undefined,
+    personalized: row.personalized === true,
+    reasonCodes: Array.isArray(row.reason_codes) ? row.reason_codes.filter(Boolean) : [],
+    createdAt: timestampToMs(row.created_at),
+    updatedAt: timestampToMs(row.updated_at),
+  };
+}
+
+function filterFallbackCollectionsForPage(
+  collections: CollectionSummary[],
+  options: MarketplaceCollectionPageOptions,
+): CollectionSummary[] {
+  const searchTerm = normalizeCollectionSearchTerm(options.searchQuery).toLowerCase();
+  let filtered = collections;
+
+  if (searchTerm) {
+    filtered = filtered.filter((collection) => (
+      collection.name.toLowerCase().includes(searchTerm) ||
+      collection.description.toLowerCase().includes(searchTerm) ||
+      getCategoryDisplayLabel(collection.category).toLowerCase().includes(searchTerm) ||
+      collection.tags.some((tag) => tag.toLowerCase().includes(searchTerm))
+    ));
+  }
+
+  if (options.category && options.category !== 'all') {
+    filtered = filtered.filter((collection) => normalizeCategoryFilterValue(collection.category) === options.category);
+  }
+
+  if (options.verifiedOnly) {
+    filtered = filtered.filter((collection) => collection.verified);
+  }
+
+  return filtered;
 }
 
 function mergeCollectionFavoritesPreferLocal(
@@ -822,6 +968,67 @@ function getCollectionFollowCounts(): Map<string, number> {
     counts.set(follow.collectionId, (counts.get(follow.collectionId) || 0) + 1);
     return counts;
   }, new Map<string, number>());
+}
+
+export async function fetchMarketplaceCollectionPageFromSupabase(
+  options: MarketplaceCollectionPageOptions = {},
+): Promise<MarketplaceCollectionPageResult> {
+  const limit = normalizeCollectionPageLimit(options.limit);
+
+  if (!isSupabaseRestEnabled()) {
+    const fallbackCollections = filterFallbackCollectionsForPage(loadRuntimeCollections(), options).slice(0, limit);
+    return {
+      collections: fallbackCollections,
+      nextCursor: null,
+      hasMore: false,
+      personalized: false,
+    };
+  }
+
+  try {
+    const rows = await restRpc<MarketplaceCollectionPageRpcRow[]>(
+      'get_marketplace_collection_page_v1',
+      {
+        p_limit: limit,
+        p_cursor_score: options.cursor?.score ?? null,
+        p_cursor_updated_at: options.cursor?.updatedAt || null,
+        p_cursor_id: options.cursor?.id || null,
+        p_search_query: normalizeCollectionSearchTerm(options.searchQuery) || null,
+        p_category: options.category && options.category !== 'all' ? options.category : null,
+        p_verified_only: Boolean(options.verifiedOnly),
+        p_sort: 'personalized',
+      },
+    );
+
+    const pageRows = Array.isArray(rows) ? rows.slice(0, limit) : [];
+    const collections = pageRows
+      .map(mapMarketplaceCollectionPageRow)
+      .filter((collection): collection is CollectionSummary => Boolean(collection));
+    const lastRow = pageRows[pageRows.length - 1];
+
+    return {
+      collections,
+      nextCursor: lastRow?.id && lastRow?.updated_at
+        ? {
+            score: toNumber(lastRow.score),
+            updatedAt: lastRow.updated_at,
+            id: lastRow.id,
+          }
+        : null,
+      hasMore: pageRows.some((row) => row.page_has_more === true),
+      rankingVersion: collections[0]?.rankingVersion,
+      personalized: collections.some((collection) => collection.personalized === true),
+    };
+  } catch (error) {
+    console.debug('[Collections] Collection browse RPC skipped:', error);
+    const fallbackCollections = filterFallbackCollectionsForPage(loadRuntimeCollections(), options).slice(0, limit);
+    return {
+      collections: fallbackCollections,
+      nextCursor: null,
+      hasMore: false,
+      personalized: false,
+    };
+  }
 }
 
 export function loadRuntimeCollections(): CollectionSummary[] {

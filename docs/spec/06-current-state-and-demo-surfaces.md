@@ -1,98 +1,97 @@
 # Current State And Demo Surfaces
 
-## This Repo Is Not Uniformly Production-Backed
+## This Repo Is Hybrid
 
-The current codebase mixes several runtime classes:
+The current runtime mixes several implementation classes:
 
-- real shell and wallet flows
-- local-first product state
-- optional Supabase-backed synchronization
-- mock-backed feature pages
-- explicit demo and test pages
+- real wallet and protocol flows
+- Supabase-backed catalog, profile, community, messaging, review, API-key, and AI surfaces
+- protocol projection tables mirroring on-chain state
+- wallet-scoped local runtime caches
+- presentation-heavy dashboard and fallback/demo widgets
+- explicit smoke and audit tooling
 
-Any planning or delivery work should start from that assumption.
+Do not assume every visible UI card is backed by the same durability layer.
 
-## Mock-First Areas
+## Production-Backed Or Runtime-Backed Areas
 
-The following areas are currently driven largely by mock or fixture data:
+The following areas have current runtime backing:
 
-- overview dashboard
-- marketplace listings
-- search results
-- my assets cards
-- large parts of orders
-- many profile review and trust visuals
-- seller and listing presentation data
+- wallet connection and wallet auth session
+- live BNB Chain Testnet protocol config
+- EIP-712 order/dispute signing config
+- marketplace/search catalog hydration from Supabase
+- protocol asset/order projections
+- delivery address geo tables and local cache
+- profile identity and remote profile sync
+- messages through Supabase/Edge Function paths
+- reviews and reputation summary tables
+- API key generation and server-side API credential storage
+- AI agent and seller automation settings where Edge Functions are configured
 
-This does not make the pages useless, but it means the UI contract is ahead of the backend contract in several places.
+## Local-First Or Local-Shadow Areas
 
-## Local-First Areas
+The following areas still persist important behavior locally:
 
-The following areas currently persist important behavior in `localStorage` first:
-
-- user profile
-- theme preference
-- favorites
-- watchlist
-- notifications
-- community feed
-- community comments
+- wallet auth session
+- Supabase claim bridge session
+- wallet profile cache
+- wallet settings and theme preference
+- delivery address cache
+- runtime minted assets shadow
+- runtime orders shadow
+- favorites/following cache
 - search history
+- selected protocol network
+- AI sidebar active conversation id
 
-Some of these can sync remotely when the environment is configured, but the local path is still the primary durability path visible in the code.
+Some of these hydrate from Supabase, but the local path remains important for browser UX and recovery.
 
-## Hybrid Areas
+## Presentation Or Demo-Leaning Areas
 
-Current hybrid surfaces:
+The following should be treated carefully when documenting production behavior:
 
-- community: local-first plus optional Supabase REST sync
-- notifications: local-first plus optional remote sync
-- favorites/watchlist: local-first plus optional remote sync
-- messages: backend-driven but with local UI state, polling, and AI-agent test fallback
+- overview dashboard charts and summary widgets
+- empty-state fallback panels
+- legacy fixture-backed owned-asset examples when no runtime data exists
+- selected analytics visualizations
+- smoke-specific generated data
 
-## Demo And Internal Pages
+These areas can be useful UI surfaces, but they should not be cited as canonical contract or database truth.
 
-Pages still wired as active surfaces for testing or internal review:
+## Removed Or Reduced Mock Assumptions
 
-- `ai-agent-test`
-- `notification-demo`
-- `bulk-demo`
-- `wallet-demo`
-- `style-guide`
-- `ipfs-test`
+The active marketplace/search catalog should not be described as `MOCK_MARKETPLACE_ASSETS`-first. Current code uses `marketplaceCatalog.ts`, Supabase hydration, and protocol projection enrichment.
 
-If a change request references one of these pages, confirm whether it is still meant to ship as an end-user surface before expanding it.
+The old durable localStorage marketplace catalog cache has also been removed. LocalStorage is still used for UI stats deltas and other wallet-scoped caches, but not as the canonical marketplace listing store.
 
 ## Shell Constraints
 
-Current structural constraints in the app:
+Current structural constraints:
 
-- no URL-first router for primary product pages
-- page transitions are state-driven from `App.tsx`
-- guest mode and connected mode do not share the same page shell
-- some visual systems are centralized in shared studio UI components, but others still remain page-local
+- the public home can load without the runtime shell
+- connected app surfaces are lazy-loaded behind `RuntimeApp`
+- routing is URL-aware through `src/utils/appRoutes.ts`, but page state still drives the runtime shell
+- guest mode and connected mode have different access rules
+- some pages use shared studio UI primitives while older sections still have page-local layouts
 
 ## Documentation Contract
 
-This new spec set is intentionally conservative.
+Current docs should:
 
-It documents:
-
-- what the code currently does
-- what data sources it currently uses
-- where the main boundaries are
-
-It does not document:
-
-- abandoned plans
-- historical migration checkpoints
-- aspirational backend architecture that is not represented in the current repo
+- document code paths that exist now
+- name the source of truth for each feature
+- label projections as projections
+- label local cache/shadow state as local
+- label demo/fallback behavior explicitly
+- avoid reviving stale claims from older Make/Figma documentation
 
 ## Recommended Rule For Future Docs
 
-When updating documentation in this repo:
+When changing documentation:
 
-- document current code paths first
-- mark mock-backed behavior explicitly
-- keep historical planning outside the active docs set
-- prefer one current spec over many overlapping subsystem notes
+1. Read the current code path first.
+2. Identify on-chain, Supabase, Edge Function, and local state boundaries.
+3. Document the user-facing workflow and the underlying source of truth separately.
+4. Keep old audit logs and roadmap claims out of active user-facing documentation unless they still apply.
+

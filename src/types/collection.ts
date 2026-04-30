@@ -38,6 +38,12 @@ export interface CollectionSummary {
   likedCount: number;
   verified: boolean;
   featured?: boolean;
+  viewerFavorited?: boolean;
+  viewerFollowing?: boolean;
+  viewerOwner?: boolean;
+  rankingVersion?: string;
+  personalized?: boolean;
+  reasonCodes?: string[];
   createdAt: number;
   updatedAt: number;
 }

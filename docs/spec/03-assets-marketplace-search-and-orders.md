@@ -2,62 +2,77 @@
 
 ## Data Reality
 
-These commerce surfaces are currently mock-first UI flows with selected local persistence and modal workflows layered on top.
+These commerce surfaces are hybrid runtime flows. They are no longer accurately described as uniformly mock-first.
 
-Primary data sources:
+Current data classes:
 
-- [`src/utils/mockMarketplaceData.ts`](../../src/utils/mockMarketplaceData.ts)
-- [`src/utils/testWalletAssetFixtures.ts`](../../src/utils/testWalletAssetFixtures.ts)
-- page-local mock arrays inside feature components
+- Supabase-backed public catalog and seller profile data
+- on-chain protocol state read through contract hooks
+- Supabase protocol projection tables
+- wallet-scoped local runtime caches
+- presentation/demo fallback widgets in selected dashboard and empty-state areas
 
 ## Overview
 
-[`src/app/components/main-content.tsx`](../../src/app/components/main-content.tsx) is the current overview dashboard.
+[`src/app/components/main-content.tsx`](../../src/app/components/main-content.tsx) is the connected dashboard overview.
 
 Current role:
 
 - dashboard surface
-- analytics cards
-- charts
 - summary indicators
+- analytics-style cards and charts
+- entry points into orders, assets, marketplace, and profile activity
 
-This page is presentation-heavy and not a source of record for backend truth.
+It is not the source of record for protocol truth.
 
 ## Marketplace
 
-[`src/app/components/marketplace.tsx`](../../src/app/components/marketplace.tsx) is the main asset discovery surface.
+[`src/app/components/marketplace.tsx`](../../src/app/components/marketplace.tsx) is the main discovery surface.
 
 Current behavior:
 
-- supports `assets` and `profiles` content modes
-- supports `grid`, `list`, and `map` views
-- filters by search, category, blockchain, and verified state
+- supports asset and profile content modes
+- supports grid, list, and map views
+- filters by search, category, blockchain/network, and verified state
 - uses `SearchResultCard` for assets
 - uses `ProfileSearchCard` for seller profiles
-- opens `AssetDetailsModal` for asset drill-down
-- uses favorite state through wallet-scoped favorites storage
+- routes asset drill-down through canonical asset detail routes
+- uses wallet-scoped favorites and following state
 
-Current asset dataset:
+Current catalog source:
 
-- `MOCK_MARKETPLACE_ASSETS`
+- [`src/utils/marketplaceCatalog.ts`](../../src/utils/marketplaceCatalog.ts)
 
-Current seller profile dataset:
+Current remote tables and RPC:
 
-- `getMockSellerProfiles()`
+- `assets_catalog`
+- `profiles`
+- `asset_protocol_links`
+- `protocol_assets`
+- `protocol_orders`
+- `get_asset_listing_stats_v1`
+
+The old durable localStorage marketplace catalog cache has been removed. The catalog starts from in-memory state and hydrates from Supabase when REST config is available.
+
+## Marketplace Map
+
+Map markers depend on `assetLocationSnapshot.coordinates`.
+
+Those coordinates are derived from delivery address geo data and asset metadata snapshots. The runtime should not create random fallback coordinates for real assets.
 
 ## Search
 
-[`src/app/components/search/search-page.tsx`](../../src/app/components/search/search-page.tsx) is a separate search surface, but it now uses the same marketplace asset dataset rather than its old demo-only card path.
+[`src/app/components/search/search-page.tsx`](../../src/app/components/search/search-page.tsx) uses the same marketplace catalog as Marketplace.
 
 Current behavior:
 
-- same underlying `MarketplaceAsset` dataset as marketplace
-- supports asset and profile search
-- supports list and grid results
-- uses a right-sidebar filter stack
-- persists search queries to local search history
+- asset and profile search
+- category and subcategory navigation
+- grid and list results
+- search history persistence
+- seller directory hydration from catalog/profile data
 
-This page is aligned with marketplace card data, but still front-end filtered rather than server queried.
+Search is frontend-filtered over the hydrated runtime catalog, not a separate search-index service.
 
 ## My Assets
 
@@ -66,63 +81,89 @@ This page is aligned with marketplace card data, but still front-end filtered ra
 Current structure:
 
 - portfolio summary panel
-- segmented tabs for `All Assets`, `RWA Minted`, `Receipts`, and `NFT Owned`
-- three current card archetypes in [`src/app/components/cards/my-asset-cards.tsx`](../../src/app/components/cards/my-asset-cards.tsx)
+- segmented tabs for all assets, RWA minted, receipts, and NFT owned
+- seller asset management modal
+- transfer/listing/receipt detail modals
+- runtime hydrated marketplace catalog context
 
-Current card groups:
+Current runtime minted asset source:
 
-- RWA owned or minted assets
-- receipt NFT cards
-- owned digital NFT cards
-
-Current modal actions:
-
-- seller asset management
-- transfer asset
-- list for sale
-- receipt detail
-
-Current data source:
-
-- wallet-specific fixtures from `getTestWalletMyAssets(address)`
-- fallback page-local mock arrays if fixture data is missing
+- [`src/utils/runtimeMintedAssets.ts`](../../src/utils/runtimeMintedAssets.ts)
+- local key `orina_runtime_minted_assets_v2:<chainId>:<assetContract>`
+- optional hydration from `protocol_assets`
 
 ## Orders
 
-[`src/app/components/orders.tsx`](../../src/app/components/orders.tsx) is the order lifecycle UI.
+[`src/app/components/orders.tsx`](../../src/app/components/orders.tsx) is the ATP lifecycle UI.
 
 Current behavior:
 
 - order search and filtering by network and state
+- role-aware buyer and seller actions
 - three-signature visual flow
-- countdowns and dispute windows
-- buyer and seller action buttons
-- detailed summary sidebar
+- countdowns for seller confirm, buyer re-sign, delivery, and auto-finalize windows
+- detail summary panels and dispute modals
+- on-chain write hooks for seller confirm, pay order, confirm delivery, and open dispute
 
-Current order actions surface through modals:
+Current order source:
 
-- seller delivery-duration confirmation
-- buyer confirm delivery
-- open dispute
-- dispute resolution
-- order details
-- confirmation and rejection flows
+- [`src/utils/runtimeOrders.ts`](../../src/utils/runtimeOrders.ts)
+- local key `orina_runtime_orders_v2:<chainId>:<marketplaceContract>`
+- optional hydration from `protocol_orders`
+- contract reconciliation through order lifecycle and protocol hooks
 
-Current order data is page-local mock data. The page models contract-like state, but it is not yet the live contract source of truth.
+## Order Lifecycle
+
+[`src/utils/orderLifecycle.ts`](../../src/utils/orderLifecycle.ts) resolves the user-facing phase:
+
+- `Waiting Seller Confirm`
+- `Seller Confirm Expired`
+- `Waiting Buyer Re-Sign`
+- `Buyer Re-Sign Expired`
+- `Agreed Delivery`
+- `Awaiting Auto Finalize`
+- `Auto Finalize Ready`
+- `Disputed`
+- `Finalized`
+- `Cancelled`
+
+The active protocol windows are:
+
+- seller confirm: 24 hours
+- buyer re-sign after revised seller timing: 24 hours
+- buyer action window after delivery time: 3 days
+- dispute period: 14 days, with one arbiter extension path
+
+## Buying Modals
+
+Current buy paths include:
+
+- [`src/app/components/rwa-buy-order-sign-modal.tsx`](../../src/app/components/rwa-buy-order-sign-modal.tsx)
+- [`src/app/components/nft-buy-direct-sign-modal.tsx`](../../src/app/components/nft-buy-direct-sign-modal.tsx)
+
+RWA purchase is the canonical ATP flow in the current deployment. The NFT-type branch exists in UI code and contract enum constants, but direct-buy NFT behavior should only be documented as release-ready after target deployment and smoke validation.
+
+## Disputes
+
+Dispute UI surfaces include:
+
+- open dispute modal
+- dispute resolution modal
+- confirm delivery modal
+- confirm release modal
+
+Dispute writes use hooks in [`src/hooks/useDisputeManager.ts`](../../src/hooks/useDisputeManager.ts), including arbiter resolution, 2-of-3 agreement, mutual split, extension, and stale-dispute resolution.
 
 ## Shared Card System
 
-Two current card families matter here:
+Two current card families matter:
 
-- [`src/app/components/search-result-card.tsx`](../../src/app/components/search-result-card.tsx) for marketplace, search, favorites, and related listing-like surfaces
+- [`src/app/components/search-result-card.tsx`](../../src/app/components/search-result-card.tsx) for listing-like surfaces
 - [`src/app/components/cards/my-asset-cards.tsx`](../../src/app/components/cards/my-asset-cards.tsx) for owned-asset surfaces
 
-These are now the canonical asset-card implementations in the UI.
-
-## Asset Details
-
-[`src/app/components/asset-details-modal.tsx`](../../src/app/components/asset-details-modal.tsx) remains the cross-feature asset drill-down surface. Marketplace and search both use it.
+Changes to listing cards usually affect Marketplace, Search, Favorites, and Profile surfaces together.
 
 ## Practical Consequence
 
-If a change affects listing cards, owned-asset cards, favorites, or asset modals, it usually spans multiple pages at once. Treat marketplace, search, favorites, and profile favorites as one card ecosystem, not independent implementations.
+Treat on-chain contract state as authoritative, Supabase protocol tables as projections, and local runtime records as wallet-scoped cache/shadow state. Do not describe a remote projection as contract truth, and do not describe old mock data as the active marketplace source.
+

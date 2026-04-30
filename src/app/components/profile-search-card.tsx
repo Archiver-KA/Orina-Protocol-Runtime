@@ -29,8 +29,8 @@ export function ProfileSearchCard({ profile, viewMode, onViewProfile, onFollowCh
       setFollowing(false);
       return;
     }
-    setFollowing(isFollowing(connectedAddress, profile.address));
-  }, [connectedAddress, profile.address]);
+    setFollowing(Boolean(profile.isFollowing) || isFollowing(connectedAddress, profile.address));
+  }, [connectedAddress, profile.address, profile.isFollowing]);
 
   const handleClick = () => onViewProfile?.(profile.address);
   const isOwnCard = !!connectedAddress && connectedAddress.toLowerCase() === profile.address.toLowerCase();

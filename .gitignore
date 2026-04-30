@@ -59,8 +59,9 @@ data/geo/vendor/
 /console.log((i+336)+'
 /l.includes('text-ui')
 /line.startsWith(k+'
-/({
-/{let
+/([{]
+/[{]let
+/temp/
 
 # Cloudflare local metadata
 .wrangler/
