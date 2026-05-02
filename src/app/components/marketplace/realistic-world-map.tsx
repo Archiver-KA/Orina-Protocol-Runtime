@@ -347,38 +347,38 @@ export function RealisticWorldMap({
       {/* Hover-expand Stats Bar */}
       <div className="absolute left-4 top-4 z-20 pointer-events-auto">
         <div
-          className="group flex max-w-[calc(100vw-7rem)] items-center gap-1 overflow-hidden rounded-full border border-white/[0.06] bg-[rgba(18,19,23,0.72)] px-2 py-2 backdrop-blur-[12px] shadow-[0_18px_34px_-22px_rgba(0,0,0,0.58)] transition-all duration-300 select-none hover:gap-2 hover:bg-[rgba(18,19,23,0.9)] hover:px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/45"
+          className="group flex max-w-[calc(100vw-7rem)] items-center gap-1 overflow-hidden rounded-full bg-[var(--t-card-bg)] px-2 py-2 text-ui-secondary shadow-[0_18px_34px_-24px_rgba(0,0,0,0.58)] backdrop-blur-[12px] transition-all duration-300 select-none hover:gap-2 hover:px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/45"
           role="group"
           tabIndex={0}
           title={`${filteredAssets.length.toLocaleString()} visible assets of ${totalListings.toLocaleString()} total listings; ${verifiedCount.toLocaleString()} verified assets`}
           aria-label={`${filteredAssets.length.toLocaleString()} visible assets, ${displayMarkers.length.toLocaleString()} pins, ${visibleSupplierCount.toLocaleString()} suppliers, ${totalSuccessfulSales.toLocaleString()} sales`}
         >
-          <div className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1 transition-colors duration-300 group-hover:bg-white/[0.04] group-focus-within:bg-white/[0.04]">
+          <div className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1 transition-colors duration-300 group-hover:bg-[var(--t-surface-5)] group-focus-within:bg-[var(--t-surface-5)]">
             <div className="h-2.5 w-2.5 rounded-full bg-[#2CC295]" />
-            <span className="text-[12px] font-semibold text-white group-hover:hidden group-focus-within:hidden">{formatCompactCount(filteredAssets.length)}</span>
-            <span className="hidden text-[13px] font-semibold text-white group-hover:inline group-focus-within:inline">{filteredAssets.length.toLocaleString()}</span>
-            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] text-[rgba(203,213,225,0.9)] opacity-0 transition-all duration-300 group-hover:max-w-[52px] group-hover:opacity-100 group-focus-within:max-w-[52px] group-focus-within:opacity-100">Assets</span>
+            <span className="text-[12px] font-semibold text-ui-primary group-hover:hidden group-focus-within:hidden">{formatCompactCount(filteredAssets.length)}</span>
+            <span className="hidden text-[13px] font-semibold text-ui-primary group-hover:inline group-focus-within:inline">{filteredAssets.length.toLocaleString()}</span>
+            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] text-ui-secondary opacity-0 transition-all duration-300 group-hover:max-w-[52px] group-hover:opacity-100 group-focus-within:max-w-[52px] group-focus-within:opacity-100">Assets</span>
           </div>
-          <div className="h-4 w-px scale-y-0 bg-white/10 opacity-0 transition-all duration-300 group-hover:scale-y-100 group-hover:opacity-100 group-focus-within:scale-y-100 group-focus-within:opacity-100" />
-          <div className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1 transition-colors duration-300 group-hover:bg-white/[0.04] group-focus-within:bg-white/[0.04]">
-            <MapPin size={13} className="text-[rgba(148,163,184,0.82)]" />
-            <span className="text-[12px] font-semibold text-white group-hover:hidden group-focus-within:hidden">{formatCompactCount(displayMarkers.length)}</span>
-            <span className="hidden text-[13px] font-semibold text-white group-hover:inline group-focus-within:inline">{displayMarkers.length.toLocaleString()}</span>
-            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] text-[rgba(203,213,225,0.9)] opacity-0 transition-all duration-300 group-hover:max-w-[32px] group-hover:opacity-100 group-focus-within:max-w-[32px] group-focus-within:opacity-100">Pins</span>
+          <div className="h-4 w-px scale-y-0 bg-ui-border-subtle opacity-0 transition-all duration-300 group-hover:scale-y-100 group-hover:opacity-100 group-focus-within:scale-y-100 group-focus-within:opacity-100" />
+          <div className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1 transition-colors duration-300 group-hover:bg-[var(--t-surface-5)] group-focus-within:bg-[var(--t-surface-5)]">
+            <MapPin size={13} className="text-ui-muted" />
+            <span className="text-[12px] font-semibold text-ui-primary group-hover:hidden group-focus-within:hidden">{formatCompactCount(displayMarkers.length)}</span>
+            <span className="hidden text-[13px] font-semibold text-ui-primary group-hover:inline group-focus-within:inline">{displayMarkers.length.toLocaleString()}</span>
+            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] text-ui-secondary opacity-0 transition-all duration-300 group-hover:max-w-[32px] group-hover:opacity-100 group-focus-within:max-w-[32px] group-focus-within:opacity-100">Pins</span>
           </div>
-          <div className="h-4 w-px scale-y-0 bg-white/10 opacity-0 transition-all duration-300 group-hover:scale-y-100 group-hover:opacity-100 group-focus-within:scale-y-100 group-focus-within:opacity-100" />
-          <div className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1 transition-colors duration-300 group-hover:bg-white/[0.04] group-focus-within:bg-white/[0.04]">
-            <Users size={13} className="text-[rgba(148,163,184,0.82)]" />
-            <span className="text-[12px] font-semibold text-white group-hover:hidden group-focus-within:hidden">{formatCompactCount(visibleSupplierCount)}</span>
-            <span className="hidden text-[13px] font-semibold text-white group-hover:inline group-focus-within:inline">{visibleSupplierCount.toLocaleString()}</span>
-            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] text-[rgba(203,213,225,0.9)] opacity-0 transition-all duration-300 group-hover:max-w-[66px] group-hover:opacity-100 group-focus-within:max-w-[66px] group-focus-within:opacity-100">Suppliers</span>
+          <div className="h-4 w-px scale-y-0 bg-ui-border-subtle opacity-0 transition-all duration-300 group-hover:scale-y-100 group-hover:opacity-100 group-focus-within:scale-y-100 group-focus-within:opacity-100" />
+          <div className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1 transition-colors duration-300 group-hover:bg-[var(--t-surface-5)] group-focus-within:bg-[var(--t-surface-5)]">
+            <Users size={13} className="text-ui-muted" />
+            <span className="text-[12px] font-semibold text-ui-primary group-hover:hidden group-focus-within:hidden">{formatCompactCount(visibleSupplierCount)}</span>
+            <span className="hidden text-[13px] font-semibold text-ui-primary group-hover:inline group-focus-within:inline">{visibleSupplierCount.toLocaleString()}</span>
+            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] text-ui-secondary opacity-0 transition-all duration-300 group-hover:max-w-[66px] group-hover:opacity-100 group-focus-within:max-w-[66px] group-focus-within:opacity-100">Suppliers</span>
           </div>
-          <div className="h-4 w-px scale-y-0 bg-white/10 opacity-0 transition-all duration-300 group-hover:scale-y-100 group-hover:opacity-100 group-focus-within:scale-y-100 group-focus-within:opacity-100" />
-          <div className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1 transition-colors duration-300 group-hover:bg-white/[0.04] group-focus-within:bg-white/[0.04]">
-            <TrendingUp size={13} className="text-[rgba(148,163,184,0.82)]" />
-            <span className="text-[12px] font-semibold text-white group-hover:hidden group-focus-within:hidden">{formatCompactCount(totalSuccessfulSales)}</span>
-            <span className="hidden text-[13px] font-semibold text-white group-hover:inline group-focus-within:inline">{totalSuccessfulSales.toLocaleString()}</span>
-            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] text-[rgba(203,213,225,0.9)] opacity-0 transition-all duration-300 group-hover:max-w-[42px] group-hover:opacity-100 group-focus-within:max-w-[42px] group-focus-within:opacity-100">Sales</span>
+          <div className="h-4 w-px scale-y-0 bg-ui-border-subtle opacity-0 transition-all duration-300 group-hover:scale-y-100 group-hover:opacity-100 group-focus-within:scale-y-100 group-focus-within:opacity-100" />
+          <div className="flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1 transition-colors duration-300 group-hover:bg-[var(--t-surface-5)] group-focus-within:bg-[var(--t-surface-5)]">
+            <TrendingUp size={13} className="text-ui-muted" />
+            <span className="text-[12px] font-semibold text-ui-primary group-hover:hidden group-focus-within:hidden">{formatCompactCount(totalSuccessfulSales)}</span>
+            <span className="hidden text-[13px] font-semibold text-ui-primary group-hover:inline group-focus-within:inline">{totalSuccessfulSales.toLocaleString()}</span>
+            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] text-ui-secondary opacity-0 transition-all duration-300 group-hover:max-w-[42px] group-hover:opacity-100 group-focus-within:max-w-[42px] group-focus-within:opacity-100">Sales</span>
           </div>
         </div>
       </div>
@@ -411,35 +411,39 @@ export function RealisticWorldMap({
       </div>
 
       <div
-        className="group pointer-events-auto absolute bottom-4 left-4 z-20 max-w-[min(310px,calc(100vw-2rem))] overflow-hidden rounded-full border border-white/[0.08] bg-[rgba(18,19,23,0.72)] text-[11px] text-[rgba(226,232,240,0.82)] shadow-[0_18px_34px_-24px_rgba(0,0,0,0.62)] backdrop-blur-[14px] transition-all duration-300 hover:rounded-[18px] hover:bg-[rgba(18,19,23,0.9)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/45"
+        className="group pointer-events-auto absolute bottom-4 left-4 z-20 w-[360px] max-w-[calc(100%-2rem)] select-none overflow-hidden rounded-[20px] bg-[var(--t-card-bg)] text-[11px] text-ui-secondary shadow-[0_18px_34px_-24px_rgba(0,0,0,0.62)] backdrop-blur-[14px] transition-[box-shadow] duration-200 hover:shadow-[0_22px_42px_-26px_rgba(0,0,0,0.72)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/45"
         role="group"
         tabIndex={0}
         aria-label={`Map density: ${zoomModeLabel}`}
       >
-        <div className="flex items-center justify-between gap-3 px-3 py-2">
-          <span className="inline-flex items-center gap-2 font-semibold uppercase tracking-[0.16em] text-white/52">
-            <Gauge size={13} className="text-[#2CC295]" />
-            Density
+        <div className="flex min-w-0 items-center justify-between gap-3 px-4 py-3">
+          <span className="inline-flex min-w-0 items-center gap-2 font-semibold uppercase tracking-[0.16em] text-ui-muted">
+            <Gauge size={13} className="shrink-0 text-[#2CC295]" />
+            <span className="truncate">Density</span>
           </span>
-          <span className="font-semibold text-white">{zoomModeLabel}</span>
+          <span className="shrink-0 whitespace-nowrap text-right font-semibold text-ui-primary">{zoomModeLabel}</span>
         </div>
-        <div className="max-h-0 overflow-hidden px-3 opacity-0 transition-all duration-300 group-hover:max-h-[140px] group-hover:pb-3 group-hover:opacity-100 group-focus-within:max-h-[140px] group-focus-within:pb-3 group-focus-within:opacity-100">
-          <p className="leading-5 text-white/60">
-            Zoomed-out views rank pins by sales, trust, seller scale, and engagement. Zoom in to reveal denser suppliers and individual assets.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-2 py-1">
-              <span className="h-2 w-2 rounded-full bg-[#f5b84b]" />
-              Sales
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-2 py-1">
-              <span className="h-2 w-2 rounded-full bg-[#2CC295]" />
-              Trusted
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-2 py-1">
-              <span className="h-2 w-2 rounded-full bg-[#8da3ad]" />
-              Standard
-            </span>
+        <div className="grid grid-rows-[0fr] opacity-0 transition-[grid-template-rows,opacity] duration-200 ease-out group-hover:grid-rows-[1fr] group-hover:opacity-100 group-focus-within:grid-rows-[1fr] group-focus-within:opacity-100">
+          <div className="min-h-0 overflow-hidden">
+            <div className="px-4 pb-4">
+              <p className="max-w-[32rem] leading-5 text-ui-secondary">
+                Zoomed-out views rank pins by sales, trust, seller scale, and engagement. Zoom in to reveal denser suppliers and individual assets.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--t-surface-5)] px-2 py-1 text-ui-secondary">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#f5b84b]" />
+                  Sales
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--t-surface-5)] px-2 py-1 text-ui-secondary">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#2CC295]" />
+                  Trusted
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--t-surface-5)] px-2 py-1 text-ui-secondary">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#8da3ad]" />
+                  Standard
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

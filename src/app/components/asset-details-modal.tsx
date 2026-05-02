@@ -357,7 +357,7 @@ export function AssetDetailsModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className={`studio-portal-backdrop fixed inset-0 ${zIndexClassName} flex items-center justify-center bg-black/78 p-6 backdrop-blur-[16px]`}
+        className={`studio-portal-backdrop fixed inset-0 ${zIndexClassName} flex items-stretch justify-center bg-black/78 p-0 backdrop-blur-[16px] sm:items-center sm:p-6`}
         onClick={handleOverlayClick}
       >
         <motion.div
@@ -365,15 +365,15 @@ export function AssetDetailsModal({
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           transition={{ type: "spring", duration: 0.3 }}
-          className="relative z-[1] w-full max-w-5xl max-h-[95vh] md:h-[95vh]"
+          className="relative z-[1] h-[100dvh] max-h-[100dvh] w-full max-w-none sm:h-auto sm:max-h-[95vh] sm:max-w-5xl md:h-[95vh]"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="studio-modal-theme studio-glass-modal flex w-full max-w-5xl max-h-[95vh] flex-col overflow-hidden rounded-[32px] border border-ui-border-subtle bg-[var(--t-card-bg)] shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)] backdrop-blur-[20px] md:h-[95vh]">
+          <div className="studio-modal-theme studio-glass-modal flex h-full w-full max-w-none flex-col overflow-hidden rounded-none border-0 bg-[var(--t-card-bg)] shadow-none backdrop-blur-[20px] sm:max-h-[95vh] sm:max-w-5xl sm:rounded-[32px] sm:border sm:border-ui-border-subtle sm:shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)] md:h-[95vh]">
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar md:overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-0 min-h-full md:h-full md:min-h-0">
               {/* Left Column - Image & Properties */}
               <div className="studio-glass-header bg-[var(--t-surface-2)] md:h-full md:min-h-0 md:overflow-hidden">
-                <div className="p-8 flex flex-col h-full min-h-0 overflow-y-auto custom-scrollbar overscroll-contain">
+                <div className="flex h-full min-h-0 flex-col overflow-y-auto p-4 custom-scrollbar overscroll-contain sm:p-6 md:p-8">
                   {/* Image Preview */}
                   <div className={`${sectionShellClassName} relative flex aspect-square shrink-0 items-center justify-center overflow-hidden rounded-[2rem] p-4 backdrop-blur-xl`}>
                     <img
@@ -431,22 +431,22 @@ export function AssetDetailsModal({
                   </div>
 
                   {/* Tabs & Properties */}
-                  <div className="mt-8">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)] p-1.5">
+                  <div className="mt-5 sm:mt-8">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="grid w-full grid-cols-4 items-center gap-1 rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)] p-1 sm:inline-grid sm:w-auto sm:gap-2 sm:p-1.5">
                           {['Description', 'Properties', 'History', 'Details'].map((tab) => (
                             <button
                               key={tab}
                               type="button"
                               onClick={() => setActiveTab(tab)}
-                              className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold tracking-[-0.01em] transition-colors ${
+                              className={`inline-flex min-w-0 items-center justify-center rounded-full px-1.5 py-2.5 text-[11px] font-semibold tracking-[-0.01em] transition-colors sm:px-5 sm:text-sm ${
                                 activeTab === tab
                                   ? 'bg-[var(--t-card-bg)] text-ui-primary shadow-[0_18px_35px_-28px_rgba(0,0,0,0.3)]'
                                   : 'text-ui-secondary hover:bg-[var(--t-surface-10)] hover:text-ui-primary'
                               }`}
                             >
-                              {tab}
+                              <span className="truncate">{tab}</span>
                             </button>
                           ))}
                         </div>
@@ -454,7 +454,7 @@ export function AssetDetailsModal({
                     </div>
 
                     {/* Tab Content - Fixed Height */}
-                    <div className={`${sectionShellClassName} min-h-[320px] p-5`}>
+                    <div className={`${sectionShellClassName} min-h-[320px] p-4 sm:p-5`}>
                       {/* Tab Content */}
                       {activeTab === 'Description' && (
                         <div className="space-y-3">
@@ -620,7 +620,7 @@ export function AssetDetailsModal({
               </div>
 
               {/* Right Column - Details & Purchase */}
-              <div className="p-8 flex flex-col gap-5 min-h-0 md:h-full md:overflow-y-auto custom-scrollbar overscroll-contain">
+              <div className="flex min-h-0 flex-col gap-4 p-4 custom-scrollbar overscroll-contain sm:p-6 md:h-full md:gap-5 md:overflow-y-auto md:p-8">
                 {/* Header */}
                 <div>
                   <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -640,8 +640,8 @@ export function AssetDetailsModal({
                     )}
                   </div>
                   <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h2 className="mb-2 text-[32px] font-semibold leading-[1.08] tracking-[-0.03em] text-ui-primary">{asset.name}</h2>
+                    <div className="min-w-0">
+                      <h2 className="mb-2 text-[22px] font-semibold leading-[1.12] tracking-[-0.02em] text-ui-primary sm:text-[28px] md:text-[32px] md:leading-[1.08] md:tracking-[-0.03em]">{asset.name}</h2>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                         {assetListingDuration && (
                           <div className="flex items-center gap-1.5 text-xs">

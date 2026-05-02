@@ -1,4 +1,4 @@
-import { Search } from 'lucide-react';
+import { MessageCircle, Search, Store } from 'lucide-react';
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NotificationCenter } from '@/app/components/notifications/notification-center';
@@ -35,8 +35,8 @@ type IdleSchedulerWindow = Window & {
 };
 
 const PRIMARY_NAV_LINKS = [
-  { id: 'marketplace', label: 'Marketplace' },
-  { id: 'community', label: 'Community' },
+  { id: 'marketplace', label: 'Marketplace', Icon: Store },
+  { id: 'community', label: 'Community', Icon: MessageCircle },
 ];
 
 function formatCompactCount(value: number): string {
@@ -241,7 +241,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
 
   return (
     <nav
-      className="relative mx-2.5 mt-2.5 flex h-[var(--t-shell-nav-h)] items-center gap-4 rounded-[var(--t-shell-nav-radius)] px-[var(--t-shell-nav-x)] z-20"
+      className="relative mx-2.5 mt-2.5 flex h-[var(--t-shell-nav-h)] items-center gap-2 rounded-[var(--t-shell-nav-radius)] px-[var(--t-shell-nav-x)] z-20 sm:gap-4"
       style={{
         background: 'rgba(18, 18, 18, 1)',
         borderBottom: '0.666667px solid #000000',
@@ -250,7 +250,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
       }}
       data-page={activePage}
     >
-      <div className="flex items-center gap-4 shrink-0">
+      <div className="flex items-center gap-2 shrink-0 sm:gap-4">
         {isGuest && (
           <button
             type="button"
@@ -265,22 +265,26 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
           </button>
         )}
 
-        <div className="flex items-center gap-7">
+        <div className="flex items-center gap-1 sm:gap-7">
           {PRIMARY_NAV_LINKS.map((item) => {
             const isActive = activePage === item.id;
+            const Icon = item.Icon;
             return (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setActivePage(item.id)}
-                className={`px-0 py-2 text-[13px] font-medium leading-none transition-colors ${
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-[13px] font-medium leading-none transition-colors sm:h-auto sm:w-auto sm:rounded-none sm:px-0 sm:py-2 ${
                   isActive
-                    ? 'text-white'
-                    : 'text-[rgba(226,232,240,0.72)] hover:text-white'
+                    ? 'bg-[var(--t-nav-pill-bg)] text-white sm:bg-transparent'
+                    : 'text-[rgba(226,232,240,0.72)] hover:bg-[var(--t-nav-pill-bg)] hover:text-white sm:hover:bg-transparent'
                 }`}
                 style={{ fontFamily: "'Space Grotesk', var(--font-sans)" }}
+                aria-label={item.label}
+                title={item.label}
               >
-                {item.label}
+                <Icon size={19} className="sm:hidden" aria-hidden="true" />
+                <span className="hidden sm:inline">{item.label}</span>
               </button>
             );
           })}
