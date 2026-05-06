@@ -14,9 +14,10 @@ import { formatUserDisplayName } from '@/utils/profileUtils';
 interface WalletConnectButtonProps {
   onNavigate?: (page: string) => void;
   sidebarCollapsed?: boolean;
+  dropdownItem?: boolean;
 }
 
-export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: WalletConnectButtonProps) {
+export function WalletConnectButton({ onNavigate, sidebarCollapsed = false, dropdownItem = false }: WalletConnectButtonProps) {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const { openConnectModal } = useWalletModalContext();
@@ -157,6 +158,20 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
   );
 
   if (!isConnected || forceGuestMode || access.isGuest) {
+    if (dropdownItem) {
+      return (
+        <button
+          onClick={handleConnect}
+          aria-label="Connect Wallet"
+          title="Connect Wallet"
+          className="wallet-dropdown-item flex h-11 w-full items-center gap-3 rounded-[12px] px-4 text-left text-[rgba(203,213,225,0.92)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
+        >
+          <Wallet size={18} className="shrink-0 text-[rgba(148,163,184,0.9)]" aria-hidden="true" />
+          <span className="text-xs font-semibold">Connect Wallet</span>
+        </button>
+      );
+    }
+
     // Collapsed: icon only connect button
     if (sidebarCollapsed) {
       return (
@@ -207,14 +222,18 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false }: Wa
 
   // Expanded state: name + avatar
   return (
-    <div className="relative" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+    <div className={dropdownItem ? 'relative w-full' : 'relative'} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
       <button
         onMouseEnter={handleMouseEnter}
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        className="wallet-dropdown-trigger flex h-[var(--t-shell-icon-button)] min-w-[132px] max-w-[220px] items-center justify-between gap-2 rounded-full bg-[rgba(18,18,18,0.5)] px-3 shadow-none transition-all hover:bg-[rgba(18,18,18,0.65)] max-sm:w-[var(--t-shell-icon-button)] max-sm:min-w-0 max-sm:justify-center max-sm:px-0"
+        className={
+          dropdownItem
+            ? 'wallet-dropdown-trigger flex h-11 w-full items-center justify-between gap-3 rounded-[12px] px-4 text-left text-[rgba(203,213,225,0.92)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white'
+            : 'wallet-dropdown-trigger flex h-[var(--t-shell-icon-button)] min-w-[132px] max-w-[220px] items-center justify-between gap-2 rounded-full bg-[rgba(18,18,18,0.5)] px-3 shadow-none transition-all hover:bg-[rgba(18,18,18,0.65)] max-sm:w-[var(--t-shell-icon-button)] max-sm:min-w-0 max-sm:justify-center max-sm:px-0'
+        }
       >
-        <div className="hidden min-w-0 flex-1 text-left sm:block">
-          <span className="text-[14px] leading-none font-semibold text-[rgba(241,245,249,0.96)] block truncate">
+        <div className={`${dropdownItem ? 'block' : 'hidden sm:block'} min-w-0 flex-1 text-left`}>
+          <span className={`${dropdownItem ? 'text-xs' : 'text-[14px]'} leading-none font-semibold text-[rgba(241,245,249,0.96)] block truncate`}>
             {navLabel}
           </span>
         </div>

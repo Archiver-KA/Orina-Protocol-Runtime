@@ -1,4 +1,4 @@
-import { MessageCircle, Search, Store } from 'lucide-react';
+import { Menu, MessageCircle, Search, Store } from 'lucide-react';
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NotificationCenter } from '@/app/components/notifications/notification-center';
@@ -86,7 +86,9 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
   const [collectionCategories, setCollectionCategories] = useState<string[]>([]);
   const [taxonomyVersion, setTaxonomyVersion] = useState(0);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const searchWrapRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const shouldWarmSearchData = isSearchOpen || activePage === 'marketplace' || activePage === 'search';
   const warmSearchData = useCallback(() => {
@@ -129,6 +131,17 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
     onSearch?.(query);
     setActivePage('search');
     setIsSearchOpen(false);
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleMobileNavClick = (page: string) => {
+    setActivePage(page);
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleMobileAIClick = () => {
+    onToggleAI?.();
+    setIsMobileMenuOpen(false);
   };
 
   useEffect(() => {
@@ -154,9 +167,12 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (!searchWrapRef.current) return;
-      if (!searchWrapRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (searchWrapRef.current && !searchWrapRef.current.contains(target)) {
         setIsSearchOpen(false);
+      }
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(target)) {
+        setIsMobileMenuOpen(false);
       }
     };
 
@@ -265,7 +281,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
           </button>
         )}
 
-        <div className="flex items-center gap-1 sm:gap-7">
+        <div className="hidden items-center gap-7 sm:flex">
           {PRIMARY_NAV_LINKS.map((item) => {
             const isActive = activePage === item.id;
             const Icon = item.Icon;
@@ -291,7 +307,7 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
         </div>
       </div>
 
-      <div ref={searchWrapRef} className="relative min-w-0 flex-1 max-w-[var(--t-shell-nav-search-max-w)] md:ml-[var(--t-shell-nav-search-offset)]">
+      <div ref={searchWrapRef} className="relative min-w-0 flex-1 max-w-none sm:max-w-[var(--t-shell-nav-search-max-w)] md:ml-[var(--t-shell-nav-search-offset)]">
         <form onSubmit={handleSearchSubmit}>
           <div
             className="relative h-[var(--t-shell-nav-search-h)] rounded-full"
@@ -312,8 +328,9 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
               onFocus={() => {
                 warmSearchData();
                 setIsSearchOpen(true);
+                setIsMobileMenuOpen(false);
               }}
-              placeholder="Search assets, collections, or categories..."
+              placeholder="Search..."
               className="w-full h-full rounded-full border-0 bg-transparent pl-10 pr-4 text-[13px] leading-[17px] font-normal text-ui-secondary outline-none placeholder:text-ui-muted"
               style={{ fontFamily: "'Space Grotesk', var(--font-sans)" }}
             />
@@ -395,7 +412,97 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
         </AnimatePresence>
       </div>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div ref={mobileMenuRef} className="relative ml-auto flex shrink-0 sm:hidden">
+        <button
+          type="button"
+          onClick={() => {
+            setIsSearchOpen(false);
+            setIsMobileMenuOpen((value) => !value);
+          }}
+          className="inline-flex h-[var(--t-shell-icon-button)] w-[var(--t-shell-icon-button)] items-center justify-center rounded-full text-[rgba(226,232,240,0.82)] transition-colors hover:bg-[var(--t-nav-pill-bg)] hover:text-white"
+          aria-label="Open navigation menu"
+          aria-expanded={isMobileMenuOpen}
+          title="Menu"
+        >
+          <Menu size={19} />
+        </button>
+
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.16 }}
+              className="nativebar-dropdown-panel dropdown-panel absolute right-0 top-full z-50 mt-2 w-[min(82vw,280px)] overflow-hidden rounded-[var(--t-card-radius-lg)] pb-2"
+              style={{
+                background: 'rgba(18, 18, 18, 1)',
+                backdropFilter: 'blur(20px) saturate(140%)',
+                WebkitBackdropFilter: 'blur(20px) saturate(140%)',
+              }}
+            >
+              <div className="px-3 py-3">
+                <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[rgba(148,163,184,0.86)]">
+                  Navigate
+                </p>
+                <div className="space-y-1">
+                  {PRIMARY_NAV_LINKS.map((item) => {
+                    const Icon = item.Icon;
+                    const isActive = activePage === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleMobileNavClick(item.id)}
+                        className={`flex h-11 w-full items-center gap-3 rounded-[12px] px-4 text-left transition-colors ${
+                          isActive
+                            ? 'bg-[rgba(255,255,255,0.08)] text-white'
+                            : 'text-[rgba(203,213,225,0.92)] hover:bg-[rgba(255,255,255,0.05)] hover:text-white'
+                        }`}
+                      >
+                        <Icon size={18} className="shrink-0 text-[rgba(148,163,184,0.9)]" />
+                        <span className="text-xs font-semibold">{item.label}</span>
+                      </button>
+                    );
+                  })}
+
+                  {onToggleAI && (
+                    <button
+                      type="button"
+                      onClick={handleMobileAIClick}
+                      className={`flex h-11 w-full items-center justify-between gap-3 rounded-[12px] px-4 text-left transition-colors ${
+                        aiActive
+                          ? 'bg-[rgba(255,255,255,0.08)] text-white'
+                          : 'text-[rgba(203,213,225,0.92)] hover:bg-[rgba(255,255,255,0.05)] hover:text-white'
+                      }`}
+                    >
+                      <span className="flex min-w-0 items-center gap-3">
+                        <img src="/flower-static.svg" alt="" className="h-[18px] w-[18px] shrink-0 opacity-80" />
+                        <span className="text-xs font-semibold">ORINA AI</span>
+                      </span>
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[rgba(148,163,184,0.82)]">
+                        {aiActive ? 'On' : 'Off'}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="border-t border-white/5 px-3 pt-2">
+                <WalletConnectButton
+                  dropdownItem
+                  onNavigate={(page) => {
+                    setIsMobileMenuOpen(false);
+                    setActivePage(page);
+                  }}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <div className="ml-auto hidden items-center gap-3 sm:flex">
         {onToggleAI && (
           <button
             type="button"

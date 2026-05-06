@@ -14,6 +14,7 @@ import { CollectionCard } from './collection-card';
 import { EmptyStateCard } from '@/app/components/ui/empty-state-card';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { ProgressiveMarketplaceMapSurface } from '@/app/components/marketplace/progressive-marketplace-map-surface';
+import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { StudioPillGroup, StudioPillButton } from '@/app/components/ui/studio-pill-group';
 import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { loadFavorites, toggleFavorite } from '@/utils/favoritesUtils';
@@ -1675,15 +1676,25 @@ export function Marketplace({
                     {hasMoreResults && (
                       <>
                         <div ref={resultsLoadMoreSentinelRef} aria-hidden="true" className="h-px" />
-                        <div className="flex justify-center py-6">
-                          <button
-                            type="button"
-                            onClick={requestMoreResults}
-                            disabled={isLoadingMoreResults}
-                            className="inline-flex h-11 items-center justify-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)] px-5 text-[13px] font-semibold text-ui-secondary transition-colors hover:bg-[var(--t-card-bg)] hover:text-ui-primary"
-                          >
-                            {isLoadingMoreResults ? 'Loading results...' : 'Load more results'}
-                          </button>
+                        <div className="flex min-h-11 justify-center py-6">
+                          {isLoadingMoreResults ? (
+                            <StudioLoadingIndicator
+                              role="status"
+                              aria-live="polite"
+                              tone="muted"
+                              size={18}
+                              label="Loading results..."
+                              labelClassName="text-[13px] font-semibold text-ui-secondary"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={requestMoreResults}
+                              className="inline-flex h-11 items-center justify-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)] px-5 text-[13px] font-semibold text-ui-secondary transition-colors hover:bg-[var(--t-card-bg)] hover:text-ui-primary"
+                            >
+                              Load more results
+                            </button>
+                          )}
                         </div>
                       </>
                     )}

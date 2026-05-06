@@ -1207,16 +1207,26 @@ export function SearchPage({
             {hasMoreEntityResults && (
               <>
                 <div ref={resultsLoadMoreSentinelRef} aria-hidden="true" className="h-px" />
-                <div className="flex justify-center py-6">
-                  <StudioActionButton
-                    type="button"
-                    onClick={requestMoreEntityResults}
-                    disabled={isLoadingMoreEntityResults}
-                    variant="secondary"
-                    className="px-5 py-2.5 text-sm"
-                  >
-                    {isLoadingMoreEntityResults ? 'Loading results...' : 'Load more results'}
-                  </StudioActionButton>
+                <div className="flex min-h-11 justify-center py-6">
+                  {isLoadingMoreEntityResults ? (
+                    <StudioLoadingIndicator
+                      role="status"
+                      aria-live="polite"
+                      tone="muted"
+                      size={18}
+                      label="Loading results..."
+                      labelClassName="text-sm font-semibold text-ui-secondary"
+                    />
+                  ) : (
+                    <StudioActionButton
+                      type="button"
+                      onClick={requestMoreEntityResults}
+                      variant="secondary"
+                      className="px-5 py-2.5 text-sm"
+                    >
+                      Load more results
+                    </StudioActionButton>
+                  )}
                 </div>
               </>
             )}

@@ -109,7 +109,7 @@ export function PublicNavbar({
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               onFocus={() => warmRuntime(onWarmRuntime)}
-              placeholder="Search assets, collections, or categories..."
+              placeholder="Search..."
               className="h-full w-full rounded-full border-0 bg-transparent pl-10 pr-4 text-[13px] leading-[17px] font-normal text-ui-secondary outline-none placeholder:text-ui-muted"
               style={{ fontFamily: "'Space Grotesk', var(--font-sans)" }}
             />
