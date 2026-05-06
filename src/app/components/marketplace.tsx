@@ -598,6 +598,7 @@ export function Marketplace({
   const [mapEngineRequested, setMapEngineRequested] = useState(() => initialViewMode === 'map');
   const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>([]);
   const [catalogHydrationStatus, setCatalogHydrationStatus] = useState<MarketplaceCatalogHydrationStatus>('loading');
+  const [catalogPageQueryKey, setCatalogPageQueryKey] = useState('');
   const [marketplaceCatalogCursor, setMarketplaceCatalogCursor] = useState<MarketplaceCatalogPageCursor | null>(null);
   const [hasMoreMarketplaceAssets, setHasMoreMarketplaceAssets] = useState(false);
   const [isLoadingMoreMarketplaceAssets, setIsLoadingMoreMarketplaceAssets] = useState(false);
@@ -616,6 +617,7 @@ export function Marketplace({
   const catalogRequestIdRef = useRef(0);
   const profileRequestIdRef = useRef(0);
   const collectionRequestIdRef = useRef(0);
+  const assetResultRenderLimitRef = useRef(resultRenderLimit);
   const resultsScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const resultsLoadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const [taxonomyVersion, setTaxonomyVersion] = useState(0);
@@ -623,6 +625,12 @@ export function Marketplace({
   const viewer = useEffectiveViewer();
   const { address } = viewer;
   const { requireWalletAction } = useRequireWalletAction(onNavigateToPage);
+
+  useEffect(() => {
+    if (contentMode === 'assets') {
+      assetResultRenderLimitRef.current = resultRenderLimit;
+    }
+  }, [contentMode, resultRenderLimit]);
 
   const requestMapEngine = useCallback(() => {
     setMapEngineRequested((current) => {
@@ -736,9 +744,16 @@ export function Marketplace({
     let cancelled = false;
 
     if (contentMode !== 'assets') {
-      setCatalogHydrationStatus('ready');
       setIsLoadingMoreMarketplaceAssets(false);
-      setHasMoreMarketplaceAssets(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (
+      (catalogHydrationStatus === 'ready' || catalogHydrationStatus === 'error') &&
+      catalogPageQueryKey === marketplaceCatalogQueryKey
+    ) {
       return () => {
         cancelled = true;
       };
@@ -759,6 +774,7 @@ export function Marketplace({
         setMarketplaceAssets(page.assets);
         setMarketplaceCatalogCursor(page.nextCursor);
         setHasMoreMarketplaceAssets(page.hasMore);
+        setCatalogPageQueryKey(marketplaceCatalogQueryKey);
         setCatalogHydrationStatus('ready');
       })
       .catch(() => {
@@ -766,13 +782,14 @@ export function Marketplace({
         setMarketplaceAssets([]);
         setMarketplaceCatalogCursor(null);
         setHasMoreMarketplaceAssets(false);
+        setCatalogPageQueryKey(marketplaceCatalogQueryKey);
         setCatalogHydrationStatus('error');
       });
 
     return () => {
       cancelled = true;
     };
-  }, [contentMode, marketplaceCatalogQuery, marketplaceCatalogQueryKey]);
+  }, [catalogHydrationStatus, catalogPageQueryKey, contentMode, marketplaceCatalogQuery, marketplaceCatalogQueryKey]);
 
   useEffect(() => {
     profileRequestIdRef.current += 1;
@@ -1010,7 +1027,8 @@ export function Marketplace({
       !hasMoreMarketplaceAssets ||
       !marketplaceCatalogCursor ||
       isLoadingMoreMarketplaceAssets ||
-      catalogHydrationStatus !== 'ready'
+      catalogHydrationStatus !== 'ready' ||
+      catalogPageQueryKey !== marketplaceCatalogQueryKey
     ) {
       return;
     }
@@ -1037,11 +1055,13 @@ export function Marketplace({
       });
   }, [
     catalogHydrationStatus,
+    catalogPageQueryKey,
     contentMode,
     hasMoreMarketplaceAssets,
     isLoadingMoreMarketplaceAssets,
     marketplaceCatalogCursor,
     marketplaceCatalogQuery,
+    marketplaceCatalogQueryKey,
   ]);
   const loadMoreMarketplaceProfiles = useCallback(() => {
     if (
@@ -1144,6 +1164,7 @@ export function Marketplace({
     viewMode !== 'map' &&
     contentMode === 'assets' &&
     catalogHydrationStatus === 'ready' &&
+    catalogPageQueryKey === marketplaceCatalogQueryKey &&
     hasMoreMarketplaceAssets;
   const hasMoreRemoteProfileResults =
     viewMode !== 'map' &&
@@ -1164,8 +1185,27 @@ export function Marketplace({
     hasMoreRemoteCollectionResults;
 
   useEffect(() => {
+    if (
+      contentMode === 'assets' &&
+      catalogHydrationStatus === 'ready' &&
+      catalogPageQueryKey === marketplaceCatalogQueryKey
+    ) {
+      setResultRenderLimit(assetResultRenderLimitRef.current);
+      return;
+    }
+
     setResultRenderLimit(getInitialResultRenderLimit(viewMode));
-  }, [contentMode, viewMode, debouncedSearchQuery, selectedCategory, selectedBlockchain, verifiedOnly]);
+  }, [
+    catalogHydrationStatus,
+    catalogPageQueryKey,
+    contentMode,
+    debouncedSearchQuery,
+    marketplaceCatalogQueryKey,
+    selectedBlockchain,
+    selectedCategory,
+    verifiedOnly,
+    viewMode,
+  ]);
 
   const increaseResultRenderLimit = useCallback(() => {
     setResultRenderLimit((currentLimit) => (
@@ -1430,7 +1470,10 @@ export function Marketplace({
             <div className="mobile-command-cluster">
               <StudioPillGroup className="rounded-full bg-[var(--t-surface-2)] shadow-none">
                 <StudioPillButton
-                  onClick={() => setContentMode('assets')}
+                  onClick={() => {
+                    setContentMode('assets');
+                    setResultRenderLimit(assetResultRenderLimitRef.current);
+                  }}
                   active={contentMode === 'assets'}
                   className={contentMode === 'assets' ? 'rounded-full bg-[var(--t-card-bg)] px-3 py-2 text-[11px] text-ui-primary shadow-none sm:px-4 sm:py-2.5 sm:text-xs' : 'rounded-full px-3 py-2 text-[11px] text-ui-muted hover:text-ui-primary sm:px-4 sm:py-2.5 sm:text-xs'}
                 >

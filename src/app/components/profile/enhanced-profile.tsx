@@ -530,13 +530,13 @@ export function EnhancedProfile({
   const mintedOverviewItems = isOwnProfile
     ? overviewMintedAssets.ownerCards
     : overviewMintedAssets.visitorCards;
-  const bannerControlHeightClassName = 'h-10';
+  const bannerControlHeightClassName = 'h-9 sm:h-10';
   const bannerGlassButtonBaseClassName =
     'border border-white/10 bg-black/60 text-white backdrop-blur-md shadow-[0_10px_24px_-18px_rgba(15,23,42,0.5)] transition-colors hover:bg-black/80 hover:border-white/15 hover:text-white';
   const bannerIconButtonClassName =
-    `inline-flex ${bannerControlHeightClassName} w-10 items-center justify-center rounded-full p-0 ${bannerGlassButtonBaseClassName}`;
+    `inline-flex ${bannerControlHeightClassName} w-9 items-center justify-center rounded-full p-0 sm:w-10 ${bannerGlassButtonBaseClassName}`;
   const bannerFollowButtonClassName =
-    `${bannerControlHeightClassName} min-w-[96px] rounded-full px-4 text-[12px] font-semibold leading-none tracking-[-0.01em] ${bannerGlassButtonBaseClassName}`;
+    `${bannerControlHeightClassName} min-w-[88px] rounded-full px-3 text-[12px] font-semibold leading-none tracking-[-0.01em] sm:min-w-[96px] sm:px-4 ${bannerGlassButtonBaseClassName}`;
 
   useEffect(() => {
     if (!profile) return;
@@ -951,12 +951,12 @@ export function EnhancedProfile({
         }
       `}</style>
 
-      <div className="h-full flex overflow-hidden">
+      <div className="flex h-full min-w-0 overflow-hidden">
         {/* Main Content */}
-        <div className={`flex-1 min-w-0 p-2.5 ${isOwnProfile ? 'pr-0' : ''} overflow-hidden`}>
-          <div className="profile-main-column-shell h-full rounded-[24px] backdrop-blur-[6px] overflow-y-auto hidden-scrollbar relative z-10">
+        <div className={`min-w-0 flex-1 overflow-hidden p-0 sm:p-2.5 ${isOwnProfile ? 'xl:pr-0' : ''}`}>
+          <div className="profile-main-column-shell relative z-10 h-full overflow-y-auto overflow-x-hidden rounded-none backdrop-blur-[6px] hidden-scrollbar sm:rounded-[24px]">
         {/* Banner */}
-        <div className="h-48 w-full relative overflow-hidden bg-[var(--t-surface-10)]">
+        <div className="relative h-40 w-full overflow-hidden bg-[var(--t-surface-10)] sm:h-48">
           {(profile.bannerUrl || profile.banner) ? (
             <>
               <ImageWithFallback
@@ -995,7 +995,7 @@ export function EnhancedProfile({
           )}
 
           {/* Action Buttons - Positioned at bottom right of banner */}
-          <div className="absolute bottom-4 right-8 flex items-center gap-3 z-20">
+          <div className="absolute bottom-3 right-4 z-20 flex max-w-[calc(100%-7.5rem)] items-center justify-end gap-2 overflow-x-auto hidden-scrollbar sm:bottom-4 sm:right-8 sm:max-w-none sm:gap-3 sm:overflow-visible">
             {/* Social Links */}
             {profile.socialLinks && (
               profile.socialLinks.twitter ||
@@ -1090,12 +1090,12 @@ export function EnhancedProfile({
         </div>
 
         {/* Profile Section */}
-        <div className="px-8 -mt-16 relative z-10">
+        <div className="relative z-10 -mt-12 px-4 sm:-mt-16 sm:px-8">
           {/* Avatar & Info Container */}
-          <div className="flex items-start gap-6 mb-8">
+          <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-start sm:gap-6">
             {/* Avatar */}
             <div className="relative group flex-shrink-0">
-              <div className="w-32 h-32 rounded-full border-4 border-[var(--t-page-bg)] overflow-hidden shadow-2xl bg-[var(--t-surface-5)]">
+              <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-[var(--t-page-bg)] bg-[var(--t-surface-5)] shadow-2xl sm:h-32 sm:w-32">
                 {(profile.avatarUrl || profile.avatar) ? (
                   <ImageWithFallback
                     src={profile.avatarUrl || profile.avatar || ""}
@@ -1136,12 +1136,12 @@ export function EnhancedProfile({
             </div>
 
             {/* Info & Actions */}
-            <div className="flex-1 pt-16">
-              <div className="flex items-start justify-between">
+            <div className="min-w-0 w-full flex-1 pt-0 sm:pt-16">
+              <div className="flex min-w-0 items-start justify-between">
                 {/* Name & Badge */}
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-3xl font-semibold text-ui-primary tracking-tight">
+                <div className="min-w-0">
+                  <div className="mb-2 flex flex-wrap items-center gap-2 sm:gap-3">
+                    <h1 className="max-w-full text-2xl font-semibold leading-tight tracking-tight text-ui-primary [overflow-wrap:anywhere] sm:text-3xl">
                       {formatUserDisplayName(profile.displayName, profileAddress)}
                     </h1>
                     {/* ✅ WALLET IDENTITY: Conditional Premium/Verified badges */}
@@ -1163,8 +1163,8 @@ export function EnhancedProfile({
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-ui-secondary mb-1">
-                    <span className="font-mono">
+                  <div className="mb-1 flex min-w-0 flex-wrap items-center gap-2 text-xs text-ui-secondary">
+                    <span className="max-w-full truncate font-mono">
                       {profile.username
                         ? (profile.username.startsWith('@') ? profile.username : `@${profile.username}`)
                         : `@${String(profileAddress || '').slice(2, 10)}`}
@@ -1190,15 +1190,15 @@ export function EnhancedProfile({
                   )}
 
                   {/* Bio - Moved below avatar with smaller font */}
-                  <p className="text-ui-secondary text-sm mt-1 max-w-md">{profile.bio || 'No bio available'}</p>
+                  <p className="mt-1 max-w-full text-sm text-ui-secondary [overflow-wrap:anywhere] sm:max-w-md">{profile.bio || 'No bio available'}</p>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Stats Panel */}
-          <div className="bg-[var(--t-surface-2)] border-0 rounded-2xl p-6 flex items-center justify-between gap-8 mb-10">
-            <div className="flex-1 text-center border-r border-[var(--color-panel-border)]/50">
+          <div className="mb-8 grid grid-cols-2 gap-3 rounded-2xl border-0 bg-[var(--t-surface-2)] p-3 md:mb-10 md:grid-cols-5 md:gap-0 md:p-6">
+            <div className="min-w-0 rounded-xl bg-[var(--t-surface-5)] p-3 text-center md:rounded-none md:border-r md:border-[var(--color-panel-border)]/50 md:bg-transparent md:p-0">
               <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest mb-1">
                 Portfolio Value
               </p>
@@ -1209,7 +1209,7 @@ export function EnhancedProfile({
               <p className="text-xs text-ui-secondary mt-1">≈ {walletIdentity ? formatUSD(walletIdentity.portfolio.portfolioValueUSD) : '—'} USD</p>
             </div>
 
-            <div className="flex-1 text-center border-r border-[var(--color-panel-border)]/50">
+            <div className="min-w-0 rounded-xl bg-[var(--t-surface-5)] p-3 text-center md:rounded-none md:border-r md:border-[var(--color-panel-border)]/50 md:bg-transparent md:p-0">
               <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest mb-1">
                 Total Profit
               </p>
@@ -1226,7 +1226,7 @@ export function EnhancedProfile({
               </p>
             </div>
 
-            <div className="flex-1 text-center border-r border-[var(--color-panel-border)]/50">
+            <div className="min-w-0 rounded-xl bg-[var(--t-surface-5)] p-3 text-center md:rounded-none md:border-r md:border-[var(--color-panel-border)]/50 md:bg-transparent md:p-0">
               <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest mb-1">
                 Assets Owned
               </p>
@@ -1234,7 +1234,7 @@ export function EnhancedProfile({
               <p className="text-xs text-ui-secondary mt-1">across {walletIdentity?.portfolio.activeNetworks ?? 1} network{(walletIdentity?.portfolio.activeNetworks ?? 1) > 1 ? 's' : ''}</p>
             </div>
 
-            <div className="flex-1 text-center border-r border-[var(--color-panel-border)]/50">
+            <div className="min-w-0 rounded-xl bg-[var(--t-surface-5)] p-3 text-center md:rounded-none md:border-r md:border-[var(--color-panel-border)]/50 md:bg-transparent md:p-0">
               <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest mb-1">
                 Followers
               </p>
@@ -1242,7 +1242,7 @@ export function EnhancedProfile({
               <p className="text-xs text-ui-secondary mt-1">{walletIdentity?.social.followingCount ?? 0} following</p>
             </div>
 
-            <div className="flex-1 text-center">
+            <div className="col-span-2 min-w-0 rounded-xl bg-[var(--t-surface-5)] p-3 text-center md:col-span-1 md:rounded-none md:bg-transparent md:p-0">
               <p className="text-[10px] font-semibold text-ui-muted uppercase tracking-widest mb-1">
                 Joined
               </p>
@@ -1253,15 +1253,15 @@ export function EnhancedProfile({
         </div>
 
         {/* Tabs */}
-        <div className="px-8">
-          <div className="mb-8 border-b border-[var(--color-panel-border)]">
-            <div className="flex gap-1">
+        <div className="px-4 sm:px-8">
+          <div className="mb-6 border-b border-[var(--color-panel-border)] sm:mb-8">
+            <div className="hidden-scrollbar flex gap-1 overflow-x-auto whitespace-nowrap">
               {tabs.map((tab) => {
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`px-6 py-3 font-semibold text-sm transition-all relative ${activeTab === tab.id
+                    className={`relative shrink-0 px-4 py-3 text-sm font-semibold transition-all sm:px-6 ${activeTab === tab.id
                         ? 'text-primary'
                         : 'text-ui-secondary hover:text-ui-primary'
                       }`}
@@ -1278,12 +1278,12 @@ export function EnhancedProfile({
         </div>
 
         {/* Tab Content */}
-        <div className="px-8 py-10 pb-20">
+        <div className="px-4 py-6 pb-16 sm:px-8 sm:py-10 sm:pb-20">
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-8">
               <div>
-                <div className="mb-6 flex items-center justify-between gap-4">
+                <div className="mb-5 flex flex-col gap-2 sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                   <div>
                     <h3 className="text-lg font-semibold text-ui-primary">Top Products</h3>
                     <p className="mt-1 text-sm text-ui-secondary">
@@ -1312,11 +1312,11 @@ export function EnhancedProfile({
                       const categoryTone = getTaxonomyBadgeTone(normalizedCategory);
                       const categoryLabel = getCategoryDisplayLabel(normalizedCategory);
                       const content = (
-                        <div className="flex items-center gap-4 rounded-2xl bg-[var(--t-surface-5)] px-4 py-4 text-left transition-colors hover:bg-[var(--t-surface-hover)]">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-sm font-semibold text-ui-primary">
+                        <div className="flex min-w-0 items-start gap-3 rounded-2xl bg-[var(--t-surface-5)] px-3 py-3 text-left transition-colors hover:bg-[var(--t-surface-hover)] sm:items-center sm:gap-4 sm:px-4 sm:py-4">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-sm font-semibold text-ui-primary sm:h-10 sm:w-10">
                             {index + 1}
                           </div>
-                          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-[var(--t-surface-10)]">
+                          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-[var(--t-surface-10)] sm:h-16 sm:w-16">
                             {product.assetImage ? (
                               <ImageWithFallback
                                 src={product.assetImage}
@@ -1331,12 +1331,12 @@ export function EnhancedProfile({
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="flex min-w-0 items-start justify-between gap-4">
+                            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-base font-semibold text-ui-primary">
                                   {product.assetName}
                                 </p>
-                                <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-ui-secondary">
+                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ui-secondary sm:gap-4">
                                   <span>{product.finalizedOrderCount} orders</span>
                                   <span>{product.unitsSoldLabel}</span>
                                   <span>{product.grossVolumeLabel}</span>
@@ -1348,7 +1348,7 @@ export function EnhancedProfile({
                                   event.stopPropagation();
                                   navigateToMarketplaceCategory({ category: normalizedCategory });
                                 }}
-                                className="inline-flex shrink-0 self-start rounded-full border px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] transition duration-200 hover:-translate-y-px hover:brightness-110"
+                                className="inline-flex max-w-full shrink-0 self-start rounded-full border px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] transition duration-200 hover:-translate-y-px hover:brightness-110"
                                 style={{
                                   background: categoryTone.background,
                                   borderColor: categoryTone.borderColor,
@@ -1388,7 +1388,7 @@ export function EnhancedProfile({
               </div>
 
               <div>
-                <div className="mb-6 flex items-center justify-between gap-4">
+                <div className="mb-5 flex flex-col gap-2 sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                   <div>
                     <h3 className="text-lg font-semibold text-ui-primary">Minted On Marketplace</h3>
                     <p className="mt-1 text-sm text-ui-secondary">
@@ -1411,8 +1411,8 @@ export function EnhancedProfile({
                   <div
                     className={
                       isOwnProfile
-                        ? 'grid grid-cols-2 gap-[var(--t-market-grid-gap)] md:grid-cols-2 xl:grid-cols-3'
-                        : 'grid grid-cols-2 gap-[var(--t-market-grid-gap)] md:grid-cols-2 xl:grid-cols-4'
+                        ? 'grid grid-cols-1 gap-[var(--t-market-grid-gap)] sm:grid-cols-2 md:grid-cols-2 xl:grid-cols-3'
+                        : 'grid grid-cols-1 gap-[var(--t-market-grid-gap)] sm:grid-cols-2 md:grid-cols-2 xl:grid-cols-4'
                     }
                   >
                     {isOwnProfile
@@ -1707,7 +1707,7 @@ export function EnhancedProfile({
 
               {isOwnProfile && (
                 <div className="sticky bottom-6 z-20 flex justify-center pt-8">
-                  <div className="relative flex h-[64px] w-[324px] items-center justify-center gap-5 rounded-full bg-ui-input px-6 backdrop-blur-[6px] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.5)]">
+                  <div className="relative flex h-[64px] w-full max-w-[324px] items-center justify-center gap-5 rounded-full bg-ui-input px-6 backdrop-blur-[6px] shadow-[0_10px_30px_-10px_rgba(0,0,0,0.5)]">
                     <button
                       onClick={() => addStoryBlock('heading')}
                       className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--t-surface-5)] text-ui-secondary transition-colors hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
@@ -1786,6 +1786,7 @@ export function EnhancedProfile({
 
       {/* Right Sidebar */}
       {(isOwnProfile || showAISidebar) && (
+      <div className="hidden h-full min-w-0 xl:block">
       <InlineAIRightRail
         activePage="profile"
         showAI={showAISidebar}
@@ -2156,6 +2157,7 @@ export function EnhancedProfile({
       </StudioSidebarShell>
       ) : null}
       </InlineAIRightRail>
+      </div>
       )}
       </div>
 

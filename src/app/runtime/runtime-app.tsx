@@ -121,6 +121,7 @@ const INLINE_RAIL_AI_PAGES = new Set([
   'search',
 ]);
 const LEGACY_GRID_RAIL_PAGES = new Set(['orders']);
+const MARKETPLACE_PRESERVED_RETURN_PAGES = new Set(['asset-details', 'profile', 'collection-details']);
 
 function SurfaceFallback({
   label,
@@ -233,7 +234,8 @@ function RuntimeAppContent({
   const chatNotificationBaselineReadyRef = useRef(false);
   const chatUnreadSnapshotRef = useRef<Record<string, number>>({});
   const shouldKeepMarketplaceMounted =
-    activePage === 'marketplace' || (activePage === 'asset-details' && previousPage === 'marketplace');
+    activePage === 'marketplace' ||
+    (previousPage === 'marketplace' && MARKETPLACE_PRESERVED_RETURN_PAGES.has(activePage));
 
   useEffect(() => {
     const nextPage = resolvePageForMode(activePage);
@@ -459,18 +461,20 @@ function RuntimeAppContent({
               </LazySurface>
             )}
             {shouldKeepMarketplaceMounted && (
-              <LazySurface fallbackLabel="Loading marketplace...">
-                <Marketplace
-                  onNavigateToPage={guardedSetActivePage}
-                  onNavigateToAsset={handleNavigateToAsset}
-                  onNavigateToCollection={handleNavigateToCollection}
-                  onNavigateToUserProfile={guardedNavigateToUserProfile}
-                  onNavigateToUserReviews={guardedNavigateToUserReviews}
-                  onNavigateToMessages={guardedNavigateToMessages}
-                  navigationRequest={marketplaceNavigationRequest}
-                  onConsumeNavigationRequest={onConsumeMarketplaceNavigationRequest}
-                />
-              </LazySurface>
+              <div className={activePage === 'marketplace' ? 'min-h-0 min-w-0 overflow-hidden' : 'hidden'}>
+                <LazySurface fallbackLabel="Loading marketplace...">
+                  <Marketplace
+                    onNavigateToPage={guardedSetActivePage}
+                    onNavigateToAsset={handleNavigateToAsset}
+                    onNavigateToCollection={handleNavigateToCollection}
+                    onNavigateToUserProfile={guardedNavigateToUserProfile}
+                    onNavigateToUserReviews={guardedNavigateToUserReviews}
+                    onNavigateToMessages={guardedNavigateToMessages}
+                    navigationRequest={marketplaceNavigationRequest}
+                    onConsumeNavigationRequest={onConsumeMarketplaceNavigationRequest}
+                  />
+                </LazySurface>
+              </div>
             )}
             {activePage === 'market-insights' && (
               <LazySurface fallbackLabel="Loading market insights...">

@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Heart, Layers, MessageSquare, Star, Minus, Plus, Shield, ExternalLink, Clock } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Heart, Layers, MessageSquare, Star, Minus, Plus, Shield, ExternalLink, Clock } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { MarketplaceAsset, RwaConfigurableAttributeGroup, RwaSelectedAttribute } from '@/app/types/asset';
 import type { Rating } from '@/types/reputation';
@@ -368,6 +368,15 @@ export function AssetDetailsModal({
           className="relative z-[1] h-[100dvh] max-h-[100dvh] w-full max-w-none sm:h-auto sm:max-h-[95vh] sm:max-w-5xl md:h-[95vh]"
           onClick={(e) => e.stopPropagation()}
         >
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute left-4 top-4 z-30 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/60 p-0 text-white shadow-[0_10px_24px_-18px_rgba(15,23,42,0.5)] backdrop-blur-md transition-colors hover:border-white/15 hover:bg-black/80 hover:text-white sm:hidden"
+            aria-label="Back"
+            title="Back"
+          >
+            <ArrowLeft size={16} />
+          </button>
           <div className="studio-modal-theme studio-glass-modal flex h-full w-full max-w-none flex-col overflow-hidden rounded-none border-0 bg-[var(--t-card-bg)] shadow-none backdrop-blur-[20px] sm:max-h-[95vh] sm:max-w-5xl sm:rounded-[32px] sm:border sm:border-ui-border-subtle sm:shadow-[0_24px_60px_-32px_rgba(0,0,0,0.8)] md:h-[95vh]">
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar md:overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-0 min-h-full md:h-full md:min-h-0">
