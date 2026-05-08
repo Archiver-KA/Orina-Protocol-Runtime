@@ -1,4 +1,4 @@
-import { Search, List, Grid3x3, Sparkles } from 'lucide-react';
+import { Search, List, Grid3x3, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, useCallback, type UIEvent } from 'react';
 import { toast } from 'sonner';
 import { ToggleSwitch } from '@/app/components/ui/toggle-switch';
@@ -156,6 +156,7 @@ export function SearchPage({
   }));
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [contentMode, setContentMode] = useState<'assets' | 'profiles' | 'collections'>('assets');
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [likedAssets, setLikedAssets] = useState<Set<string>>(new Set());
   const [likedCollections, setLikedCollections] = useState<Set<string>>(new Set());
   const [selectedAsset, setSelectedAsset] = useState<MarketplaceAsset | null>(null);
@@ -590,6 +591,15 @@ export function SearchPage({
 
   const activeFilterCount = countActiveFilters(filters);
 
+  useEffect(() => {
+    if (!isMobileFiltersOpen || typeof document === 'undefined') return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileFiltersOpen]);
+
   const handleLike = async (assetId: string) => {
     if (!address) {
       toast.error('Please connect wallet to use favorites');
@@ -913,6 +923,185 @@ export function SearchPage({
   const filterSectionClassName =
     'rounded-[var(--t-card-radius-lg)] border border-ui-border-subtle bg-[var(--t-surface-2)] p-5 shadow-none';
 
+  const renderFilterSidebarContent = (variant: 'desktop' | 'mobile') => (
+    <div className={`flex h-full flex-col overflow-hidden bg-[var(--t-card-bg)] shadow-[0_24px_60px_-42px_rgba(0,0,0,0.34)] ${
+      variant === 'mobile' ? 'rounded-t-[28px]' : 'rounded-[28px]'
+    }`}>
+      <StudioSidebarHeader className="border-b border-ui-border-subtle px-6 py-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-ui-primary">
+              <Search className="text-primary" size={18} />
+              Search Filters
+            </h2>
+            <p className="mt-1 text-xs text-ui-muted">Refine your search results</p>
+          </div>
+          {variant === 'mobile' && (
+            <button
+              type="button"
+              onClick={() => setIsMobileFiltersOpen(false)}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ui-secondary transition-colors hover:bg-[var(--t-surface-hover)] hover:text-ui-primary"
+              aria-label="Close filters"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
+      </StudioSidebarHeader>
+
+      <StudioSidebarScroll className="space-y-5 p-5">
+        <div className="space-y-5">
+          {contentMode === 'assets' && (
+            <StudioPanel className={filterSectionClassName}>
+              <label className="mb-4 block text-[10px] font-medium uppercase text-ui-muted">
+                Price Range (ETH)
+              </label>
+              <PriceRangeSlider
+                min={marketplacePriceRange.min}
+                max={marketplacePriceRange.max}
+                value={[
+                  filters.priceRange.min ?? marketplacePriceRange.min,
+                  filters.priceRange.max ?? marketplacePriceRange.max
+                ]}
+                onChange={(value) => {
+                  setFilters({
+                    ...filters,
+                    priceRange: { min: value[0], max: value[1] }
+                  });
+                }}
+                step={0.01}
+              />
+            </StudioPanel>
+          )}
+
+          {contentMode === 'assets' && (
+            <StudioPanel className={filterSectionClassName}>
+              <label className="mb-4 block text-[10px] font-medium uppercase text-ui-muted">
+                Network
+              </label>
+              <CustomDropdown
+                defaultValue={filters.blockchains[0] || 'all'}
+                onChange={(value) => {
+                  setFilters({ ...filters, blockchains: value === 'all' ? [] : [value] });
+                }}
+                options={[
+                  { value: 'all', label: 'All Networks' },
+                  ...marketplaceNetworkOptions,
+                ]}
+                variant="compact"
+                className="w-full"
+              />
+            </StudioPanel>
+          )}
+
+          <StudioPanel className={filterSectionClassName}>
+            <label className="mb-4 block text-[10px] font-medium uppercase text-ui-muted">
+              Status
+            </label>
+            <div className="space-y-3">
+              <label className="group flex cursor-pointer items-center justify-between rounded-lg p-2 transition-colors hover:bg-[var(--t-surface-hover)]">
+                <span className="text-sm text-ui-secondary transition-colors group-hover:text-ui-primary">
+                  Verified Only
+                </span>
+                <ToggleSwitch
+                  checked={filters.verifiedOnly}
+                  onChange={(checked) => setFilters({ ...filters, verifiedOnly: checked })}
+                />
+              </label>
+              {contentMode === 'assets' && runtimeFlags.enableSearchDemoPanels && (
+                <>
+                  <label className="group flex cursor-pointer items-center justify-between rounded-lg p-2 transition-colors hover:bg-[var(--t-surface-hover)]">
+                    <span className="text-sm text-ui-secondary transition-colors group-hover:text-ui-primary">
+                      On Sale
+                    </span>
+                    <ToggleSwitch
+                      checked={false}
+                      onChange={() => {}}
+                    />
+                  </label>
+                  <label className="group flex cursor-pointer items-center justify-between rounded-lg p-2 transition-colors hover:bg-[var(--t-surface-hover)]">
+                    <span className="text-sm text-ui-secondary transition-colors group-hover:text-ui-primary">
+                      New Drops
+                    </span>
+                    <ToggleSwitch
+                      checked={false}
+                      onChange={() => {}}
+                    />
+                  </label>
+                </>
+              )}
+            </div>
+          </StudioPanel>
+
+          {contentMode !== 'profiles' && (
+            <StudioPanel className={filterSectionClassName}>
+              <label className="mb-4 block text-[10px] font-medium uppercase text-ui-muted">
+                Categories
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {visibleCategoryOptions.map((category) => (
+                  <button
+                    key={category.value}
+                    onClick={() => {
+                      const newCategories = contentMode === 'collections'
+                        ? filters.categories.includes(category.value)
+                          ? []
+                          : [category.value]
+                        : filters.categories.includes(category.value)
+                          ? filters.categories.filter(c => c !== category.value)
+                          : [...filters.categories, category.value];
+                      setFilters({ ...filters, categories: newCategories });
+                    }}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      filters.categories.includes(category.value)
+                        ? 'border-[#2CC295]/20 bg-[#2CC295]/10 text-[#2CC295]'
+                        : 'border-ui-border-subtle bg-ui-input text-ui-secondary hover:bg-[var(--t-surface-hover)]'
+                    }`}
+                  >
+                    {category.label}
+                  </button>
+                ))}
+              </div>
+            </StudioPanel>
+          )}
+        </div>
+
+        {runtimeFlags.enableSearchDemoPanels ? (
+          <StudioPanel className={filterSectionClassName}>
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-[11px] font-semibold uppercase text-ui-muted">Market Trends</h2>
+              <span className="rounded bg-[#2CC295]/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-[#2CC295]">
+                Live
+              </span>
+            </div>
+            <div className="space-y-4">
+              <StudioPanel className="rounded-xl bg-[var(--t-surface-5)] p-4">
+                <p className="mb-1 text-[10px] font-medium uppercase text-ui-muted">Floor Price Trend</p>
+                <div className="flex items-end justify-between">
+                  <span className="text-xl font-semibold text-ui-primary">1.12 ETH</span>
+                  <span className="flex items-center gap-1 text-xs font-semibold text-[#2CC295]">
+                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                    +12.4%
+                  </span>
+                </div>
+                <div className="mt-4 flex h-12 items-end gap-1">
+                  <div className="flex-1 rounded-t-sm bg-[var(--t-surface-10)]" style={{ height: '40%' }}></div>
+                  <div className="flex-1 rounded-t-sm bg-[var(--t-surface-10)]" style={{ height: '60%' }}></div>
+                  <div className="flex-1 rounded-t-sm bg-[var(--t-surface-10)]" style={{ height: '50%' }}></div>
+                  <div className="flex-1 rounded-t-sm bg-[var(--t-surface-10)]" style={{ height: '80%' }}></div>
+                  <div className="flex-1 rounded-t-sm bg-[#2CC295]" style={{ height: '95%' }}></div>
+                  <div className="flex-1 rounded-t-sm bg-[#2CC295]" style={{ height: '100%' }}></div>
+                </div>
+              </StudioPanel>
+            </div>
+          </StudioPanel>
+        ) : null}
+      </StudioSidebarScroll>
+    </div>
+  );
+
   return (
     <div className="search-page-theme h-full bg-ui-page overflow-hidden">
       <style>{`
@@ -981,6 +1170,22 @@ export function SearchPage({
                     <Grid3x3 size={18} />
                   </StudioPillButton>
                 </StudioPillGroup>
+
+                <StudioActionButton
+                  type="button"
+                  onClick={() => setIsMobileFiltersOpen(true)}
+                  variant={activeFilterCount > 0 ? 'primary' : 'secondary'}
+                  size="sm"
+                  leftIcon={<SlidersHorizontal size={15} />}
+                  className="shrink-0 px-3 text-[11px] lg:hidden"
+                >
+                  <span>Filters</span>
+                  {activeFilterCount > 0 && (
+                    <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-black/15 px-1.5 text-[10px] font-semibold">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </StudioActionButton>
 
                 {contentMode === 'assets' && (
                   <StudioActionButton
@@ -1148,7 +1353,7 @@ export function SearchPage({
                   ? 'grid grid-cols-1 items-start gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3'
                   : 'space-y-4'
                 : viewMode === 'grid'
-                ? 'grid grid-cols-2 gap-[var(--t-market-grid-gap)] md:grid-cols-2 lg:grid-cols-3'
+                ? 'grid grid-cols-1 gap-[var(--t-market-grid-gap)] sm:grid-cols-2 lg:grid-cols-3'
                 : 'space-y-4'
               }
             `}>
@@ -1245,176 +1450,39 @@ export function SearchPage({
         shellClassName="bg-transparent border-l-0 p-4"
       >
       <StudioSidebarShell widthClassName="w-[var(--t-shell-wide-rail-w)]" className="bg-transparent border-l-0 p-4">
-        <div className="flex h-full flex-col overflow-hidden rounded-[28px] bg-[var(--t-card-bg)] shadow-[0_24px_60px_-42px_rgba(0,0,0,0.34)]">
-        {/* Header - Fixed */}
-        <StudioSidebarHeader className="border-b border-ui-border-subtle px-6 py-5">
-          <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
-            <Search className="text-primary" size={18} />
-            Search Filters
-          </h2>
-          <p className="text-xs text-ui-muted mt-1">Refine your search results</p>
-        </StudioSidebarHeader>
-
-        {/* Scrollable Content */}
-        <StudioSidebarScroll className="space-y-5 p-5">
-          {/* Filters */}
-          <div className="space-y-5">
-            {contentMode === 'assets' && (
-              <StudioPanel className={filterSectionClassName}>
-                <label className="text-[10px] font-medium text-ui-muted uppercase block mb-4">
-                  Price Range (ETH)
-                </label>
-                <PriceRangeSlider
-                  min={marketplacePriceRange.min}
-                  max={marketplacePriceRange.max}
-                  value={[
-                    filters.priceRange.min ?? marketplacePriceRange.min,
-                    filters.priceRange.max ?? marketplacePriceRange.max
-                  ]}
-                  onChange={(value) => {
-                    setFilters({
-                      ...filters,
-                      priceRange: { min: value[0], max: value[1] }
-                    });
-                  }}
-                  step={0.01}
-                />
-              </StudioPanel>
-            )}
-
-            {/* Network */}
-            {contentMode === 'assets' && (
-              <StudioPanel className={filterSectionClassName}>
-                <label className="text-[10px] font-medium text-ui-muted uppercase block mb-4">
-                  Network
-                </label>
-                <CustomDropdown
-                  defaultValue={filters.blockchains[0] || 'all'}
-                  onChange={(value) => {
-                    setFilters({ ...filters, blockchains: value === 'all' ? [] : [value] });
-                  }}
-                  options={[
-                    { value: 'all', label: 'All Networks' },
-                    ...marketplaceNetworkOptions,
-                  ]}
-                  variant="compact"
-                  className="w-full"
-                />
-              </StudioPanel>
-            )}
-
-            {/* Status */}
-            <StudioPanel className={filterSectionClassName}>
-              <label className="text-[10px] font-medium text-ui-muted uppercase block mb-4">
-                Status
-              </label>
-              <div className="space-y-3">
-                <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-[var(--t-surface-hover)] transition-colors">
-                  <span className="text-sm text-ui-secondary group-hover:text-ui-primary transition-colors">
-                    Verified Only
-                  </span>
-                  <ToggleSwitch
-                    checked={filters.verifiedOnly}
-                    onChange={(checked) => setFilters({ ...filters, verifiedOnly: checked })}
-                  />
-                </label>
-                {contentMode === 'assets' && runtimeFlags.enableSearchDemoPanels && (
-                  <>
-                    <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-[var(--t-surface-hover)] transition-colors">
-                      <span className="text-sm text-ui-secondary group-hover:text-ui-primary transition-colors">
-                        On Sale
-                      </span>
-                      <ToggleSwitch
-                        checked={false}
-                        onChange={() => {}}
-                      />
-                    </label>
-                    <label className="flex items-center justify-between cursor-pointer group p-2 rounded-lg hover:bg-[var(--t-surface-hover)] transition-colors">
-                      <span className="text-sm text-ui-secondary group-hover:text-ui-primary transition-colors">
-                        New Drops
-                      </span>
-                      <ToggleSwitch
-                        checked={false}
-                        onChange={() => {}}
-                      />
-                    </label>
-                  </>
-                )}
-              </div>
-            </StudioPanel>
-
-            {/* Categories */}
-            {contentMode !== 'profiles' && (
-              <StudioPanel className={filterSectionClassName}>
-                <label className="text-[10px] font-medium text-ui-muted uppercase block mb-4">
-                  Categories
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {visibleCategoryOptions.map((category) => (
-                    <button
-                      key={category.value}
-                      onClick={() => {
-                        const newCategories = contentMode === 'collections'
-                          ? filters.categories.includes(category.value)
-                            ? []
-                            : [category.value]
-                          : filters.categories.includes(category.value)
-                            ? filters.categories.filter(c => c !== category.value)
-                            : [...filters.categories, category.value];
-                        setFilters({ ...filters, categories: newCategories });
-                      }}
-                      className={`
-                        px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors
-                        ${filters.categories.includes(category.value)
-                          ? 'bg-[#2CC295]/10 text-[#2CC295] border-[#2CC295]/20'
-                          : 'bg-ui-input text-ui-secondary border-ui-border-subtle hover:bg-[var(--t-surface-hover)]'
-                        }
-                      `}
-                    >
-                      {category.label}
-                    </button>
-                  ))}
-                </div>
-              </StudioPanel>
-            )}
-          </div>
-
-          {runtimeFlags.enableSearchDemoPanels ? (
-            <StudioPanel className={filterSectionClassName}>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-[11px] uppercase font-semibold text-ui-muted">Market Trends</h2>
-                <span className="text-[10px] text-[#2CC295] bg-[#2CC295]/10 px-2 py-0.5 rounded font-semibold uppercase">
-                  Live
-                </span>
-              </div>
-              <div className="space-y-4">
-                <StudioPanel className="p-4 rounded-xl bg-[var(--t-surface-5)]">
-                  <p className="text-[10px] font-medium text-ui-muted uppercase mb-1">Floor Price Trend</p>
-                  <div className="flex items-end justify-between">
-                    <span className="text-xl font-semibold text-ui-primary">1.12 ETH</span>
-                    <span className="text-xs text-[#2CC295] font-semibold flex items-center gap-1">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                      </svg>
-                      +12.4%
-                    </span>
-                  </div>
-                  <div className="mt-4 flex items-end gap-1 h-12">
-                    <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '40%' }}></div>
-                    <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '60%' }}></div>
-                    <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '50%' }}></div>
-                    <div className="flex-1 bg-[var(--t-surface-10)] rounded-t-sm" style={{ height: '80%' }}></div>
-                    <div className="flex-1 bg-[#2CC295] rounded-t-sm" style={{ height: '95%' }}></div>
-                    <div className="flex-1 bg-[#2CC295] rounded-t-sm" style={{ height: '100%' }}></div>
-                  </div>
-                </StudioPanel>
-              </div>
-            </StudioPanel>
-          ) : null}
-        </StudioSidebarScroll>
-        </div>
+        {renderFilterSidebarContent('desktop')}
       </StudioSidebarShell>
       </InlineAIRightRail>
+
+      <AnimatePresence>
+        {isMobileFiltersOpen && (
+          <motion.div
+            className="fixed inset-0 z-[70] lg:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+          >
+            <button
+              type="button"
+              aria-label="Close filters"
+              className="absolute inset-0 h-full w-full bg-black/60 backdrop-blur-[10px]"
+              onClick={() => setIsMobileFiltersOpen(false)}
+            />
+            <motion.div
+              className="absolute inset-x-0 bottom-0 max-h-[86dvh] overflow-hidden rounded-t-[28px] bg-ui-page p-2"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <div className="h-[calc(86dvh-1rem)] max-h-[calc(86dvh-1rem)] overflow-hidden">
+                {renderFilterSidebarContent('mobile')}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Product Modal */}
       {isModalOpen && selectedAsset && (

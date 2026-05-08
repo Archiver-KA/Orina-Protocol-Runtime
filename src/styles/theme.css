@@ -178,6 +178,8 @@
     --t-shell-nav-search-h: 36px;
     --t-shell-control-h: 36px;
     --t-shell-icon-button: 36px;
+    --t-shell-right-rail-w: min(100vw, 390px);
+    --t-shell-wide-rail-w: min(100vw, 430px);
 
     --t-card-radius-lg: 16px;
     --t-card-radius-xl: 20px;

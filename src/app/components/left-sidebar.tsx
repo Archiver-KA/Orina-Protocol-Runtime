@@ -48,7 +48,7 @@ export function LeftSidebar({
 
   return (
     <aside
-      className={`bg-ui-page text-ui-secondary flex flex-col h-full overflow-hidden transition-all duration-300 ${
+      className={`bg-ui-page text-ui-secondary hidden h-full flex-col overflow-hidden transition-all duration-300 lg:flex ${
         collapsed ? 'w-[var(--t-shell-sidebar-collapsed-w)]' : 'w-[var(--t-shell-sidebar-w)]'
       }`}
     >

@@ -20,15 +20,26 @@ export function InlineAIRightRail({
 }: InlineAIRightRailProps) {
   if (showAI) {
     return (
-      <AISidebar
-        activePage={activePage}
-        onClose={onCloseAI}
-        variant="embedded"
-        embeddedWidthClassName={widthClassName}
-        embeddedShellClassName={shellClassName}
-      />
+      <>
+        <div className="hidden min-h-0 overflow-hidden lg:block">
+          <AISidebar
+            activePage={activePage}
+            onClose={onCloseAI}
+            variant="embedded"
+            embeddedWidthClassName={widthClassName}
+            embeddedShellClassName={shellClassName}
+          />
+        </div>
+        <div className="lg:hidden">
+          <AISidebar
+            activePage={activePage}
+            onClose={onCloseAI}
+            variant="overlay"
+          />
+        </div>
+      </>
     );
   }
 
-  return <>{children}</>;
+  return <div className="hidden min-h-0 overflow-hidden lg:block">{children}</div>;
 }

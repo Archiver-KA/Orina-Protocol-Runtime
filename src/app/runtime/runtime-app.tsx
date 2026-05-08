@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Navbar } from '@/app/components/navbar';
 import { LeftSidebar } from '@/app/components/left-sidebar';
 import { PublicHomePage } from '@/app/components/public-home-page';
@@ -398,6 +398,9 @@ function RuntimeAppContent({
     hasNativeShellRightRail || aiUsesEmbeddedRightRail || LEGACY_GRID_RAIL_PAGES.has(activePage)
       ? '1fr var(--t-shell-right-rail-w)'
       : '1fr';
+  const runtimeMainStyle = {
+    '--runtime-main-grid-columns': mainGridColumns,
+  } as CSSProperties;
 
   if (!effectiveConnectedAddress && activePage === 'home') {
     return (
@@ -438,11 +441,8 @@ function RuntimeAppContent({
           <Navbar activePage={activePage} setActivePage={guardedSetActivePage} onSearch={handleSearch} isGuest={isGuest} onToggleAI={() => setShowAISidebar((value) => !value)} aiActive={showAISidebar} />
 
           <main
-            className="flex-1 overflow-hidden bg-ui-page text-ui-secondary"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: mainGridColumns,
-            }}
+            className="grid flex-1 grid-cols-1 overflow-hidden bg-ui-page text-ui-secondary lg:[grid-template-columns:var(--runtime-main-grid-columns)]"
+            style={runtimeMainStyle}
           >
             {activePage === 'overview' && (
               <LazySurface fallbackLabel="Loading dashboard overview...">
@@ -550,57 +550,87 @@ function RuntimeAppContent({
               </LazySurface>
             )}
             {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'overview' && (
-              <LazySurface fallbackLabel="Loading dashboard sidebar..." compact>
-                <RightSidebar />
-              </LazySurface>
+              <div className="hidden min-h-0 overflow-hidden lg:block">
+                <LazySurface fallbackLabel="Loading dashboard sidebar..." compact>
+                  <RightSidebar />
+                </LazySurface>
+              </div>
             )}
             {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'minting' && (
-              <RuntimeErrorBoundary
-                title="Minting Sidebar Failed to Load"
-                description="The minting panel ran into a problem and was temporarily separated from the page."
-                resetKey={`sidebar:${activePage}`}
-              >
-                <LazySurface fallbackLabel="Loading minting sidebar..." compact>
-                  <MintingRightSidebar telemetry={mintingSidebarTelemetry} />
-                </LazySurface>
-              </RuntimeErrorBoundary>
+              <div className="hidden min-h-0 overflow-hidden lg:block">
+                <RuntimeErrorBoundary
+                  title="Minting Sidebar Failed to Load"
+                  description="The minting panel ran into a problem and was temporarily separated from the page."
+                  resetKey={`sidebar:${activePage}`}
+                >
+                  <LazySurface fallbackLabel="Loading minting sidebar..." compact>
+                    <MintingRightSidebar telemetry={mintingSidebarTelemetry} />
+                  </LazySurface>
+                </RuntimeErrorBoundary>
+              </div>
             )}
             {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'assets' && (
-              <RuntimeErrorBoundary
-                title="Assets Sidebar Failed to Load"
-                description="The asset panel ran into a problem and was temporarily separated from the page."
-                resetKey={`sidebar:${activePage}`}
-              >
-                <LazySurface fallbackLabel="Loading assets sidebar..." compact>
-                  <AssetsRightSidebar />
-                </LazySurface>
-              </RuntimeErrorBoundary>
+              <div className="hidden min-h-0 overflow-hidden lg:block">
+                <RuntimeErrorBoundary
+                  title="Assets Sidebar Failed to Load"
+                  description="The asset panel ran into a problem and was temporarily separated from the page."
+                  resetKey={`sidebar:${activePage}`}
+                >
+                  <LazySurface fallbackLabel="Loading assets sidebar..." compact>
+                    <AssetsRightSidebar />
+                  </LazySurface>
+                </RuntimeErrorBoundary>
+              </div>
             )}
             {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'community' && (
-              <LazySurface fallbackLabel="Loading community sidebar..." compact>
-                <CommunityRightSidebar />
-              </LazySurface>
+              <div className="hidden min-h-0 overflow-hidden lg:block">
+                <LazySurface fallbackLabel="Loading community sidebar..." compact>
+                  <CommunityRightSidebar />
+                </LazySurface>
+              </div>
             )}
             {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'history' && (
-              <LazySurface fallbackLabel="Loading history sidebar..." compact>
-                <HistoryRightSidebar />
-              </LazySurface>
+              <div className="hidden min-h-0 overflow-hidden lg:block">
+                <LazySurface fallbackLabel="Loading history sidebar..." compact>
+                  <HistoryRightSidebar />
+                </LazySurface>
+              </div>
             )}
             {aiUsesEmbeddedRightRail && (
-              <RuntimeErrorBoundary
-                title="AI Sidebar Failed to Load"
-                description="The AI panel ran into a problem. Close and reopen it to try again."
-                compact
-                resetKey={`${activePage}:${showAISidebar ? 'open' : 'closed'}`}
-              >
-                <LazySurface fallbackLabel="Loading AI sidebar..." compact>
-                  <AISidebar
-                    activePage={activePage}
-                    onClose={() => setShowAISidebar(false)}
-                    variant="embedded"
-                  />
-                </LazySurface>
-              </RuntimeErrorBoundary>
+              <>
+                <div className="hidden min-h-0 overflow-hidden lg:block">
+                  <RuntimeErrorBoundary
+                    title="AI Sidebar Failed to Load"
+                    description="The AI panel ran into a problem. Close and reopen it to try again."
+                    compact
+                    resetKey={`${activePage}:${showAISidebar ? 'open' : 'closed'}`}
+                  >
+                    <LazySurface fallbackLabel="Loading AI sidebar..." compact>
+                      <AISidebar
+                        activePage={activePage}
+                        onClose={() => setShowAISidebar(false)}
+                        variant="embedded"
+                      />
+                    </LazySurface>
+                  </RuntimeErrorBoundary>
+                </div>
+                <div className="lg:hidden">
+                  <RuntimeErrorBoundary
+                    title="AI Sidebar Failed to Load"
+                    description="The AI panel ran into a problem. Close and reopen it to try again."
+                    compact
+                    resetKey={`${activePage}:${showAISidebar ? 'open' : 'closed'}:mobile`}
+                  >
+                    <LazySurface fallbackLabel="Loading AI sidebar..." compact>
+                      <AISidebar
+                        activePage={activePage}
+                        onClose={() => setShowAISidebar(false)}
+                        variant="overlay"
+                      />
+                    </LazySurface>
+                  </RuntimeErrorBoundary>
+                </div>
+              </>
             )}
             {activePage === 'settings' && (
               <RuntimeErrorBoundary
