@@ -392,7 +392,7 @@ function AISidebarLoadingState() {
     <div className="mb-3 flex justify-start">
       <div className="w-full max-w-[96%] px-1 py-2">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-10)] text-ui-primary">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center text-ui-primary">
             <AIFlowerIcon className="h-6 w-6 animate-spin object-contain" />
           </div>
           <div className="min-w-0">
@@ -810,7 +810,7 @@ export function AISidebar({
       style={{ contain: 'layout paint' }}
     >
       <div className="flex shrink-0 items-center gap-3 px-4 py-3.5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--t-surface-5)] text-ui-primary">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center text-ui-primary">
           <AIFlowerIcon className="h-[18px] w-[18px] object-contain" />
         </div>
         <div className="min-w-0 flex-1">
@@ -919,7 +919,7 @@ export function AISidebar({
             >
               {entries.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6 mt-8">
-                  <div className="w-[48px] h-[48px] rounded-full flex items-center justify-center bg-[var(--t-surface-5)] text-ui-primary">
+                  <div className="w-[48px] h-[48px] flex items-center justify-center text-ui-primary">
                     <AIFlowerIcon className="w-[32px] h-[32px] opacity-60 object-contain" />
                   </div>
                   <p className="text-[13px] text-ui-muted">

@@ -1,4 +1,4 @@
-import { ArrowUpRight, Search } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { OrinaOrbit } from '@/app/components/public/orina-orbit';
 
 interface PublicHomePageProps {
@@ -70,7 +70,6 @@ function HeroStarfield() {
 export function PublicHomePage({
   className = '',
   onOpenMarketplace,
-  onOpenSearch,
   onConnectWallet,
   onWarmRuntime,
 }: PublicHomePageProps) {
@@ -78,7 +77,6 @@ export function PublicHomePage({
   const heroBodyClassName = 'mt-6 max-w-[330px] text-[15px] leading-7 text-white/50 sm:max-w-[690px] sm:text-[18px] sm:leading-8';
   const ctaBaseClassName = 'inline-flex h-[52px] items-center justify-center gap-2.5 rounded-full border px-6 text-[14px] font-semibold tracking-[-0.01em] transition-all duration-200';
   const primaryCtaClassName = `${ctaBaseClassName} border-white/12 bg-white text-[#050505] shadow-[0_24px_54px_-34px_rgba(255,255,255,0.72)] hover:-translate-y-0.5 hover:bg-white/92`;
-  const secondaryCtaClassName = `${ctaBaseClassName} border-white/8 bg-[#0a7f58]/62 text-white backdrop-blur-md hover:-translate-y-0.5 hover:bg-[#0f9065]/76`;
   const tertiaryCtaClassName = `${ctaBaseClassName} border-white/10 bg-black/24 text-white/90 backdrop-blur-md hover:-translate-y-0.5 hover:bg-white/8`;
 
   return (
@@ -110,16 +108,6 @@ export function PublicHomePage({
             >
               Explore Marketplace
               <ArrowUpRight size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={onOpenSearch}
-              onPointerEnter={onWarmRuntime}
-              onFocus={onWarmRuntime}
-              className={secondaryCtaClassName}
-            >
-              <Search size={16} />
-              Search Protocol
             </button>
             <button
               type="button"

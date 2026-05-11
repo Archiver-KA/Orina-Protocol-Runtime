@@ -477,7 +477,14 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
                       }`}
                     >
                       <span className="flex min-w-0 items-center gap-3">
-                        <img src="/flower-static.svg" alt="" className="h-[18px] w-[18px] shrink-0 opacity-80" />
+                        <span
+                          aria-hidden="true"
+                          className="h-[18px] w-[18px] shrink-0 bg-[rgba(148,163,184,0.9)]"
+                          style={{
+                            WebkitMask: 'url(/flower-static.svg) center / contain no-repeat',
+                            mask: 'url(/flower-static.svg) center / contain no-repeat',
+                          }}
+                        />
                         <span className="text-xs font-semibold">ORINA AI</span>
                       </span>
                       <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[rgba(148,163,184,0.82)]">

@@ -69,6 +69,7 @@ import ReactDOM from 'react-dom';
 import { EmptyStateCard } from '@/app/components/ui/empty-state-card';
 import { RuntimeErrorBoundary } from '@/app/components/ui/runtime-error-boundary';
 import { StudioActionButton } from '@/app/components/ui/studio-action-button';
+import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { createDefaultProfile, formatUserDisplayName, loadUserProfile, saveUserProfileSnapshot } from '@/utils/profileUtils';
 import { sendCommunityNotificationViaBridge } from '@/utils/supabaseAuthClaimBridge';
@@ -119,7 +120,7 @@ function EmptyState({ filter, isSearching }: { filter: FeedFilter; isSearching: 
       ? 'No posts yet'
       : filter === 'my-saved'
         ? 'No saved posts yet'
-        : 'Nothing here yet';
+        : 'No posts yet';
 
   const description = isSearching
     ? 'Try different keywords or remove some filters.'
@@ -127,7 +128,7 @@ function EmptyState({ filter, isSearching }: { filter: FeedFilter; isSearching: 
       ? 'Create your first post to share with the community!'
       : filter === 'my-saved'
         ? 'Bookmark posts to quickly find them again here.'
-        : 'Be the first to start a conversation in this category.';
+        : 'Community activity will appear here once posts are available.';
 
   return (
     <EmptyStateCard
@@ -136,6 +137,20 @@ function EmptyState({ filter, isSearching }: { filter: FeedFilter; isSearching: 
       description={description}
       className="py-20"
     />
+  );
+}
+
+function CommunityFeedLoadingState() {
+  return (
+    <div className="flex min-h-[260px] items-center justify-center rounded-[24px] bg-[var(--t-surface-2)]">
+      <StudioLoadingIndicator
+        layout="stacked"
+        tone="muted"
+        size={24}
+        label="Loading community feed..."
+        labelClassName="text-sm font-semibold text-ui-primary"
+      />
+    </div>
   );
 }
 
@@ -1397,7 +1412,9 @@ export function EnhancedCommunity({
           </div>
 
           {/* ─── Post Feed ─── */}
-          {processedPosts.length === 0 ? (
+          {processedPosts.length === 0 && !searchQuery.trim() && !['following', 'my-posts', 'my-saved'].includes(selectedFilter) ? (
+            <CommunityFeedLoadingState />
+          ) : processedPosts.length === 0 ? (
             <EmptyState filter={selectedFilter} isSearching={!!searchQuery.trim()} />
           ) : (
             <div className="space-y-6">
