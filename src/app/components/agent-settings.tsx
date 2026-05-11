@@ -160,7 +160,7 @@ export function AgentSettings({
     <section className="settings-borderless-theme h-full bg-ui-page overflow-hidden">
       <div className="h-full flex overflow-hidden">
         <div className="flex-1 min-w-0 p-2.5 pr-0 overflow-hidden">
-          <div className="h-full rounded-[var(--t-card-radius-lg)] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+          <div className="h-full min-h-0 rounded-[var(--t-card-radius-lg)] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto custom-scrollbar">
               <div className="p-8 relative z-10 max-w-5xl mx-auto space-y-8">
                 <header className="mb-2">
@@ -249,7 +249,7 @@ export function AgentSettings({
           shellClassName="bg-ui-page border-l-0 p-2.5"
         >
         <StudioSidebarShell widthClassName="w-[var(--t-shell-right-rail-w)]" className="bg-ui-page border-l-0 p-2.5">
-          <div className="h-full rounded-[var(--t-card-radius-lg)] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+          <div className="h-full min-h-0 rounded-[var(--t-card-radius-lg)] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
             <div className="p-6 bg-gradient-to-b from-[var(--t-surface-2)] to-transparent">
               <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
                 <WalletCards className="text-ui-muted" size={18} />
@@ -260,7 +260,7 @@ export function AgentSettings({
               </p>
             </div>
 
-            <div className="flex-grow overflow-y-auto p-5 space-y-6 custom-scrollbar">
+            <div className="min-h-0 flex-grow overflow-y-auto p-5 space-y-6 custom-scrollbar">
               {!canRenderM2MRuntime ? (
                 <div className={sidebarCardClass}>
                   <div className="flex items-start gap-3">

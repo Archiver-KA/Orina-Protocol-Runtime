@@ -19,7 +19,7 @@ export function StudioSidebarShell({
     <aside
       className={cn(
         widthClassName,
-        'bg-ui-sidebar flex flex-col overflow-hidden',
+        'flex h-full min-h-0 shrink-0 flex-col overflow-hidden bg-ui-sidebar',
         className
       )}
       {...props}
@@ -31,7 +31,7 @@ export function StudioSidebarShell({
 
 export function StudioSidebarHeader({ children, className, ...props }: BaseProps) {
   return (
-    <div className={cn('p-6 border-b border-[var(--color-panel-border)]', className)} {...props}>
+    <div className={cn('shrink-0 p-6 border-b border-[var(--color-panel-border)]', className)} {...props}>
       {children}
     </div>
   );
@@ -42,7 +42,7 @@ export function StudioSidebarScroll({ children, className, ...props }: BaseProps
     <>
       <style>{`.hidden-scrollbar::-webkit-scrollbar { display: none; }`}</style>
       <div
-        className={cn('flex-grow overflow-y-auto hidden-scrollbar p-4 space-y-6', className)}
+        className={cn('min-h-0 flex-1 overflow-y-auto hidden-scrollbar p-4 space-y-6', className)}
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         {...props}
       >

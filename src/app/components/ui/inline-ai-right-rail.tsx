@@ -21,7 +21,7 @@ export function InlineAIRightRail({
   if (showAI) {
     return (
       <>
-        <div className="hidden min-h-0 overflow-hidden lg:block">
+        <div className="hidden h-full min-h-0 overflow-hidden lg:block">
           <AISidebar
             activePage={activePage}
             onClose={onCloseAI}
@@ -41,5 +41,5 @@ export function InlineAIRightRail({
     );
   }
 
-  return <div className="hidden min-h-0 overflow-hidden lg:block">{children}</div>;
+  return <div className="hidden h-full min-h-0 overflow-hidden lg:block">{children}</div>;
 }

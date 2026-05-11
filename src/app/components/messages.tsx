@@ -1095,7 +1095,7 @@ export function Messages({
           </div>
 
           {/* Conversations */}
-          <div className="flex-grow overflow-y-auto hidden-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <div className="min-h-0 flex-grow overflow-y-auto hidden-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {conversations.map((conv) => (
               <div
                 key={conv.id}
@@ -1434,7 +1434,7 @@ export function Messages({
           shellClassName="bg-ui-page border-l-0 p-2.5"
         >
         <StudioSidebarShell widthClassName="w-[var(--t-shell-right-rail-w)]" className="bg-ui-page border-l-0 p-2.5">
-        <div className="h-full rounded-[var(--t-card-radius-lg)] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+        <div className="h-full min-h-0 rounded-[var(--t-card-radius-lg)] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
           {(() => {
             const activeConv = activeConversationRecord;
             const userInfo = activeConv?.userInfo;

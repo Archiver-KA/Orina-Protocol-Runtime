@@ -550,14 +550,14 @@ function RuntimeAppContent({
               </LazySurface>
             )}
             {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'overview' && (
-              <div className="hidden min-h-0 overflow-hidden lg:block">
+              <div className="hidden h-full min-h-0 overflow-hidden lg:block">
                 <LazySurface fallbackLabel="Loading dashboard sidebar..." compact>
                   <RightSidebar />
                 </LazySurface>
               </div>
             )}
             {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'minting' && (
-              <div className="hidden min-h-0 overflow-hidden lg:block">
+              <div className="hidden h-full min-h-0 overflow-hidden lg:block">
                 <RuntimeErrorBoundary
                   title="Minting Sidebar Failed to Load"
                   description="The minting panel ran into a problem and was temporarily separated from the page."
@@ -570,7 +570,7 @@ function RuntimeAppContent({
               </div>
             )}
             {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'assets' && (
-              <div className="hidden min-h-0 overflow-hidden lg:block">
+              <div className="hidden h-full min-h-0 overflow-hidden lg:block">
                 <RuntimeErrorBoundary
                   title="Assets Sidebar Failed to Load"
                   description="The asset panel ran into a problem and was temporarily separated from the page."
@@ -583,14 +583,14 @@ function RuntimeAppContent({
               </div>
             )}
             {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'community' && (
-              <div className="hidden min-h-0 overflow-hidden lg:block">
+              <div className="hidden h-full min-h-0 overflow-hidden lg:block">
                 <LazySurface fallbackLabel="Loading community sidebar..." compact>
                   <CommunityRightSidebar />
                 </LazySurface>
               </div>
             )}
             {!aiUsesEmbeddedRightRail && !isGuest && activePage === 'history' && (
-              <div className="hidden min-h-0 overflow-hidden lg:block">
+              <div className="hidden h-full min-h-0 overflow-hidden lg:block">
                 <LazySurface fallbackLabel="Loading history sidebar..." compact>
                   <HistoryRightSidebar />
                 </LazySurface>
@@ -598,7 +598,7 @@ function RuntimeAppContent({
             )}
             {aiUsesEmbeddedRightRail && (
               <>
-                <div className="hidden min-h-0 overflow-hidden lg:block">
+                <div className="hidden h-full min-h-0 overflow-hidden lg:block">
                   <RuntimeErrorBoundary
                     title="AI Sidebar Failed to Load"
                     description="The AI panel ran into a problem. Close and reopen it to try again."

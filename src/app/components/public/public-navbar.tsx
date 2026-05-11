@@ -1,4 +1,4 @@
-import { Search } from 'lucide-react';
+import { MessageCircle, Search, Store } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { OrinaMark } from '@/app/components/brand/OrinaMark';
 import { OrinaWordmark } from '@/app/components/brand/OrinaWordmark';
@@ -12,8 +12,8 @@ interface PublicNavbarProps {
 }
 
 const PRIMARY_NAV_LINKS = [
-  { id: 'marketplace', label: 'Marketplace' },
-  { id: 'community', label: 'Community' },
+  { id: 'marketplace', label: 'Marketplace', Icon: Store },
+  { id: 'community', label: 'Community', Icon: MessageCircle },
 ];
 
 function warmRuntime(onWarmRuntime?: () => void) {
@@ -51,7 +51,7 @@ export function PublicNavbar({
       }}
       data-page={activePage}
     >
-      <div className="flex shrink-0 items-center gap-4">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-4">
         <button
           type="button"
           onClick={() => onNavigateToPage('home')}
@@ -64,7 +64,7 @@ export function PublicNavbar({
           <OrinaWordmark className="hidden h-[18px] w-auto lg:block" />
         </button>
 
-        <div className="flex items-center gap-7">
+        <div className="hidden items-center gap-7 sm:flex">
           {PRIMARY_NAV_LINKS.map((item) => {
             const isActive = activePage === item.id;
             return (
@@ -89,9 +89,37 @@ export function PublicNavbar({
             );
           })}
         </div>
+
+        <div className="flex items-center gap-1 sm:hidden">
+          {PRIMARY_NAV_LINKS.map((item) => {
+            const isActive = activePage === item.id;
+            const Icon = item.Icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  warmRuntime(onWarmRuntime);
+                  onNavigateToPage(item.id);
+                }}
+                onPointerEnter={() => warmRuntime(onWarmRuntime)}
+                onFocus={() => warmRuntime(onWarmRuntime)}
+                className={`inline-flex h-[var(--t-shell-icon-button)] w-[var(--t-shell-icon-button)] items-center justify-center rounded-full transition-colors ${
+                  isActive
+                    ? 'bg-[var(--t-nav-pill-bg)] text-white'
+                    : 'text-[rgba(226,232,240,0.72)] hover:bg-[var(--t-nav-pill-bg)] hover:text-white'
+                }`}
+                aria-label={item.label}
+                title={item.label}
+              >
+                <Icon size={18} aria-hidden="true" />
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="min-w-0 flex-1 md:ml-[var(--t-shell-nav-search-offset)]">
+      <div className="min-w-0 flex-1 sm:max-w-[var(--t-shell-nav-search-max-w)] md:ml-[var(--t-shell-nav-search-offset)]">
         <form onSubmit={handleSearchSubmit}>
           <div
             className="relative h-[var(--t-shell-nav-search-h)] rounded-full"
@@ -117,7 +145,7 @@ export function PublicNavbar({
         </form>
       </div>
 
-      <div className="ml-auto flex shrink-0 items-center gap-3">
+      <div className="ml-auto hidden shrink-0 items-center gap-3 sm:flex">
         <button
           type="button"
           onClick={onConnectWallet}

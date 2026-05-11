@@ -755,7 +755,7 @@ export function Orders({
           onCloseAI={onCloseAISidebar}
         >
         <StudioSidebarShell widthClassName="w-full" className="bg-ui-page border-l-0 p-2.5">
-          <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+          <div className="h-full min-h-0 rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
             <StudioSidebarHeader className="p-5 border-b border-[var(--t-border-subtle)]">
               <h2 className="text-ui-primary font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
                 <CheckCircle className="text-primary" size={18} />
@@ -1772,7 +1772,7 @@ export function Orders({
         onCloseAI={onCloseAISidebar}
       >
       <StudioSidebarShell widthClassName="w-full" className="bg-ui-page border-l-0 p-2.5">
-        <div className="h-full rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+        <div className="h-full min-h-0 rounded-[24px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
           <StudioSidebarHeader className="p-5 border-b border-[var(--t-border-subtle)]">
             <h2 className="text-ui-primary font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
               <CheckCircle className="text-primary" size={18} />

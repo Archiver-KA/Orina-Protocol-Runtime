@@ -144,7 +144,7 @@ export function AssetsRightSidebar() {
 
   return (
     <StudioSidebarShell widthClassName="w-full" className="bg-ui-page border-l-0 p-2.5">
-      <div className="h-full rounded-[var(--t-card-radius-lg)] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+      <div className="h-full min-h-0 rounded-[var(--t-card-radius-lg)] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
         <StudioSidebarHeader className="p-5 border-b border-[var(--t-border-subtle)]">
           <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
             <Tag className="text-primary" size={18} />

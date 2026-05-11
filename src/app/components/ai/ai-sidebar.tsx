@@ -806,7 +806,7 @@ export function AISidebar({
 
   const panel = (
     <div
-      className="ai-sidebar-opaque-shell relative flex h-full w-full flex-col overflow-hidden rounded-[24px]"
+      className="ai-sidebar-opaque-shell relative flex h-full min-h-0 w-full flex-col overflow-hidden rounded-[24px]"
       style={{ contain: 'layout paint' }}
     >
       <div className="flex shrink-0 items-center gap-3 px-4 py-3.5">
@@ -869,7 +869,7 @@ export function AISidebar({
                 + New chat
               </button>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-2">
                 {conversations.length === 0 ? (
                   <p className="text-[13px] text-ui-muted text-center py-8">No conversation history yet.</p>
                 ) : (
@@ -914,7 +914,7 @@ export function AISidebar({
             {/* Messages */}
             <style>{`.hidden-msgs-scroll::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }`}</style>
             <div 
-              className="flex-1 overflow-y-auto px-3 py-3 space-y-1 hidden-msgs-scroll"
+              className="min-h-0 flex-1 overflow-y-auto px-3 py-3 space-y-1 hidden-msgs-scroll"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
               {entries.length === 0 && (

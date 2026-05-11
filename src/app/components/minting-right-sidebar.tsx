@@ -187,7 +187,7 @@ export function MintingRightSidebar({ telemetry = null }: MintingRightSidebarPro
       <style>{`
         .hidden-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
-      <div className="h-full rounded-[var(--t-card-radius-lg)] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+      <div className="h-full min-h-0 rounded-[var(--t-card-radius-lg)] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
         <div className="p-6 bg-gradient-to-b from-[var(--t-surface-2)] to-transparent">
           <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
             <Coins className="text-primary" size={18} />
@@ -196,7 +196,7 @@ export function MintingRightSidebar({ telemetry = null }: MintingRightSidebarPro
           <p className="text-xs text-ui-muted mt-1">Live gas estimate and BNB market pulse</p>
         </div>
 
-        <div className="flex-grow overflow-y-auto hidden-scrollbar p-5 space-y-8" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div className="min-h-0 flex-grow overflow-y-auto hidden-scrollbar p-5 space-y-8" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-medium text-ui-muted uppercase">ATP Protocol</span>

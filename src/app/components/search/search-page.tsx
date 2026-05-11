@@ -924,7 +924,7 @@ export function SearchPage({
     'rounded-[var(--t-card-radius-lg)] border border-ui-border-subtle bg-[var(--t-surface-2)] p-5 shadow-none';
 
   const renderFilterSidebarContent = (variant: 'desktop' | 'mobile') => (
-    <div className={`flex h-full flex-col overflow-hidden bg-[var(--t-card-bg)] shadow-[0_24px_60px_-42px_rgba(0,0,0,0.34)] ${
+    <div className={`flex h-full min-h-0 flex-col overflow-hidden bg-[var(--t-card-bg)] shadow-[0_24px_60px_-42px_rgba(0,0,0,0.34)] ${
       variant === 'mobile' ? 'rounded-t-[28px]' : 'rounded-[28px]'
     }`}>
       <StudioSidebarHeader className="border-b border-ui-border-subtle px-6 py-5">
@@ -1196,7 +1196,7 @@ export function SearchPage({
                     size="icon"
                     aria-label="Search with ORINA AI"
                     title="Search with ORINA AI"
-                    className="h-[var(--t-shell-control-h)] w-[var(--t-shell-control-h)] border-[#2CC295]/25 disabled:cursor-not-allowed disabled:opacity-40 sm:h-11 sm:w-11"
+                    className="flex-none aspect-square !h-[var(--t-shell-control-h)] !w-[var(--t-shell-control-h)] min-w-[var(--t-shell-control-h)] !border-transparent shadow-none disabled:cursor-not-allowed disabled:opacity-40 sm:!h-11 sm:!w-11 sm:min-w-11"
                   >
                     <Sparkles size={18} aria-hidden="true" />
                     <span className="sr-only">Search with ORINA AI</span>

@@ -1797,7 +1797,7 @@ export function EnhancedProfile({
       {isOwnProfile ? (
       <StudioSidebarShell widthClassName="w-[var(--t-shell-wide-rail-w)]" className="bg-ui-page border-l-0 p-4">
         {activeTab === 'story' ? (
-          <div className="h-full rounded-[28px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto hidden-scrollbar p-6 space-y-6">
+          <div className="h-full min-h-0 rounded-[28px] bg-[var(--t-card-bg)] backdrop-blur-[6px] overflow-y-auto hidden-scrollbar p-6 space-y-6">
             <div className="rounded-[24px] bg-ui-input border border-ui-border-subtle p-6 space-y-6">
               <div>
                 <h3 className="text-sm font-semibold text-ui-primary">Story Settings</h3>
@@ -1919,7 +1919,7 @@ export function EnhancedProfile({
             </div>
           </div>
         ) : (
-        <div className="h-full rounded-[28px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
+          <div className="h-full min-h-0 rounded-[28px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="border-b border-[var(--color-panel-border)] bg-gradient-to-b from-white/[0.02] to-transparent px-6 py-5">
           <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
@@ -1930,7 +1930,7 @@ export function EnhancedProfile({
         </div>
 
         {/* Content */}
-        <div className="hidden-scrollbar flex-grow overflow-y-auto space-y-6 p-6" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div className="hidden-scrollbar min-h-0 flex-grow overflow-y-auto space-y-6 p-6" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {/* Reputation Score - REAL DATA */}
           <div className="space-y-4 text-center">
             <div className="relative mx-auto flex h-40 w-40 items-center justify-center">
