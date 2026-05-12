@@ -87,7 +87,7 @@ jobs:
     name: Connected Protocol Smoke
     needs:
       - viewer-release
-    if: ${{ needs.viewer-release.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.run_connected_smoke) }}
+    if: ${{ needs.viewer-release.result == 'success' && github.event_name == 'workflow_dispatch' && inputs.run_connected_smoke }}
     runs-on:
       - self-hosted
       - Windows
