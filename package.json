@@ -115,11 +115,15 @@
   },
   "overrides": {
     "lodash": "4.18.1",
+    "postcss": "8.5.10",
+    "protocol-buffers-schema": "3.6.1",
     "vite": "6.4.2"
   },
   "pnpm": {
     "overrides": {
       "lodash": "4.18.1",
+      "postcss": "8.5.10",
+      "protocol-buffers-schema": "3.6.1",
       "vite": "6.4.2"
     }
   }

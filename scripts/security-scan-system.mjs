@@ -238,6 +238,32 @@ function scanIpfsModule() {
   return { ok: Object.values(checks).every(Boolean), items, checks };
 }
 
+function scanRateLimiterModule() {
+  const filePath = path.join(ROOT, 'supabase', 'functions', 'server', 'rate-limiter.ts');
+  if (!fs.existsSync(filePath)) {
+    return { ok: false, items: ['rate-limiter.ts not found'], checks: {} };
+  }
+
+  const text = fs.readFileSync(filePath, 'utf8');
+  const checks = {
+    usesAtomicRpc: /\.rpc\(['"]rate_limit_increment['"]/.test(text),
+    noLegacyReadModifyWrite:
+      !/request_count\s*:\s*currentCount/.test(text) &&
+      !/\.select\(['"]id,request_count,window_start['"]\)/.test(text),
+  };
+
+  const items = [
+    checks.usesAtomicRpc
+      ? 'Rate limiter increments counters through public.rate_limit_increment RPC.'
+      : 'CRITICAL: rate limiter does not use the atomic rate_limit_increment RPC.',
+    checks.noLegacyReadModifyWrite
+      ? 'No legacy select-then-update request_count path detected.'
+      : 'WARNING: legacy read-modify-write rate limit path is still present.',
+  ];
+
+  return { ok: Object.values(checks).every(Boolean), items, checks };
+}
+
 function scanAuditServiceRoleAliases() {
   const auditDir = path.join(ROOT, 'supabase', 'audit');
   if (!fs.existsSync(auditDir)) {
@@ -288,6 +314,9 @@ function scanCorsConfigurations() {
     if (/Access-Control-Allow-Origin["'`]\s*,\s*["']\*["']/.test(text)) {
       offenders.push(`${rel}: explicit ACAO wildcard`);
     }
+    if (/return\s+["']\*["']/.test(text) && /cors/i.test(text)) {
+      offenders.push(`${rel}: returns wildcard CORS origin`);
+    }
   }
 
   return {
@@ -299,7 +328,7 @@ function scanCorsConfigurations() {
   };
 }
 
-function buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, auditAliasScan, corsScan) {
+function buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, rateLimiterScan, auditAliasScan, corsScan) {
   const areas = {
     dependencies: {
       status: vuln && (vuln.critical > 0 || vuln.high > 0) ? 'action_required' : vuln?.moderate ? 'review' : 'ok',
@@ -334,6 +363,13 @@ function buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, auditAliasScan, 
         ? 'Single and batch upload routes require H1 JWT + distributed per-wallet rate limits.'
         : 'Pinata-backed upload surface still exposes unauthenticated or unthrottled routes.',
     },
+    rateLimiting: {
+      status: rateLimiterScan?.ok ? 'ok' : 'risk',
+      summary: rateLimiterScan?.ok
+        ? 'Distributed rate limiting uses the atomic rate_limit_increment RPC.'
+        : 'Review distributed rate limiting for read-modify-write races.',
+      details: rateLimiterScan?.checks || {},
+    },
     cors: {
       status: corsScan?.ok ? 'ok' : 'review',
       summary: corsScan?.ok
@@ -352,6 +388,7 @@ function buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, auditAliasScan, 
     areas.dependencies.status === 'ok' ? 'deps:ok' : 'deps:check',
     areas.messaging.status === 'ok' ? 'messaging:ok' : 'messaging:review',
     areas.ipfsPinata.status === 'ok' ? 'ipfs:ok' : 'ipfs:risk',
+    areas.rateLimiting.status === 'ok' ? 'ratelimit:ok' : 'ratelimit:risk',
     areas.m2mDelegatedAiWallet.status === 'ok' ? 'm2m:ok' : 'm2m:review',
     areas.cors.status === 'ok' ? 'cors:ok' : 'cors:review',
   ].join(' | ');
@@ -362,6 +399,7 @@ function buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, auditAliasScan, 
 function main() {
   const messagingScan = scanMessagingModule();
   const ipfsScan = scanIpfsModule();
+  const rateLimiterScan = scanRateLimiterModule();
   const auditAliasScan = scanAuditServiceRoleAliases();
   const corsScan = scanCorsConfigurations();
 
@@ -440,12 +478,13 @@ function main() {
 
   addSection('Messaging auth / authorization (messages-handler-c5.ts)', messagingScan.items, messagingScan.ok ? 'info' : 'critical');
   addSection('IPFS upload protection (ipfs-upload.tsx)', ipfsScan.items, ipfsScan.ok ? 'info' : 'critical');
+  addSection('Distributed rate limiting (rate-limiter.ts)', rateLimiterScan.items, rateLimiterScan.ok ? 'info' : 'critical');
   addSection('Audit tooling secret aliases', auditAliasScan.items, auditAliasScan.ok ? 'info' : 'moderate');
   addSection('Edge function CORS posture', corsScan.items, corsScan.ok ? 'info' : 'moderate');
 
-  if (!messagingScan.ok || !ipfsScan.ok) REPORT.exitCode = 1;
+  if (!messagingScan.ok || !ipfsScan.ok || !rateLimiterScan.ok) REPORT.exitCode = 1;
 
-  REPORT.aggregate = buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, auditAliasScan, corsScan);
+  REPORT.aggregate = buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, rateLimiterScan, auditAliasScan, corsScan);
 
   console.log(JSON.stringify(REPORT, null, 2));
   process.exit(REPORT.exitCode);

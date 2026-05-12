@@ -24,12 +24,12 @@ const CORS_MAX_AGE = "600";
 
 export function resolveAllowedCorsOrigin(origin?: string | null) {
   const normalizedOrigin = String(origin || "").trim();
-  if (!normalizedOrigin) return "*";
+  if (!normalizedOrigin) return "";
   if (EXACT_ALLOWED_ORIGINS.has(normalizedOrigin)) {
-    return "*";
+    return normalizedOrigin;
   }
   return ALLOWED_ORIGIN_PATTERNS.some((rule) => rule.test(normalizedOrigin))
-    ? "*"
+    ? normalizedOrigin
     : "";
 }
 

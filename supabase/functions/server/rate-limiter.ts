@@ -8,7 +8,8 @@
  * key (wallet + endpoint + window) and returns allow/block + retry-after.
  *
  * Design:
- * - One row per (wallet, endpoint, window) using UPSERT with atomic increment.
+ * - One row per (wallet, endpoint, window) using the `rate_limit_increment`
+ *   SECURITY DEFINER RPC for atomic insert/increment.
  * - Window boundaries are computed from truncated timestamps.
  * - Old rows are not auto-deleted here; a periodic cleanup job can DELETE
  *   rows where window_start < now() - interval '24 hours'.
@@ -16,33 +17,28 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-// ── Budget definitions ───────────────────────────────────────────────────────
-
 export interface RateBudget {
   maxRequests: number;
   windowMs: number;
 }
 
 /**
- * All endpoint-family budgets, matching the spec in
- * 15-local-api-audit-and-server-migration-plan.md § Recommended Rate Limit Policy.
+ * All endpoint-family budgets, matching the current Edge Function handlers.
  */
 export const RATE_BUDGETS: Record<string, RateBudget> = {
-  chat_create:      { maxRequests: 10,  windowMs: 10 * 60_000 },  // 10 / 10 min
-  chat_send:        { maxRequests: 20,  windowMs: 60_000 },       // 20 / min
-  chat_send_conv:   { maxRequests: 5,   windowMs: 60_000 },       // 5 / min / conversation
-  chat_read:        { maxRequests: 120, windowMs: 60_000 },       // 120 / min
-  ipfs_upload:      { maxRequests: 30,  windowMs: 60_000 },       // 30 / min
-  ipfs_upload_batch:{ maxRequests: 10,  windowMs: 60_000 },       // 10 / min
-  ai_assist:        { maxRequests: 10,  windowMs: 60_000 },       // 10 / min
-  ai_assist_daily:  { maxRequests: 200, windowMs: 24 * 3600_000 },// 200 / day
-  ai_assist_image:  { maxRequests: 3,   windowMs: 60_000 },       // 3 / min
-  ai_assist_image_daily: { maxRequests: 30, windowMs: 24 * 3600_000 }, // 30 / day
-  ai_config_write:  { maxRequests: 20,  windowMs: 3600_000 },     // 20 / hour
-  moderation_report:{ maxRequests: 10,  windowMs: 24 * 3600_000 },// 10 / day
+  chat_create: { maxRequests: 10, windowMs: 10 * 60_000 },
+  chat_send: { maxRequests: 20, windowMs: 60_000 },
+  chat_send_conv: { maxRequests: 5, windowMs: 60_000 },
+  chat_read: { maxRequests: 120, windowMs: 60_000 },
+  ipfs_upload: { maxRequests: 30, windowMs: 60_000 },
+  ipfs_upload_batch: { maxRequests: 10, windowMs: 60_000 },
+  ai_assist: { maxRequests: 10, windowMs: 60_000 },
+  ai_assist_daily: { maxRequests: 200, windowMs: 24 * 3600_000 },
+  ai_assist_image: { maxRequests: 3, windowMs: 60_000 },
+  ai_assist_image_daily: { maxRequests: 30, windowMs: 24 * 3600_000 },
+  ai_config_write: { maxRequests: 20, windowMs: 3600_000 },
+  moderation_report: { maxRequests: 10, windowMs: 24 * 3600_000 },
 };
-
-// ── Supabase client (service role) ───────────────────────────────────────────
 
 function getServiceClient() {
   const url = Deno.env.get('SUPABASE_URL') || '';
@@ -51,7 +47,7 @@ function getServiceClient() {
   return createClient(url, key);
 }
 
-// ── Core check ───────────────────────────────────────────────────────────────
+type ServiceSupabaseClient = ReturnType<typeof getServiceClient>;
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -60,22 +56,65 @@ export interface RateLimitResult {
   currentCount: number;
 }
 
-/**
- * Compute the start of the current time window for a given window size.
- * Windows are aligned to epoch so that all instances share the same boundary.
- */
 function windowStart(windowMs: number): string {
   const now = Date.now();
   const aligned = now - (now % windowMs);
   return new Date(aligned).toISOString();
 }
 
+function parseIncrementCount(data: unknown): number {
+  if (typeof data === 'number' && Number.isFinite(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data) && data.length > 0) {
+    return parseIncrementCount(data[0]);
+  }
+
+  if (data && typeof data === 'object') {
+    const maybeRecord = data as Record<string, unknown>;
+    return parseIncrementCount(
+      maybeRecord.rate_limit_increment ??
+      maybeRecord.request_count ??
+      maybeRecord.count,
+    );
+  }
+
+  return 0;
+}
+
+async function incrementRateLimitCounter(
+  supabase: ServiceSupabaseClient,
+  scopeKey: string,
+  endpoint: string,
+  wallet: string,
+  windowStartIso: string,
+): Promise<number> {
+  const { data, error } = await supabase.rpc('rate_limit_increment', {
+    p_scope_key: scopeKey,
+    p_endpoint: endpoint,
+    p_wallet: wallet || null,
+    p_window_start: windowStartIso,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const currentCount = parseIncrementCount(data);
+  if (!Number.isFinite(currentCount) || currentCount <= 0) {
+    throw new Error('rate_limit_increment returned an invalid count');
+  }
+
+  return currentCount;
+}
+
 /**
  * Check and increment the rate limit counter for a given scope.
  *
- * @param endpoint  - The budget family (key in `RATE_BUDGETS`).
- * @param wallet    - Wallet address (normalized lowercase).
- * @param extra     - Optional extra scope segment (e.g. conversationId for chat_send_conv).
+ * @param endpoint - The budget family (key in `RATE_BUDGETS`).
+ * @param wallet - Wallet address (normalized lowercase).
+ * @param extra - Optional extra scope segment, such as conversation id.
  */
 export async function checkRateLimit(
   endpoint: string,
@@ -84,7 +123,6 @@ export async function checkRateLimit(
 ): Promise<RateLimitResult> {
   const budget = RATE_BUDGETS[endpoint];
   if (!budget) {
-    // Unknown endpoint → allow (no budget = no limit)
     return { allowed: true, remaining: Infinity, retryAfterMs: 0, currentCount: 0 };
   }
 
@@ -92,86 +130,46 @@ export async function checkRateLimit(
   const scopeKey = extra
     ? `${endpoint}:${wallet}:${extra}:${ws}`
     : `${endpoint}:${wallet}:${ws}`;
-
   const supabase = getServiceClient();
+  let currentCount = 0;
 
-  // Atomic upsert + increment using raw SQL via RPC would be ideal, but
-  // Supabase JS doesn't expose arbitrary SQL. Instead, use upsert + select
-  // with a small race window that is acceptable for rate limiting.
-
-  const { data: existing, error: selectErr } = await supabase
-    .from('rate_limit_entries')
-    .select('id,request_count,window_start')
-    .eq('scope_key', scopeKey)
-    .maybeSingle();
-
-  if (selectErr) {
-    console.error('[RateLimiter] select error:', selectErr.message);
-    // Fail-open: allow on DB errors to avoid blocking legitimate traffic
+  try {
+    currentCount = await incrementRateLimitCounter(supabase, scopeKey, endpoint, wallet, ws);
+  } catch (error) {
+    console.error(
+      '[RateLimiter] atomic increment error:',
+      error instanceof Error ? error.message : String(error),
+    );
+    // Fail-open on DB errors to avoid blocking legitimate traffic.
     return { allowed: true, remaining: budget.maxRequests, retryAfterMs: 0, currentCount: 0 };
   }
 
-  if (!existing) {
-    // First request in this window — insert
-    const { error: insertErr } = await supabase
-      .from('rate_limit_entries')
-      .upsert({
-        scope_key: scopeKey,
-        endpoint,
-        wallet: wallet || null,
-        window_start: ws,
-        request_count: 1,
-        blocked: false,
-      }, { onConflict: 'scope_key' });
-
-    if (insertErr) {
-      console.error('[RateLimiter] insert error:', insertErr.message);
-    }
-
+  if (currentCount <= budget.maxRequests) {
     return {
       allowed: true,
-      remaining: budget.maxRequests - 1,
+      remaining: budget.maxRequests - currentCount,
       retryAfterMs: 0,
-      currentCount: 1,
+      currentCount,
     };
   }
 
-  const currentCount = (existing.request_count ?? 0) + 1;
+  const windowStartMs = Date.parse(ws);
+  const windowEndMs = windowStartMs + budget.windowMs;
+  const retryAfterMs = Math.max(windowEndMs - Date.now(), 0);
 
-  if (currentCount > budget.maxRequests) {
-    // Over budget — compute retry-after
-    const windowStartMs = Date.parse(existing.window_start);
-    const windowEndMs = windowStartMs + budget.windowMs;
-    const retryAfterMs = Math.max(windowEndMs - Date.now(), 0);
-
-    // Mark as blocked (for audit logging)
-    await supabase
-      .from('rate_limit_entries')
-      .update({ blocked: true })
-      .eq('id', existing.id);
-
-    return {
-      allowed: false,
-      remaining: 0,
-      retryAfterMs,
-      currentCount: currentCount - 1,
-    };
-  }
-
-  // Within budget — increment
-  const { error: updateErr } = await supabase
+  const { error: blockedUpdateError } = await supabase
     .from('rate_limit_entries')
-    .update({ request_count: currentCount, blocked: false })
-    .eq('id', existing.id);
+    .update({ blocked: true })
+    .eq('scope_key', scopeKey);
 
-  if (updateErr) {
-    console.error('[RateLimiter] update error:', updateErr.message);
+  if (blockedUpdateError) {
+    console.error('[RateLimiter] blocked marker update error:', blockedUpdateError.message);
   }
 
   return {
-    allowed: true,
-    remaining: budget.maxRequests - currentCount,
-    retryAfterMs: 0,
+    allowed: false,
+    remaining: 0,
+    retryAfterMs,
     currentCount,
   };
 }
