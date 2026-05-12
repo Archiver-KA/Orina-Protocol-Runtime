@@ -37,6 +37,8 @@ export const RATE_BUDGETS: Record<string, RateBudget> = {
   ai_assist_image: { maxRequests: 3, windowMs: 60_000 },
   ai_assist_image_daily: { maxRequests: 30, windowMs: 24 * 3600_000 },
   ai_config_write: { maxRequests: 20, windowMs: 3600_000 },
+  ai_m2m_delegate_invite: { maxRequests: 10, windowMs: 3600_000 },
+  ai_m2m_delegate_accept: { maxRequests: 20, windowMs: 3600_000 },
   moderation_report: { maxRequests: 10, windowMs: 24 * 3600_000 },
 };
 

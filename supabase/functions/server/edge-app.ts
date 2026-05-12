@@ -7,11 +7,14 @@ const EXACT_ALLOWED_ORIGINS = new Set([
   "https://www.orina.io",
 ]);
 
-const ALLOWED_ORIGIN_PATTERNS = [
+const PREVIEW_ORIGIN_PATTERNS = [
   /https:\/\/.*\.supabase\.co$/,
   /https:\/\/.*\.vercel\.app$/,
   /https:\/\/.*\.netlify\.app$/,
   /https:\/\/.*\.workers\.dev$/,
+];
+
+const LOCAL_ORIGIN_PATTERNS = [
   /^http:\/\/localhost(:\d+)?$/,
   /^http:\/\/127\.0\.0\.1(:\d+)?$/,
 ];
@@ -22,13 +25,50 @@ const CORS_ALLOW_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
 const CORS_EXPOSE_HEADERS = "Content-Length";
 const CORS_MAX_AGE = "600";
 
+function readEdgeEnv(name: string): string {
+  try {
+    return String(Deno.env.get(name) || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function readEdgeFlag(name: string): boolean {
+  return readEdgeEnv(name).toLowerCase() === "true";
+}
+
+function readConfiguredAllowedOrigins(): Set<string> {
+  return new Set(
+    readEdgeEnv("ORINA_CORS_ALLOWED_ORIGINS")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  );
+}
+
+function isProductionCorsMode(): boolean {
+  return readEdgeEnv("ORINA_CORS_ENV").toLowerCase() === "production";
+}
+
+function isLocalOriginAllowed(origin: string): boolean {
+  return !isProductionCorsMode() && LOCAL_ORIGIN_PATTERNS.some((rule) => rule.test(origin));
+}
+
+function isPreviewOriginAllowed(origin: string): boolean {
+  return readEdgeFlag("ORINA_CORS_ALLOW_PREVIEW_ORIGINS") &&
+    PREVIEW_ORIGIN_PATTERNS.some((rule) => rule.test(origin));
+}
+
 export function resolveAllowedCorsOrigin(origin?: string | null) {
   const normalizedOrigin = String(origin || "").trim();
   if (!normalizedOrigin) return "";
   if (EXACT_ALLOWED_ORIGINS.has(normalizedOrigin)) {
     return normalizedOrigin;
   }
-  return ALLOWED_ORIGIN_PATTERNS.some((rule) => rule.test(normalizedOrigin))
+  if (readConfiguredAllowedOrigins().has(normalizedOrigin)) {
+    return normalizedOrigin;
+  }
+  return isLocalOriginAllowed(normalizedOrigin) || isPreviewOriginAllowed(normalizedOrigin)
     ? normalizedOrigin
     : "";
 }

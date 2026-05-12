@@ -7,6 +7,7 @@ import {
   normalizeWalletAddress,
   requireAuthenticatedWallet,
 } from './request-auth.ts';
+import { checkRateLimit, rateLimitExceededResponse } from './rate-limiter.ts';
 import type {
   AIM2MAction,
   AIM2MActionMapping,
@@ -22,6 +23,9 @@ const aiM2MWallet = new Hono();
 const ALLOWED_ACTIONS: AIM2MAction[] = ['buy', 'mint', 'sign_order'];
 const DEFAULT_ACTIONS: AIM2MAction[] = ['buy'];
 const DELEGATE_INVITE_TTL_MS = 24 * 60 * 60 * 1000;
+const DELEGATE_INVITE_RANDOM_BYTES = 32;
+const DELEGATE_INVITE_ID_PREFIX = 'm2m_';
+const DELEGATE_INVITE_ID_MAX_ATTEMPTS = 8;
 const DELEGATE_ENCRYPTION_SECRET_ENV = 'ATP2_M2M_DELEGATE_ENCRYPTION_KEY';
 
 type ManagedDelegateSecretRecord = {
@@ -92,6 +96,21 @@ function bytesToHex(bytes: Uint8Array): string {
 
 function randomHex(bytesLength: number): string {
   return bytesToHex(crypto.getRandomValues(new Uint8Array(bytesLength)));
+}
+
+function generateDelegateInviteId(): string {
+  return `${DELEGATE_INVITE_ID_PREFIX}${randomHex(DELEGATE_INVITE_RANDOM_BYTES)}`;
+}
+
+async function createUniqueDelegateInviteId(): Promise<string> {
+  for (let attempt = 0; attempt < DELEGATE_INVITE_ID_MAX_ATTEMPTS; attempt += 1) {
+    const inviteId = generateDelegateInviteId();
+    if (!await kv.get(delegateInviteKey(inviteId))) {
+      return inviteId;
+    }
+  }
+
+  throw new Error('Unable to allocate a unique delegate invite id');
 }
 
 async function getDelegateEncryptionKey(): Promise<CryptoKey> {
@@ -583,9 +602,14 @@ aiM2MWallet.post('/delegates/invite', async (c) => {
     if (walletMismatch) return walletMismatch;
 
     const resolvedWalletAddress = auth.identity.walletAddress;
+    const rate = await checkRateLimit('ai_m2m_delegate_invite', resolvedWalletAddress);
+    if (!rate.allowed) {
+      return rateLimitExceededResponse(c, rate);
+    }
+
     const nowMs = Date.now();
     const invite: AIM2MDelegateInvite = {
-      id: `m2m_${randomHex(8)}`,
+      id: await createUniqueDelegateInviteId(),
       rootWalletAddress: resolvedWalletAddress,
       status: 'pending',
       createdAt: new Date(nowMs).toISOString(),
@@ -617,6 +641,11 @@ aiM2MWallet.post('/delegates/accept-invite', async (c) => {
     const inviteId = String(body.inviteId || '').trim();
     if (!inviteId) {
       return c.json({ error: 'Missing inviteId' }, 400);
+    }
+
+    const rate = await checkRateLimit('ai_m2m_delegate_accept', auth.identity.walletAddress);
+    if (!rate.allowed) {
+      return rateLimitExceededResponse(c, rate);
     }
 
     const storedInvite = sanitizeStoredInvite(await kv.get(delegateInviteKey(inviteId)));
