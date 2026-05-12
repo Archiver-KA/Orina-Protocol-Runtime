@@ -42,6 +42,54 @@ const REVIEWED_PRIVILEGED_FUNCTION_RULES = new Map([
       note: 'Viewer-aware ranking RPC. SECURITY DEFINER is intentional because it reads ranking config and affinity tables while binding viewer identity to JWT claims, not caller-supplied parameters.',
     },
   ],
+  [
+    'get_marketplace_catalog_page_v1(p_limit integer, p_cursor_updated_at timestamp with time zone, p_cursor_id uuid, p_search_query text, p_category text, p_chain_id bigint, p_blockchain text, p_verified_only boolean)',
+    {
+      roles: ['anon', 'authenticated', 'postgres', 'service_role'],
+      searchPath: 'public',
+      note: 'Public catalog browse RPC. SECURITY DEFINER is intentional because the materialized browse index is service-role-readable only; inputs are typed filters and search text, not dynamic SQL.',
+    },
+  ],
+  [
+    'get_marketplace_collection_page_v1(p_limit integer, p_cursor_score numeric, p_cursor_updated_at timestamp with time zone, p_cursor_id text, p_search_query text, p_category text, p_verified_only boolean, p_sort text)',
+    {
+      roles: ['anon', 'authenticated', 'postgres', 'service_role'],
+      searchPath: 'public',
+      note: 'Public collection browse RPC. SECURITY DEFINER is intentional because it reads the protected collection browse index and binds optional personalization to JWT claim helpers.',
+    },
+  ],
+  [
+    'get_marketplace_profile_page_v1(p_limit integer, p_cursor_score numeric, p_cursor_updated_at timestamp with time zone, p_cursor_user_id uuid, p_search_query text, p_verified_only boolean, p_sort text)',
+    {
+      roles: ['anon', 'authenticated', 'postgres', 'service_role'],
+      searchPath: 'public',
+      note: 'Public profile browse RPC. SECURITY DEFINER is intentional because it reads the protected profile browse index and binds optional personalization to JWT claim helpers.',
+    },
+  ],
+  [
+    'refresh_marketplace_asset_browse_index_v1()',
+    {
+      roles: ['postgres', 'service_role'],
+      searchPath: 'public',
+      note: 'Service-role-only maintenance RPC for refreshing the marketplace asset materialized browse index.',
+    },
+  ],
+  [
+    'refresh_marketplace_collection_browse_index_v1()',
+    {
+      roles: ['postgres', 'service_role'],
+      searchPath: 'public',
+      note: 'Service-role-only maintenance RPC for refreshing the marketplace collection materialized browse index.',
+    },
+  ],
+  [
+    'refresh_marketplace_profile_browse_index_v1()',
+    {
+      roles: ['postgres', 'service_role'],
+      searchPath: 'public',
+      note: 'Service-role-only maintenance RPC for refreshing the marketplace profile materialized browse index.',
+    },
+  ],
 ]);
 
 const IGNORED_FUNCTION_KEYS = new Set([
