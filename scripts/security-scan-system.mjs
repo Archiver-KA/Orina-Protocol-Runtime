@@ -93,6 +93,8 @@ function scanM2MModule() {
     return { ok: false, items: ['ai-m2m-wallet.ts not found'], checks: {} };
   }
   const text = fs.readFileSync(m2mPath, 'utf8');
+  const inviteRouteBlock = extractRouteBlock(text, "aiM2MWallet.post('/delegates/invite'", "aiM2MWallet.post('/delegates/accept-invite'");
+  const acceptInviteRouteBlock = extractRouteBlock(text, "aiM2MWallet.post('/delegates/accept-invite'", 'export default aiM2MWallet');
   const authCalls = (text.match(/requireAuthenticatedWallet\(/g) || []).length;
   const walletMatchCalls = (text.match(/assertAuthenticatedWalletMatch\(/g) || []).length;
   const hasEncryptionEnv = text.includes('ATP2_M2M_DELEGATE_ENCRYPTION_KEY');
@@ -109,6 +111,16 @@ function scanM2MModule() {
     encryptionKeyEnvDocumented: hasEncryptionEnv,
     encryptAtRest: encryptFn,
     noPrivateKeyInJson: !leakyReturn,
+    inviteMinEntropy: /DELEGATE_INVITE_RANDOM_BYTES\s*=\s*(3[2-9]|[4-9]\d|\d{3,})/.test(text),
+    inviteUsesCryptoRandomness:
+      /crypto\.getRandomValues\(new Uint8Array\(bytesLength\)\)/.test(text) &&
+      /randomHex\(DELEGATE_INVITE_RANDOM_BYTES\)/.test(text),
+    inviteHasCollisionRetry: /createUniqueDelegateInviteId/.test(text) && /DELEGATE_INVITE_ID_MAX_ATTEMPTS/.test(text),
+    inviteHasExpiration: /DELEGATE_INVITE_TTL_MS/.test(text) && /expireInviteIfNeeded\(storedInvite\)/.test(text),
+    inviteReplayRejected: /invite\.status !== 'pending'/.test(text) && /status:\s*'claimed'/.test(acceptInviteRouteBlock),
+    inviteRoutesRateLimited:
+      /checkRateLimit\('ai_m2m_delegate_invite'/.test(inviteRouteBlock) &&
+      /checkRateLimit\('ai_m2m_delegate_accept'/.test(acceptInviteRouteBlock),
   };
 
   items.push(
@@ -127,16 +139,97 @@ function scanM2MModule() {
       : 'No obvious privateKey in c.json responses (heuristic).',
   );
   items.push(
-    'accept-invite: caller JWT wallet must be delegate; root vs delegate enforced; invite is single-use after claim.',
+    checks.inviteReplayRejected
+      ? 'accept-invite rejects non-pending invites and marks successful claims as claimed.'
+      : 'WARNING: accept-invite replay rejection is not clearly present.',
   );
   items.push(
-    'Residual risks: inviteId secret strength (short random hex) — prefer longer IDs or rate limits; KV backup exposes ciphertext if encryption key leaks.',
+    checks.inviteMinEntropy
+      ? 'Delegate invite ids use at least 32 bytes of entropy.'
+      : 'WARNING: delegate invite ids do not meet the 32-byte entropy floor.',
   );
-
+  items.push(
+    checks.inviteUsesCryptoRandomness
+      ? 'Delegate invite ids are generated with crypto.getRandomValues.'
+      : 'WARNING: delegate invite ids are not clearly generated with cryptographic randomness.',
+  );
+  items.push(
+    checks.inviteHasCollisionRetry
+      ? 'Delegate invite creation retries random ids on KV collision.'
+      : 'WARNING: delegate invite creation does not clearly retry id collisions.',
+  );
+  items.push(
+    checks.inviteHasExpiration
+      ? 'Delegate invite expiration is enforced before accept.'
+      : 'WARNING: delegate invite expiration is not clearly enforced before accept.',
+  );
+  items.push(
+    checks.inviteRoutesRateLimited
+      ? 'Delegate invite creation and accept routes use the distributed rate limiter.'
+      : 'WARNING: delegate invite routes are not clearly rate limited.',
+  );
   const clientLeak = scanClientM2MSecrets();
   items.push(...clientLeak.items);
+  const backupScan = scanManagedDelegateBackupHandling(text);
+  items.push(...backupScan.items);
 
-  return { ok: Object.values(checks).every(Boolean) && clientLeak.ok, items, checks, clientM2M: clientLeak };
+  return {
+    ok: Object.values(checks).every(Boolean) && clientLeak.ok && backupScan.ok,
+    items,
+    checks: { ...checks, ...backupScan.checks },
+    clientM2M: clientLeak,
+    backup: backupScan,
+  };
+}
+
+function scanManagedDelegateBackupHandling(text) {
+  const secretRecordBlock = extractRouteBlock(
+    text,
+    'async function encryptManagedDelegateSecret',
+    'function buildMappings',
+  );
+  const generateRouteBlock = extractRouteBlock(
+    text,
+    "aiM2MWallet.post('/delegates/generate'",
+    "aiM2MWallet.post('/delegates/invite'",
+  );
+
+  const checks = {
+    aesGcm: /AES-GCM/.test(secretRecordBlock),
+    twelveByteIv: /new Uint8Array\(12\)/.test(secretRecordBlock),
+    ciphertextRecordOnly:
+      /kv\.set\(managedDelegateSecretKey\(delegateRecord\.id\), encryptedSecret\)/.test(generateRouteBlock) &&
+      !/kv\.set\([^)]*privateKey/s.test(generateRouteBlock),
+    noSecretRecordInJson: !/c\.json\([^)]*(encryptedSecret|ciphertextHex|ivHex)/s.test(text),
+    noPrivateKeyLogging: !/console\.(log|error|warn)\([^)]*privateKey/s.test(text),
+    noDecryptOrExportEndpoint: !/decryptManagedDelegateSecret|privateKey.*download|export.*delegate.*secret/i.test(text),
+  };
+
+  return {
+    ok: Object.values(checks).every(Boolean),
+    checks,
+    items: [
+      checks.aesGcm
+        ? 'Managed delegate backup ciphertext uses AES-GCM.'
+        : 'WARNING: managed delegate backup ciphertext does not clearly use AES-GCM.',
+      checks.twelveByteIv
+        ? 'Managed delegate encryption uses a 12-byte IV.'
+        : 'WARNING: managed delegate encryption IV length is not clearly 12 bytes.',
+      checks.ciphertextRecordOnly
+        ? 'Managed delegate private keys are stored only through the encrypted secret record path.'
+        : 'CRITICAL: managed delegate private keys may be persisted outside the encrypted secret record.',
+      checks.noSecretRecordInJson
+        ? 'Managed delegate ciphertext/IV are not returned in JSON responses.'
+        : 'WARNING: managed delegate ciphertext metadata may be returned in JSON responses.',
+      checks.noPrivateKeyLogging
+        ? 'Managed delegate private keys are not logged by the M2M module.'
+        : 'CRITICAL: managed delegate private key logging pattern found.',
+      checks.noDecryptOrExportEndpoint
+        ? 'No delegate secret decrypt/export endpoint is present.'
+        : 'WARNING: delegate secret decrypt/export surface requires review.',
+      'Residual note: KV backups can still contain ciphertext; protection depends on keeping ATP2_M2M_DELEGATE_ENCRYPTION_KEY outside backups and logs.',
+    ],
+  };
 }
 
 function scanClientM2MSecrets() {
@@ -300,7 +393,7 @@ function scanAuditServiceRoleAliases() {
 function scanCorsConfigurations() {
   const functionsDir = path.join(ROOT, 'supabase', 'functions');
   if (!fs.existsSync(functionsDir)) {
-    return { ok: false, items: ['supabase/functions directory not found'], offenders: [] };
+    return { ok: false, items: ['supabase/functions directory not found'], offenders: [], checks: {} };
   }
 
   const offenders = [];
@@ -319,12 +412,58 @@ function scanCorsConfigurations() {
     }
   }
 
+  const edgeAppPath = path.join(ROOT, 'supabase', 'functions', 'server', 'edge-app.ts');
+  const edgeAppText = fs.existsSync(edgeAppPath) ? fs.readFileSync(edgeAppPath, 'utf8') : '';
+  const broadPatterns = [
+    { label: 'supabase.co', re: /supabase\\\.co|supabase\.co/ },
+    { label: 'vercel.app', re: /vercel\\\.app|vercel\.app/ },
+    { label: 'netlify.app', re: /netlify\\\.app|netlify\.app/ },
+    { label: 'workers.dev', re: /workers\\\.dev|workers\.dev/ },
+  ].filter((entry) => entry.re.test(edgeAppText)).map((entry) => entry.label);
+  const checks = {
+    noWildcardCors: offenders.length === 0,
+    exactProductionOrigins: edgeAppText.includes('https://app.orina.io') && edgeAppText.includes('https://orina.io'),
+    envExactAllowlist: edgeAppText.includes('ORINA_CORS_ALLOWED_ORIGINS'),
+    localOriginsNonProductionOnly: edgeAppText.includes('isProductionCorsMode') && edgeAppText.includes('LOCAL_ORIGIN_PATTERNS'),
+    previewOriginsExplicitlyEnabled:
+      broadPatterns.length === 0 ||
+      (
+        edgeAppText.includes('ORINA_CORS_ALLOW_PREVIEW_ORIGINS') &&
+        edgeAppText.includes('PREVIEW_ORIGIN_PATTERNS') &&
+        edgeAppText.includes('isPreviewOriginAllowed')
+      ),
+  };
+
+  const items = offenders.length
+    ? [`WARNING: wildcard CORS configuration present in ${offenders.join(', ')}`]
+    : ['No explicit wildcard CORS configuration found under supabase/functions.'];
+  items.push(
+    checks.exactProductionOrigins
+      ? 'Exact production origins are configured for app.orina.io and orina.io.'
+      : 'WARNING: exact production origins are missing from the shared CORS policy.',
+  );
+  items.push(
+    checks.envExactAllowlist
+      ? 'Additional production origins require explicit ORINA_CORS_ALLOWED_ORIGINS entries.'
+      : 'WARNING: no explicit CORS env allowlist support found.',
+  );
+  items.push(
+    checks.localOriginsNonProductionOnly
+      ? 'Localhost origins are blocked when ORINA_CORS_ENV=production.'
+      : 'WARNING: localhost origins are not clearly gated out of production CORS mode.',
+  );
+  items.push(
+    checks.previewOriginsExplicitlyEnabled
+      ? `Broad deployment host patterns are gated by ORINA_CORS_ALLOW_PREVIEW_ORIGINS (${broadPatterns.join(', ') || 'none'}).`
+      : `WARNING: broad deployment host patterns are accepted without an explicit preview CORS flag (${broadPatterns.join(', ')}).`,
+  );
+
   return {
-    ok: offenders.length === 0,
+    ok: Object.values(checks).every(Boolean),
     offenders,
-    items: offenders.length
-      ? [`WARNING: wildcard CORS configuration present in ${offenders.join(', ')}`]
-      : ['No explicit wildcard CORS configuration found under supabase/functions.'],
+    checks,
+    broadPatterns,
+    items,
   };
 }
 
@@ -473,6 +612,12 @@ function main() {
     !m2mScan.checks.minAuthHandlers ||
     !m2mScan.checks.encryptAtRest ||
     !m2mScan.checks.noPrivateKeyInJson ||
+    !m2mScan.checks.inviteMinEntropy ||
+    !m2mScan.checks.inviteUsesCryptoRandomness ||
+    !m2mScan.checks.inviteHasExpiration ||
+    !m2mScan.checks.inviteReplayRejected ||
+    !m2mScan.checks.inviteRoutesRateLimited ||
+    !m2mScan.backup?.ok ||
     !m2mScan.clientM2M?.ok;
   if (m2mBlocking) REPORT.exitCode = 1;
 
