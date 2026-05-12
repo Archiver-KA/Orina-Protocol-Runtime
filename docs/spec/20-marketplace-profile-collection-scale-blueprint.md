@@ -30,13 +30,13 @@ Marketplace assets, profiles, and collections now have Supabase page RPCs.
 
 Current profile constraints:
 
-- profile browse freshness depends on the materialized view refresh cadence
+- profile browse freshness depends on the materialized view refresh cadence, which is defined in the migrations as `*/2 * * * *`
 - profile floor-price fields still depend on normalized listing price projections
 
 Current collection constraints:
 
 - collection floor-price and volume fields remain zero until collection assets have a single canonical listing price join path
-- collection browse freshness depends on the materialized view refresh cadence
+- collection browse freshness depends on the materialized view refresh cadence, which is defined in the migrations as `*/2 * * * *`
 
 For million-scale usage, the browser must never load all profiles, all collections, or all collection memberships for a browse page.
 
@@ -805,6 +805,49 @@ Frontend:
 
 ```powershell
 npm.cmd run verify:viewer-release
+npm.cmd run verify:marketplace-freshness
+```
+
+## Freshness Verification And Repair
+
+The repository-defined freshness verification command is:
+
+```powershell
+npm run verify:marketplace-freshness
+```
+
+Expected max staleness is two minutes plus job/runtime delay when `pg_cron` is healthy. The repository does not define a stricter SLA.
+
+Failure detection SQL:
+
+```sql
+select jobname, schedule, active
+from cron.job
+where jobname in (
+  'orina-marketplace-browse-index-v1-every-2m',
+  'orina-marketplace-collection-browse-index-v1-every-2m',
+  'orina-marketplace-profile-browse-index-v1-every-2m'
+);
+
+select 'asset' as surface,
+  (select max(updated_at) from public.assets_catalog where coalesce(is_active, true) = true) as source_updated_at,
+  (select max(updated_at) from public.marketplace_asset_browse_index_v1) as index_updated_at;
+
+select 'collection' as surface,
+  (select max(updated_at) from public.collections) as source_updated_at,
+  (select max(updated_at) from public.marketplace_collection_browse_index_v1) as index_updated_at;
+
+select 'profile' as surface,
+  (select max(updated_at) from public.profiles where status = 'active') as source_updated_at,
+  (select max(updated_at) from public.marketplace_profile_browse_index_v1) as index_updated_at;
+```
+
+Manual repair SQL:
+
+```sql
+select public.refresh_marketplace_asset_browse_index_v1();
+select public.refresh_marketplace_collection_browse_index_v1();
+select public.refresh_marketplace_profile_browse_index_v1();
 ```
 
 Manual checks:

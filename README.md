@@ -17,6 +17,10 @@ Orina Protocol - Runtime is the standalone runtime repository for the Orina mark
 ```bash
 npm install
 npm run dev
+npm run test
+npm run security:scan
+npm run verify:repo-tooling
+npm run verify:marketplace-freshness
 npm run verify:viewer-release
 npm run build
 ```

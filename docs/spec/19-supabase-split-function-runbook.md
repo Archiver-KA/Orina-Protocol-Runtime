@@ -39,6 +39,16 @@ VITE_SUPABASE_SELLER_MINTING_FN_NAME=orina-seller-minting-v1
 VITE_SUPABASE_RECEIPT_SYNC_FN_NAME=orina-receipt-sync-v1
 ```
 
+Edge Function server CORS environment:
+
+```env
+ORINA_CORS_ENV=production
+ORINA_CORS_ALLOWED_ORIGINS=https://app.orina.io,https://orina.io,https://www.orina.io
+ORINA_CORS_ALLOW_PREVIEW_ORIGINS=false
+```
+
+Only set `ORINA_CORS_ALLOW_PREVIEW_ORIGINS=true` for intentionally exposed preview deployments.
+
 ## Deploy Order
 
 Deploy the isolated functions first, then the shared bundle:
@@ -84,6 +94,23 @@ Positive auth + isolated route smoke:
 ```bat
 node supabase\audit\live_positive_auth_probe.mjs
 ```
+
+CORS health check:
+
+```powershell
+$headers = @{
+  Origin = 'https://app.orina.io'
+  'Access-Control-Request-Method' = 'GET'
+}
+
+Invoke-WebRequest `
+  -UseBasicParsing `
+  -Method Options `
+  -Headers $headers `
+  -Uri https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/make-server-b0d68fc8/health
+```
+
+Expected: `Access-Control-Allow-Origin` equals the request origin and is never `*`. If a deployed function returns `*`, redeploy the updated Edge bundle before release.
 
 ## Expected Bases
 

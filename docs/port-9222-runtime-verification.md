@@ -1,6 +1,6 @@
 # Port 9222 Runtime Verification Runbook
 
-Last aligned with runtime code on 2026-04-25.
+Last aligned with runtime code on 2026-05-12.
 
 Port `9222` is reserved for Chrome DevTools Protocol (CDP) automation. It is not the Vite app port. The normal local pairing is:
 
@@ -48,6 +48,16 @@ Invoke-RestMethod http://127.0.0.1:9222/json/version
 ```
 
 Expected result: a JSON object with browser metadata and `webSocketDebuggerUrl`.
+
+## Read-Only Security Smoke
+
+Use this when a wallet is already connected and unlocked, but the audit must avoid clicking, signing, approving, or changing wallet state:
+
+```powershell
+npm run smoke:cdp:readonly-security
+```
+
+The script opens a temporary CDP page, navigates only to root, Settings, and Marketplace, and inspects wallet availability with read-only provider calls. It records storage key names, IndexedDB database/store names, cookie names/domains, console errors, network origins, and observed CORS headers. It does not print storage values, secret values, seed phrases, private keys, wallet passwords, or recovery phrases.
 
 ## Connect Wallet And Chain
 
@@ -166,4 +176,3 @@ Add BNB Chain Testnet to MetaMask manually or confirm the `wallet_addEthereumCha
 ## Output Handling
 
 Smoke scripts print JSON summaries. Treat secret-like values carefully. The API-key script redacts generated keys, but terminal logs can still contain wallet addresses, target URLs, and environment-derived function base URLs.
-

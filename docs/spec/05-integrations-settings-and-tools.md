@@ -77,7 +77,7 @@ Security controls checked in the runtime code:
 - protected Edge handlers use H1 wallet claim JWTs through `request-auth.ts`
 - chat, IPFS upload, AI, and moderation routes call the shared distributed rate limiter
 - the rate limiter increments counters through `public.rate_limit_increment`, not a read-modify-write counter path
-- CORS is centralized in `edge-app.ts` and echoes only origins allowed by the exact-origin or deployment-host allowlists
+- CORS is centralized in `edge-app.ts` and echoes only approved origins. Production deployments should set `ORINA_CORS_ENV=production`, put any extra production origins in `ORINA_CORS_ALLOWED_ORIGINS`, and enable broad preview/deployment hosts only with `ORINA_CORS_ALLOW_PREVIEW_ORIGINS=true`.
 - service-role keys remain server-side Edge Function secrets only
 
 ## Settings Surface
@@ -142,6 +142,11 @@ The current frontend config points to:
 - `VITE_M2M_DELEGATION_MANAGER`
 - `VITE_M2M_AI_WALLET_FACTORY_V2`
 - `VITE_SUPABASE_AI_M2M_FN_NAME`
+
+Server-side M2M controls checked in this audit:
+
+- `Create Enroll Code` uses crypto-random invite ids with at least 32 bytes of entropy, stores an expiration timestamp, rejects claimed/expired invite replay, and runs invite create/accept routes through the distributed rate limiter.
+- Server-managed `Generate Delegate` stores delegate private keys as AES-GCM ciphertext plus IV metadata only. The encryption key must remain an Edge secret and must not be logged, returned, exported, or backed up with the ciphertext.
 
 ## Marketplace Catalog Integration
 

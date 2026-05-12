@@ -1,5 +1,7 @@
 # AI M2M Runtime Enablement
 
+Last verified by Codex audit: 2026-05-12
+
 > Current-state summary for April 2026. The operational deploy order and command set live in `docs/spec/19-supabase-split-function-runbook.md`.
 
 ## Purpose
@@ -69,6 +71,8 @@ Notes:
 - `ATP2_SUPABASE_JWT_SECRET` is mandatory because request auth is fail-closed.
 - `ATP2_M2M_DELEGATE_ENCRYPTION_KEY` is mandatory when server-managed `Generate Delegate` remains enabled.
 - `Generate Delegate` stores the private key server-side in encrypted form; `Enroll Delegate` remains the lower-custody fallback.
+- Server-managed delegate backups are AES-GCM ciphertext plus a 12-byte IV. The encryption key must stay separate from KV backups, logs, and runtime responses.
+- `Create Enroll Code` generates crypto-random invite ids with at least 32 bytes of entropy, expires pending invites, rejects replay after claim, and rate-limits create/accept routes.
 
 ## Wallet Session Requirement
 

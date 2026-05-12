@@ -18,6 +18,9 @@ The current supported source is the runtime repository on `main` plus the releas
 - Protected Edge Function writes must require H1 wallet claim JWTs and wallet-address matching.
 - Upload, chat, AI, and moderation write paths should use the distributed rate limiter backed by `public.rate_limit_increment`.
 - Public marketplace browse RPCs may be readable by `anon` and `authenticated`, but `SECURITY DEFINER` functions must be reviewed in `scripts/audit-supabase-security-definer.mjs`.
+- Edge CORS must echo approved origins only. In production set `ORINA_CORS_ENV=production`, list extra production origins in `ORINA_CORS_ALLOWED_ORIGINS`, and enable broad preview hosts only with `ORINA_CORS_ALLOW_PREVIEW_ORIGINS=true`.
+- AI M2M delegate invite ids must use cryptographic randomness with at least 32 bytes of entropy, expire before accept, reject replay after claim, and stay behind the distributed rate limiter.
+- Server-managed AI M2M delegate private keys must remain server-side only. The stored backup record is AES-GCM ciphertext plus IV metadata; do not log, return, export, or back up `ATP2_M2M_DELEGATE_ENCRYPTION_KEY` with ciphertext.
 
 ## Verification
 
@@ -27,4 +30,6 @@ Run the repository security checks before release:
 npm run security:check-client-secrets
 npm run security:scan
 npm run audit:supabase:security-definer
+npm run verify:repo-tooling
+npm run verify:marketplace-freshness
 ```
