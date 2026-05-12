@@ -363,3 +363,259 @@ Post-fix repository verification:
 - M2M invite-id strength and backup ciphertext handling remain design-level review items.
 - Transitive deprecated package warning remains for `@paulmillr/qr@0.2.1`.
 - Marketplace profile/collection browse data freshness depends on refresh job correctness and operational cadence.
+
+## Residual Risk Closure Pass
+
+Closure date: 2026-05-12
+
+This pass targeted the residual risks listed above. No product features were added, no public API was changed, no production dependencies were added, and no global tools were installed. New verification scripts use existing Node runtime capabilities and repository files only.
+
+### Commands Run In Closure Pass
+
+- `git status --short --branch`
+- targeted `rg` and `Get-Content` reads across `package.json`, scripts, Edge Function code, migrations, and documentation
+- `npm ls typescript --depth=4`
+- `node --check scripts/smoke-cdp-readonly-security.mjs`
+- `node --check scripts/verify-repo-tooling.mjs`
+- `node --check scripts/verify-marketplace-browse-freshness.mjs`
+- `Invoke-WebRequest -UseBasicParsing -Method Options -Headers @{ Origin = 'http://localhost:5173'; 'Access-Control-Request-Method' = 'GET' } -Uri https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/make-server-b0d68fc8/health`
+- `Invoke-WebRequest -UseBasicParsing -Method Get -Headers @{ Origin = 'http://localhost:5173' } -Uri https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/make-server-b0d68fc8/health`
+- `npm run verify:repo-tooling`
+- `npm run verify:marketplace-freshness`
+- `npm run security:scan`
+- `Invoke-WebRequest -UseBasicParsing http://127.0.0.1:9222/json/version`
+- `Invoke-WebRequest -UseBasicParsing http://localhost:5173/`
+- `npm run smoke:cdp:readonly-security`
+- `npm ci`
+- `Get-CimInstance Win32_Process -Filter "name = 'node.exe'"`
+- `Stop-Process -Id 100,14676 -Force`
+- `npm ci`
+- `npm run test`
+- `npm run security:check-client-secrets`
+- `npm run security:scan`
+- `npm run audit:supabase:security-definer`
+- `npm run verify:repo-tooling`
+- `npm run verify:marketplace-freshness`
+- `npm run verify:viewer-release`
+- `Start-Process -FilePath npm.cmd -ArgumentList @('run','dev') -WorkingDirectory <repo> -WindowStyle Hidden -PassThru`
+- `npm run smoke:cdp:readonly-security`
+- `node scripts/smoke-cdp-readonly-security.mjs --goto http://localhost:5173/` with compact JSON summarization
+- `git diff --check`
+- `git status --short --branch`
+- `git diff --stat`
+
+### Browser And Wallet Smoke
+
+CDP endpoint used:
+
+- `http://127.0.0.1:9222`
+
+App endpoint used:
+
+- `http://localhost:5173/`
+
+Routes and actions:
+
+- `http://localhost:5173/`: CDP `Page.navigate`, non-destructive. App loaded; marketplace and wallet UI markers were visible.
+- `http://localhost:5173/settings`: CDP `Page.navigate`, non-destructive. App loaded; wallet/security settings markers and documented auth-session prompt were visible.
+- `http://localhost:5173/marketplace`: CDP `Page.navigate`, non-destructive. App loaded; marketplace browse markers were visible.
+
+Wallet state:
+
+- MetaMask provider detected.
+- Read-only `eth_accounts` and `eth_chainId` calls succeeded.
+- One account was detected.
+- No wallet confirmation or extension prompt target appeared.
+- No message or transaction signing was requested or performed.
+
+Auth/session behavior:
+
+- `walletAuthSessionPresent`: false.
+- `bridgeSessionPresent`: false.
+- The Settings route surfaced the documented auth-session prompt instead of silently exposing protected server state.
+- Console emitted 5 expected auth-guard errors and 0 security errors. The expected errors were the documented "confirm your wallet" messaging guard; no signature was requested during this pass.
+
+Marketplace browse:
+
+- Marketplace route loaded successfully.
+- Marketplace marker detection passed.
+- Network requests stayed within approved origins.
+
+Storage and secret exposure inspection:
+
+- Inspected 279 `localStorage` key names and their values internally for forbidden secret patterns; no values were printed and no leak matches were found.
+- Inspected `sessionStorage` key `orina_notifications_0xb43f3f31fae56c4e8c0be36ec6f84dd5b1571c14`; no value was printed and no leak match was found.
+- IndexedDB was supported; 0 databases were present for the inspected app origin.
+- Cookies inspected: 0.
+- DOM leak pattern matches: none.
+- Storage leak matches: none for key names or values.
+- Cookie leak matches: none.
+
+Network origins observed:
+
+- `http://localhost:5173`
+- `https://basemaps.cartocdn.com`
+- `https://fonts.googleapis.com`
+- `https://fonts.gstatic.com`
+- `https://gateway.pinata.cloud`
+- `https://tiles.basemaps.cartocdn.com`
+- `https://vcixsdudkizgfikhmfuv.supabase.co`
+
+Unexpected origins:
+
+- none
+
+CORS observation:
+
+- The local CDP smoke observed no Edge Function CORS responses during the three read-only navigations.
+- Direct deployed health checks against `https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/make-server-b0d68fc8/health` still returned `Access-Control-Allow-Origin: *`:
+  - OPTIONS with `Origin: http://localhost:5173`: status 204, `Access-Control-Allow-Origin: *`, `Vary: Accept-Encoding, Origin, Access-Control-Request-Headers`.
+  - GET with `Origin: http://localhost:5173`: status 401, `Access-Control-Allow-Origin: *`, body `{"code":"UNAUTHORIZED_NO_AUTH_HEADER","message":"Missing authorization header"}`.
+- Repository code now gates broad preview/deployment origins and exact production origins, but the deployed shared function requires redeploy before this deployed CORS drift can be marked closed.
+
+### Typecheck And Lint Verification
+
+`npm run verify:repo-tooling` passed as a structural verifier and reported:
+
+- package manager: npm
+- Vite config present: true
+- typecheck status: blocked
+- typecheck blocker: no direct `typescript` dependency and no `tsconfig.json`; adding `tsc --noEmit` would require new dev tooling/configuration
+- lint status: blocked
+- lint blocker: no existing linter dependency/configuration; adding lint would introduce a new lint stack
+
+No typecheck or lint script was added because doing so safely would require new tooling/configuration outside the repository-standard toolchain.
+
+### CORS Policy Narrowing
+
+Allowed origin handling now lives in `supabase/functions/server/edge-app.ts`:
+
+- exact production origins: `https://app.orina.io`, `https://orina.io`, `https://www.orina.io`
+- configured exact origins: `ORINA_CORS_ALLOWED_ORIGINS`
+- local origins: `localhost` and `127.0.0.1`, blocked when `ORINA_CORS_ENV=production`
+- broad preview/deployment hosts: `*.supabase.co`, `*.vercel.app`, `*.netlify.app`, `*.workers.dev`, accepted only when `ORINA_CORS_ALLOW_PREVIEW_ORIGINS=true`
+
+Classification:
+
+- `*.vercel.app`: deployment preview host from repository deployment/docs context; required or unknown per owner deployment workflow; now disabled in production unless explicitly enabled.
+- `*.netlify.app`: deployment preview host from repository deployment/docs context; required or unknown per owner deployment workflow; now disabled in production unless explicitly enabled.
+- `*.workers.dev`: Cloudflare Workers preview host from repository deployment/config context; required or unknown per owner deployment workflow; now disabled in production unless explicitly enabled.
+- `*.supabase.co`: Supabase function/project host; required for current backend deployment; now disabled as a broad pattern unless explicitly enabled, while exact production origins remain allowed.
+- localhost/127.0.0.1: local development only; now blocked in production CORS mode.
+
+`npm run security:scan` now verifies no wildcard CORS returns are present, production exact origins are configured, explicit env allowlist support exists, localhost is production-gated, and broad deployment hosts are gated by `ORINA_CORS_ALLOW_PREVIEW_ORIGINS`.
+
+### M2M Invite-ID Strength
+
+Reviewed code:
+
+- `supabase/functions/server/ai-m2m-wallet.ts`
+- `supabase/functions/server/rate-limiter.ts`
+- `scripts/security-scan-system.mjs`
+
+Verified and patched:
+
+- invite ids now use `crypto.getRandomValues` with 32 random bytes and `m2m_` prefix
+- invite id allocation retries random ids on KV collision
+- invite creation is rate-limited by authenticated root wallet
+- invite accept is rate-limited by authenticated delegate wallet
+- expiration is enforced before accept
+- claimed or expired invites are rejected on replay
+- successful accept marks the invite `claimed`
+
+`npm run security:scan` verifies minimum entropy, cryptographic randomness, collision retry, expiration enforcement, replay rejection, and route rate limiting.
+
+### Backup Ciphertext Handling
+
+Reviewed code:
+
+- `supabase/functions/server/ai-m2m-wallet.ts`
+- client M2M surfaces under `src/`
+- `scripts/security-scan-system.mjs`
+
+Verified:
+
+- generated delegate private keys are encrypted with AES-GCM before KV storage
+- encryption uses a 12-byte IV
+- generated delegate private keys are not returned in JSON responses
+- ciphertext/IV records are not returned in JSON responses
+- no delegate private key logging pattern was found
+- no delegate secret decrypt/export endpoint was found
+- client code does not expose `ATP2_M2M_DELEGATE_ENCRYPTION_KEY` or Vite M2M secret patterns
+
+Residual invariant:
+
+- KV backups can contain ciphertext. Protection depends on keeping `ATP2_M2M_DELEGATE_ENCRYPTION_KEY` separate from backups, logs, and response bodies. This is now documented in `SECURITY.md` and AI M2M docs and checked by `npm run security:scan` where repository code can prove it.
+
+### Marketplace Freshness
+
+Reviewed code:
+
+- `supabase/migrations/000070_marketplace_catalog_browse_index.sql`
+- `supabase/migrations/000071_marketplace_collection_browse_index.sql`
+- `supabase/migrations/000072_marketplace_profile_browse_index.sql`
+- `docs/spec/20-marketplace-profile-collection-scale-blueprint.md`
+- `scripts/verify-marketplace-browse-freshness.mjs`
+
+`npm run verify:marketplace-freshness` passed and verified all asset, collection, and profile browse surfaces have:
+
+- materialized browse view
+- concurrent refresh path
+- non-concurrent fallback refresh path
+- service-role-only refresh function grant
+- public page RPC grant to `anon`, `authenticated`, and `service_role`
+- initial refresh call
+- `pg_cron` schedule `*/2 * * * *`
+- comments documenting the view and refresh function
+
+Expected max staleness remains "2 minutes plus job/runtime delay when pg_cron is healthy"; the repository does not define a stricter SLA. The runbook now includes failure detection SQL and manual refresh SQL.
+
+### Files Changed In Closure Pass
+
+Code and runtime:
+
+- `supabase/functions/server/ai-m2m-wallet.ts`
+- `supabase/functions/server/edge-app.ts`
+- `supabase/functions/server/rate-limiter.ts`
+
+Security and verification tooling:
+
+- `package.json`
+- `scripts/security-scan-system.mjs`
+- `scripts/smoke-cdp-readonly-security.mjs`
+- `scripts/verify-marketplace-browse-freshness.mjs`
+- `scripts/verify-repo-tooling.mjs`
+
+Documentation:
+
+- `README.md`
+- `SECURITY.md`
+- `docs/port-9222-runtime-verification.md`
+- `docs/spec/05-integrations-settings-and-tools.md`
+- `docs/spec/11-ai-m2m-runtime-enablement.md`
+- `docs/spec/19-supabase-split-function-runbook.md`
+- `docs/spec/20-marketplace-profile-collection-scale-blueprint.md`
+- `AUDIT_REPORT.md`
+
+### Closure Verification Results
+
+- Initial `npm ci`: failed with Windows `EPERM` unlink on `node_modules\lightningcss-win32-x64-msvc\lightningcss.win32-x64-msvc.node` while the local Vite/Node process held the native module.
+- After stopping the local Vite/Node process, `npm ci`: passed; 500 packages installed/audited; 0 vulnerabilities; deprecated transitive `@paulmillr/qr@0.2.1` warning remains.
+- `npm run test`: passed; 13 test files, 40 tests.
+- `npm run security:check-client-secrets`: passed; scanned 279 files; no forbidden privileged-secret patterns.
+- `npm run security:scan`: passed; npm audit critical 0, high 0, moderate 0, low 0, info 0; DOM sink scan clear; M2M, backup, rate-limit, messaging, IPFS, audit-alias, and CORS scans passed; summary `deps:ok | messaging:ok | ipfs:ok | ratelimit:ok | m2m:ok | cors:ok`.
+- `npm run audit:supabase:security-definer`: passed; 24 audited functions; findings `[]`; `pass: true`.
+- `npm run verify:repo-tooling`: passed structural verifier with typecheck/lint blockers documented above.
+- `npm run verify:marketplace-freshness`: passed for asset, collection, and profile browse surfaces.
+- `npm run verify:viewer-release`: passed; viewer guard passed 23 files; protocol runtime surface verified 4 runtime tables; targeted Vitest suite passed 5 files, 21 tests; Vite build completed; prerender generated 261 public routes.
+- `npm run smoke:cdp:readonly-security`: passed using CDP on `http://127.0.0.1:9222`.
+- `git diff --check`: passed with exit code 0. Git printed existing LF-to-CRLF working-copy warnings for touched text files.
+
+### Residual Items After Closure Pass
+
+- Deployed shared Supabase function CORS still returns `Access-Control-Allow-Origin: *` on the health route until the updated Edge bundle is redeployed. Repository code and scans are fixed; deployment drift remains an owner action.
+- Dedicated typecheck and lint remain blocked by missing direct TypeScript dependency/config and missing linter dependency/config. A structural verifier was added instead of introducing a new toolchain.
+- Interactive wallet auth signing was not performed because this pass was constrained to non-destructive read-only CDP verification. The auth guard behavior was verified without requesting a signature.
+- KV backups can still contain managed delegate ciphertext. The repository now documents and scans the enforceable invariant that the encryption key must not be logged, returned, exported, or backed up with ciphertext.
+- Marketplace browse freshness has repository-backed verification and runbook commands, but the maximum staleness guarantee remains limited to the defined two-minute cron plus job/runtime delay.
+- The transitive deprecated `@paulmillr/qr@0.2.1` warning remains; no direct repository-safe replacement was identified without dependency-owner action.
