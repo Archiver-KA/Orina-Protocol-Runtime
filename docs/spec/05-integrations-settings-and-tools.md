@@ -1,5 +1,7 @@
 # Integrations, Settings, And Tools
 
+Last verified by Codex audit: 2026-05-12
+
 ## Scope
 
 This document describes the current runtime integrations behind Settings, Agent Setting, AI tools, Supabase REST, Edge Functions, wallet auth, API keys, and local verification tooling.
@@ -69,6 +71,14 @@ Current function folders include:
 - `supabase/functions/orina-receipt-sync-v1`
 - `supabase/functions/orina-order-autotime-v1`
 - `supabase/functions/orina-chat-v1`
+
+Security controls checked in the runtime code:
+
+- protected Edge handlers use H1 wallet claim JWTs through `request-auth.ts`
+- chat, IPFS upload, AI, and moderation routes call the shared distributed rate limiter
+- the rate limiter increments counters through `public.rate_limit_increment`, not a read-modify-write counter path
+- CORS is centralized in `edge-app.ts` and echoes only origins allowed by the exact-origin or deployment-host allowlists
+- service-role keys remain server-side Edge Function secrets only
 
 ## Settings Surface
 
@@ -186,4 +196,3 @@ Chrome CDP smoke scripts use port `9222`:
 - `scripts/smoke-api-key-generate.mjs`
 
 See [`../port-9222-runtime-verification.md`](../port-9222-runtime-verification.md).
-

@@ -1,5 +1,7 @@
 # Supabase Audit Layout
 
+Last verified by Codex audit: 2026-05-12
+
 This directory keeps runnable audit tooling at the top level and separates generated output into dedicated folders.
 
 ## Active Tooling
@@ -60,6 +62,8 @@ Scripts that validate seller identity through the bridge and then write canonica
 The SECURITY DEFINER audit entrypoint is:
 
 - `npm run audit:supabase:security-definer -- --linked`
+
+The audit checks exact execute grants and `search_path` for every reviewed `public` `SECURITY DEFINER` function. New `SECURITY DEFINER` functions must be added to the audit script with a written note explaining why elevated execution is required; marketplace browse page RPCs and service-role-only browse-index refresh functions are intentionally reviewed there.
 
 For CI, prefer a direct database connection string secret:
 

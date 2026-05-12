@@ -1,5 +1,7 @@
 # Supabase Split Function Runbook
 
+Last verified by Codex audit: 2026-05-12
+
 ## Topology
 
 Safe deploy now uses dedicated edge functions for the blast-radius-sensitive routes:
@@ -98,3 +100,5 @@ Production URLs should resolve to:
 1. Do not point `VITE_SUPABASE_AUTH_BRIDGE_FN_NAME` back to `make-server-b0d68fc8` unless you intentionally want the old shared topology.
 2. Keep `VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX` empty for the dedicated bridge function.
 3. If a smoke script still assumes `/ai/m2m/*` or `/auth/supabase-claim-bridge/*` under the shared bundle, treat it as legacy and update the script before using it for release validation.
+4. Keep shared CORS handling in `supabase/functions/server/edge-app.ts`; it should echo approved origins, not return a wildcard origin for protected routes.
+5. Keep upload, chat, AI, and moderation write paths on the shared `checkRateLimit()` helper backed by `public.rate_limit_increment`.

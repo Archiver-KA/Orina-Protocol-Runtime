@@ -1,5 +1,7 @@
 # Global Delivery Address And Asset Location
 
+Last verified by Codex audit: 2026-05-12
+
 ## Scope
 
 This spec describes the current runtime address system for:
@@ -214,13 +216,13 @@ Current map behavior:
 - marker city label is derived from the last `geoPath` item or falls back to `countryNameSnapshot`
 - random coordinates are no longer used for runtime map placement
 
-Current seeded marketplace assets also carry `assetLocationSnapshot`:
+Current marketplace catalog hydration also carries `assetLocationSnapshot` when remote catalog rows provide location data:
 
-- [`src/utils/mockMarketplaceData.ts`](../../src/utils/mockMarketplaceData.ts)
+- [`src/utils/marketplaceCatalog.ts`](../../src/utils/marketplaceCatalog.ts)
 
 This means:
 
-- seeded marketplace assets and runtime minted assets now use the same location model
+- catalog assets and runtime minted assets now use the same location model when location snapshots are present
 - asset details and map view both read the same snapshot shape
 
 ## Persistence Boundaries

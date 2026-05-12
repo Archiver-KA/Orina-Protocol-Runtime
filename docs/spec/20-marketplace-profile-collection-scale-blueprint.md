@@ -1,8 +1,18 @@
 # Marketplace Profile And Collection Scale Blueprint
 
+Last verified by Codex audit: 2026-05-12
+
 ## Purpose
 
-This blueprint extends the marketplace browse model from assets to profiles and collections so the surface can scale to millions of rows without hydrating full datasets in the browser.
+This blueprint documents the marketplace browse model for assets, profiles, and collections so the surface can scale to millions of rows without hydrating full datasets in the browser.
+
+Implementation status as of this audit:
+
+- asset browse index and page RPC are implemented in `000070_marketplace_catalog_browse_index.sql`
+- collection browse index and page RPC are implemented in `000071_marketplace_collection_browse_index.sql`
+- profile browse index and page RPC are implemented in `000072_marketplace_profile_browse_index.sql`
+- Marketplace and Search call the paged profile and collection helpers in `sellerDirectory.ts` and `collectionsUtils.ts`
+- this file remains the design rationale and scale checklist, not a pending-only plan
 
 Target browse flow:
 
@@ -12,24 +22,21 @@ Target browse flow:
 4. Render only the first visible page in the frontend.
 5. Load more pages on scroll without reordering already-rendered rows.
 
-The asset path already moved toward this model through `000070_marketplace_catalog_browse_index.sql`. The next migrations should add the same contract for collections and profiles.
+The asset, collection, and profile paths now share this model through migrations `000070` through `000072`.
 
-## Current Gaps
+## Current Status And Remaining Gaps
 
-Marketplace assets now page from Supabase. Profiles and collections still do not.
+Marketplace assets, profiles, and collections now have Supabase page RPCs.
 
-Current profile gap:
+Current profile constraints:
 
-- `Marketplace` derives seller profiles from the currently loaded asset page.
-- `hydrateSellerDirectoryFromSupabase()` can fall back to `profiles limit 100`, but it is not a browse/search index.
-- Profile filtering and verified filtering still run in client memory.
+- profile browse freshness depends on the materialized view refresh cadence
+- profile floor-price fields still depend on normalized listing price projections
 
-Current collection gap:
+Current collection constraints:
 
-- `loadRuntimeCollections()` hydrates all collection headers.
-- `hydrateCollectionsFromSupabase()` also hydrates all `collection_assets`.
-- Collection search/category/verified filters run in client memory.
-- Collection follower/like counts are local snapshots, not global browse aggregates.
+- collection floor-price and volume fields remain zero until collection assets have a single canonical listing price join path
+- collection browse freshness depends on the materialized view refresh cadence
 
 For million-scale usage, the browser must never load all profiles, all collections, or all collection memberships for a browse page.
 
@@ -770,14 +777,17 @@ Search should pass the same query state into the page RPCs and render from paged
 
 ## Rollout Plan
 
-1. Add `000071_marketplace_collection_browse_index.sql`.
-2. Apply it to Supabase and verify `get_marketplace_collection_page_v1()` returns guest rows.
-3. Add `fetchMarketplaceCollectionPageFromSupabase()` and switch Marketplace collections mode.
-4. Add `000072_marketplace_profile_browse_index.sql`.
-5. Apply it to Supabase and verify `get_marketplace_profile_page_v1()` returns guest rows.
-6. Add `fetchMarketplaceProfilePageFromSupabase()` and switch Marketplace profiles mode.
-7. Refactor Search to share the paged browse helpers.
-8. Add logged-in smoke checks for `is_following`, `is_favorited`, `is_owner`, `is_self`, and `personalized`.
+Completed:
+
+1. Added `000071_marketplace_collection_browse_index.sql`.
+2. Added `fetchMarketplaceCollectionPageFromSupabase()` and switched Marketplace/Search collection browse to the page RPC.
+3. Added `000072_marketplace_profile_browse_index.sql`.
+4. Added `fetchMarketplaceProfilePageFromSupabase()` and switched Marketplace/Search profile browse to the page RPC.
+
+Remaining verification hardening:
+
+1. Keep guest RPC checks for `get_marketplace_collection_page_v1()` and `get_marketplace_profile_page_v1()`.
+2. Add logged-in smoke checks for `is_following`, `is_favorited`, `is_owner`, `is_self`, and `personalized`.
 
 ## Verification
 
