@@ -111,6 +111,11 @@ async function inspectTarget(target) {
         }))
         .filter((link) => /build|deploy|production|settings|github|branch|rules|worker|function/i.test((link.text || '') + ' ' + (link.href || '')))
         .slice(0, 80);
+      const ariaLabels = Array.from(document.querySelectorAll('[aria-label]'))
+        .map((node) => node.getAttribute('aria-label') || '')
+        .filter(Boolean)
+        .filter((text) => /success|failure|failed|queued|progress|completed|cancel|status|deploy|build|workflow|check/i.test(text))
+        .slice(0, 80);
       const lowerBody = body.toLowerCase();
       return {
         title: document.title,
@@ -118,6 +123,7 @@ async function inspectTarget(target) {
         path: location.pathname,
         labels: Array.from(new Set(labels)).slice(0, 60),
         links,
+        ariaLabels,
         signals: {
           mentionsMain: /\\bmain\\b/i.test(body),
           mentionsProduction: lowerBody.includes('production'),
@@ -131,6 +137,10 @@ async function inspectTarget(target) {
           mentionsSupabaseProject: lowerBody.includes('vcixsdudkizgfikhmfuv') || lowerBody.includes('atp'),
           mentionsRlsDisabled: lowerBody.includes('rls disabled in public'),
           mentionsSecurityAdvisorErrors: lowerBody.includes('errors 1 errors') || lowerBody.includes('security advisor')
+            || lowerBody.includes('errors 1 errors'),
+          mentionsCompletedSuccessfully: lowerBody.includes('completed successfully') || lowerBody.includes('success'),
+          mentionsFailure: lowerBody.includes('failure') || lowerBody.includes('failed'),
+          mentionsQueuedOrInProgress: lowerBody.includes('queued') || lowerBody.includes('in progress')
         }
       };
     })()`);
@@ -146,6 +156,7 @@ async function inspectTarget(target) {
         text: redact(link.text || ''),
         href: sanitizeUrl(link.href || ''),
       })),
+      ariaLabels: (snapshot?.ariaLabels || []).map(redact),
       signals: snapshot?.signals || {},
     };
   } finally {

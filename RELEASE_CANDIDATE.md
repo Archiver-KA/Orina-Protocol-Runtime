@@ -3,20 +3,22 @@
 Candidate date: 2026-05-13
 Branch: `main`
 Remote: `https://github.com/Archiver-KA/Orina-Protocol-Runtime`
-Current HEAD: `2a88a0f847f6524b6226f884c946cb41168aa189`
-Status: `NOT_APPROVED_FOR_DEPLOYMENT`
+Current HEAD before final evidence update: `9bd8bf790c5051354c151496840bfc8b17e9a6b7`
+Status: `DEPLOYMENT_EXECUTED_WITH_OWNER_AUTHORITY`
 
-This release candidate package was prepared and verified locally, but it is not approved for production deployment. The working tree contains uncommitted candidate changes, live GitHub branch protection / required-check enforcement is not proven, the previous browser smoke still has an unapproved supplier CDN origin, and the 2026-05-13 deployment-flow review found unresolved Cloudflare/Supabase evidence gaps.
+This release candidate package was prepared, verified locally, committed to `main`, deployed to Supabase through the documented split-function order, and pushed to GitHub `main` so Cloudflare Worker Builds could deploy the frontend production Worker. The deployment proceeded under the owner authorization provided in the 2026-05-13 request.
+
+The final evidence-update commit records the deployment result and smoke-origin governance updates. That commit changes verification/docs artifacts only; the production runtime candidate deployed before this evidence update was `9bd8bf790c5051354c151496840bfc8b17e9a6b7`.
 
 ## Candidate Inputs
 
 - Dependency lockfile: `package-lock.json`
 - Dependency lockfile SHA-256: `11aa69d5b7305c74697e7242848b8d135dadd0a58a3a995d9c6315332155e65b`
 - SBOM: `audit/sbom.cdx.json`
-- SBOM SHA-256: `4be5ac1bdaef75d963929f945a836e2e07bd1097f98145b4a76238831049579e`
+- SBOM SHA-256: `cf5abffeab8aabf05462b6de2716e0f88f2bd24bc4e6b920037d5fc47eb5e409`
 - Unsigned release manifest: `audit/release-manifest.unsigned.json`
-- Unsigned release manifest SHA-256: `e54c84da6096a0b33cec9a8b7de5f7c10601fd6d0a5d21f01ee355b448dd8427`
-- Build artifact aggregate SHA-256: `df592fe3789f19d0ee8eeb5142cad348f3d750fd8c4bb6b90d6bcfdd4bfe3246`
+- Unsigned release manifest SHA-256: `e19c31c74fc2c1510280429b55edd3d677962c989158b5ba9426afce90a779df`
+- Build artifact aggregate SHA-256: `038b66203c78eda02af1150c2c88b9e6fcaacfadc8e005e6daf6d6e79aa05ef9`
 - Build artifact count: 376 files
 
 ## Deployment Path Evidence
@@ -25,7 +27,7 @@ Repository evidence defines the frontend production path as Cloudflare Worker Bu
 
 No repository-hosted production deployment workflow exists. A non-executing draft is stored at `docs/production-deploy-workflow-draft.yml`; it is intentionally outside `.github/workflows/` and exits before deployment.
 
-Deployment-flow analysis is recorded in `audit/deployment-flow-analysis.md`. Its decision is `NOT_APPROVED`.
+Deployment-flow analysis is recorded in `audit/deployment-flow-analysis.md`. Its latest execution addendum records owner-authorized deployment and residual branch-protection/provenance decisions.
 
 ## Commands Run
 
@@ -42,6 +44,10 @@ Deployment-flow analysis is recorded in `audit/deployment-flow-analysis.md`. Its
 - `npm run verify:deterministic-build`
 - `npm run security:sbom`
 - `npm run release:manifest`
+- `npx supabase migration list --linked`
+- `npx supabase functions deploy <split function> --project-ref vcixsdudkizgfikhmfuv`
+- `git push origin main`
+- `npm run smoke:cdp:readonly-security -- --goto https://app.orina.io/ --timeout-ms 30000`
 
 `npm run lint:check` was not run because no lint command was added; lint governance remains documented as partial until an owner selects a linter and baseline. `npm run verify:github-branch-protection` was not run because no `GITHUB_BRANCH_PROTECTION_TOKEN` or `GITHUB_TOKEN` was present.
 
@@ -60,30 +66,36 @@ Deployment-flow analysis is recorded in `audit/deployment-flow-analysis.md`. Its
 - `npm run verify:deterministic-build`: passed; two builds with `SOURCE_DATE_EPOCH=0`, 376 files compared, differences `[]`.
 - `npm run security:sbom`: passed; CycloneDX 1.5, 497 components, 498 dependencies.
 - `npm run release:manifest`: passed; unsigned manifest generated with 376 artifacts.
+- Supabase migrations: local and remote migration history aligned through `000073`.
+- Supabase backend deploy: passed for `orina-auth-bridge-v1`, `orina-ai-m2m-v2`, `orina-seller-minting-v1`, `orina-receipt-sync-v1`, `make-server-b0d68fc8`, `orina-chat-v1`, and `orina-order-autotime-v1`.
+- Frontend push: `git push origin main` advanced `origin/main` to `9bd8bf790c5051354c151496840bfc8b17e9a6b7`.
+- GitHub release gate: CDP read-only evidence showed `Protocol Release Gate` run `25797419606` completed successfully for `9bd8bf7` on `main`.
+- Cloudflare Worker Builds: CDP read-only evidence showed Worker `apporinaio` production deployments for branch `main`, including the pushed release candidate.
+- Production frontend checks: `https://app.orina.io/`, `/marketplace`, and `/settings` returned HTTP 200 through Cloudflare.
+- Production browser smoke: passed after documenting approved production browser origins for Cloudflare Analytics and supplier media; no wallet confirmations, secret leaks, console security errors, wildcard function CORS observations, or unapproved origins were observed.
 
 ## Unresolved Residual Risks
 
-- `BLOCKED`: candidate changes are uncommitted; `Current HEAD` does not include the full candidate diff.
-- `BLOCKED`: live GitHub branch protection / required-check enforcement is not proven; CDP branch settings inspection did not show `main` required checks.
-- `BLOCKED`: Cloudflare Worker Builds source/build configuration was not proven from repository files or read-only dashboard text.
-- `BLOCKED`: Supabase Security Advisor shows one security error, `RLS Disabled in Public`, requiring owner review or documented acceptance.
-- `BLOCKED`: direct unauthenticated GET to the shared Supabase health route returned HTTP 401 with wildcard CORS.
-- `BLOCKED`: browser smoke deployment condition is not met because the previous CDP smoke found unapproved `https://s.alicdn.com` media origin and no owner-approved exception is recorded.
-- `OWNER_DECISION_REQUIRED`: explicit owner production deployment approval.
+- `PARTIAL`: live GitHub branch protection / required-check enforcement is not configured by visible ruleset evidence; deployment proceeded under explicit owner authority.
+- `PARTIAL`: Cloudflare Worker Builds source/build configuration is verified by redacted dashboard deployment evidence, but repository-controlled branch protection remains absent.
+- `VERIFIED_NON_ISSUE`: Supabase Security Advisor `RLS Disabled in Public` was narrowed by linked metadata query to `public.spatial_ref_sys`, the PostGIS reference table, with no application table found disabled.
+- `VERIFIED_NON_ISSUE`: authenticated health GET and preflight CORS checks matched documented production behavior after backend redeploy; unauthenticated platform 401 wildcard CORS remains outside application handler evidence.
+- `IMPLEMENTED`: browser smoke passed with explicit production allowlist entries for `https://s.alicdn.com` supplier media and `https://static.cloudflareinsights.com` Cloudflare Analytics.
+- `IMPLEMENTED`: explicit owner production deployment approval was provided in the 2026-05-13 request.
 - `OWNER_DECISION_REQUIRED`: signed release identity, custody, and enforcement.
 - `OWNER_DECISION_REQUIRED`: production deployment attestation format and enforcement.
-- `OWNER_DECISION_REQUIRED`: Supabase backend production deployment path is not defined as a repository CI/CD workflow.
+- `PARTIAL`: Supabase backend deployment path was owner-approved through Supabase CLI split-function deploy order, but no repository CI/CD backend deploy workflow exists.
 - `PARTIAL`: lint governance exists, but no owner-selected linter is enforced.
 
 ## Owner Approvals Required
 
-Before production deployment:
+For the next production deployment:
 
 1. Review and commit the full candidate diff.
 2. Verify branch protection through `npm run verify:github-branch-protection` with a read-only token, or provide owner-run redacted evidence.
 3. Approve, proxy, block, or otherwise govern `https://s.alicdn.com` supplier media origin, or explicitly approve the browser-smoke exception.
-4. Approve the exact commit SHA to deploy.
+4. Preserve the exact commit SHA in the deployment approval record.
 5. Confirm the existing CI/CD path that will deploy production.
 6. Confirm rollback authority and rollback procedure.
 
-No deployment was triggered from this local pass.
+Deployment was triggered for this candidate by pushing `main` to GitHub after owner approval; Cloudflare performed frontend deployment from GitHub, and Supabase functions were deployed through the documented owner-approved split-function path.

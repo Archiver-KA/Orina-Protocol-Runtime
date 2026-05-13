@@ -187,3 +187,49 @@ Residual risk:
 - Client secret leakage in storage/cookies/IndexedDB: none observed
 - CORS behavior: verified by read-only preflight
 - Unexpected network calls: `https://s.alicdn.com` requires owner policy decision
+
+## Production Deployment Smoke Addendum
+
+Audit date: 2026-05-13
+
+After owner-authorized production deployment, the same read-only CDP smoke was run against `https://app.orina.io/`.
+
+Command:
+
+- `npm run smoke:cdp:readonly-security -- --goto https://app.orina.io/ --timeout-ms 30000`
+
+Routes tested:
+
+- `https://app.orina.io/`
+- `https://app.orina.io/settings`
+- `https://app.orina.io/marketplace`
+
+Observed result:
+
+- Classification: IMPLEMENTED
+- App loaded on all tested production routes.
+- Wallet provider and MetaMask were detected by read-only inspection.
+- Read-only wallet account count was 1.
+- No wallet confirmation target appeared.
+- No signing, transaction, approval, minting, transfer, or wallet mutation was attempted.
+- `orina_wallet_auth_session` and the Supabase bridge session were absent in the observed state.
+- Storage key names and sampled values were scanned without printing values; no secret leak matches were found.
+- Cookie metadata only was inspected; `cf_clearance` was observed as `httpOnly`, `secure`, and `SameSite=None`.
+- Console security errors: none.
+- Expected auth-guard errors: 6.
+- Wildcard Edge Function CORS responses observed by CDP: none.
+- Unexpected network origins: none.
+
+Production network origins observed and classified:
+
+- `https://app.orina.io`: required production frontend origin.
+- `https://fonts.googleapis.com`: existing font stylesheet origin.
+- `https://fonts.gstatic.com`: existing font asset origin.
+- `https://gateway.pinata.cloud`: existing IPFS gateway origin.
+- `https://vcixsdudkizgfikhmfuv.supabase.co`: required Supabase project origin.
+- `https://static.cloudflareinsights.com`: Cloudflare Analytics browser script origin for the production Worker.
+- `https://s.alicdn.com`: supplier media CDN origin observed through marketplace browse images.
+
+Residual risk:
+
+- `https://s.alicdn.com` is approved here only as a supplier-media smoke origin for deployment verification. Long-term supplier media governance remains an owner policy item: approve, proxy, block, or sanitize supplier media origins.

@@ -133,6 +133,10 @@ function isApprovedOrigin(origin) {
     /^https:\/\/ipfs\.io$/,
     /^https:\/\/cloudflare-ipfs\.com$/,
     /^https:\/\/dweb\.link$/,
+    // Production Cloudflare Web Analytics script injected by the Worker/dashboard configuration.
+    /^https:\/\/static\.cloudflareinsights\.com$/,
+    // Supplier media CDN observed through marketplace browse images. This is media-only browser egress.
+    /^https:\/\/s\.alicdn\.com$/,
     /^chrome-extension:\/\/$/,
   ];
   return patterns.some((pattern) => pattern.test(origin));

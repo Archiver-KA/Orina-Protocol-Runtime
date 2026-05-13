@@ -1,8 +1,363 @@
 {
-  "generatedAt": "2026-05-13T12:02:16.608Z",
+  "generatedAt": "2026-05-13T11:59:11.244Z",
   "cdpUrl": "http://127.0.0.1:9222",
-  "inspectedCount": 4,
+  "inspectedCount": 5,
   "inspected": [
+    {
+      "id": "0106C525791AB52BC118FA2CF9DF4EE6",
+      "host": "github.com",
+      "type": "page",
+      "url": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606",
+      "title": "chore: add assurance deployment gates · Archiver-KA/Orina-Protocol-Runtime@9bd8bf7",
+      "path": "/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606",
+      "labels": [
+        "Skip to content",
+        "Archiver-KA",
+        "Orina-Protocol-Runtime",
+        "Type / to search",
+        "Search code, repositories, users, issues, pull requests...",
+        "Search syntax tips",
+        "Give feedback",
+        "Provide feedback",
+        "Cancel",
+        "Submit feedback",
+        "Saved searches",
+        "Use saved searches to filter your results more quickly",
+        "documentation",
+        "Create saved search",
+        "Repository navigation",
+        "Code",
+        "Issues",
+        "Pull requests",
+        "Agents",
+        "Actions",
+        "Projects",
+        "Security and quality",
+        "Insights",
+        "Settings",
+        "Reload",
+        "Protocol Release Gate",
+        "chore: add assurance deployment gates #51",
+        "Re-run all jobs",
+        "Uh oh!",
+        "Please reload this page",
+        "debug logging",
+        "Re-run jobs",
+        "Create status badge",
+        "Delete all logs",
+        "Summary",
+        "chore: add assurance deployment gates",
+        "Viewer Release Gate",
+        "Supabase Security Audit",
+        "Connected Protocol Smoke",
+        "Run details",
+        "Usage",
+        "Workflow file",
+        "9bd8bf7",
+        "main",
+        "2m 25s",
+        "protocol-release-gate.yml",
+        "Viewer Release Gate 1m 35s",
+        "Supabase Security Audit 34s",
+        "Connected Protocol Smoke 0s",
+        "humans.txt",
+        "Viewer Release Gate summary",
+        "View job logs",
+        "View raw markdown",
+        "Vitest Test Report",
+        "Job summary generated at run-time",
+        "Annotations",
+        "https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+        "Show more",
+        "Show less",
+        "Re-run single job"
+      ],
+      "links": [
+        {
+          "text": "Skip to content",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606"
+        },
+        {
+          "text": "",
+          "href": "https://github.com/"
+        },
+        {
+          "text": "Archiver-KA",
+          "href": "https://github.com/Archiver-KA"
+        },
+        {
+          "text": "Orina-Protocol-Runtime",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime"
+        },
+        {
+          "text": "Search syntax tips",
+          "href": "https://docs.github.com/search-github/github-code-search/understanding-github-code-search-syntax"
+        },
+        {
+          "text": "documentation",
+          "href": "https://docs.github.com/search-github/github-code-search/understanding-github-code-search-syntax"
+        },
+        {
+          "text": "",
+          "href": "https://github.com/copilot"
+        },
+        {
+          "text": "",
+          "href": "https://github.com/issues"
+        },
+        {
+          "text": "",
+          "href": "https://github.com/pulls"
+        },
+        {
+          "text": "",
+          "href": "https://github.com/repos"
+        },
+        {
+          "text": "",
+          "href": "https://github.com/notifications"
+        },
+        {
+          "text": "Code",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime"
+        },
+        {
+          "text": "Issues",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/issues"
+        },
+        {
+          "text": "Pull requests",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/pulls"
+        },
+        {
+          "text": "Agents",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/agents"
+        },
+        {
+          "text": "Actions",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions"
+        },
+        {
+          "text": "Projects",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/projects"
+        },
+        {
+          "text": "Security and quality",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/security"
+        },
+        {
+          "text": "Insights",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/network/dependencies"
+        },
+        {
+          "text": "Settings",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/settings"
+        },
+        {
+          "text": "Search syntax tips",
+          "href": "https://docs.github.com/search-github/github-code-search/understanding-github-code-search-syntax"
+        },
+        {
+          "text": "documentation",
+          "href": "https://docs.github.com/search-github/github-code-search/understanding-github-code-search-syntax"
+        },
+        {
+          "text": "Reload",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606"
+        },
+        {
+          "text": "Reload",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606"
+        },
+        {
+          "text": "Reload",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606"
+        },
+        {
+          "text": "Protocol Release Gate",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/workflows/protocol-release-gate.yml"
+        },
+        {
+          "text": "Please reload this page",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606"
+        },
+        {
+          "text": "debug logging",
+          "href": "https://docs.github.com/actions/monitoring-and-troubleshooting-workflows/enabling-debug-logging"
+        },
+        {
+          "text": "Please reload this page",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606"
+        },
+        {
+          "text": "Please reload this page",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606"
+        },
+        {
+          "text": "debug logging",
+          "href": "https://docs.github.com/actions/monitoring-and-troubleshooting-workflows/enabling-debug-logging"
+        },
+        {
+          "text": "Please reload this page",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606"
+        },
+        {
+          "text": "Please reload this page",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606"
+        },
+        {
+          "text": "Summary",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606"
+        },
+        {
+          "text": "Viewer Release Gate",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/job/75778161356"
+        },
+        {
+          "text": "Supabase Security Audit",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/job/75778427953"
+        },
+        {
+          "text": "Connected Protocol Smoke",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/job/75778428397"
+        },
+        {
+          "text": "Usage",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/usage"
+        },
+        {
+          "text": "Workflow file",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/workflow"
+        },
+        {
+          "text": "Usage",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/usage"
+        },
+        {
+          "text": "Workflow file",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/workflow"
+        },
+        {
+          "text": "Archiver-KA",
+          "href": "https://github.com/Archiver-KA"
+        },
+        {
+          "text": "9bd8bf7",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/commit/9bd8bf790c5051354c151496840bfc8b17e9a6b7"
+        },
+        {
+          "text": "main",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/tree/refs/heads/main"
+        },
+        {
+          "text": "2m 25s",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/usage"
+        },
+        {
+          "text": "protocol-release-gate.yml",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/workflow"
+        },
+        {
+          "text": "Viewer Release Gate 1m 35s",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/job/75778161356"
+        },
+        {
+          "text": "Supabase Security Audit 34s",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/job/75778427953"
+        },
+        {
+          "text": "Connected Protocol Smoke 0s",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/job/75778428397"
+        },
+        {
+          "text": "humans.txt",
+          "href": "https://actions.github.io/humans.txt"
+        },
+        {
+          "text": "Viewer Release Gate summary",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606"
+        },
+        {
+          "text": "View job logs",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/job/75778161356"
+        },
+        {
+          "text": "View raw markdown",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/jobs/60174004949/summary_raw"
+        },
+        {
+          "text": "Job summary generated at run-time",
+          "href": "https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions"
+        },
+        {
+          "text": "Viewer Release Gate",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/job/75778161356"
+        },
+        {
+          "text": "https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+          "href": "https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/"
+        },
+        {
+          "text": "Supabase Security Audit",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606/job/75778427953"
+        },
+        {
+          "text": "https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+          "href": "https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/"
+        },
+        {
+          "text": "Please reload this page",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606"
+        },
+        {
+          "text": "debug logging",
+          "href": "https://docs.github.com/actions/monitoring-and-troubleshooting-workflows/enabling-debug-logging"
+        },
+        {
+          "text": "Please reload this page",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606"
+        },
+        {
+          "text": "debug logging",
+          "href": "https://docs.github.com/actions/monitoring-and-troubleshooting-workflows/enabling-debug-logging"
+        },
+        {
+          "text": "Please reload this page",
+          "href": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/25797419606"
+        },
+        {
+          "text": "debug logging",
+          "href": "https://docs.github.com/actions/monitoring-and-troubleshooting-workflows/enabling-debug-logging"
+        }
+      ],
+      "ariaLabels": [
+        "completed successfully: ",
+        "completed successfully: ",
+        "completed successfully: ",
+        "Workflow run",
+        "Workflow run summary",
+        "Workflow run graph",
+        "completed successfully: ",
+        "completed successfully: "
+      ],
+      "signals": {
+        "mentionsMain": true,
+        "mentionsProduction": false,
+        "mentionsBranchProtection": false,
+        "mentionsProtectedBranches": false,
+        "mentionsRulesets": false,
+        "mentionsRequiredChecks": false,
+        "mentionsProtocolReleaseGate": true,
+        "mentionsCloudflareWorkerBuilds": false,
+        "mentionsApporinaio": false,
+        "mentionsSupabaseProject": false,
+        "mentionsRlsDisabled": false,
+        "mentionsSecurityAdvisorErrors": false,
+        "mentionsCompletedSuccessfully": true,
+        "mentionsFailure": false,
+        "mentionsQueuedOrInProgress": false
+      }
+    },
     {
       "id": "C1D58C95BC5C30F33E6DDFDF35084C6F",
       "host": "github.com",

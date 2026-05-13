@@ -1,6 +1,6 @@
 {
   "schema": "orina.release-manifest.unsigned.v1",
-  "generatedAt": "2026-05-13T11:50:18.454Z",
+  "generatedAt": "2026-05-13T12:15:31.333Z",
   "signed": false,
   "signing": {
     "status": "not-signed",
@@ -9,9 +9,9 @@
   "source": {
     "packageName": "@orina/protocol-app",
     "packageVersion": "0.0.1",
-    "gitCommit": "2a88a0f847f6524b6226f884c946cb41168aa189",
+    "gitCommit": "9bd8bf790c5051354c151496840bfc8b17e9a6b7",
     "gitBranch": "main",
-    "gitStatusShort": "M .github/workflows/protocol-release-gate.yml\n M AUDIT_REPORT.md\n M README.md\n M SECURITY.md\n M docs/README.md\n M docs/port-9222-runtime-verification.md\n M docs/runtime-github-supabase-cloudflare-plan.md\n M package-lock.json\n M package.json\n M scripts/prerender-public-routes.mjs\n M scripts/verify-repo-tooling.mjs\n M supabase/audit/README.md\n?? .codex/\n?? RELEASE_CANDIDATE.md\n?? audit/\n?? docs/lint-governance.md\n?? docs/operational-governance-owner-decisions.md\n?? docs/production-deploy-workflow-draft.yml\n?? docs/release-provenance.md\n?? docs/type-safety-baseline.md\n?? scripts/generate-release-manifest.mjs\n?? scripts/generate-sbom.mjs\n?? scripts/verify-assurance-invariants.mjs\n?? scripts/verify-deterministic-build.mjs\n?? scripts/verify-github-branch-protection.mjs\n?? tsconfig.check.json",
+    "gitStatusShort": "M .codex/skills/orina-production-deployment/scripts/inspect-cdp-deployment-tabs.mjs\n M AUDIT_REPORT.md\n M RELEASE_CANDIDATE.md\n M audit/browser-smoke.md\n M audit/cdp-deployment-tabs-latest.json\n M audit/deployment-approval-contract.json\n M audit/deployment-execution-plan.md\n M audit/deployment-flow-analysis.md\n M audit/release-manifest.unsigned.json\n M audit/sbom.cdx.json\n M scripts/smoke-cdp-readonly-security.mjs\n?? audit/cdp-deployment-tabs-after-push.json",
     "remoteOrigin": "https://github.com/Archiver-KA/Orina-Protocol-Runtime"
   },
   "build": {
@@ -34,7 +34,7 @@
     },
     {
       "path": "audit/sbom.cdx.json",
-      "sha256": "4be5ac1bdaef75d963929f945a836e2e07bd1097f98145b4a76238831049579e",
+      "sha256": "cf5abffeab8aabf05462b6de2716e0f88f2bd24bc4e6b920037d5fc47eb5e409",
       "bytes": 626711
     }
   ],

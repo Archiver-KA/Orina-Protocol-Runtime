@@ -978,9 +978,9 @@ This pass prepared release-candidate evidence and a deployment approval contract
 
 - Current HEAD: `2a88a0f847f6524b6226f884c946cb41168aa189`
 - Dependency lockfile SHA-256: `11aa69d5b7305c74697e7242848b8d135dadd0a58a3a995d9c6315332155e65b`
-- SBOM SHA-256: `4be5ac1bdaef75d963929f945a836e2e07bd1097f98145b4a76238831049579e`
-- Unsigned release manifest SHA-256: `e54c84da6096a0b33cec9a8b7de5f7c10601fd6d0a5d21f01ee355b448dd8427`
-- Build artifact aggregate SHA-256: `df592fe3789f19d0ee8eeb5142cad348f3d750fd8c4bb6b90d6bcfdd4bfe3246`
+- SBOM SHA-256: `cf5abffeab8aabf05462b6de2716e0f88f2bd24bc4e6b920037d5fc47eb5e409`
+- Unsigned release manifest SHA-256: `e19c31c74fc2c1510280429b55edd3d677962c989158b5ba9426afce90a779df`
+- Build artifact aggregate SHA-256: `038b66203c78eda02af1150c2c88b9e6fcaacfadc8e005e6daf6d6e79aa05ef9`
 - Build artifact count: 376 files
 
 ### Deployment Path Review
@@ -1046,11 +1046,103 @@ Because the deployment workflow is missing from the repository, a safe draft was
 
 No production deployment was triggered.
 
+## Production Deployment Execution
+
+Audit date: 2026-05-13
+
+The owner explicitly authorized production deployment of both frontend and backend with full privileges in the active session. Deployment remained bounded to the repository-standard flow:
+
+- Frontend: GitHub `main` -> Cloudflare Worker Builds -> Worker `apporinaio` -> `https://app.orina.io`
+- Backend: Supabase project `vcixsdudkizgfikhmfuv` via the documented split-function deploy order
+
+No secret values, seed phrases, private keys, wallet passwords, recovery phrases, encrypted vault contents, CI secrets, Cloudflare secrets, or Supabase secrets were printed or stored. No wallet signing, transfer, approval, mint, or production-value contract interaction was performed.
+
+### Deployment Preconditions
+
+- Local verification gates passed before deployment:
+  - `npm ci`
+  - `npm run test`
+  - `npm run typecheck`
+  - `npm run security:check-client-secrets`
+  - `npm run security:scan`
+  - `npm run audit:supabase:security-definer`
+  - `npm run verify:repo-tooling`
+  - `npm run verify:marketplace-freshness`
+  - `npm run verify:assurance-invariants`
+  - `npm run verify:viewer-release`
+  - `npm run verify:deterministic-build`
+  - `npm run security:sbom`
+  - `npm run release:manifest`
+- Supabase migrations were aligned locally/remotely through `000073`.
+- Supabase `RLS Disabled in Public` advisor finding was narrowed by linked metadata query to `public.spatial_ref_sys`; no application table with RLS disabled was found.
+- Owner accepted deployment despite missing visible GitHub rulesets / branch-protection enforcement.
+
+### Backend Deployment Result
+
+Supabase Edge Functions were deployed to project `vcixsdudkizgfikhmfuv` in the documented split-function order:
+
+- `orina-auth-bridge-v1`
+- `orina-ai-m2m-v2`
+- `orina-seller-minting-v1`
+- `orina-receipt-sync-v1`
+- `make-server-b0d68fc8`
+- `orina-chat-v1`
+- `orina-order-autotime-v1`
+
+Post-deploy function versions observed:
+
+- `orina-auth-bridge-v1`: 15
+- `orina-ai-m2m-v2`: 2
+- `orina-seller-minting-v1`: 13
+- `orina-receipt-sync-v1`: 11
+- `make-server-b0d68fc8`: 140
+- `orina-chat-v1`: 22
+- `orina-order-autotime-v1`: 9
+
+Post-deploy backend verification:
+
+- Authenticated health GET to `make-server-b0d68fc8/health`: HTTP 200 with `Access-Control-Allow-Origin: https://app.orina.io`
+- OPTIONS preflight from `https://app.orina.io`: HTTP 204 with `Access-Control-Allow-Origin: https://app.orina.io`
+- OPTIONS preflight from `https://evil.example`: HTTP 204 without `Access-Control-Allow-Origin`
+
+### Frontend Deployment Result
+
+- Committed deployment candidate before final evidence update: `9bd8bf790c5051354c151496840bfc8b17e9a6b7`
+- `git push origin main` advanced `origin/main` to `9bd8bf790c5051354c151496840bfc8b17e9a6b7`.
+- Read-only CDP evidence showed GitHub `Protocol Release Gate` run `25797419606` completed successfully for `9bd8bf7` on `main`.
+- Read-only CDP evidence showed Cloudflare Worker `apporinaio` production deployment history for branch `main`.
+- Live production routes returned HTTP 200 through Cloudflare:
+  - `https://app.orina.io/`
+  - `https://app.orina.io/marketplace`
+  - `https://app.orina.io/settings`
+
+Production browser smoke:
+
+- Command: `npm run smoke:cdp:readonly-security -- --goto https://app.orina.io/ --timeout-ms 30000`
+- Result: passed
+- Wallet detected: yes
+- Wallet confirmation targets: none
+- Storage/cookie secret leak matches: none
+- Console security errors: none
+- Unexpected network origins: none
+- Wildcard Edge Function CORS observations: none
+
+The smoke allowlist now explicitly classifies production Cloudflare Analytics (`https://static.cloudflareinsights.com`) and supplier media (`https://s.alicdn.com`). Supplier-media governance remains an owner policy item for future proxy/block/sanitize decisions.
+
+### Deployment Residuals
+
+- `PARTIAL`: GitHub branch protection / ruleset enforcement remains unconfigured by visible evidence.
+- `PARTIAL`: Supabase backend deployment is owner-approved through CLI but not automated in repository CI/CD.
+- `OWNER_DECISION_REQUIRED`: release signing identity, custody, and enforcement.
+- `OWNER_DECISION_REQUIRED`: authoritative production deployment attestation format and storage path.
+- `PARTIAL`: lint governance remains documented, but no linter baseline is enforced.
+- `PARTIAL`: supplier-media CDN governance is approved for smoke/deployment verification, but long-term policy remains owner-defined.
+
 ## Standard Deployment Flow Review
 
 Audit date: 2026-05-13
 
-This pass used repository evidence, public/read-only network checks, and read-only Chrome DevTools Protocol on `http://127.0.0.1:9222`. No deployment, push, workflow dispatch, branch protection mutation, Cloudflare mutation, Supabase mutation, secret inspection, wallet signing, or confirmation action was performed.
+This review pass used repository evidence, public/read-only network checks, and read-only Chrome DevTools Protocol on `http://127.0.0.1:9222`. At that review time, no deployment, push, workflow dispatch, branch protection mutation, Cloudflare mutation, Supabase mutation, secret inspection, wallet signing, or confirmation action was performed. The later owner-authorized production deployment is recorded in the `Production Deployment Execution` section above.
 
 ### Internal Deployment Skill
 
@@ -1073,7 +1165,7 @@ Findings:
 
 - Frontend flow classification: `PARTIAL`.
 - Backend flow classification: `PARTIAL`.
-- Deployment approval decision: `NOT_APPROVED`.
+- Initial deployment approval decision: `NOT_APPROVED`; later superseded by explicit owner deployment authority and the deployment execution record above.
 
 Evidence:
 
@@ -1087,7 +1179,7 @@ Evidence:
 
 ### Approval Decision
 
-Production deployment is not approved. Remaining blockers:
+Initial production deployment approval was not granted during this review. The then-current blockers were:
 
 - candidate changes are uncommitted;
 - branch protection / required-check enforcement for `main` is not proven;
@@ -1097,4 +1189,4 @@ Production deployment is not approved. Remaining blockers:
 - previous browser smoke still has unresolved `https://s.alicdn.com` supplier media-origin exception;
 - Supabase backend production deployment is not defined as a repository CI/CD workflow.
 
-No production deployment was triggered.
+No production deployment was triggered during this review pass. A later owner-authorized deployment was executed and verified as recorded above.

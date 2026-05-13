@@ -8,7 +8,9 @@ Scope:
 - Backend deployment flow: Supabase project and Edge Function deployment path.
 - Inspection mode: repository evidence, public/read-only network checks, and read-only Chrome DevTools Protocol on `http://127.0.0.1:9222`.
 
-No deployment, push, workflow dispatch, branch protection mutation, Cloudflare mutation, Supabase mutation, secret inspection, wallet signing, or confirmation action was performed.
+Initial review mode used repository evidence, public/read-only network checks, and read-only Chrome DevTools Protocol on `http://127.0.0.1:9222`. No branch protection mutation, Cloudflare settings mutation, GitHub settings mutation, secret inspection, wallet signing, or confirmation action was performed.
+
+Deployment execution addendum: after the owner explicitly authorized production deployment with full privileges on 2026-05-13, the backend was deployed through the documented Supabase split-function order and the frontend was deployed by pushing the committed candidate to GitHub `main`, allowing Cloudflare Worker Builds to deploy Worker `apporinaio`.
 
 ## Evidence Collected
 
@@ -36,7 +38,9 @@ CDP read-only inspection:
 
 ## Frontend Flow Classification
 
-Classification: `PARTIAL`
+Initial classification: `PARTIAL`
+
+Latest deployment classification: `IMPLEMENTED_WITH_RESIDUAL_GOVERNANCE`
 
 Evidence:
 
@@ -44,19 +48,27 @@ Evidence:
 - Public frontend endpoint is served through Cloudflare.
 - Cloudflare dashboard read-only inspection reached Worker `apporinaio` production page.
 
-Insufficient evidence:
+Initial insufficient evidence:
 
-- Cloudflare Worker Builds configuration was not proven from repository files or redacted dashboard text.
 - GitHub branch protection and required checks were not proven. Public GitHub API returned unauthenticated/inaccessible results for the private repository, and CDP branch settings inspection did not show enforced `main` required checks.
-- The working tree remains dirty, so the latest local candidate is not represented by the current HEAD.
 
 Residual risk:
 
-- Pushing to `main` could deploy without a repository-proven branch protection gate or verified Cloudflare build configuration.
+- Pushing to `main` can deploy without repository-proven branch protection or required-check enforcement. This deployment proceeded only because the owner explicitly authorized the release despite that governance residual.
+
+Execution evidence:
+
+- `git push origin main` advanced `origin/main` to `9bd8bf790c5051354c151496840bfc8b17e9a6b7`.
+- Read-only CDP evidence showed GitHub `Protocol Release Gate` run `25797419606` completed successfully for commit `9bd8bf7` on branch `main`.
+- Read-only CDP evidence showed Cloudflare Worker `apporinaio` production deployment history for branch `main`, including the pushed release candidate.
+- `https://app.orina.io/`, `https://app.orina.io/marketplace`, and `https://app.orina.io/settings` returned HTTP 200 through Cloudflare.
+- `npm run smoke:cdp:readonly-security -- --goto https://app.orina.io/ --timeout-ms 30000` passed after explicitly documenting production browser egress to Cloudflare Analytics and supplier media.
 
 ## Backend Flow Classification
 
-Classification: `PARTIAL`
+Initial classification: `PARTIAL`
+
+Latest deployment classification: `IMPLEMENTED_WITH_RESIDUAL_GOVERNANCE`
 
 Evidence:
 
@@ -64,21 +76,30 @@ Evidence:
 - Supabase dashboard read-only inspection reached project `ATP` marked `main PRODUCTION`.
 - CORS preflight behavior for allowed and denied origins matches repository expectations.
 
-Insufficient evidence:
+Initial insufficient evidence:
 
 - The repository does not define an automated Supabase production deployment workflow.
-- Supabase dashboard Security Advisor shows one error, `RLS Disabled in Public`, which requires owner review or documented acceptance before deployment approval.
-- Direct unauthenticated GET to the shared health route still returned wildcard CORS on a 401 response. Repository preflight behavior is correct, but deployed non-preflight error CORS behavior needs owner/security review before approval.
 
 Residual risk:
 
-- Backend deployment may rely on manual Supabase operations, and live Security Advisor findings may remain unresolved or undocumented.
+- Backend deployment relies on owner-approved Supabase CLI operations rather than a repository CI/CD workflow.
+- Direct unauthenticated platform-level 401 responses may still include platform-managed CORS behavior outside the application handler; authenticated health and preflight checks matched repository expectations.
+
+Execution evidence:
+
+- `npx supabase migration list --linked` showed local and remote migrations aligned through `000073`.
+- Linked metadata query found the only public table with RLS disabled was `public.spatial_ref_sys`; no application table with RLS disabled was found.
+- Supabase functions deployed successfully for `orina-auth-bridge-v1`, `orina-ai-m2m-v2`, `orina-seller-minting-v1`, `orina-receipt-sync-v1`, `make-server-b0d68fc8`, `orina-chat-v1`, and `orina-order-autotime-v1`.
+- Post-deploy authenticated health GET returned HTTP 200 and echoed `Access-Control-Allow-Origin: https://app.orina.io`.
+- Post-deploy preflight allowed `https://app.orina.io` and denied `https://evil.example`.
 
 ## Approval Decision
 
-Decision: `NOT_APPROVED`
+Initial decision: `NOT_APPROVED`
 
-Deployment is not approved because the safety gates are not fully satisfied:
+Latest decision: `DEPLOYED_WITH_OWNER_AUTHORITY`
+
+Initial deployment was not approved because the safety gates were not fully satisfied:
 
 - candidate changes are uncommitted;
 - live branch protection / required-check enforcement for `main` is not proven;
@@ -87,6 +108,8 @@ Deployment is not approved because the safety gates are not fully satisfied:
 - deployed Supabase unauthenticated GET error response still returns wildcard CORS;
 - the previous browser smoke has an unresolved `https://s.alicdn.com` supplier media-origin exception;
 - Supabase backend production deployment is not defined as a repository CI/CD workflow.
+
+The owner later granted explicit production deployment authority. Deployment proceeded with the residual governance items documented above and without signing, wallet actions, branch-protection mutation, GitHub settings mutation, Cloudflare settings mutation, CI secret mutation, or secret value inspection.
 
 ## Minimum Closure Path
 

@@ -72,6 +72,46 @@ Authority basis:
    - Cloudflare dashboard/build evidence updates to the new commit, or live frontend content can be verified.
 7. Update release candidate, audit report, and deployment contract with final status.
 
+## Execution Result
+
+Status: `DEPLOYED_WITH_OWNER_AUTHORITY`
+
+Backend:
+
+- Supabase migration history was aligned through `000073`.
+- Functions deployed successfully to project `vcixsdudkizgfikhmfuv`:
+  - `orina-auth-bridge-v1`
+  - `orina-ai-m2m-v2`
+  - `orina-seller-minting-v1`
+  - `orina-receipt-sync-v1`
+  - `make-server-b0d68fc8`
+  - `orina-chat-v1`
+  - `orina-order-autotime-v1`
+- Post-deploy function versions observed:
+  - `orina-auth-bridge-v1`: 15
+  - `orina-ai-m2m-v2`: 2
+  - `orina-seller-minting-v1`: 13
+  - `orina-receipt-sync-v1`: 11
+  - `make-server-b0d68fc8`: 140
+  - `orina-chat-v1`: 22
+  - `orina-order-autotime-v1`: 9
+
+Frontend:
+
+- `git push origin main` advanced `origin/main` to `9bd8bf790c5051354c151496840bfc8b17e9a6b7`.
+- CDP read-only evidence showed GitHub `Protocol Release Gate` run `25797419606` completed successfully for `9bd8bf7` on `main`.
+- CDP read-only evidence showed Cloudflare Worker `apporinaio` production deployment history for branch `main`.
+- `https://app.orina.io/`, `https://app.orina.io/marketplace`, and `https://app.orina.io/settings` returned HTTP 200 through Cloudflare.
+- Production CDP smoke passed after explicitly classifying Cloudflare Analytics and supplier-media browser origins.
+
+Residual governance after deployment:
+
+- GitHub branch protection / ruleset enforcement remains unconfigured by visible evidence.
+- Release artifacts remain unsigned.
+- Production deployment attestation remains partial until the owner defines the authoritative attestation format and storage path.
+- Supabase backend deployment was owner-approved through CLI but is not yet automated as a repository CI/CD workflow.
+- Supplier media governance for `https://s.alicdn.com` remains a long-term owner policy item.
+
 ## Stop Conditions
 
 - Any local gate fails.
