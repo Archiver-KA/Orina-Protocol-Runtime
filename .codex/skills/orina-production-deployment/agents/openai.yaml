@@ -1,0 +1,4 @@
+interface:
+  display_name: "Orina Production Deployment"
+  short_description: "Safe Orina runtime deploy gates"
+  default_prompt: "Use this skill to prepare, verify, and document Orina runtime production deployment candidates without bypassing CI/CD or owner approvals."

@@ -1,0 +1,31 @@
+# Draft only. This file is intentionally stored under docs/ so GitHub Actions
+# will not execute it. Do not move it into .github/workflows/ without owner
+# approval, branch protection verification, and a separate deployment review.
+
+name: Production Deployment Candidate Draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      approved_commit:
+        description: Exact commit SHA approved by the owner for production deployment.
+        required: true
+        type: string
+      approval_record:
+        description: Link or identifier for the owner approval record.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify-only:
+    name: Verify Deployment Candidate Only
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse to deploy from draft
+        run: |
+          echo "This draft is non-deploying by design."
+          echo "Production deployment must remain with the owner-approved CI/CD release path."
+          exit 1

@@ -1,6 +1,6 @@
 # Port 9222 Runtime Verification Runbook
 
-Last aligned with runtime code on 2026-05-12.
+Last aligned with runtime code on 2026-05-13.
 
 Port `9222` is reserved for Chrome DevTools Protocol (CDP) automation. It is not the Vite app port. The normal local pairing is:
 
@@ -58,6 +58,8 @@ npm run smoke:cdp:readonly-security
 ```
 
 The script opens a temporary CDP page, navigates only to root, Settings, and Marketplace, and inspects wallet availability with read-only provider calls. It records storage key names, IndexedDB database/store names, cookie names/domains, console errors, network origins, and observed CORS headers. It does not print storage values, secret values, seed phrases, private keys, wallet passwords, or recovery phrases.
+
+The network-origin allowlist is intentionally explicit. If the script reports a supplier media CDN such as an Alibaba image host, do not add it silently; first document that origin as intentionally approved or route the media through an owned/proxied path.
 
 ## Connect Wallet And Chain
 

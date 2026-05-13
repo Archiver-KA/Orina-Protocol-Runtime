@@ -39,8 +39,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run repository tooling verification
+        run: npm run verify:repo-tooling
+
+      - name: Run typecheck baseline
+        run: npm run typecheck
+
+      - name: Run security scan
+        run: npm run security:scan
+
+      - name: Run marketplace freshness verification
+        run: npm run verify:marketplace-freshness
+
       - name: Run viewer release verification
         run: npm run verify:viewer-release
+
+      - name: Run deterministic build verification
+        run: npm run verify:deterministic-build
+
+      - name: Generate SBOM
+        run: npm run security:sbom
+
+      - name: Generate unsigned release manifest
+        run: npm run release:manifest
 
       - name: Assert public SEO artifacts
         shell: bash

@@ -158,8 +158,16 @@ Operational notes:
 Before commit/push:
 
 1. `npm run verify:viewer-release`
-2. confirm remote `origin/main` is the intended publish target
-3. review only runtime-relevant diff
+2. `npm run security:scan`
+3. `npm run verify:repo-tooling`
+4. `npm run typecheck`
+5. `npm run verify:marketplace-freshness`
+6. `npm run verify:assurance-invariants`
+7. `npm run verify:deterministic-build`
+8. `npm run security:sbom`
+9. `npm run release:manifest`
+10. confirm remote `origin/main` is the intended publish target
+11. review only runtime-relevant diff
 
 Before Cloudflare production deploy:
 

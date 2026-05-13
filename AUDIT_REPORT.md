@@ -619,3 +619,482 @@ Documentation:
 - KV backups can still contain managed delegate ciphertext. The repository now documents and scans the enforceable invariant that the encryption key must not be logged, returned, exported, or backed up with ciphertext.
 - Marketplace browse freshness has repository-backed verification and runbook commands, but the maximum staleness guarantee remains limited to the defined two-minute cron plus job/runtime delay.
 - The transitive deprecated `@paulmillr/qr@0.2.1` warning remains; no direct repository-safe replacement was identified without dependency-owner action.
+
+## Assurance Controls Pass
+
+Audit date: 2026-05-13
+
+This pass followed the requested phase order and did not deploy, push, rotate secrets, mutate infrastructure, sign wallet messages, sign transactions, transfer funds, approve tokens, mint assets, or inspect wallet secrets. Repository files remained the only source of truth. Browser and wallet state were treated as untrusted external state.
+
+Produced artifacts:
+
+- `audit/inventory.json`
+- `audit/baseline-verification.md`
+- `audit/assurance-controls.md`
+- `audit/browser-smoke.md`
+- `audit/invariants.md`
+- `audit/sbom.cdx.json`
+
+### Phase Results
+
+| Phase | Result | Evidence |
+| --- | --- | --- |
+| 1. Inventory | IMPLEMENTED | `audit/inventory.json` records languages, frameworks, package managers, lockfiles, build/CI/deploy configs, runtime/auth/crypto/persistence/browser-storage/backup/release surfaces, environment separation, and documentation map. |
+| 2. Baseline verification | IMPLEMENTED | `audit/baseline-verification.md` records existing command results before remediation. |
+| 3. Assurance control review | IMPLEMENTED | `audit/assurance-controls.md` classifies every requested control with evidence, affected files, verification command, and residual risk. |
+| 4. Interactive security verification | PARTIAL | `audit/browser-smoke.md` records CDP port 9222 usage, wallet observation, routes, storage keys inspected without values, network origins, console findings, and CORS checks. The only blocker is unapproved `https://s.alicdn.com` supplier image origin. |
+| 5. Targeted hardening | IMPLEMENTED | Minimal repo-safe patches added deterministic build verification, SBOM generation, CI gates, and deterministic prerender timestamps. |
+| 6. Property/invariant testing | IMPLEMENTED | `audit/invariants.md` records 22 lightweight invariant checks using existing Node/npm tooling. |
+| 7. Operational assurance | PARTIAL | Operational controls were classified from repository evidence only; missing ownership/provenance/signing/drill evidence remains documented. |
+| 8. Final verification | PARTIAL | All repository verification passed except the authenticated profile-reputation audit remains blocked by a rejected generated JWT, and the CDP smoke remains blocked only by the unapproved supplier CDN origin. |
+
+### Controls Reviewed
+
+| Control | Classification | Evidence | Verification Command | Residual Risk |
+| --- | --- | --- | --- | --- |
+| Mandatory type safety | BLOCKED | No `typecheck` script, no direct `typescript` dependency, no `tsconfig*.json`; `verify:repo-tooling` reports blocked. | `npm run verify:repo-tooling` | Full `tsc --noEmit` checking requires a repo-standard TypeScript config/tooling decision. |
+| Strict CI enforcement | PARTIAL | Release gate now runs repo tooling, security scan, marketplace freshness, viewer release, deterministic build, and SBOM generation. | `Get-Content .github/workflows/protocol-release-gate.yml`; final CI-equivalent npm commands | Branch protection, required checks, and CI secret availability are not provable from repository files. |
+| Reproducible builds | IMPLEMENTED | `verify-deterministic-build` runs two builds with `SOURCE_DATE_EPOCH=0` and compares SHA-256 output; prerender timestamps now honor deterministic source date. | `npm run verify:deterministic-build` | Cross-platform reproducibility and signed provenance are not proven. |
+| Signed releases | OWNER_DECISION_REQUIRED | No signing, Sigstore/Cosign/SLSA/GPG workflow or policy exists in repository evidence. | `rg -n "cosign|sigstore|slsa|provenance|attestation|signed release|gpg|signing" README.md SECURITY.md docs .github scripts package.json` | Signing identity, key custody, artifact policy, and enforcement require owner decision. |
+| SBOM | IMPLEMENTED | `security:sbom` uses npm's built-in CycloneDX generator and produced `audit/sbom.cdx.json`. | `npm run security:sbom` | SBOM publication, retention, signing, and release attachment remain owner decisions. |
+| Dependency pinning policy | PARTIAL | `package-lock.json` pins npm installs and overrides exist, but direct dependencies use ranges and no full policy exists. | `npm ci`; `npm run security:scan` | Direct dependency update policy and override lifecycle remain undefined. |
+| Fuzzing feasibility | PARTIAL | Vitest exists and deterministic invariant tests are feasible; no fuzzing framework or corpus runner exists. | `npm run test`; `rg --files -g "*.test.ts" src` | Coverage is not equivalent to generated fuzzing. |
+| Symbolic execution feasibility | OWNER_DECISION_REQUIRED | No symbolic execution tool/model or owned contract source harness is present. | `rg -n "symbolic|echidna|hevm|mythril|manticore|foundry|forge" README.md SECURITY.md docs scripts supabase src package.json` | Scope, model, and toolchain require owner decision. |
+| Property testing feasibility | PARTIAL | Existing tooling supports deterministic invariant scripts; no property-testing dependency exists. | `npm run verify:assurance-invariants` | Checks are structural/invariant checks, not generated property tests. |
+| Formal invariant proof feasibility | OWNER_DECISION_REQUIRED | No theorem prover, model checker, or machine-checkable formal model exists. | `rg -n "formal|invariant proof|tla|alloy|coq|lean|isabelle|model check|temporal" README.md SECURITY.md docs scripts src package.json` | Formal proof scope and acceptance criteria require owner decision. |
+| Incident response process | PARTIAL | `SECURITY.md` has reporting guidance and Supabase has audit-log primitives; no full incident role/escalation/timeline process exists. | `rg -n "incident|vulnerability|report|escalation|severity|post-incident" README.md SECURITY.md docs supabase scripts` | Operational ownership and response process are incomplete. |
+| Key rotation procedure | PARTIAL | Secret placement rules are documented; no complete rotation order, dual-key window, rollback, or owner approval procedure exists. | `rg -n "rotate|rotation|key|secret|credential" README.md SECURITY.md docs scripts supabase` | Rotation procedure requires owner completion. |
+| Disaster recovery drills | PARTIAL | Migration drift recovery and repair scripts exist; no dated restore drill or RPO/RTO evidence exists. | `rg -n "disaster|recovery|restore|rollback|drill|backup" README.md SECURITY.md docs supabase scripts` | Tested recovery cadence and restore evidence are not established. |
+| Multi-environment deployment attestation | OWNER_DECISION_REQUIRED | Docs/configs describe Cloudflare/Supabase paths, but no machine-readable attestation or promotion provenance exists. | `rg -n "attestation|provenance|staging|production|environment|deploy|cloudflare|supabase" README.md SECURITY.md docs .github wrangler.jsonc supabase package.json` | Attestation format, storage, and enforcement require owner decision. |
+
+### Browser And Wallet Smoke
+
+CDP was used only at `http://127.0.0.1:9222` with the local app at `http://localhost:5173/`. The smoke script performed read-only navigation and inspection only.
+
+Routes tested:
+
+- `http://localhost:5173/`
+- `http://localhost:5173/settings`
+- `http://localhost:5173/marketplace`
+
+Observed result:
+
+- App loaded on all tested routes.
+- Wallet provider was detected; MetaMask was present; read-only `eth_accounts` returned one account for the authorized `localhost` origin.
+- No wallet confirmation appeared.
+- No signing, transaction, token approval, transfer, mint, seed/private-key access, password access, recovery phrase access, encrypted vault access, or wallet configuration mutation was attempted.
+- `orina_wallet_auth_session` and Supabase bridge session were absent, matching the documented separation between wallet connection and wallet-auth/bridge session establishment.
+- No protected UI secret patterns were observed in DOM text or inspected storage samples.
+- Storage key names were inspected without printing values. Keys included Wagmi, MetaMask SDK anon id, Orina marketplace/viewer/network/profile/cache/favorites/settings/runtime/local receipt families, and one notification session key.
+- Cookies observed for tested routes: none.
+- IndexedDB databases observed: none.
+- Console security errors: none. Five console errors matched expected auth-guard patterns.
+- Network origins observed: `http://localhost:5173`, `https://fonts.googleapis.com`, `https://fonts.gstatic.com`, `https://gateway.pinata.cloud`, `https://s.alicdn.com`, and `https://vcixsdudkizgfikhmfuv.supabase.co`.
+- Unexpected network origin: `https://s.alicdn.com`. This is classified `OWNER_DECISION_REQUIRED` because repository code can map supplier image URLs into browser-visible marketplace media, but repository policy/docs do not approve that CDN origin.
+
+CORS read-only preflight check:
+
+- `https://app.orina.io` returned status 204 with `Access-Control-Allow-Origin: https://app.orina.io`.
+- `https://evil.example` returned status 204 without `Access-Control-Allow-Origin`.
+- Classification: IMPLEMENTED for the tested CORS behavior.
+
+### Hardening Changes
+
+Implemented:
+
+- Added deterministic build verification with `SOURCE_DATE_EPOCH=0`.
+- Made prerender fallback timestamps deterministic when `SOURCE_DATE_EPOCH` or `ORINA_PRERENDER_LASTMOD` is set.
+- Added SBOM generation using npm's existing built-in CycloneDX support.
+- Tightened GitHub release-gate workflow to run repository tooling, security scan, marketplace freshness, viewer release, deterministic build verification, and SBOM generation.
+- Added lightweight assurance invariant verification.
+- Updated documentation for the added verification commands, SBOM generation, deterministic builds, browser smoke origin policy, and profile-reputation authenticated JWT blocker.
+
+Not implemented:
+
+- Typecheck script: blocked by missing direct TypeScript dependency/config and no `tsconfig*.json`.
+- Lint script: blocked by missing linter dependency/config.
+- Signed releases, formal proofs, symbolic execution, deployment attestation, and production origin ownership: owner decisions required.
+- Runtime approval of `https://s.alicdn.com`: owner decision required because blocking/proxying/approving it can change marketplace media behavior.
+
+### Commands Run In This Pass
+
+- `git status --short --branch`
+- `rg --files`
+- `Get-ChildItem -Recurse -File | Group-Object Extension`
+- `rg -n` inventory searches across `package.json`, configs, docs, scripts, `src`, and `supabase`
+- `npm ci`
+- `npm run test`
+- `npm run security:check-client-secrets`
+- `npm run security:scan`
+- `npm run audit:supabase:security-definer`
+- `npm run verify:repo-tooling`
+- `npm run verify:marketplace-freshness`
+- `npm run verify:viewer-release`
+- `npm run audit:profile-reputation-view`
+- `npm run verify:deterministic-build`
+- `npm run verify:assurance-invariants`
+- `npm run security:sbom`
+- `npm run smoke:cdp:readonly-security`
+- `node scripts/smoke-cdp-readonly-security.mjs --goto http://127.0.0.1:5173/`
+- `Invoke-RestMethod -Uri 'http://127.0.0.1:9222/json/version' -TimeoutSec 5`
+- `Invoke-WebRequest` read-only CORS OPTIONS checks for allowed and disallowed origins
+- `Start-Process -FilePath npm.cmd -ArgumentList @('run','dev','--','--host','127.0.0.1') -PassThru -WindowStyle Hidden`
+- `Stop-Process` for local Vite/npm dev-server processes only
+- `git diff --stat`
+- `git diff --check`
+
+### Final Verification Summary
+
+- `npm ci`: passed; 500 packages audited; 0 vulnerabilities; deprecated transitive `@paulmillr/qr@0.2.1` warning remains.
+- `npm run test`: passed; 13 test files, 40 tests.
+- `npm run security:check-client-secrets`: passed; scanned 279 files; no forbidden privileged-secret patterns.
+- `npm run security:scan`: passed; npm audit critical 0, high 0, moderate 0, low 0, info 0; DOM, messaging, IPFS, rate-limit, M2M, audit-alias, and CORS scans passed.
+- `npm run audit:supabase:security-definer`: passed; 24 audited functions; findings `[]`; `pass: true`.
+- `npm run audit:profile-reputation-view`: blocked; anon and service-role checks returned 200, but generated authenticated JWT returned 401 `PGRST301` (`No suitable key or wrong key type`).
+- `npm run verify:repo-tooling`: passed structural verification; typecheck/lint blockers documented.
+- `npm run verify:marketplace-freshness`: passed asset, collection, and profile browse freshness checks.
+- `npm run verify:assurance-invariants`: passed; 22 checks.
+- `npm run security:sbom`: passed; generated `audit/sbom.cdx.json` with CycloneDX 1.5, 493 components, and 494 dependencies.
+- `npm run verify:viewer-release`: passed; viewer guard passed 23 files; protocol runtime surface verified 4 runtime tables; targeted Vitest passed 5 files and 21 tests; Vite build completed; prerender generated 261 public routes.
+- `npm run verify:deterministic-build`: passed; two builds with `SOURCE_DATE_EPOCH=0`; 376 files compared; differences `[]`.
+- `npm run smoke:cdp:readonly-security`: partial; app/wallet/storage/CORS/security checks passed, but command exited 1 because `https://s.alicdn.com` is not an approved browser origin in repository policy.
+- `git diff --check`: passed; Git printed existing LF-to-CRLF working-copy warnings for touched text files.
+
+### Files Changed In Assurance Pass
+
+- `.github/workflows/protocol-release-gate.yml`
+- `README.md`
+- `SECURITY.md`
+- `docs/README.md`
+- `docs/port-9222-runtime-verification.md`
+- `docs/runtime-github-supabase-cloudflare-plan.md`
+- `package.json`
+- `scripts/generate-sbom.mjs`
+- `scripts/prerender-public-routes.mjs`
+- `scripts/verify-assurance-invariants.mjs`
+- `scripts/verify-deterministic-build.mjs`
+- `supabase/audit/README.md`
+- `audit/inventory.json`
+- `audit/baseline-verification.md`
+- `audit/assurance-controls.md`
+- `audit/browser-smoke.md`
+- `audit/invariants.md`
+- `audit/sbom.cdx.json`
+- `AUDIT_REPORT.md`
+
+### Unresolved Owner Decisions And Blockers
+
+- `OWNER_DECISION_REQUIRED`: approve, proxy, block, or otherwise govern browser requests to `https://s.alicdn.com` supplier media origin.
+- `OWNER_DECISION_REQUIRED`: release signing/provenance identity, custody, and enforcement.
+- `OWNER_DECISION_REQUIRED`: symbolic execution scope and toolchain.
+- `OWNER_DECISION_REQUIRED`: machine-checkable formal proof scope and acceptance criteria.
+- `OWNER_DECISION_REQUIRED`: multi-environment deployment attestation format, storage, and enforcement.
+- `BLOCKED`: mandatory typecheck until the repository defines a direct TypeScript dependency and `tsconfig`.
+- `BLOCKED`: lint until the repository defines a linter dependency/config.
+- `BLOCKED`: authenticated profile-reputation audit until a valid repository-safe authenticated JWT path or owner-corrected JWT secret is available.
+
+No verified new critical or high repository-code finding remains from this pass. The remaining items are either explicit owner decisions, environment/credential blockers, or documented residual risks backed by checks/runbooks.
+
+## Bounded Assurance Closure Pass
+
+Audit date: 2026-05-13
+
+This pass used only local repository write access and package/GitHub metadata read capability. It did not use signing authority, deployment authority, unrestricted secret access, production mutation, wallet signing, Cloudflare write, Supabase write, branch protection mutation, CI secret mutation, release publishing, artifact signing, or environment variable mutation.
+
+### Phase Results
+
+| Phase | Classification | Evidence |
+| --- | --- | --- |
+| Type safety baseline | IMPLEMENTED | Added exact dev-only TypeScript tooling, `tsconfig.check.json`, and `npm run typecheck`; command passes and CI runs it. |
+| Broad type safety migration | PARTIAL | `docs/type-safety-baseline.md` records broad no-emit error categories and staged rollout. |
+| Minimal lint governance | PARTIAL | Added `docs/lint-governance.md`; no linter was added because no owner-selected lint standard exists. |
+| GitHub branch protection verification | BLOCKED | Added read-only `scripts/verify-github-branch-protection.mjs`; `GITHUB_BRANCH_PROTECTION_TOKEN` was absent, so live metadata was not queried. |
+| Release provenance plan | IMPLEMENTED | Added unsigned manifest generator and `docs/release-provenance.md`; `npm run release:manifest` generated `audit/release-manifest.unsigned.json`. |
+| Signed releases | OWNER_DECISION_REQUIRED | No signing identity, custody, or enforcement policy was created; no signing authority was used. |
+| Operational governance freeze | IMPLEMENTED for records; OWNER_DECISION_REQUIRED for facts | Added `docs/operational-governance-owner-decisions.md` with explicit owner-decision placeholders and safe owner-run commands. |
+| Autonomous escalation | IMPLEMENTED | Remaining items require owner facts, read-only metadata, or short-lived read-only auth evidence before further action. |
+
+### Typecheck Baseline
+
+Added dev-only dependencies with exact versions:
+
+- `typescript@5.9.3`
+- `@types/node@20.19.41`
+- `@types/react@18.3.28`
+- `@types/react-dom@18.3.7`
+
+Added `tsconfig.check.json` with `noEmit: true`, `strict: false`, `skipLibCheck: true`, `allowJs: false`, `isolatedModules: true`, `jsx: react-jsx`, and bundler-style module resolution. The passing baseline currently covers stable route parsing/building files and tests only. A broad first run over frontend source produced many existing type errors, so broad enforcement remains staged rather than suppressed.
+
+### Lint Governance
+
+No linter dependency or config was added. `docs/lint-governance.md` records the owner decision needed before lint enforcement. `npm run verify:repo-tooling` now reports:
+
+- typecheck status: available
+- lint status: partial
+
+### GitHub Branch Protection
+
+Added `npm run verify:github-branch-protection`, which requires explicit `GITHUB_BRANCH_PROTECTION_TOKEN` and performs read-only GitHub API requests for branch protection, required checks, workflow metadata, and Actions secret names only. No token was present in this environment, so the verifier was not run against GitHub.
+
+Safe owner-run command:
+
+```powershell
+$env:GITHUB_BRANCH_PROTECTION_TOKEN = "<read-only token>"
+npm run verify:github-branch-protection
+Remove-Item Env:GITHUB_BRANCH_PROTECTION_TOKEN
+```
+
+### Release Provenance
+
+Added unsigned release manifest generation:
+
+- command: `npm run release:manifest`
+- output: `audit/release-manifest.unsigned.json`
+- schema: `orina.release-manifest.unsigned.v1`
+- final run artifact count: 376
+
+The manifest records source commit metadata, dependency input hashes, build metadata, and SHA-256 hashes for generated `dist` files. It is intentionally unsigned.
+
+### Operational Governance
+
+Added `docs/operational-governance-owner-decisions.md` to freeze owner-decision records for:
+
+- incident response
+- key rotation
+- disaster recovery drills
+- rollback
+- recovery objectives
+- environment separation
+- supplier CDN policy
+- CORS preview-origin ownership
+
+Each record includes decision needed, risk if deferred, evidence needed, minimum authority required, and a safe owner-run command where applicable.
+
+### Commands Run In Bounded Closure Pass
+
+- `npm view typescript version`
+- `npm view typescript@5 version --json`
+- `npm view @types/node version`
+- `npm view @types/node@20 version --json`
+- `npm view @types/react version`
+- `npm view @types/react@18 version --json`
+- `npm view @types/react-dom version`
+- `npm view @types/react-dom@18 version --json`
+- `npm install --save-dev --save-exact typescript@5.9.3 @types/react@18.3.28 @types/react-dom@18.3.7 @types/node@20.19.41`
+- `npm run typecheck`
+- `npm run verify:repo-tooling`
+- `npm run verify:assurance-invariants`
+- `npm ci`
+- `npm run test`
+- `npm run security:check-client-secrets`
+- `npm run security:scan`
+- `npm run audit:supabase:security-definer`
+- `npm run verify:marketplace-freshness`
+- `npm run verify:viewer-release`
+- `npm run verify:deterministic-build`
+- `npm run security:sbom`
+- `npm run release:manifest`
+- `git diff --check`
+
+`npm ci` initially failed with the same Windows `EPERM` unlink on `lightningcss.win32-x64-msvc.node` while a local Vite dev server was holding the native module. The local repo dev server process on port 5173 was stopped; the second `npm ci` passed. Chrome CDP on port 9222 was not stopped.
+
+### Final Verification Results
+
+- `npm ci`: passed; 504 packages installed, 505 audited, 0 vulnerabilities; deprecated transitive `@paulmillr/qr@0.2.1` warning remains.
+- `npm run test`: passed; 13 test files, 40 tests.
+- `npm run typecheck`: passed.
+- `npm run security:check-client-secrets`: passed; no forbidden privileged-secret patterns in 279 files.
+- `npm run security:scan`: passed; aggregate `deps:ok | messaging:ok | ipfs:ok | ratelimit:ok | m2m:ok | cors:ok`.
+- `npm run audit:supabase:security-definer`: passed; 24 audited functions; findings `[]`; `pass: true`.
+- `npm run verify:repo-tooling`: passed; typecheck available, lint partial.
+- `npm run verify:marketplace-freshness`: passed for asset, collection, and profile surfaces.
+- `npm run verify:viewer-release`: passed; viewer guard 23 files, runtime surface 4 tables, targeted Vitest 5 files/21 tests, build completed, prerender generated 261 routes.
+- `npm run verify:deterministic-build`: passed; 376 files compared across two builds; differences `[]`.
+- `npm run verify:assurance-invariants`: passed; 27 checks.
+- `npm run security:sbom`: passed; CycloneDX 1.5, 497 components, 498 dependencies.
+- `npm run release:manifest`: passed; generated unsigned manifest with 376 artifacts.
+- `npm run verify:github-branch-protection`: not run because `GITHUB_BRANCH_PROTECTION_TOKEN` was absent.
+- `npm run lint:check`: not added or run because no owner-selected linter exists.
+- `git diff --check`: passed; Git printed existing LF-to-CRLF working-copy warnings for touched text files.
+
+### Files Changed In Bounded Closure Pass
+
+- `.github/workflows/protocol-release-gate.yml`
+- `AUDIT_REPORT.md`
+- `README.md`
+- `SECURITY.md`
+- `docs/README.md`
+- `docs/lint-governance.md`
+- `docs/operational-governance-owner-decisions.md`
+- `docs/release-provenance.md`
+- `docs/runtime-github-supabase-cloudflare-plan.md`
+- `docs/type-safety-baseline.md`
+- `package.json`
+- `package-lock.json`
+- `scripts/generate-release-manifest.mjs`
+- `scripts/verify-assurance-invariants.mjs`
+- `scripts/verify-github-branch-protection.mjs`
+- `scripts/verify-repo-tooling.mjs`
+- `tsconfig.check.json`
+- `audit/final-decision-summary.md`
+- `audit/invariants.md`
+- `audit/permission-resolution-matrix.md`
+- `audit/release-manifest.unsigned.json`
+- `audit/sbom.cdx.json`
+
+### Remaining Items
+
+- `OWNER_DECISION_REQUIRED`: signed release identity, custody, and enforcement.
+- `OWNER_DECISION_REQUIRED`: incident response owner/severity/escalation/process.
+- `OWNER_DECISION_REQUIRED`: key rotation order, validation, rollback, and approval authority.
+- `OWNER_DECISION_REQUIRED`: disaster recovery drill evidence and success criteria.
+- `OWNER_DECISION_REQUIRED`: rollback authority and tested rollback record.
+- `OWNER_DECISION_REQUIRED`: recovery objectives and restore validation.
+- `OWNER_DECISION_REQUIRED`: environment separation map and promotion ownership.
+- `OWNER_DECISION_REQUIRED`: supplier CDN policy for `https://s.alicdn.com`.
+- `OWNER_DECISION_REQUIRED`: production CORS preview-origin ownership.
+- `BLOCKED`: live GitHub branch protection verification until a read-only `GITHUB_BRANCH_PROTECTION_TOKEN` or owner-run redacted output is available.
+- `BLOCKED`: authenticated profile-reputation audit until a short-lived authenticated JWT or owner-run redacted output is available.
+- `PARTIAL`: broad TypeScript migration beyond the narrow passing baseline.
+- `PARTIAL`: lint enforcement until an owner selects the linter and baseline.
+
+No forbidden authority was used, and no new critical/high repository-code finding was introduced.
+
+## Production Deployment Candidate Preparation
+
+Audit date: 2026-05-13
+
+This pass prepared release-candidate evidence and a deployment approval contract, but did not deploy, push, publish, sign artifacts, mutate infrastructure, change CI secrets, change branch protection, write to Cloudflare, write to Supabase, or use wallet signing. Production deployment remains blocked until owner approval and CI/CD execution conditions are satisfied.
+
+### Candidate Artifacts
+
+- Release candidate: `RELEASE_CANDIDATE.md`
+- Deployment approval contract: `audit/deployment-approval-contract.json`
+- SBOM: `audit/sbom.cdx.json`
+- Unsigned release manifest: `audit/release-manifest.unsigned.json`
+- Safe non-executing workflow draft: `docs/production-deploy-workflow-draft.yml`
+
+### Candidate Hashes
+
+- Current HEAD: `2a88a0f847f6524b6226f884c946cb41168aa189`
+- Dependency lockfile SHA-256: `11aa69d5b7305c74697e7242848b8d135dadd0a58a3a995d9c6315332155e65b`
+- SBOM SHA-256: `4be5ac1bdaef75d963929f945a836e2e07bd1097f98145b4a76238831049579e`
+- Unsigned release manifest SHA-256: `e54c84da6096a0b33cec9a8b7de5f7c10601fd6d0a5d21f01ee355b448dd8427`
+- Build artifact aggregate SHA-256: `df592fe3789f19d0ee8eeb5142cad348f3d750fd8c4bb6b90d6bcfdd4bfe3246`
+- Build artifact count: 376 files
+
+### Deployment Path Review
+
+Repository evidence shows:
+
+- Frontend production path: Cloudflare Worker Builds for Worker `apporinaio`, pulling GitHub branch `main` and serving `https://app.orina.io`.
+- Verification workflow: `.github/workflows/protocol-release-gate.yml` named `Protocol Release Gate`; it is verification-only and does not deploy.
+- Cloudflare runtime config: `wrangler.jsonc`, static assets from `dist`, SPA routing enabled.
+- No repository-hosted production deployment workflow exists.
+- Supabase backend production deployment is not defined as a repository CI/CD workflow.
+
+Because the deployment workflow is missing from the repository, a safe draft was added at `docs/production-deploy-workflow-draft.yml`. It is intentionally outside `.github/workflows/`, includes no secrets, performs no deployment, and exits before deployment.
+
+### Commands Run In This Pass
+
+- `git status --short --branch`
+- `git rev-parse HEAD`
+- `npm ci`
+- `npm run test`
+- `npm run typecheck`
+- `npm run security:check-client-secrets`
+- `npm run security:scan`
+- `npm run audit:supabase:security-definer`
+- `npm run verify:repo-tooling`
+- `npm run verify:marketplace-freshness`
+- `npm run verify:assurance-invariants`
+- `npm run verify:viewer-release`
+- `npm run verify:deterministic-build`
+- `npm run security:sbom`
+- `npm run release:manifest`
+- `Get-FileHash -Algorithm SHA256 package-lock.json`
+- `Get-FileHash -Algorithm SHA256 audit/sbom.cdx.json`
+- `Get-FileHash -Algorithm SHA256 audit/release-manifest.unsigned.json`
+- `node -e <dist aggregate hash from release manifest>`
+
+### Verification Results
+
+- `npm ci`: passed; 504 packages installed, 505 audited, 0 vulnerabilities; deprecated transitive `@paulmillr/qr@0.2.1` warning remains.
+- `npm run test`: passed; 13 test files, 40 tests.
+- `npm run typecheck`: passed.
+- `npm run security:check-client-secrets`: passed; no forbidden privileged-secret patterns in 279 files.
+- `npm run security:scan`: passed; aggregate `deps:ok | messaging:ok | ipfs:ok | ratelimit:ok | m2m:ok | cors:ok`.
+- `npm run audit:supabase:security-definer`: passed; 24 audited functions; findings `[]`; `pass: true`.
+- `npm run verify:repo-tooling`: passed; typecheck available, lint partial.
+- `npm run verify:marketplace-freshness`: passed for asset, collection, and profile browse surfaces.
+- `npm run verify:assurance-invariants`: passed; 27 checks.
+- `npm run verify:viewer-release`: passed; viewer guard 23 files, protocol runtime surface 4 tables, targeted Vitest 5 files/21 tests, build completed, prerender generated 261 public routes.
+- `npm run verify:deterministic-build`: passed; two builds with `SOURCE_DATE_EPOCH=0`, 376 files compared, differences `[]`.
+- `npm run security:sbom`: passed; CycloneDX 1.5, 497 components, 498 dependencies.
+- `npm run release:manifest`: passed; unsigned manifest generated with 376 artifacts.
+- `npm run lint:check`: not added or run because no owner-selected linter exists.
+- `npm run verify:github-branch-protection`: not run because no `GITHUB_BRANCH_PROTECTION_TOKEN` or `GITHUB_TOKEN` was present.
+
+### Deployment Blocking Conditions
+
+- `BLOCKED`: working tree contains uncommitted candidate changes; the current HEAD does not include the full candidate diff.
+- `BLOCKED`: live GitHub branch protection verification requires a read-only token or owner-run redacted output.
+- `BLOCKED`: browser smoke deployment condition is not met because the previous CDP smoke observed unapproved `https://s.alicdn.com` supplier media origin and no owner-approved exception is recorded.
+- `OWNER_DECISION_REQUIRED`: explicit owner approval for production deployment.
+- `OWNER_DECISION_REQUIRED`: confirmation that the CI/CD path, not local commands, will perform deployment.
+- `OWNER_DECISION_REQUIRED`: Supabase backend production deployment path and authority are not defined by repository CI/CD evidence.
+
+No production deployment was triggered.
+
+## Standard Deployment Flow Review
+
+Audit date: 2026-05-13
+
+This pass used repository evidence, public/read-only network checks, and read-only Chrome DevTools Protocol on `http://127.0.0.1:9222`. No deployment, push, workflow dispatch, branch protection mutation, Cloudflare mutation, Supabase mutation, secret inspection, wallet signing, or confirmation action was performed.
+
+### Internal Deployment Skill
+
+Added a repository-owned deployment skill:
+
+- `.codex/skills/orina-production-deployment/SKILL.md`
+- `.codex/skills/orina-production-deployment/references/deployment-flow.md`
+- `.codex/skills/orina-production-deployment/scripts/inspect-cdp-deployment-tabs.mjs`
+- `.codex/skills/orina-production-deployment/agents/openai.yaml`
+
+Validation:
+
+- `python C:\Users\proje\.codex\skills\.system\skill-creator\scripts\quick_validate.py .codex\skills\orina-production-deployment`: passed.
+
+### Flow Analysis
+
+Created `audit/deployment-flow-analysis.md`.
+
+Findings:
+
+- Frontend flow classification: `PARTIAL`.
+- Backend flow classification: `PARTIAL`.
+- Deployment approval decision: `NOT_APPROVED`.
+
+Evidence:
+
+- Repository docs define frontend deployment as GitHub `main` -> Cloudflare Worker Builds -> Worker `apporinaio` -> `https://app.orina.io`.
+- `https://app.orina.io/` returned HTTP 200 with `server: cloudflare`.
+- CDP showed Cloudflare dashboard at `/workers/services/view/apporinaio/production`.
+- CDP showed Supabase project `vcixsdudkizgfikhmfuv` as `ATP`, `main PRODUCTION`, with `Errors 1 errors` and `RLS Disabled in Public`.
+- GitHub branch settings loaded through CDP, but redacted page text did not prove `main` required checks or `Protocol Release Gate` enforcement.
+- Supabase preflight CORS allowed `https://app.orina.io` and denied `https://evil.example`.
+- Direct unauthenticated GET to the shared Supabase health route returned HTTP 401 with wildcard CORS.
+
+### Approval Decision
+
+Production deployment is not approved. Remaining blockers:
+
+- candidate changes are uncommitted;
+- branch protection / required-check enforcement for `main` is not proven;
+- Cloudflare Worker Builds source/build configuration is not proven;
+- Supabase Security Advisor reports one security error;
+- deployed Supabase unauthenticated GET error response returns wildcard CORS;
+- previous browser smoke still has unresolved `https://s.alicdn.com` supplier media-origin exception;
+- Supabase backend production deployment is not defined as a repository CI/CD workflow.
+
+No production deployment was triggered.

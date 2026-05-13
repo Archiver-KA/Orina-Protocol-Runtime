@@ -1,0 +1,167 @@
+{
+  "schema": "orina.deployment-approval-contract.v1",
+  "generatedAt": "2026-05-13",
+  "status": "NOT_APPROVED_FLOW_REVIEW_BLOCKED",
+  "authorityClass": "DEPLOYMENT_AUTHORITY",
+  "deploymentTriggered": false,
+  "reasonNotTriggered": [
+    "No explicit owner deployment approval was provided.",
+    "The working tree contains uncommitted candidate changes.",
+    "Live GitHub branch protection / required-check enforcement for main is not proven.",
+    "Read-only CDP branch settings inspection did not show main required checks or Protocol Release Gate enforcement.",
+    "Cloudflare Worker Builds source/build configuration was not proven.",
+    "Supabase Security Advisor shows one security error: RLS Disabled in Public.",
+    "Direct unauthenticated GET to the shared Supabase health route returned HTTP 401 with wildcard CORS.",
+    "The browser smoke condition is not met because https://s.alicdn.com remains an unapproved supplier media origin.",
+    "No repository-hosted production deployment workflow exists; the documented frontend deployment path is external Cloudflare Worker Builds on push to main."
+  ],
+  "repository": {
+    "remote": "https://github.com/Archiver-KA/Orina-Protocol-Runtime",
+    "branch": "main",
+    "currentHeadSha": "2a88a0f847f6524b6226f884c946cb41168aa189",
+    "deployableCommitSha": null,
+    "deployableCommitBlocker": "Candidate changes are uncommitted; the current HEAD does not include the full candidate diff."
+  },
+  "existingWorkflows": [
+    {
+      "name": "Protocol Release Gate",
+      "path": ".github/workflows/protocol-release-gate.yml",
+      "purpose": "Verification only",
+      "deployment": false,
+      "triggers": [
+        "pull_request to main",
+        "push to main",
+        "workflow_dispatch"
+      ],
+      "jobs": [
+        "Viewer Release Gate",
+        "Supabase Security Audit",
+        "Connected Protocol Smoke"
+      ],
+      "requiredGitHubSecrets": [
+        "VITE_SUPABASE_URL",
+        "VITE_SUPABASE_ANON_KEY"
+      ],
+      "optionalGitHubSecrets": [
+        "SUPABASE_DB_AUDIT_URL"
+      ]
+    }
+  ],
+  "deploymentPathFromRepositoryEvidence": {
+    "frontend": {
+      "model": "Cloudflare Worker Builds pulls from GitHub branch main and deploys Worker apporinaio",
+      "workerName": "apporinaio",
+      "environment": "production",
+      "hostname": "https://app.orina.io",
+      "config": "wrangler.jsonc",
+      "buildCommand": "npm run build",
+      "artifactDirectory": "dist",
+      "trigger": "push to main after owner approval and required verification",
+      "triggerCommand": "git push origin main",
+      "triggerCommandExecuted": false,
+      "requiredCloudflareBuildVariables": [
+        "VITE_SUPABASE_URL",
+        "VITE_SUPABASE_PROJECT_ID",
+        "VITE_SUPABASE_ANON_KEY",
+        "VITE_SUPABASE_SHARED_SERVER_FN_NAME=make-server-b0d68fc8",
+        "VITE_SUPABASE_AUTH_BRIDGE_ENABLED=true"
+      ],
+      "recommendedCloudflareBuildVariables": [
+        "VITE_SITE_URL=https://app.orina.io",
+        "VITE_SUPABASE_PUBLISHABLE_KEY",
+        "VITE_SUPABASE_AUTH_BRIDGE_FN_NAME=make-server-b0d68fc8",
+        "VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX=/auth/supabase-claim-bridge",
+        "VITE_SUPABASE_AI_M2M_FN_NAME=orina-ai-m2m-v2",
+        "VITE_SUPABASE_AI_M2M_PATH_PREFIX=",
+        "VITE_SUPABASE_SELLER_MINTING_FN_NAME=orina-seller-minting-v1",
+        "VITE_SUPABASE_RECEIPT_SYNC_FN_NAME=orina-receipt-sync-v1",
+        "VITE_M2M_DELEGATION_MANAGER=0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58",
+        "VITE_M2M_AI_WALLET_FACTORY_V2=0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2",
+        "VITE_WALLET_AUTH_SESSION_TTL_MS=604800000"
+      ]
+    },
+    "backend": {
+      "model": "No repository-defined Supabase production deployment workflow was found.",
+      "environment": "production",
+      "trigger": null,
+      "triggerCommand": null,
+      "triggerCommandExecuted": false,
+      "requiredDecision": "Owner must define the CI/CD-backed Supabase production deployment path before backend deployment can be approved from repository evidence."
+    }
+  },
+  "safeWorkflowDraft": {
+    "path": "docs/production-deploy-workflow-draft.yml",
+    "active": false,
+    "reason": "Stored under docs so GitHub Actions will not execute it; it is a non-deploying draft and exits with failure by design."
+  },
+  "verificationCommandsRequiredBeforeDeployment": [
+    "git status --short --branch",
+    "npm ci",
+    "npm run test",
+    "npm run security:check-client-secrets",
+    "npm run security:scan",
+    "npm run audit:supabase:security-definer",
+    "npm run verify:repo-tooling",
+    "npm run verify:marketplace-freshness",
+    "npm run verify:viewer-release",
+    "npm run verify:deterministic-build",
+    "npm run verify:assurance-invariants",
+    "npm run security:sbom",
+    "npm run release:manifest",
+    "npm run typecheck",
+    "npm run verify:github-branch-protection",
+    "npm run smoke:cdp:readonly-security or owner-approved exception"
+  ],
+  "verificationEvidenceFromThisPass": {
+    "npmCi": "passed; 504 packages installed, 505 audited, 0 vulnerabilities; deprecated transitive @paulmillr/qr@0.2.1 warning remains",
+    "tests": "passed; 13 test files, 40 tests",
+    "typecheck": "passed",
+    "clientSecretScan": "passed; no forbidden privileged-secret patterns in 279 files",
+    "securityScan": "passed; deps:ok | messaging:ok | ipfs:ok | ratelimit:ok | m2m:ok | cors:ok",
+    "supabaseSecurityDefinerAudit": "passed; 24 audited functions; findings []; pass true",
+    "repoTooling": "passed; typecheck available, lint partial",
+    "marketplaceFreshness": "passed for asset, collection, and profile surfaces",
+    "assuranceInvariants": "passed; 27 checks",
+    "viewerRelease": "passed; viewer guard 23 files; protocol runtime surface 4 tables; targeted Vitest 5 files and 21 tests; build completed; 261 public routes prerendered",
+    "deterministicBuild": "passed; 376 files compared; differences []",
+    "sbom": "passed; audit/sbom.cdx.json generated",
+    "releaseManifest": "passed; audit/release-manifest.unsigned.json generated",
+    "branchProtection": "blocked; no GITHUB_BRANCH_PROTECTION_TOKEN or GITHUB_TOKEN present",
+    "browserSmoke": "blocked for deployment; previous smoke observed unapproved https://s.alicdn.com origin and no owner exception is recorded"
+  },
+  "candidateArtifacts": {
+    "releaseCandidate": "RELEASE_CANDIDATE.md",
+    "sbom": "audit/sbom.cdx.json",
+    "sbomSha256": "4be5ac1bdaef75d963929f945a836e2e07bd1097f98145b4a76238831049579e",
+    "unsignedReleaseManifest": "audit/release-manifest.unsigned.json",
+    "unsignedReleaseManifestSha256": "e54c84da6096a0b33cec9a8b7de5f7c10601fd6d0a5d21f01ee355b448dd8427",
+    "dependencyLockfile": "package-lock.json",
+    "dependencyLockfileSha256": "11aa69d5b7305c74697e7242848b8d135dadd0a58a3a995d9c6315332155e65b",
+    "distAggregateSha256": "df592fe3789f19d0ee8eeb5142cad348f3d750fd8c4bb6b90d6bcfdd4bfe3246"
+  },
+  "rollbackPlan": [
+    "Stop deployment if any required verification fails before push.",
+    "If production deployment occurs through Cloudflare Worker Builds and must be rolled back, owner uses Cloudflare dashboard or approved CI/CD rollback to restore the previous successful Worker deployment.",
+    "If source rollback is required, owner approves a revert commit on main and lets the same CI/CD path redeploy.",
+    "If Supabase backend deployment is later defined and fails, owner follows the repository-approved Supabase rollback/runbook for the exact migration/function deployment; no local production mutation is authorized by this contract."
+  ],
+  "stopConditions": [
+    "Working tree is dirty at deployment time.",
+    "Approved commit SHA does not match the commit being deployed.",
+    "Any required verification command fails.",
+    "Branch protection verification fails or remains unapproved.",
+    "A wallet confirmation, signing prompt, transaction prompt, approval, mint, transfer, or production-value contract interaction appears.",
+    "Browser smoke shows an unapproved network origin without owner exception.",
+    "Required CI/CD secrets or Cloudflare build variables are missing.",
+    "Deployment would bypass the existing owner-approved CI/CD release path.",
+    "Any high or critical security finding is introduced.",
+    "Any command requests forbidden authority."
+  ],
+  "revocationConditions": [
+    "Owner withdraws deployment approval.",
+    "A new commit changes the approved candidate.",
+    "Branch protection, CI/CD, Cloudflare, or Supabase environment evidence changes after approval.",
+    "A new unresolved high or critical finding is discovered.",
+    "A secret exposure or credential handling concern is detected."
+  ]
+}

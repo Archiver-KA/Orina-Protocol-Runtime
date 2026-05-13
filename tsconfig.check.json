@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": false,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "types": ["node", "vite/client", "vitest/globals"]
+  },
+  "include": [
+    "src/app/access/access-policy.ts",
+    "src/app/access/access-policy.test.ts",
+    "src/utils/appRoutes.ts",
+    "src/utils/appRoutes.test.ts"
+  ],
+  "exclude": ["dist", "node_modules", "supabase", "scripts", "audit"]
+}

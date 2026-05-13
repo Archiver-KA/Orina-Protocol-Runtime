@@ -1,0 +1,625 @@
+{
+  "generatedAt": "2026-05-13",
+  "scope": "Minimum authority contracts for unresolved BLOCKED, OWNER_DECISION_REQUIRED, and PARTIAL findings.",
+  "globalStopConditions": [
+    "Any command would print a secret, token, seed phrase, private key, wallet password, recovery phrase, encrypted vault value, or production data payload.",
+    "A wallet confirmation, signing prompt, transaction prompt, token approval, transfer, mint, bridge, or spending allowance request appears.",
+    "A command would deploy, mutate infrastructure, rotate secrets, or mutate production data outside an explicitly approved contract.",
+    "The observed target repository, Supabase project, or Cloudflare service does not match the repository-documented target.",
+    "The requested authority is broader than the contract states."
+  ],
+  "contracts": [
+    {
+      "identifier": "auth-profile-reputation-readonly-jwt",
+      "finding": "Authenticated profile reputation audit",
+      "authorityClass": "SECRET_ACCESS",
+      "additionalAuthorityClasses": ["NETWORK_READ"],
+      "exactPurpose": "Verify authenticated read access to public.profile_reputation_summaries against the target Supabase project using a short-lived non-privileged authenticated JWT.",
+      "exactCommandsToBeExecuted": [
+        "$env:SUPABASE_AUTHENTICATED_JWT='<owner-provided-short-lived-authenticated-jwt>'; npm run audit:profile-reputation-view; Remove-Item Env:SUPABASE_AUTHENTICATED_JWT"
+      ],
+      "filesOrServicesTouched": [
+        "scripts/verify-profile-reputation-summary-security.mjs",
+        "target Supabase REST endpoint /rest/v1/profile_reputation_summaries"
+      ],
+      "networkAccessRequired": true,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": true,
+      "writeAccessRequired": false,
+      "rollbackPlan": "Remove the process environment variable after the command; no repository or production data changes are expected.",
+      "maximumExecutionDuration": "5 minutes",
+      "expectedEvidenceOutput": "Redacted JSON showing anon and authenticated checks pass; no bearer token value printed.",
+      "stopConditions": [
+        "The token is not short-lived or is privileged beyond authenticated read access.",
+        "The command attempts Auth user creation or service-role fallback.",
+        "Output includes a bearer token or secret value."
+      ],
+      "revocationConditions": [
+        "Immediately revoke or expire the supplied JWT after verification.",
+        "Do not persist the JWT in repository files."
+      ],
+      "leastPrivilegeAlternative": "Owner runs the exact command locally and provides redacted JSON output, avoiding Codex secret access."
+    },
+    {
+      "identifier": "supplier-cdn-origin-policy",
+      "finding": "Unapproved browser origin https://s.alicdn.com",
+      "authorityClass": "LOCAL_WRITE",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Record and implement the owner-selected supplier media policy: approve, proxy, block, or sanitize supplier image origins.",
+      "exactCommandsToBeExecuted": [
+        "rg -n \"s\\.alicdn|alicdn|Alibaba|imageUrl|img-src|Content-Security-Policy\" src supabase scripts docs README.md SECURITY.md index.html",
+        "npm run smoke:cdp:readonly-security",
+        "npm run security:scan",
+        "git diff --check"
+      ],
+      "filesOrServicesTouched": [
+        "scripts/smoke-cdp-readonly-security.mjs",
+        "SECURITY.md",
+        "docs/port-9222-runtime-verification.md",
+        "optional CSP/deployment documentation if owner selects CSP policy"
+      ],
+      "networkAccessRequired": false,
+      "browserAccessRequired": true,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": true,
+      "rollbackPlan": "Revert only the local policy/docs/test changes for this origin if smoke or security scan regresses.",
+      "maximumExecutionDuration": "30 minutes",
+      "expectedEvidenceOutput": "Smoke either passes with documented approved origin or fails with the owner-selected block/proxy behavior documented.",
+      "stopConditions": [
+        "Owner has not selected approve, proxy, block, or sanitize.",
+        "A change would remove marketplace media behavior without owner approval.",
+        "A change would add a new production external origin beyond the selected policy."
+      ],
+      "revocationConditions": [
+        "Owner withdraws supplier media approval.",
+        "The CDN origin is observed serving non-image active content in a context not governed by policy."
+      ],
+      "leastPrivilegeAlternative": "Owner supplies a written origin policy; Codex updates local docs/tests only."
+    },
+    {
+      "identifier": "typecheck-dev-tooling",
+      "finding": "Mandatory type safety blocked",
+      "authorityClass": "LOCAL_WRITE",
+      "additionalAuthorityClasses": ["NETWORK_READ"],
+      "exactPurpose": "Add dev-only TypeScript checking with a staged, non-strict baseline and no production dependency additions.",
+      "exactCommandsToBeExecuted": [
+        "npm install --save-dev --save-exact typescript @types/react @types/react-dom @types/node",
+        "npm run verify:repo-tooling",
+        "npm run test",
+        "npm run verify:viewer-release",
+        "git diff --check"
+      ],
+      "filesOrServicesTouched": [
+        "package.json",
+        "package-lock.json",
+        "tsconfig.check.json",
+        "optional src/vite-env.d.ts or equivalent ambient type declarations"
+      ],
+      "networkAccessRequired": true,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": true,
+      "rollbackPlan": "npm uninstall --save-dev typescript @types/react @types/react-dom @types/node; remove tsconfig.check.json and any ambient type file added for this contract.",
+      "maximumExecutionDuration": "90 minutes for first baseline run; stop sooner if error volume is too high.",
+      "expectedEvidenceOutput": "Typecheck command exists, verify:repo-tooling reports typecheck available, and an initial tsc result is recorded without suppressing warnings.",
+      "stopConditions": [
+        "npm attempts to add production dependencies.",
+        "Initial typecheck error volume requires unrelated refactors.",
+        "A config would change runtime build behavior instead of adding noEmit validation."
+      ],
+      "revocationConditions": [
+        "Owner rejects adding TypeScript dev tooling.",
+        "The dependency install source cannot be verified as npm/local CI-safe cache."
+      ],
+      "leastPrivilegeAlternative": "Owner installs the dev tooling in a branch and provides the resulting lockfile and typecheck output for review."
+    },
+    {
+      "identifier": "lint-stack-selection",
+      "finding": "Lint command blocked",
+      "authorityClass": "READ_ONLY",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Select a repository lint stack and baseline before any dependency/config change.",
+      "exactCommandsToBeExecuted": [
+        "npm run verify:repo-tooling",
+        "rg --files -g \"eslint*\" -g \".eslintrc*\" -g \"biome*\" -g \"oxlint*\""
+      ],
+      "filesOrServicesTouched": [
+        "package.json",
+        "package-lock.json",
+        "future linter config after owner selection"
+      ],
+      "networkAccessRequired": false,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": false,
+      "rollbackPlan": "No mutation in this contract.",
+      "maximumExecutionDuration": "10 minutes",
+      "expectedEvidenceOutput": "Owner-selected lint tool and rule baseline, or explicit decision to defer.",
+      "stopConditions": [
+        "Owner has not selected ESLint, Biome, Oxlint, or another specific tool.",
+        "A proposed linter would require production dependencies."
+      ],
+      "revocationConditions": [
+        "Owner defers lint stack selection."
+      ],
+      "leastPrivilegeAlternative": "Keep existing structural verifier and security scans until a lint stack is selected."
+    },
+    {
+      "identifier": "github-ci-enforcement-readonly",
+      "finding": "Strict CI enforcement partial",
+      "authorityClass": "NETWORK_READ",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Verify branch protection, required checks, and Actions secret-name presence without reading secret values.",
+      "exactCommandsToBeExecuted": [
+        "gh api repos/Archiver-KA/Orina-Protocol-Runtime/branches/main/protection",
+        "gh api repos/Archiver-KA/Orina-Protocol-Runtime/actions/secrets --jq '.secrets[].name'",
+        "gh run list --repo Archiver-KA/Orina-Protocol-Runtime --workflow protocol-release-gate.yml --limit 10"
+      ],
+      "filesOrServicesTouched": [
+        "GitHub repository metadata for Archiver-KA/Orina-Protocol-Runtime"
+      ],
+      "networkAccessRequired": true,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": false,
+      "rollbackPlan": "No mutation in this contract.",
+      "maximumExecutionDuration": "10 minutes",
+      "expectedEvidenceOutput": "Required-check names, branch protection settings, and secret names only; no secret values.",
+      "stopConditions": [
+        "GitHub token has write/admin mutation scopes beyond read metadata.",
+        "Command output includes secret values.",
+        "Repository target differs from origin."
+      ],
+      "revocationConditions": [
+        "Revoke the read token after verification if a temporary token is used."
+      ],
+      "leastPrivilegeAlternative": "Owner runs the commands and provides redacted output."
+    },
+    {
+      "identifier": "release-signing-policy",
+      "finding": "Signed releases and release provenance owner decision",
+      "authorityClass": "READ_ONLY",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Capture owner decision for release signing identity, provenance format, custody, and enforcement before any signing authority exists in the workspace.",
+      "exactCommandsToBeExecuted": [
+        "rg -n \"cosign|sigstore|slsa|provenance|attestation|signed release|gpg|signing\" README.md SECURITY.md docs .github scripts package.json",
+        "npm run verify:deterministic-build",
+        "npm run security:sbom"
+      ],
+      "filesOrServicesTouched": [
+        "README.md",
+        "SECURITY.md",
+        "docs/runtime-github-supabase-cloudflare-plan.md",
+        ".github/workflows/protocol-release-gate.yml"
+      ],
+      "networkAccessRequired": false,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": false,
+      "rollbackPlan": "No mutation in this contract.",
+      "maximumExecutionDuration": "20 minutes",
+      "expectedEvidenceOutput": "Owner decision document naming signing approach and whether implementation is deferred.",
+      "stopConditions": [
+        "A signing key or token would be given to Codex.",
+        "A command would create signed artifacts without owner-controlled signing infrastructure."
+      ],
+      "revocationConditions": [
+        "Owner changes signing model or custody requirements."
+      ],
+      "leastPrivilegeAlternative": "Keep deterministic build and SBOM evidence while owner designs signing outside this workspace."
+    },
+    {
+      "identifier": "dependency-policy-documentation",
+      "finding": "Dependency pinning policy partial",
+      "authorityClass": "LOCAL_WRITE",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Document owner-approved dependency range, lockfile, override, audit, and update lifecycle policy.",
+      "exactCommandsToBeExecuted": [
+        "npm ci",
+        "npm run security:scan",
+        "git diff --check"
+      ],
+      "filesOrServicesTouched": [
+        "SECURITY.md",
+        "README.md",
+        "package.json",
+        "package-lock.json"
+      ],
+      "networkAccessRequired": false,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": true,
+      "rollbackPlan": "Revert only the dependency-policy documentation changes if owner does not approve the text.",
+      "maximumExecutionDuration": "30 minutes",
+      "expectedEvidenceOutput": "Documentation states direct range policy, lockfile policy, override lifecycle, and audit cadence without changing runtime dependencies.",
+      "stopConditions": [
+        "Policy owner is not identified.",
+        "A dependency update would be required to document the policy."
+      ],
+      "revocationConditions": [
+        "Owner changes dependency governance policy."
+      ],
+      "leastPrivilegeAlternative": "Owner supplies the policy text; Codex only places it in repository docs."
+    },
+    {
+      "identifier": "fuzzing-scope-decision",
+      "finding": "Fuzzing feasibility partial",
+      "authorityClass": "READ_ONLY",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Decide fuzzing scope, CI budget, and tool allowance before adding any fuzzing dependency.",
+      "exactCommandsToBeExecuted": [
+        "npm run test",
+        "npm run verify:assurance-invariants",
+        "rg -n \"parse|normalize|validate|decode|serialize|pagination|cursor|auth\" src supabase scripts"
+      ],
+      "filesOrServicesTouched": [
+        "future tests under src or scripts after owner scope decision"
+      ],
+      "networkAccessRequired": false,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": false,
+      "rollbackPlan": "No mutation in this contract.",
+      "maximumExecutionDuration": "20 minutes",
+      "expectedEvidenceOutput": "Owner-approved fuzzing scope or explicit deferral.",
+      "stopConditions": [
+        "Fuzzing would require new dev dependencies without owner approval.",
+        "Fuzzing target would hit external services or wallets."
+      ],
+      "revocationConditions": [
+        "Owner defers fuzzing program."
+      ],
+      "leastPrivilegeAlternative": "Add only deterministic table-driven edge tests after owner approves specific surfaces."
+    },
+    {
+      "identifier": "symbolic-execution-scope",
+      "finding": "Symbolic execution feasibility owner decision",
+      "authorityClass": "READ_ONLY",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Identify owner-approved contract source/model and symbolic execution target before adding any tooling.",
+      "exactCommandsToBeExecuted": [
+        "rg -n \"symbolic|echidna|hevm|mythril|manticore|foundry|forge\" README.md SECURITY.md docs scripts supabase src package.json"
+      ],
+      "filesOrServicesTouched": [
+        "src/config/abis.ts",
+        "supabase/audit/reference/foundry/foundry_src_signatures_summary.json",
+        "future owner-provided contract source/model"
+      ],
+      "networkAccessRequired": false,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": false,
+      "rollbackPlan": "No mutation in this contract.",
+      "maximumExecutionDuration": "15 minutes",
+      "expectedEvidenceOutput": "Owner identifies source/model and accepted symbolic execution tool, or defers.",
+      "stopConditions": [
+        "Contract source ownership is not established.",
+        "Tool would be installed before target invariants are defined."
+      ],
+      "revocationConditions": [
+        "Owner defers symbolic execution."
+      ],
+      "leastPrivilegeAlternative": "Keep ABI/signature snapshot as reference until owned source/model is supplied."
+    },
+    {
+      "identifier": "property-testing-scope",
+      "finding": "Property testing feasibility partial",
+      "authorityClass": "LOCAL_WRITE",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Add only deterministic invariant tests using existing Vitest/Node tooling for owner-approved surfaces.",
+      "exactCommandsToBeExecuted": [
+        "npm run test",
+        "npm run verify:assurance-invariants",
+        "git diff --check"
+      ],
+      "filesOrServicesTouched": [
+        "src/**/*.test.ts",
+        "scripts/verify-assurance-invariants.mjs",
+        "audit/invariants.md"
+      ],
+      "networkAccessRequired": false,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": true,
+      "rollbackPlan": "Revert only the added invariant tests/script checks if they prove too broad or flaky.",
+      "maximumExecutionDuration": "60 minutes",
+      "expectedEvidenceOutput": "Additional deterministic invariant tests pass without new dependency.",
+      "stopConditions": [
+        "A generated property-testing dependency is required.",
+        "The invariant requires external service calls or wallet interaction."
+      ],
+      "revocationConditions": [
+        "Owner rejects the proposed invariant scope."
+      ],
+      "leastPrivilegeAlternative": "Keep current 22 assurance invariants."
+    },
+    {
+      "identifier": "formal-proof-scope",
+      "finding": "Formal invariant proof feasibility owner decision",
+      "authorityClass": "READ_ONLY",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Define formal proof scope, accepted modeling language, and acceptance criteria before adding any proof tooling.",
+      "exactCommandsToBeExecuted": [
+        "rg -n \"formal|invariant proof|tla|alloy|coq|lean|isabelle|model check|temporal\" README.md SECURITY.md docs scripts src package.json"
+      ],
+      "filesOrServicesTouched": [
+        "docs/spec/13-atp-protocol-runtime-spec.md",
+        "future formal model files after owner approval"
+      ],
+      "networkAccessRequired": false,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": false,
+      "rollbackPlan": "No mutation in this contract.",
+      "maximumExecutionDuration": "15 minutes",
+      "expectedEvidenceOutput": "Owner-approved formal proof scope or explicit deferral.",
+      "stopConditions": [
+        "A proof tool would be installed before the model and invariant scope are defined.",
+        "A proof claim would be documented without machine-checkable artifact."
+      ],
+      "revocationConditions": [
+        "Owner defers formal proof."
+      ],
+      "leastPrivilegeAlternative": "Continue using deterministic tests and runtime spec documentation."
+    },
+    {
+      "identifier": "incident-response-policy",
+      "finding": "Incident response process partial",
+      "authorityClass": "LOCAL_WRITE",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Document owner-provided incident reporting, triage, escalation, severity, and post-incident process.",
+      "exactCommandsToBeExecuted": [
+        "rg -n \"incident|vulnerability|report|escalation|severity|post-incident\" README.md SECURITY.md docs supabase scripts",
+        "git diff --check"
+      ],
+      "filesOrServicesTouched": [
+        "SECURITY.md",
+        "docs/*incident* or owner-selected runbook path"
+      ],
+      "networkAccessRequired": false,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": true,
+      "rollbackPlan": "Revert only the incident-response documentation changes if owner does not approve them.",
+      "maximumExecutionDuration": "30 minutes",
+      "expectedEvidenceOutput": "Repository incident response process with no invented SLA or personnel claims.",
+      "stopConditions": [
+        "Owner has not supplied maintainer channel, escalation path, or severity policy.",
+        "Text would imply compliance, SLA, or staffing not evidenced by owner."
+      ],
+      "revocationConditions": [
+        "Owner changes the incident response process."
+      ],
+      "leastPrivilegeAlternative": "Keep current SECURITY.md reporting guidance."
+    },
+    {
+      "identifier": "key-rotation-runbook",
+      "finding": "Key rotation procedure partial",
+      "authorityClass": "LOCAL_WRITE",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Document owner-approved rotation order, validation, rollback, and secret ownership without rotating any secret.",
+      "exactCommandsToBeExecuted": [
+        "rg -n \"rotate|rotation|key|secret|credential\" README.md SECURITY.md docs scripts supabase",
+        "git diff --check"
+      ],
+      "filesOrServicesTouched": [
+        "SECURITY.md",
+        "docs/*rotation* or owner-selected runbook path"
+      ],
+      "networkAccessRequired": false,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": true,
+      "rollbackPlan": "Revert only the key-rotation documentation changes if owner does not approve them.",
+      "maximumExecutionDuration": "45 minutes",
+      "expectedEvidenceOutput": "Runbook names secret classes and rotation sequence without secret values.",
+      "stopConditions": [
+        "Any secret value is needed or would be printed.",
+        "The procedure would rotate or invalidate live secrets."
+      ],
+      "revocationConditions": [
+        "Owner changes secret ownership or rotation order."
+      ],
+      "leastPrivilegeAlternative": "Owner supplies a redacted rotation matrix; Codex documents it."
+    },
+    {
+      "identifier": "disaster-recovery-drill-evidence",
+      "finding": "Disaster recovery drills partial",
+      "authorityClass": "READ_ONLY",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Review owner-provided redacted DR drill evidence or produce a non-production drill checklist without running a restore.",
+      "exactCommandsToBeExecuted": [
+        "rg -n \"disaster|recovery|restore|rollback|drill|backup\" README.md SECURITY.md docs supabase scripts"
+      ],
+      "filesOrServicesTouched": [
+        "docs/supabase-migration-drift-reconciliation.md",
+        "docs/runtime-canonical-update-runbook.md",
+        "future DR runbook path"
+      ],
+      "networkAccessRequired": false,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": false,
+      "rollbackPlan": "No mutation in this contract.",
+      "maximumExecutionDuration": "30 minutes",
+      "expectedEvidenceOutput": "Owner-provided dated drill evidence or explicit decision to create a non-production drill plan.",
+      "stopConditions": [
+        "Evidence includes production data, credentials, or backup contents.",
+        "A restore would target production."
+      ],
+      "revocationConditions": [
+        "Owner defers DR drill documentation."
+      ],
+      "leastPrivilegeAlternative": "Use redacted owner-run restore output from a non-production environment."
+    },
+    {
+      "identifier": "rollback-procedure-evidence",
+      "finding": "Rollback procedure partial",
+      "authorityClass": "READ_ONLY",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Review owner-provided rollback procedure and deployment history without performing a rollback.",
+      "exactCommandsToBeExecuted": [
+        "rg -n \"rollback|revert|emergency|deploy|migration drift\" README.md SECURITY.md docs supabase scripts"
+      ],
+      "filesOrServicesTouched": [
+        "docs/runtime-github-supabase-cloudflare-plan.md",
+        "docs/supabase-migration-drift-reconciliation.md",
+        "future rollback runbook path"
+      ],
+      "networkAccessRequired": false,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": false,
+      "rollbackPlan": "No mutation in this contract.",
+      "maximumExecutionDuration": "20 minutes",
+      "expectedEvidenceOutput": "Owner-approved rollback policy or redacted rollback evidence.",
+      "stopConditions": [
+        "Any command would trigger a deploy, rollback, or infrastructure mutation.",
+        "Evidence includes secret values."
+      ],
+      "revocationConditions": [
+        "Owner changes deploy/rollback ownership."
+      ],
+      "leastPrivilegeAlternative": "Owner exports Cloudflare/Supabase deployment history screenshots or text with secrets redacted."
+    },
+    {
+      "identifier": "recovery-objectives-evidence",
+      "finding": "Recovery procedure partial",
+      "authorityClass": "READ_ONLY",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Capture owner-provided RPO/RTO, backup validation, and restore evidence without accessing backups.",
+      "exactCommandsToBeExecuted": [
+        "rg -n \"recovery|repair|restore|backfill|projection\" README.md SECURITY.md docs supabase scripts package.json"
+      ],
+      "filesOrServicesTouched": [
+        "docs/runtime-canonical-update-runbook.md",
+        "docs/supabase-migration-drift-reconciliation.md",
+        "future recovery runbook path"
+      ],
+      "networkAccessRequired": false,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": false,
+      "rollbackPlan": "No mutation in this contract.",
+      "maximumExecutionDuration": "20 minutes",
+      "expectedEvidenceOutput": "Owner-provided recovery objectives and restore evidence, redacted.",
+      "stopConditions": [
+        "Backup contents or production data would be exposed.",
+        "A restore command would be required."
+      ],
+      "revocationConditions": [
+        "Owner changes recovery objectives."
+      ],
+      "leastPrivilegeAlternative": "Owner-run non-production restore validation output."
+    },
+    {
+      "identifier": "environment-separation-readonly",
+      "finding": "Environment separation partial",
+      "authorityClass": "NETWORK_READ",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Verify redacted environment separation metadata without reading secret values or mutating deployments.",
+      "exactCommandsToBeExecuted": [
+        "gh api repos/Archiver-KA/Orina-Protocol-Runtime/actions/secrets --jq '.secrets[].name'",
+        "rg -n \"environment|production|local|staging|VITE_|secret|Cloudflare\" README.md SECURITY.md docs supabase .github package.json wrangler.jsonc"
+      ],
+      "filesOrServicesTouched": [
+        "GitHub Actions secret names",
+        "owner-provided Cloudflare Worker build variable names",
+        "owner-provided Supabase project refs"
+      ],
+      "networkAccessRequired": true,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": false,
+      "rollbackPlan": "No mutation in this contract.",
+      "maximumExecutionDuration": "20 minutes",
+      "expectedEvidenceOutput": "Environment names, project refs, and secret names only; no values.",
+      "stopConditions": [
+        "A command would reveal secret values.",
+        "A token has write/deploy permissions."
+      ],
+      "revocationConditions": [
+        "Revoke temporary read token after verification."
+      ],
+      "leastPrivilegeAlternative": "Owner provides redacted exports of environment names and variable names."
+    },
+    {
+      "identifier": "deployment-attestation-policy",
+      "finding": "Multi-environment deployment attestation owner decision",
+      "authorityClass": "READ_ONLY",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Define attestation format, storage path, required fields, and enforcement before live deployment metadata access.",
+      "exactCommandsToBeExecuted": [
+        "rg -n \"attestation|provenance|staging|production|environment|deploy|cloudflare|supabase\" README.md SECURITY.md docs .github wrangler.jsonc supabase package.json"
+      ],
+      "filesOrServicesTouched": [
+        "docs/runtime-github-supabase-cloudflare-plan.md",
+        "future attestation manifest path"
+      ],
+      "networkAccessRequired": false,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": false,
+      "rollbackPlan": "No mutation in this contract.",
+      "maximumExecutionDuration": "20 minutes",
+      "expectedEvidenceOutput": "Owner-approved attestation schema or explicit deferral.",
+      "stopConditions": [
+        "A command would deploy or mutate Cloudflare/Supabase.",
+        "Attestation claims would be made without source metadata."
+      ],
+      "revocationConditions": [
+        "Owner changes deployment attestation policy."
+      ],
+      "leastPrivilegeAlternative": "Start with an owner-supplied static attestation manifest template."
+    },
+    {
+      "identifier": "cors-preview-origin-governance",
+      "finding": "CORS preview-origin ownership partial",
+      "authorityClass": "NETWORK_READ",
+      "additionalAuthorityClasses": [],
+      "exactPurpose": "Verify whether production Edge configuration enables broad preview origins, without changing Edge variables.",
+      "exactCommandsToBeExecuted": [
+        "rg -n \"ORINA_CORS_ALLOW_PREVIEW_ORIGINS|ORINA_CORS_ENV|vercel\\.app|netlify\\.app|workers\\.dev|supabase\\.co\" supabase docs scripts README.md SECURITY.md",
+        "npm run security:scan"
+      ],
+      "filesOrServicesTouched": [
+        "supabase/functions/server/edge-app.ts",
+        "owner-provided redacted Supabase Edge Function env variable names"
+      ],
+      "networkAccessRequired": true,
+      "browserAccessRequired": false,
+      "walletInteractionRequired": false,
+      "secretsRequired": false,
+      "writeAccessRequired": false,
+      "rollbackPlan": "No mutation in this contract.",
+      "maximumExecutionDuration": "15 minutes",
+      "expectedEvidenceOutput": "Redacted evidence showing whether ORINA_CORS_ALLOW_PREVIEW_ORIGINS is set in production.",
+      "stopConditions": [
+        "A command would set or change Edge Function environment variables.",
+        "Secret values are exposed."
+      ],
+      "revocationConditions": [
+        "Owner changes preview-origin policy."
+      ],
+      "leastPrivilegeAlternative": "Owner provides a redacted environment export showing variable names and boolean presence only."
+    }
+  ]
+}

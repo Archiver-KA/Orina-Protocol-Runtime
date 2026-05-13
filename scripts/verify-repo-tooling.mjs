@@ -20,8 +20,9 @@ function hasDependency(pkg, name) {
 
 const pkg = readPackageJson();
 const scripts = pkg.scripts || {};
-const hasTsConfig = existsAny(['tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json']);
+const hasTsConfig = existsAny(['tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json', 'tsconfig.check.json']);
 const hasTypeScript = hasDependency(pkg, 'typescript');
+const hasTypecheckScript = Boolean(scripts.typecheck);
 const linterDependencies = ['eslint', 'biome', '@biomejs/biome', 'oxlint'];
 const linterConfigs = [
   'eslint.config.js',
@@ -37,28 +38,34 @@ const linterConfigs = [
 ];
 const presentLinterDependencies = linterDependencies.filter((name) => hasDependency(pkg, name));
 const hasLinterConfig = existsAny(linterConfigs);
+const hasLintGovernance = fs.existsSync(path.join(ROOT, 'docs', 'lint-governance.md'));
+const lintAvailable = Boolean(scripts.lint || scripts['lint:check']) && presentLinterDependencies.length && hasLinterConfig;
+const typecheckAvailable = hasTypecheckScript && hasTypeScript && hasTsConfig;
 
 const report = {
   generatedAt: new Date().toISOString(),
   packageManager: fs.existsSync(path.join(ROOT, 'package-lock.json')) ? 'npm' : 'unknown',
   viteConfig: fs.existsSync(path.join(ROOT, 'vite.config.ts')),
   typecheck: {
-    scriptPresent: Boolean(scripts.typecheck),
+    scriptPresent: hasTypecheckScript,
     directTypeScriptDependency: hasTypeScript,
     tsconfigPresent: hasTsConfig,
-    status: hasTypeScript && hasTsConfig ? 'available' : 'blocked',
-    blocker: hasTypeScript && hasTsConfig
+    status: typecheckAvailable ? 'available' : 'blocked',
+    blocker: typecheckAvailable
       ? ''
-      : 'No direct typescript dependency and no tsconfig.json are present; adding tsc --noEmit would require new dev tooling/configuration.',
+      : 'A typecheck baseline requires a typecheck script, direct typescript devDependency, and tsconfig.check.json or equivalent.',
   },
   lint: {
-    scriptPresent: Boolean(scripts.lint),
+    scriptPresent: Boolean(scripts.lint || scripts['lint:check']),
     linterDependencies: presentLinterDependencies,
     linterConfigPresent: hasLinterConfig,
-    status: presentLinterDependencies.length && hasLinterConfig ? 'available' : 'blocked',
-    blocker: presentLinterDependencies.length && hasLinterConfig
+    governanceDocumentPresent: hasLintGovernance,
+    status: lintAvailable ? 'available' : hasLintGovernance ? 'partial' : 'blocked',
+    blocker: lintAvailable
       ? ''
-      : 'No existing linter dependency/configuration is present; adding lint would introduce a new lint stack.',
+      : hasLintGovernance
+        ? 'Lint governance is documented, but no owner-selected linter dependency/configuration is present.'
+        : 'No existing linter dependency/configuration is present; adding lint would introduce a new lint stack.',
   },
   pass: true,
 };

@@ -1,8 +1,8 @@
 # ORINA ATP2 Runtime Docs
 
-Last verified by Codex audit: 2026-05-12
+Last verified by Codex audit: 2026-05-13
 
-This documentation set is aligned with the current runtime code as of 2026-05-12.
+This documentation set is aligned with the current runtime code as of 2026-05-13.
 
 It separates user-facing guides, runtime verification runbooks, and current-code specs. Older planning notes and stale Make/Figma-era docs should not be treated as source of truth unless they are explicitly linked here.
 
@@ -12,6 +12,10 @@ It separates user-facing guides, runtime verification runbooks, and current-code
 - [Runtime FAQ](./system-faq.md)
 - [Port 9222 Runtime Verification](./port-9222-runtime-verification.md)
 - [Repository Security](../SECURITY.md)
+- [Type Safety Baseline](./type-safety-baseline.md)
+- [Lint Governance](./lint-governance.md)
+- [Release Provenance Plan](./release-provenance.md)
+- [Operational Governance Owner Decisions](./operational-governance-owner-decisions.md)
 
 ## Spec Index
 

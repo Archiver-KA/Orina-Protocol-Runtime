@@ -1,0 +1,703 @@
+{
+  "auditDate": "2026-05-13",
+  "repository": {
+    "path": "c:\\ORINA\\ATPProtocol2\\Orina Protocol - Runtime",
+    "branchObserved": "main",
+    "statusObserved": "main...origin/main",
+    "sourceOfTruth": "repository files only"
+  },
+  "evidenceCommands": [
+    "git status --short --branch",
+    "rg --files",
+    "Get-Content package.json",
+    "rg --files -g \"tsconfig*\" -g \"eslint*\" -g \".eslintrc*\" -g \"biome*\" -g \"rome*\" -g \"vitest*\" -g \"vite.config*\" -g \"wrangler*\" -g \"deno.json*\" -g \"supabase/config.toml\" -g \".github/workflows/*\"",
+    "Get-Content .github/workflows/protocol-release-gate.yml",
+    "Get-Content vite.config.ts",
+    "Get-Content wrangler.jsonc",
+    "Get-Content supabase/config.toml",
+    "rg -n \"localStorage|sessionStorage|indexedDB|document\\.cookie|cookie\" src scripts supabase/functions -g \"*.ts\" -g \"*.tsx\" -g \"*.mjs\" -g \"*.cjs\"",
+    "rg -n \"backup|cipher|decrypt|encrypt|AES-GCM|ATP2_M2M_DELEGATE_ENCRYPTION_KEY|delegate_backup|m2m_delegate|invite|randomBytes|crypto\\.getRandomValues|randomUUID\" supabase/functions src scripts docs supabase/migrations SECURITY.md -g \"*.*\"",
+    "rg -n \"ORINA_CORS|CORS|allowedOrigin|allowedOrigins|Access-Control-Allow-Origin|vercel|netlify|workers|supabase\\.co|localhost|127\\.0\\.0\\.1\" supabase/functions src scripts docs README.md SECURITY.md .github wrangler.jsonc -g \"*.*\"",
+    "rg -n \"marketplace_.*browse|refresh_marketplace|browse_index|fresh|cron|schedule|materialized\" supabase/migrations supabase/functions scripts docs -g \"*.*\""
+  ],
+  "languages": [
+    {
+      "language": "TypeScript",
+      "extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "observedFileCount": 311,
+      "primaryLocations": [
+        "src/",
+        "supabase/functions/server/",
+        "supabase/functions/*/index.ts",
+        "vite.config.ts"
+      ]
+    },
+    {
+      "language": "JavaScript",
+      "extensions": [
+        ".mjs",
+        ".cjs"
+      ],
+      "observedFileCount": 67,
+      "primaryLocations": [
+        "scripts/",
+        "supabase/audit/"
+      ]
+    },
+    {
+      "language": "SQL",
+      "extensions": [
+        ".sql"
+      ],
+      "observedFileCount": 95,
+      "primaryLocations": [
+        "supabase/migrations/",
+        "supabase/audit/"
+      ]
+    },
+    {
+      "language": "Markdown",
+      "extensions": [
+        ".md"
+      ],
+      "observedFileCount": 34,
+      "primaryLocations": [
+        "README.md",
+        "SECURITY.md",
+        "docs/",
+        "AUDIT_REPORT.md"
+      ]
+    },
+    {
+      "language": "CSS",
+      "extensions": [
+        ".css"
+      ],
+      "observedFileCount": 3,
+      "primaryLocations": [
+        "src/styles/"
+      ]
+    },
+    {
+      "language": "PowerShell",
+      "extensions": [
+        ".ps1"
+      ],
+      "observedFileCount": 1,
+      "primaryLocations": [
+        "scripts/"
+      ]
+    }
+  ],
+  "frameworksAndPlatforms": [
+    {
+      "name": "React",
+      "evidence": "package.json dependencies and src/main.tsx/src/app/App.tsx"
+    },
+    {
+      "name": "Vite",
+      "evidence": "package.json scripts, vite.config.ts, index.html"
+    },
+    {
+      "name": "Vitest",
+      "evidence": "package.json test script and *.test.ts files"
+    },
+    {
+      "name": "Tailwind CSS",
+      "evidence": "package.json dependencies and postcss.config.mjs"
+    },
+    {
+      "name": "Wagmi/Viem/MetaMask SDK",
+      "evidence": "package.json dependencies and wallet/provider source under src/"
+    },
+    {
+      "name": "Supabase Edge Functions",
+      "evidence": "supabase/functions/*/index.ts and supabase/functions/server/"
+    },
+    {
+      "name": "Supabase PostgreSQL migrations",
+      "evidence": "supabase/migrations/*.sql"
+    },
+    {
+      "name": "Cloudflare Workers static assets",
+      "evidence": "wrangler.jsonc assets.directory=./dist"
+    },
+    {
+      "name": "GitHub Actions",
+      "evidence": ".github/workflows/protocol-release-gate.yml"
+    }
+  ],
+  "packageManagersAndLockfiles": [
+    {
+      "manager": "npm",
+      "lockfile": "package-lock.json",
+      "evidence": "package.json and package-lock.json"
+    },
+    {
+      "manager": "Deno/Supabase Edge import lock",
+      "lockfile": "deno.lock",
+      "evidence": "deno.lock and npm: imports in supabase/functions/server/*.ts"
+    },
+    {
+      "manager": "pnpm metadata only",
+      "lockfile": null,
+      "evidence": "package.json contains pnpm.overrides; no pnpm lockfile observed"
+    }
+  ],
+  "buildSystems": [
+    {
+      "name": "Vite build plus prerender",
+      "command": "npm run build",
+      "definition": "vite build && node scripts/prerender-public-routes.mjs",
+      "outputs": [
+        "dist/"
+      ]
+    },
+    {
+      "name": "Vitest",
+      "command": "npm run test",
+      "definition": "vitest run"
+    },
+    {
+      "name": "Viewer release gate",
+      "command": "npm run verify:viewer-release",
+      "definition": "viewer surface guard, protocol runtime surface check, targeted Vitest tests, build"
+    }
+  ],
+  "ciSystems": [
+    {
+      "system": "GitHub Actions",
+      "file": ".github/workflows/protocol-release-gate.yml",
+      "jobs": [
+        "viewer-release",
+        "supabase-security-audit",
+        "connected-protocol-smoke"
+      ],
+      "permissions": "contents: read",
+      "notes": [
+        "Runs on pull_request to main, push to main, and workflow_dispatch.",
+        "Connected protocol smoke is workflow_dispatch gated by run_connected_smoke and requires a self-hosted Windows protocol-smoke runner.",
+        "Supabase SECURITY DEFINER audit skips when SUPABASE_DB_AUDIT_URL is absent."
+      ]
+    }
+  ],
+  "deploymentConfigs": [
+    {
+      "target": "Cloudflare Worker assets",
+      "file": "wrangler.jsonc",
+      "service": "apporinaio",
+      "assetDirectory": "./dist",
+      "spaFallback": "single-page-application"
+    },
+    {
+      "target": "Supabase local config",
+      "file": "supabase/config.toml",
+      "notableSettings": [
+        "api enabled",
+        "auth enabled",
+        "storage enabled",
+        "local ports 54321-54324",
+        "jwt_expiry=3600",
+        "refresh token rotation enabled"
+      ]
+    },
+    {
+      "target": "Supabase Edge Functions",
+      "files": [
+        "supabase/functions/make-server-b0d68fc8/index.ts",
+        "supabase/functions/orina-auth-bridge-v1/index.ts",
+        "supabase/functions/orina-ai-m2m-v2/index.ts",
+        "supabase/functions/orina-chat-v1/index.ts",
+        "supabase/functions/orina-order-autotime-v1/index.ts",
+        "supabase/functions/orina-receipt-sync-v1/index.ts",
+        "supabase/functions/orina-seller-minting-v1/index.ts"
+      ]
+    },
+    {
+      "target": "GitHub-driven Cloudflare deploy path documentation",
+      "file": "docs/runtime-github-supabase-cloudflare-plan.md",
+      "notes": [
+        "Documents Cloudflare Worker Builds pulling from GitHub main.",
+        "Repository workflow is verification only.",
+        "Local wrangler deploy is documented as emergency-only."
+      ]
+    }
+  ],
+  "runtimeBoundaries": [
+    {
+      "boundary": "Browser SPA",
+      "entrypoints": [
+        "index.html",
+        "src/main.tsx",
+        "src/app/App.tsx"
+      ],
+      "trustModel": "Browser state and wallet provider are untrusted external state."
+    },
+    {
+      "boundary": "Wallet provider",
+      "entrypoints": [
+        "src/providers/Web3Provider.tsx",
+        "src/app/components/wallet-connect-button.tsx",
+        "src/utils/walletAuthSession.ts",
+        "src/utils/supabaseAuthClaimBridge.ts"
+      ],
+      "external": true
+    },
+    {
+      "boundary": "Supabase Edge Function HTTP",
+      "entrypoints": [
+        "supabase/functions/server/index.tsx",
+        "supabase/functions/server/edge-app.ts",
+        "supabase/functions/*/index.ts"
+      ],
+      "external": true
+    },
+    {
+      "boundary": "Supabase PostgreSQL and REST/RPC",
+      "entrypoints": [
+        "src/utils/supabaseRest.ts",
+        "supabase/migrations/*.sql"
+      ],
+      "external": true
+    },
+    {
+      "boundary": "Blockchain JSON-RPC and wallet signing",
+      "entrypoints": [
+        "src/config/contracts.ts",
+        "src/hooks/useEIP712Sign.ts",
+        "src/hooks/useProtocolChain.ts",
+        "src/utils/protocolNetwork.ts"
+      ],
+      "external": true
+    },
+    {
+      "boundary": "IPFS/Pinata and gateways",
+      "entrypoints": [
+        "src/hooks/useIPFSUpload.ts",
+        "src/utils/ipfs-config.ts",
+        "supabase/functions/server/ipfs-upload.tsx"
+      ],
+      "external": true
+    },
+    {
+      "boundary": "AI/search provider clients",
+      "entrypoints": [
+        "supabase/functions/server/orina-ai-engine-v2.tsx",
+        "supabase/functions/server/nvidia-nim-client.ts",
+        "supabase/functions/server/tavily-client.ts",
+        "src/utils/aiAgentClient.ts"
+      ],
+      "external": true
+    }
+  ],
+  "authAuthzSurfaces": [
+    {
+      "surface": "Wallet auth session",
+      "files": [
+        "src/utils/walletAuthSession.ts",
+        "src/utils/walletAuthSession.test.ts"
+      ],
+      "storage": "localStorage key orina_wallet_auth_session",
+      "evidence": "SECURITY.md documents same-origin XSS sensitivity."
+    },
+    {
+      "surface": "Supabase wallet auth claim bridge",
+      "files": [
+        "src/utils/supabaseAuthClaimBridge.ts",
+        "supabase/functions/server/wallet-auth-claim-bridge.tsx",
+        "supabase/functions/server/request-auth.ts"
+      ],
+      "storage": "localStorage bridge session key",
+      "evidence": "Protected Edge Function writes call requireAuthenticatedWallet and wallet match helpers."
+    },
+    {
+      "surface": "API key management",
+      "files": [
+        "src/utils/apiKeysClient.ts",
+        "src/utils/apiKeyManager.ts",
+        "supabase/functions/server/api-keys-handler.ts"
+      ],
+      "evidence": "security-scan-system.mjs reports H1 JWT plus wallet match for key routes."
+    },
+    {
+      "surface": "Messaging authorization",
+      "files": [
+        "supabase/functions/server/messages-handler-c5.ts",
+        "src/utils/messagesClient.ts"
+      ],
+      "evidence": "security-scan-system.mjs checks wallet match and participant membership guard."
+    },
+    {
+      "surface": "AI M2M wallet routes",
+      "files": [
+        "supabase/functions/server/ai-m2m-wallet.ts",
+        "src/utils/aiM2MWalletClient.ts"
+      ],
+      "evidence": "Routes require authenticated wallet, wallet match, invite rate limiting, and replay checks."
+    },
+    {
+      "surface": "Supabase RLS and SECURITY DEFINER RPCs",
+      "files": [
+        "supabase/migrations/*.sql",
+        "scripts/audit-supabase-security-definer.mjs"
+      ],
+      "evidence": "Audit script enumerates reviewed SECURITY DEFINER functions."
+    }
+  ],
+  "cryptoSurfaces": [
+    {
+      "surface": "Wallet signatures",
+      "files": [
+        "src/hooks/useEIP712Sign.ts",
+        "src/utils/walletAuthSession.ts",
+        "supabase/functions/server/wallet-auth-claim-bridge.tsx"
+      ],
+      "purposeFromCode": "Wallet auth and ATP order/dispute signing flows."
+    },
+    {
+      "surface": "AI M2M invite ids",
+      "files": [
+        "supabase/functions/server/ai-m2m-wallet.ts"
+      ],
+      "evidence": "DELEGATE_INVITE_RANDOM_BYTES=32 and crypto.getRandomValues."
+    },
+    {
+      "surface": "Server-managed delegate private key generation",
+      "files": [
+        "supabase/functions/server/ai-m2m-wallet.ts"
+      ],
+      "evidence": "randomHex(32) with privateKeyToAccount; encrypted before KV storage."
+    },
+    {
+      "surface": "Managed delegate secret encryption",
+      "files": [
+        "supabase/functions/server/ai-m2m-wallet.ts"
+      ],
+      "evidence": "AES-GCM with SHA-256-derived key from ATP2_M2M_DELEGATE_ENCRYPTION_KEY and 12-byte IV."
+    },
+    {
+      "surface": "Audit JWT generation",
+      "files": [
+        "scripts/verify-profile-reputation-summary-security.mjs"
+      ],
+      "purposeFromCode": "Local verification helper can generate HMAC JWT from supplied audit secret."
+    }
+  ],
+  "persistenceSurfaces": [
+    {
+      "surface": "Browser localStorage/sessionStorage",
+      "files": [
+        "src/utils/walletAuthSession.ts",
+        "src/utils/supabaseAuthClaimBridge.ts",
+        "src/utils/*Utils.ts",
+        "src/app/components/ai/ai-sidebar.tsx",
+        "src/app/components/marketplace.tsx"
+      ],
+      "dataTypes": [
+        "wallet auth session",
+        "Supabase auth bridge session",
+        "wallet-scoped preferences",
+        "runtime shadow state",
+        "UI caches"
+      ]
+    },
+    {
+      "surface": "IndexedDB",
+      "files": [
+        "scripts/smoke-cdp-readonly-security.mjs"
+      ],
+      "dataTypes": [
+        "inspected during CDP smoke; application source does not define IndexedDB persistence APIs in this inventory"
+      ]
+    },
+    {
+      "surface": "Supabase KV store wrapper",
+      "files": [
+        "supabase/functions/server/kv_store.tsx"
+      ],
+      "dataTypes": [
+        "server-side function state",
+        "AI M2M config",
+        "delegate metadata",
+        "encrypted delegate secret record"
+      ]
+    },
+    {
+      "surface": "Supabase PostgreSQL",
+      "files": [
+        "supabase/migrations/*.sql"
+      ],
+      "dataTypes": [
+        "profiles",
+        "assets",
+        "orders",
+        "messages",
+        "collections",
+        "runtime projections",
+        "marketplace browse indexes",
+        "rate limits",
+        "security audit log"
+      ]
+    },
+    {
+      "surface": "Build artifacts",
+      "files": [
+        "dist/",
+        "public/sitemap.xml"
+      ],
+      "dataTypes": [
+        "static bundle",
+        "prerendered public routes",
+        "sitemaps"
+      ]
+    }
+  ],
+  "browserStorageUsage": {
+    "localStorage": [
+      "orina_wallet_auth_session",
+      "Supabase auth bridge session storage from src/utils/supabaseAuthClaimBridge.ts",
+      "protocol network selection",
+      "guest mode",
+      "marketplace view mode/viewer id",
+      "wallet-scoped profile, delivery, favorites, collections, runtime orders, receipts, minted assets, community, user settings, theme, taxonomy, reputation and AI conversation cache keys"
+    ],
+    "sessionStorage": [
+      "avatar seed cache",
+      "recent command/search history",
+      "notification tab cache"
+    ],
+    "cookies": [
+      "No application cookie writer observed in source inventory; CDP smoke inspects cookie names/domains without values."
+    ],
+    "indexedDB": [
+      "No direct application IndexedDB implementation observed in source inventory; CDP smoke enumerates database and store names without values."
+    ]
+  },
+  "backupImportExportFlows": [
+    {
+      "surface": "AI M2M managed delegate backup record",
+      "files": [
+        "supabase/functions/server/ai-m2m-wallet.ts",
+        "supabase/migrations/000054_m2m_wallet_relational_tables.sql",
+        "SECURITY.md",
+        "docs/spec/05-integrations-settings-and-tools.md",
+        "docs/spec/11-ai-m2m-runtime-enablement.md"
+      ],
+      "observedBehavior": "Generated delegate private key is encrypted into ciphertext plus IV metadata before server KV persistence; no decrypt/export endpoint was observed in static scan evidence."
+    },
+    {
+      "surface": "Favorites legacy migration backup",
+      "files": [
+        "src/utils/favoritesUtils.ts"
+      ],
+      "observedBehavior": "Legacy favorite ids can be copied to wallet-scoped localStorage backup keys during migration."
+    },
+    {
+      "surface": "Supabase audit/backfill/generated artifacts",
+      "files": [
+        "supabase/audit/*.cjs",
+        "supabase/audit/generated_*.sql",
+        "supabase/audit/reference/**"
+      ],
+      "observedBehavior": "Operator audit tooling and generated snapshots; .gitignore excludes supabase/audit/*.json outputs."
+    },
+    {
+      "surface": "Geo import artifacts",
+      "files": [
+        "scripts/geo/*.mjs",
+        "data/geo/**"
+      ],
+      "observedBehavior": "Geo download/build/export tooling; large raw/out artifacts are gitignored except data/geo/out/.gitkeep."
+    }
+  ],
+  "releaseWorkflows": [
+    {
+      "workflow": "Protocol Release Gate",
+      "file": ".github/workflows/protocol-release-gate.yml",
+      "triggers": [
+        "pull_request to main",
+        "push to main",
+        "workflow_dispatch"
+      ],
+      "commandsObserved": [
+        "npm ci",
+        "npm run verify:viewer-release",
+        "npm run audit:supabase:security-definer -- --db-url \"$SUPABASE_DB_AUDIT_URL\"",
+        "npm run smoke:connected:protocol"
+      ]
+    },
+    {
+      "workflow": "Cloudflare Worker build path",
+      "file": "docs/runtime-github-supabase-cloudflare-plan.md",
+      "triggerDocumented": "Cloudflare Worker Builds pulls GitHub main",
+      "repositoryWorkflowDeploy": "No repo-level deploy workflow observed in .github/workflows during inventory."
+    },
+    {
+      "workflow": "Supabase function deploy runbook",
+      "file": "docs/spec/19-supabase-split-function-runbook.md",
+      "commandsDocumented": [
+        "supabase functions deploy orina-auth-bridge-v1",
+        "supabase functions deploy orina-ai-m2m-v2",
+        "supabase functions deploy orina-seller-minting-v1",
+        "supabase functions deploy orina-receipt-sync-v1",
+        "supabase functions deploy make-server-b0d68fc8"
+      ]
+    }
+  ],
+  "environmentSeparation": [
+    {
+      "surface": "Frontend public env",
+      "evidence": ".env.example, README.md, SECURITY.md, docs/runtime-github-supabase-cloudflare-plan.md",
+      "allowedFromDocs": [
+        "VITE_SUPABASE_URL",
+        "VITE_SUPABASE_ANON_KEY",
+        "VITE_SUPABASE_PROJECT_ID",
+        "VITE_* public runtime config"
+      ],
+      "forbiddenFromDocs": [
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "ATP2_SUPABASE_JWT_SECRET",
+        "ATP2_M2M_DELEGATE_ENCRYPTION_KEY"
+      ]
+    },
+    {
+      "surface": "Edge Function server env",
+      "evidence": "SECURITY.md and docs/spec/19-supabase-split-function-runbook.md",
+      "notableVariables": [
+        "ORINA_CORS_ENV",
+        "ORINA_CORS_ALLOWED_ORIGINS",
+        "ORINA_CORS_ALLOW_PREVIEW_ORIGINS",
+        "ATP2_M2M_DELEGATE_ENCRYPTION_KEY"
+      ]
+    },
+    {
+      "surface": "Supabase local config",
+      "evidence": "supabase/config.toml",
+      "notes": [
+        "Local development ports and auth settings are defined.",
+        "No production environment attestation artifact observed."
+      ]
+    },
+    {
+      "surface": "CI secrets",
+      "evidence": ".github/workflows/protocol-release-gate.yml",
+      "notableSecrets": [
+        "VITE_SUPABASE_URL",
+        "VITE_SUPABASE_ANON_KEY",
+        "SUPABASE_DB_AUDIT_URL"
+      ]
+    }
+  ],
+  "documentationMap": [
+    {
+      "path": "README.md",
+      "purpose": "Repository overview and development commands"
+    },
+    {
+      "path": "SECURITY.md",
+      "purpose": "Reporting, supported source, runtime security assumptions, verification commands"
+    },
+    {
+      "path": "docs/README.md",
+      "purpose": "Docs hub and current source-of-truth rules"
+    },
+    {
+      "path": "docs/system-user-guide.md",
+      "purpose": "End-user runtime behavior and storage notes"
+    },
+    {
+      "path": "docs/system-faq.md",
+      "purpose": "Runtime FAQ"
+    },
+    {
+      "path": "docs/port-9222-runtime-verification.md",
+      "purpose": "CDP and smoke verification runbook"
+    },
+    {
+      "path": "docs/runtime-github-supabase-cloudflare-plan.md",
+      "purpose": "GitHub, Supabase, Cloudflare release/deploy plan"
+    },
+    {
+      "path": "docs/supabase-migration-drift-reconciliation.md",
+      "purpose": "Supabase migration drift recovery guidance"
+    },
+    {
+      "path": "docs/spec/",
+      "purpose": "Runtime specs and runbooks"
+    },
+    {
+      "path": "supabase/audit/README.md",
+      "purpose": "Supabase audit tooling notes"
+    },
+    {
+      "path": "ATTRIBUTIONS.md",
+      "purpose": "Asset attributions"
+    },
+    {
+      "path": "AUDIT_REPORT.md",
+      "purpose": "Prior and current audit report"
+    }
+  ],
+  "externalIntegrations": [
+    "Supabase REST/RPC/Auth/Edge Functions",
+    "MetaMask and injected EIP-1193 wallets",
+    "BNB/BSC JSON-RPC endpoints and Binance streams",
+    "IPFS/Pinata/gateways",
+    "AI/search providers referenced by Edge clients",
+    "Cloudflare Worker assets",
+    "GitHub Actions",
+    "Vercel/Netlify/Workers/Supabase preview origins gated by CORS flag"
+  ],
+  "databaseWritesAndJobs": [
+    {
+      "surface": "Rate limits",
+      "files": [
+        "supabase/functions/server/rate-limiter.ts",
+        "supabase/migrations/000053_rate_limit_atomic_and_protocol_receipts.sql"
+      ],
+      "writePattern": "public.rate_limit_increment RPC"
+    },
+    {
+      "surface": "Marketplace materialized browse indexes",
+      "files": [
+        "supabase/migrations/000070_marketplace_catalog_browse_index.sql",
+        "supabase/migrations/000071_marketplace_collection_browse_index.sql",
+        "supabase/migrations/000072_marketplace_profile_browse_index.sql",
+        "scripts/verify-marketplace-browse-freshness.mjs"
+      ],
+      "jobs": [
+        "orina-marketplace-browse-index-v1-every-2m",
+        "orina-marketplace-collection-browse-index-v1-every-2m",
+        "orina-marketplace-profile-browse-index-v1-every-2m"
+      ]
+    },
+    {
+      "surface": "Order autotime keeper",
+      "files": [
+        "supabase/functions/server/order-autotime-keeper.ts",
+        "supabase/migrations/000066_order_autotime_keeper_cron.sql",
+        "supabase/migrations/000067_order_autotime_keeper_cron_secret_rewire.sql"
+      ],
+      "jobs": [
+        "pg_cron controlled through service-role SECURITY DEFINER functions"
+      ]
+    },
+    {
+      "surface": "Security audit log",
+      "files": [
+        "supabase/migrations/000056_security_audit_log.sql"
+      ],
+      "purposeFromCode": "Audit trail table for security events"
+    }
+  ],
+  "inventoryResidualRisks": [
+    "No tsconfig.json or direct TypeScript compiler dependency was observed during inventory.",
+    "No ESLint/Biome/Oxlint dependency or configuration was observed during inventory.",
+    "No release signing or provenance attestation artifact was observed during inventory.",
+    "No SBOM generation script or committed SBOM artifact was observed during inventory.",
+    "No production environment ownership or branch protection evidence is available from repository files alone."
+  ]
+}

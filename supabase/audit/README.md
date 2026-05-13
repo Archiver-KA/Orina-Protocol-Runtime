@@ -1,6 +1,6 @@
 # Supabase Audit Layout
 
-Last verified by Codex audit: 2026-05-12
+Last verified by Codex audit: 2026-05-13
 
 This directory keeps runnable audit tooling at the top level and separates generated output into dedicated folders.
 
@@ -70,6 +70,14 @@ For CI, prefer a direct database connection string secret:
 - `SUPABASE_DB_AUDIT_URL`
 
 The `protocol-release-gate` workflow runs this audit when that secret is configured.
+
+## Profile Reputation View Audit
+
+The profile reputation audit entrypoint is:
+
+- `npm run audit:profile-reputation-view`
+
+It performs anon, authenticated, and service-role read checks against `public.profile_reputation_summaries`. The authenticated check requires either a valid `SUPABASE_AUTHENTICATED_JWT` for the target project or a JWT signing secret that actually matches that project. If the generated authenticated token returns `PGRST301`, stop and correct the audit credential source outside the repository; do not infer, print, or rotate secrets from this workspace.
 
 ## Output Folders
 

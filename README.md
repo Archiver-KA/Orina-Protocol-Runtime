@@ -1,6 +1,6 @@
 # Orina Protocol - Runtime
 
-Last verified by Codex audit: 2026-05-12
+Last verified by Codex audit: 2026-05-13
 
 Orina Protocol - Runtime is the standalone runtime repository for the Orina marketplace application. It keeps the production-facing frontend, Supabase runtime surfaces, release gates, and current-code documentation without the old workspace-specific agent metadata and local archive material.
 
@@ -18,9 +18,14 @@ Orina Protocol - Runtime is the standalone runtime repository for the Orina mark
 npm install
 npm run dev
 npm run test
+npm run typecheck
 npm run security:scan
+npm run security:sbom
+npm run release:manifest
 npm run verify:repo-tooling
 npm run verify:marketplace-freshness
+npm run verify:assurance-invariants
+npm run verify:deterministic-build
 npm run verify:viewer-release
 npm run build
 ```
@@ -31,6 +36,10 @@ Current runtime and release references live under `docs/`.
 
 - [Docs Hub](./docs/README.md)
 - [Security](./SECURITY.md)
+- [Type Safety Baseline](./docs/type-safety-baseline.md)
+- [Lint Governance](./docs/lint-governance.md)
+- [Release Provenance Plan](./docs/release-provenance.md)
+- [Operational Governance Owner Decisions](./docs/operational-governance-owner-decisions.md)
 - [AI M2M Runtime Enablement](./docs/spec/11-ai-m2m-runtime-enablement.md)
 - [AI M2M Supabase Deploy And Runtime Verification](./docs/spec/12-ai-m2m-supabase-deploy-runtime-checklist.md)
 - [Supabase Split Function Runbook](./docs/spec/19-supabase-split-function-runbook.md)

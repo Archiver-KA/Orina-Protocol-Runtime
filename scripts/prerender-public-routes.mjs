@@ -10,6 +10,7 @@ const DEFAULT_SUPABASE_URL = `https://${DEFAULT_SUPABASE_PROJECT_ID}.supabase.co
 const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjaXhzZHVka2l6Z2Zpa2htZnV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5OTIyMjgsImV4cCI6MjA4NzU2ODIyOH0.Gk3PIFWYzEWwqTJ11E81WVQGtNyFZOdHa7PitY_Sf5o';
 const DEFAULT_OG_IMAGE = '/orina-social-card.svg';
 const DEFAULT_LIMIT = 120;
+const BUILD_LASTMOD_ISO = resolveBuildLastModifiedIso();
 
 const PRERENDER_CSS = `
 #orina-prerender {
@@ -252,6 +253,25 @@ function warn(message) {
   process.stderr.write(`[prerender] ${message}\n`);
 }
 
+function resolveBuildLastModifiedIso() {
+  const explicit = String(process.env.ORINA_PRERENDER_LASTMOD || '').trim();
+  if (explicit) {
+    const parsed = Date.parse(explicit);
+    if (Number.isFinite(parsed)) return new Date(parsed).toISOString();
+  }
+
+  const sourceDateEpoch = String(process.env.SOURCE_DATE_EPOCH || '').trim();
+  if (sourceDateEpoch) {
+    const epochSeconds = Number(sourceDateEpoch);
+    if (Number.isFinite(epochSeconds)) return new Date(epochSeconds * 1000).toISOString();
+
+    const parsed = Date.parse(sourceDateEpoch);
+    if (Number.isFinite(parsed)) return new Date(parsed).toISOString();
+  }
+
+  return new Date().toISOString();
+}
+
 function fileExists(filePath) {
   return fs.existsSync(filePath);
 }
@@ -401,7 +421,7 @@ function formatCount(value) {
 
 function toIsoDate(value) {
   const parsed = Date.parse(String(value || ''));
-  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : new Date().toISOString();
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : BUILD_LASTMOD_ISO;
 }
 
 function maxIsoDate(values) {
@@ -414,7 +434,7 @@ function maxIsoDate(values) {
     }
   }
 
-  return latest > 0 ? new Date(latest).toISOString() : new Date().toISOString();
+  return latest > 0 ? new Date(latest).toISOString() : BUILD_LASTMOD_ISO;
 }
 
 function createBreadcrumbList(siteUrl, items) {
@@ -974,7 +994,7 @@ function buildCoreRoutes(siteUrl, dataset) {
       }),
       structuredData: organizationGraph,
       ogType: 'website',
-      lastModified: new Date().toISOString(),
+      lastModified: BUILD_LASTMOD_ISO,
     },
     {
       group: 'core',
@@ -1041,7 +1061,7 @@ function buildCoreRoutes(siteUrl, dataset) {
         ],
       },
       ogType: 'website',
-      lastModified: new Date().toISOString(),
+      lastModified: BUILD_LASTMOD_ISO,
     },
     {
       group: 'core',
@@ -1105,7 +1125,7 @@ function buildCoreRoutes(siteUrl, dataset) {
         ],
       },
       ogType: 'website',
-      lastModified: new Date().toISOString(),
+      lastModified: BUILD_LASTMOD_ISO,
     },
   ];
 }
@@ -1575,7 +1595,7 @@ function buildSitemapUrlSet(siteUrl, routes) {
     .map((route) => `
   <url>
     <loc>${escapeHtml(`${siteUrl}${route.path}`)}</loc>
-    <lastmod>${escapeHtml(route.lastModified || new Date().toISOString())}</lastmod>
+    <lastmod>${escapeHtml(route.lastModified || BUILD_LASTMOD_ISO)}</lastmod>
   </url>`)
     .join('');
 
