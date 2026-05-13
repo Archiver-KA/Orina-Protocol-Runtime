@@ -1,6 +1,10 @@
-# Draft only. This file is intentionally stored under docs/ so GitHub Actions
-# will not execute it. Do not move it into .github/workflows/ without owner
-# approval, branch protection verification, and a separate deployment review.
+# Obsolete draft retained for audit history.
+# Frontend production deployment remains GitHub main -> Cloudflare Worker Builds.
+# Supabase backend deployment governance is now represented by:
+# .github/workflows/supabase-production-deploy.yml
+#
+# This file is intentionally stored under docs/ so GitHub Actions will not
+# execute it. Do not move this draft into .github/workflows/.
 
 name: Production Deployment Candidate Draft
 

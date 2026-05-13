@@ -4,44 +4,67 @@ Last verified by Codex audit: 2026-05-13
 
 ## Status
 
-Classification: PARTIAL
+Classification: IMPLEMENTED
 
-This repository does not currently define an ESLint, Biome, Oxlint, or equivalent lint stack. No lint command is enforced in CI because there is no existing repository-standard linter dependency or configuration to run.
+Owner decision: ESLint.
 
-## Decision Needed
+This repository now defines a minimal ESLint baseline:
 
-An owner must choose:
+```powershell
+npm run lint:check
+```
 
-- lint tool
-- rule baseline
-- generated-file exclusions
-- warning versus error policy
-- CI enforcement timing
-- suppression policy
+The command runs `eslint . --max-warnings=0` using `eslint.config.js`.
 
-## Constraints
+## Installed Tooling
 
-- Lint tooling must be dev-only.
-- Production dependencies must not be added for linting.
-- A first lint baseline must not autoformat or rewrite the repository.
-- CI must not fail on lint until the selected baseline passes cleanly.
-- Suppressions require a written reason tied to a specific rule and file.
+Dev-only dependencies:
+
+- `eslint`
+- `@eslint/js`
+- `typescript-eslint`
+- `globals`
+
+Removal command:
+
+```powershell
+npm uninstall --save-dev eslint @eslint/js typescript-eslint globals
+```
+
+No production dependency was added for linting.
+
+## Baseline Scope
+
+The first enforced baseline is intentionally narrow. It checks JavaScript, TypeScript, and TSX files for hazardous constructs and syntax hygiene without introducing broad style churn.
+
+Enforced examples:
+
+- no `debugger`
+- no `eval`
+- no implied eval
+- no `new Function`
+- no `javascript:` URLs
+- no `with`
+- no literal throws
+- no unsafe `finally`
+- no direct `hasOwnProperty` prototype calls
+
+Deliberately deferred:
+
+- formatting rules
+- import ordering
+- unused variable enforcement
+- broad TypeScript-aware semantic rules
+- React style conventions
+
+## CI Enforcement
+
+`Protocol Release Gate` runs `npm run lint:check` after the typecheck baseline and before the security scan.
+
+## Suppression Policy
+
+No broad suppressions were added for the baseline. Future suppressions require a written reason tied to a specific file and rule.
 
 ## Risk If Deferred
 
-Lint-detectable issues remain covered only by tests, build checks, typecheck baseline, and existing security scripts. The repository has no machine-enforced style or general static-analysis rule set beyond those commands.
-
-## Minimum Authority Required
-
-Owner decision first. After a tool is selected, local repository write access and dev-only package installation are sufficient. No production credential, deployment permission, signing authority, wallet access, or secret access is required.
-
-## Safe Owner-Run Evidence
-
-Before adding a linter, an owner can run:
-
-```powershell
-npm run verify:repo-tooling
-rg --files -g "eslint*" -g ".eslintrc*" -g "biome*" -g "oxlint*"
-```
-
-Expected current result: `verify:repo-tooling` reports lint governance as partial because this file exists, but no lint command is available until a linter is selected.
+The remaining lint risk is limited to rules not yet enabled. Those should be added only after measuring baseline impact and avoiding mass refactors.

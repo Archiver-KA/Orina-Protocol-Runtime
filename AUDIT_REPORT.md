@@ -1190,3 +1190,112 @@ Initial production deployment approval was not granted during this review. The t
 - Supabase backend production deployment is not defined as a repository CI/CD workflow.
 
 No production deployment was triggered during this review pass. A later owner-authorized deployment was executed and verified as recorded above.
+
+## Management Governance Closure Pass
+
+Audit date: 2026-05-13
+
+Branch: `codex/management-governance-eslint`
+
+This pass addressed the remaining management/governance issues that can be handled from repository files. It did not deploy, push to `main`, mutate GitHub branch protection, mutate Cloudflare settings, mutate Supabase settings, change CI secret values, sign artifacts, publish releases, or touch wallet state.
+
+### Changes Implemented
+
+- ESLint selected and implemented as the repository lint baseline.
+- Added exact dev-only lint dependencies: `eslint`, `@eslint/js`, `typescript-eslint`, and `globals`.
+- Added `eslint.config.js` with a narrow hazardous-construct baseline and no style/format churn.
+- Added `npm run lint:check`.
+- Added `npm run lint:check` to `Protocol Release Gate`.
+- Updated release gate to upload SBOM and unsigned release manifest artifacts.
+- Added manual, production-environment-gated Supabase backend deployment workflow: `.github/workflows/supabase-production-deploy.yml`.
+- Added Supabase migration-list alignment verifier: `scripts/verify-supabase-migration-list-output.mjs`.
+- Updated governance docs and audit artifacts for branch protection, backend deploy governance, lint, provenance, and supplier media residuals.
+
+### Current Classifications
+
+| Item | Classification | Evidence | Residual Risk |
+| --- | --- | --- | --- |
+| ESLint baseline | IMPLEMENTED | `npm run lint:check` passes and release gate runs it. | Broader style/type-aware lint rules are staged, not enforced yet. |
+| Release provenance artifacts | IMPLEMENTED | Release gate uploads `audit/sbom.cdx.json` and `audit/release-manifest.unsigned.json`. | Artifacts remain unsigned until owner defines signing. |
+| Supabase backend deployment workflow | PARTIAL | Manual workflow exists with exact commit, confirmation, production environment, migration alignment, audits, split deploy, and CORS/health checks. | GitHub `production` environment protection and required secrets must be configured by owner. |
+| GitHub branch protection | OWNER_DECISION_REQUIRED | `docs/github-branch-protection-governance.md` and verifier command exist. | `main` ruleset/required checks still require GitHub admin action. |
+| Supplier media CDN policy | PARTIAL | Smoke allows `https://s.alicdn.com` as supplier media only. | Long-term approve/proxy/block/sanitize policy remains owner decision. |
+
+### Commands Run In This Pass
+
+- `npm view eslint version`
+- `npm view @eslint/js version`
+- `npm view typescript-eslint version`
+- `npm view globals version`
+- `npm view typescript-eslint@8.59.3 peerDependencies --json`
+- `npm install --save-dev --save-exact eslint@10.3.0 @eslint/js@10.0.1 typescript-eslint@8.59.3 globals@17.6.0`
+- `npm run lint:check`
+- `npx supabase migration list --linked`
+- `npm run verify:supabase-migration-list -- <captured migration-list output>`
+- `npm ci`
+- `npm run test`
+- `npm run typecheck`
+- `npm run security:check-client-secrets`
+- `npm run security:scan`
+- `npm run audit:supabase:security-definer`
+- `npm run verify:repo-tooling`
+- `npm run verify:marketplace-freshness`
+- `npm run verify:assurance-invariants`
+- `npm run verify:viewer-release`
+- `npm run verify:deterministic-build`
+- `npm run security:sbom`
+- `npm run release:manifest`
+- `npm run verify:github-branch-protection -- --repo Archiver-KA/Orina-Protocol-Runtime --branch main`
+
+### Verification Results
+
+- `npm ci`: passed; 584 packages installed, 585 audited, 0 vulnerabilities; deprecated transitive `@paulmillr/qr@0.2.1` warning remains.
+- `npm run test`: passed; 13 test files, 40 tests.
+- `npm run typecheck`: passed.
+- `npm run lint:check`: passed.
+- `npm run security:check-client-secrets`: passed; no forbidden privileged-secret patterns in 279 files.
+- `npm run security:scan`: passed; aggregate `deps:ok | messaging:ok | ipfs:ok | ratelimit:ok | m2m:ok | cors:ok`.
+- `npm run audit:supabase:security-definer`: passed; 24 audited functions; findings `[]`; `pass: true`.
+- `npm run verify:repo-tooling`: passed; typecheck and lint both available.
+- `npm run verify:marketplace-freshness`: passed for asset, collection, and profile browse surfaces.
+- `npm run verify:assurance-invariants`: passed; 30 checks.
+- `npm run verify:viewer-release`: passed; viewer guard passed 23 files; protocol runtime surface verified 4 tables; targeted Vitest passed 5 files and 21 tests; build completed; prerender generated 261 public routes.
+- `npm run verify:deterministic-build`: passed; two builds with `SOURCE_DATE_EPOCH=0`; 376 files compared; differences `[]`.
+- `npm run security:sbom`: passed; CycloneDX 1.5; 577 components; 578 dependencies.
+- `npm run release:manifest`: passed; unsigned manifest generated with 376 artifacts.
+- `npx supabase migration list --linked` plus `npm run verify:supabase-migration-list`: passed; local and remote migrations aligned through `000073`; Supabase CLI printed existing `WARN: no SMS provider is enabled. Disabling phone login`.
+- `npm run verify:github-branch-protection`: blocked as expected without `GITHUB_BRANCH_PROTECTION_TOKEN`; no token values were present or printed.
+
+### Files Changed In This Pass
+
+- `.github/workflows/protocol-release-gate.yml`
+- `.github/workflows/supabase-production-deploy.yml`
+- `AUDIT_REPORT.md`
+- `README.md`
+- `audit/final-decision-summary.md`
+- `audit/invariants.md`
+- `audit/management-governance-plan.md`
+- `audit/permission-resolution-matrix.md`
+- `audit/release-manifest.unsigned.json`
+- `audit/sbom.cdx.json`
+- `audit/deployment-flow-analysis.md`
+- `docs/README.md`
+- `docs/github-branch-protection-governance.md`
+- `docs/lint-governance.md`
+- `docs/operational-governance-owner-decisions.md`
+- `docs/production-deploy-workflow-draft.yml`
+- `docs/release-provenance.md`
+- `docs/spec/19-supabase-split-function-runbook.md`
+- `eslint.config.js`
+- `package.json`
+- `package-lock.json`
+- `scripts/verify-assurance-invariants.mjs`
+- `scripts/verify-supabase-migration-list-output.mjs`
+
+### Remaining Owner Actions
+
+- Configure GitHub `main` branch protection/ruleset and required checks.
+- Configure GitHub `production` environment protection and required secret names for `Supabase Production Deploy`.
+- Decide signing identity/custody/enforcement for release artifacts.
+- Decide long-term supplier media policy for `https://s.alicdn.com`.
+- Fill operational owner facts for incident response, key rotation, recovery objectives, and disaster recovery drills.

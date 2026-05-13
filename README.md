@@ -19,6 +19,7 @@ npm install
 npm run dev
 npm run test
 npm run typecheck
+npm run lint:check
 npm run security:scan
 npm run security:sbom
 npm run release:manifest
@@ -40,6 +41,7 @@ Current runtime and release references live under `docs/`.
 - [Lint Governance](./docs/lint-governance.md)
 - [Release Provenance Plan](./docs/release-provenance.md)
 - [Operational Governance Owner Decisions](./docs/operational-governance-owner-decisions.md)
+- [GitHub Branch Protection Governance](./docs/github-branch-protection-governance.md)
 - [AI M2M Runtime Enablement](./docs/spec/11-ai-m2m-runtime-enablement.md)
 - [AI M2M Supabase Deploy And Runtime Verification](./docs/spec/12-ai-m2m-supabase-deploy-runtime-checklist.md)
 - [Supabase Split Function Runbook](./docs/spec/19-supabase-split-function-runbook.md)

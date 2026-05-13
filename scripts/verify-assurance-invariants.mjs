@@ -58,10 +58,12 @@ function main() {
       'The baseline is intentionally narrow and staged in docs/type-safety-baseline.md.',
     ),
     check(
-      'lint governance is documented',
-      exists('docs/lint-governance.md'),
-      'docs/lint-governance.md records the owner decision needed before lint enforcement.',
-      'No lint command is enforced until an owner selects a linter and baseline.',
+      'ESLint baseline is available',
+      scripts['lint:check'] === 'eslint . --max-warnings=0' &&
+        exists('eslint.config.js') &&
+        Boolean(pkg.devDependencies?.eslint),
+      'package.json exposes lint:check, eslint.config.js exists, and ESLint is a devDependency.',
+      'The baseline intentionally starts with hazardous-construct rules rather than broad style enforcement.',
     ),
     check(
       'SBOM generation is available',
@@ -87,12 +89,18 @@ function main() {
       'release CI runs repo-tooling verification',
       /npm run verify:repo-tooling/.test(workflow),
       '.github/workflows/protocol-release-gate.yml contains npm run verify:repo-tooling.',
-      'The command reports lint as partial until an owner-selected linter exists.',
+      'Branch protection cannot be proven from repository files.',
     ),
     check(
       'release CI runs typecheck baseline',
       /npm run typecheck/.test(workflow),
       '.github/workflows/protocol-release-gate.yml contains npm run typecheck.',
+    ),
+    check(
+      'release CI runs ESLint baseline',
+      /npm run lint:check/.test(workflow),
+      '.github/workflows/protocol-release-gate.yml contains npm run lint:check.',
+      'Branch protection cannot be proven from repository files.',
     ),
     check(
       'release CI runs marketplace freshness verification',
@@ -114,6 +122,23 @@ function main() {
       /npm run release:manifest/.test(workflow),
       '.github/workflows/protocol-release-gate.yml contains npm run release:manifest.',
       'The manifest is unsigned by design.',
+    ),
+    check(
+      'release CI uploads provenance artifacts',
+      /actions\/upload-artifact@v4/.test(workflow) &&
+        /audit\/sbom\.cdx\.json/.test(workflow) &&
+        /audit\/release-manifest\.unsigned\.json/.test(workflow),
+      '.github/workflows/protocol-release-gate.yml uploads the SBOM and unsigned release manifest.',
+      'Artifacts remain unsigned until owner-defined signing is implemented.',
+    ),
+    check(
+      'Supabase production deploy workflow is manual and environment-gated',
+      exists('.github/workflows/supabase-production-deploy.yml') &&
+        /workflow_dispatch/.test(read('.github/workflows/supabase-production-deploy.yml')) &&
+        /environment:\s*production/.test(read('.github/workflows/supabase-production-deploy.yml')) &&
+        /DEPLOY_SUPABASE_PRODUCTION/.test(read('.github/workflows/supabase-production-deploy.yml')),
+      '.github/workflows/supabase-production-deploy.yml is workflow_dispatch-only, uses the production environment, and requires an explicit confirmation input.',
+      'GitHub environment protection rules are external and must be configured by an owner.',
     ),
     check(
       'connected smoke remains manual-only',

@@ -16,6 +16,7 @@ It separates user-facing guides, runtime verification runbooks, and current-code
 - [Lint Governance](./lint-governance.md)
 - [Release Provenance Plan](./release-provenance.md)
 - [Operational Governance Owner Decisions](./operational-governance-owner-decisions.md)
+- [GitHub Branch Protection Governance](./github-branch-protection-governance.md)
 
 ## Spec Index
 

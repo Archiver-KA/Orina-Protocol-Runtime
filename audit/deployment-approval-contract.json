@@ -55,7 +55,7 @@
       ]
     },
     "backend": {
-      "model": "Owner-approved Supabase CLI deployment using documented split-function order.",
+      "model": "Owner-approved Supabase CLI deployment was used for the completed deploy; future deploy governance is prepared in .github/workflows/supabase-production-deploy.yml.",
       "projectRef": "vcixsdudkizgfikhmfuv",
       "environment": "production",
       "trigger": "Supabase CLI function deploy",
@@ -128,7 +128,7 @@
     "GitHub branch protection / required-check enforcement is not proven and rulesets were not configured by visible CDP evidence.",
     "Release artifacts remain unsigned until the owner defines signing identity, custody, and enforcement.",
     "Production deployment attestation remains partial until the owner defines the official attestation format and storage path.",
-    "Supabase backend deployment is owner-approved through CLI but not automated in a repository CI/CD workflow.",
+    "Supabase backend deployment workflow is prepared, but GitHub production environment protection and required secrets must be configured by an owner before it replaces local CLI deployment.",
     "Lint governance remains partial until an owner selects and enforces a linter baseline."
   ]
 }

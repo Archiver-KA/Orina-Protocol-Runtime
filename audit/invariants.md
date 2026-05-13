@@ -13,7 +13,7 @@ npm run verify:assurance-invariants
 Result:
 
 - Exit code: 0
-- Checks passed: 27
+- Checks passed: 30
 - Checks failed: 0
 
 ## Implemented Invariants
@@ -44,10 +44,13 @@ Result:
   - Workflow contains `npm run security:scan`.
   - Workflow contains `npm run verify:repo-tooling`.
   - Workflow contains `npm run typecheck`.
+  - Workflow contains `npm run lint:check`.
   - Workflow contains `npm run verify:marketplace-freshness`.
   - Workflow contains `npm run verify:deterministic-build`.
   - Workflow contains `npm run security:sbom`.
   - Workflow contains `npm run release:manifest`.
+  - Workflow uploads `audit/sbom.cdx.json` and `audit/release-manifest.unsigned.json`.
+  - Supabase production deployment workflow is manual-only and production-environment-gated.
   - Connected wallet smoke remains gated by `workflow_dispatch` plus `run_connected_smoke`.
 - Affected files:
   - `.github/workflows/protocol-release-gate.yml`
@@ -79,19 +82,28 @@ Result:
 
 ### Lint Governance
 
-- Classification: PARTIAL
+- Classification: IMPLEMENTED
 - Evidence:
+  - Owner selected ESLint.
+  - Exact dev-only ESLint dependencies are present.
+  - `eslint.config.js` exists.
+  - `package.json` exposes `lint:check`.
+  - `npm run lint:check` passes.
+  - The release gate runs `npm run lint:check`.
   - `docs/lint-governance.md` exists.
-  - `npm run verify:repo-tooling` reports lint status `partial`.
-  - No linter dependency or config is present.
 - Affected files:
+  - `package.json`
+  - `package-lock.json`
+  - `eslint.config.js`
   - `docs/lint-governance.md`
   - `scripts/verify-repo-tooling.mjs`
+  - `.github/workflows/protocol-release-gate.yml`
 - Verification command:
+  - `npm run lint:check`
   - `npm run verify:repo-tooling`
   - `npm run verify:assurance-invariants`
 - Residual risk:
-  - Lint is not enforced until an owner selects a linter, rules, and CI timing.
+  - The baseline intentionally starts with hazardous-construct rules rather than broad style enforcement.
 
 ### SBOM Generation
 
@@ -118,6 +130,7 @@ Result:
   - `scripts/generate-release-manifest.mjs` exists.
   - `docs/release-provenance.md` documents unsigned manifest scope and signed-release owner decisions.
   - `npm run release:manifest` generated `audit/release-manifest.unsigned.json`.
+  - The release gate uploads the SBOM and unsigned release manifest as an artifact.
 - Affected files:
   - `package.json`
   - `.github/workflows/protocol-release-gate.yml`
@@ -129,6 +142,26 @@ Result:
   - `npm run verify:assurance-invariants`
 - Residual risk:
   - The manifest is unsigned. Signing identity, custody, and enforcement remain owner decisions.
+
+### Supabase Production Deploy Workflow
+
+- Classification: PARTIAL
+- Evidence:
+  - `.github/workflows/supabase-production-deploy.yml` exists.
+  - The workflow is `workflow_dispatch` only.
+  - The workflow uses GitHub `environment: production`.
+  - The workflow requires exact approved commit SHA and `DEPLOY_SUPABASE_PRODUCTION` confirmation.
+  - The workflow runs migration alignment verification, security scans, split-function deploys, and post-deploy CORS/health checks.
+- Affected files:
+  - `.github/workflows/supabase-production-deploy.yml`
+  - `scripts/verify-supabase-migration-list-output.mjs`
+  - `package.json`
+  - `docs/spec/19-supabase-split-function-runbook.md`
+- Verification command:
+  - `npm run verify:assurance-invariants`
+  - `npm run verify:supabase-migration-list -- <captured migration-list output>`
+- Residual risk:
+  - GitHub environment protection and required secret names are external repository settings that must be configured by an owner.
 
 ### M2M Invite Token Invariants
 

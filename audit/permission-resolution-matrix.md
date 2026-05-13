@@ -344,3 +344,17 @@ $env:GITHUB_BRANCH_PROTECTION_TOKEN = "<read-only token>"
 npm run verify:github-branch-protection
 Remove-Item Env:GITHUB_BRANCH_PROTECTION_TOKEN
 ```
+
+## Management Governance Update
+
+Audit date: 2026-05-13
+
+This update used local repository write access and dev-only package installation for ESLint. It did not mutate GitHub branch protection, Cloudflare settings, Supabase settings, CI secrets, production data, or signing configuration.
+
+| Item | Previous Status | Updated Status | Evidence | Remaining Minimum Permission |
+| --- | --- | --- | --- | --- |
+| Lint command | PARTIAL | IMPLEMENTED | Owner selected ESLint; exact dev-only ESLint dependencies are installed; `eslint.config.js` exists; `npm run lint:check` passes; release gate runs lint. | None for current baseline. Local write only for staged rule expansion. |
+| Release provenance artifacts | IMPLEMENTED unsigned manifest | IMPLEMENTED unsigned artifact upload | `Protocol Release Gate` uploads `audit/sbom.cdx.json` and `audit/release-manifest.unsigned.json` as a GitHub Actions artifact. | None for unsigned artifacts. Signing still requires owner signing-policy decision. |
+| Supabase backend production path | PARTIAL owner-approved CLI | PARTIAL workflow prepared | `.github/workflows/supabase-production-deploy.yml` is manual-only, production-environment-gated, requires exact commit and confirmation input, verifies migration alignment, runs audits, deploys split functions, and verifies CORS/health. | GitHub admin/config authority to configure production environment protection and required secret names. |
+| GitHub branch protection | BLOCKED | OWNER_DECISION_REQUIRED | `docs/github-branch-protection-governance.md` defines required `main` protection and read-only verifier command. No GitHub settings were mutated. | GitHub repository administration authority to configure; read-only metadata authority to verify. |
+| Supplier CDN policy | OWNER_DECISION_REQUIRED | PARTIAL | Production smoke explicitly classifies `https://s.alicdn.com` as supplier media only. | Owner policy decision to approve, proxy, block, or sanitize long-term. |

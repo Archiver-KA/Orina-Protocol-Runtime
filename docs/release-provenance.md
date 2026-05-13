@@ -39,7 +39,14 @@ Required top-level fields:
 
 ## CI Behavior
 
-The release gate generates the unsigned manifest after build, deterministic-build verification, and SBOM generation. This improves artifact accountability without claiming signed provenance.
+The release gate generates the unsigned manifest after build, deterministic-build verification, and SBOM generation. It then uploads the SBOM and unsigned manifest as a GitHub Actions artifact named for the commit SHA.
+
+Uploaded artifact paths:
+
+- `audit/sbom.cdx.json`
+- `audit/release-manifest.unsigned.json`
+
+This improves artifact accountability without claiming signed provenance.
 
 ## Owner Decision Required
 

@@ -1,6 +1,6 @@
 # Supabase Split Function Runbook
 
-Last verified by Codex audit: 2026-05-12
+Last verified by Codex audit: 2026-05-13
 
 ## Topology
 
@@ -11,6 +11,8 @@ Safe deploy now uses dedicated edge functions for the blast-radius-sensitive rou
 - AI M2M: `orina-ai-m2m-v2`
 - seller minting: `orina-seller-minting-v1`
 - receipt sync: `orina-receipt-sync-v1`
+- chat: `orina-chat-v1`
+- order autotime keeper: `orina-order-autotime-v1`
 
 The shared bundle remains for:
 
@@ -51,7 +53,17 @@ Only set `ORINA_CORS_ALLOW_PREVIEW_ORIGINS=true` for intentionally exposed previ
 
 ## Deploy Order
 
-Deploy the isolated functions first, then the shared bundle:
+Preferred production path:
+
+- `.github/workflows/supabase-production-deploy.yml`
+- manual `workflow_dispatch`
+- GitHub `production` environment approval
+- exact approved commit SHA
+- confirmation input `DEPLOY_SUPABASE_PRODUCTION`
+
+The workflow verifies migration alignment, runs static/security gates, deploys functions in the order below, and checks production CORS/health after deploy. Local CLI deployment should be treated as break-glass unless the owner explicitly approves it.
+
+Deploy the isolated functions first, then the shared bundle and operational functions:
 
 ```bat
 supabase functions deploy orina-auth-bridge-v1 --project-ref vcixsdudkizgfikhmfuv
@@ -59,6 +71,8 @@ supabase functions deploy orina-ai-m2m-v2 --project-ref vcixsdudkizgfikhmfuv
 supabase functions deploy orina-seller-minting-v1 --project-ref vcixsdudkizgfikhmfuv
 supabase functions deploy orina-receipt-sync-v1 --project-ref vcixsdudkizgfikhmfuv
 supabase functions deploy make-server-b0d68fc8 --project-ref vcixsdudkizgfikhmfuv
+supabase functions deploy orina-chat-v1 --project-ref vcixsdudkizgfikhmfuv
+supabase functions deploy orina-order-autotime-v1 --project-ref vcixsdudkizgfikhmfuv
 ```
 
 Use this order whenever only one sensitive surface changes:
@@ -68,6 +82,8 @@ Use this order whenever only one sensitive surface changes:
 3. `seller minting` changes: deploy only `orina-seller-minting-v1`
 4. `receipt sync` changes: deploy only `orina-receipt-sync-v1`
 5. `ai assist`, `ipfs`, or `api-keys` changes: deploy only `make-server-b0d68fc8`
+6. `chat` changes: deploy only `orina-chat-v1`
+7. `order autotime` changes: deploy only `orina-order-autotime-v1`
 
 ## Verification
 

@@ -1,6 +1,6 @@
 {
   "schema": "orina.release-manifest.unsigned.v1",
-  "generatedAt": "2026-05-13T12:15:31.333Z",
+  "generatedAt": "2026-05-13T13:12:17.465Z",
   "signed": false,
   "signing": {
     "status": "not-signed",
@@ -9,9 +9,9 @@
   "source": {
     "packageName": "@orina/protocol-app",
     "packageVersion": "0.0.1",
-    "gitCommit": "9bd8bf790c5051354c151496840bfc8b17e9a6b7",
-    "gitBranch": "main",
-    "gitStatusShort": "M .codex/skills/orina-production-deployment/scripts/inspect-cdp-deployment-tabs.mjs\n M AUDIT_REPORT.md\n M RELEASE_CANDIDATE.md\n M audit/browser-smoke.md\n M audit/cdp-deployment-tabs-latest.json\n M audit/deployment-approval-contract.json\n M audit/deployment-execution-plan.md\n M audit/deployment-flow-analysis.md\n M audit/release-manifest.unsigned.json\n M audit/sbom.cdx.json\n M scripts/smoke-cdp-readonly-security.mjs\n?? audit/cdp-deployment-tabs-after-push.json",
+    "gitCommit": "6288557a559ef137f8d54d60c4ac5f1da8adb8d4",
+    "gitBranch": "codex/management-governance-eslint",
+    "gitStatusShort": "M .github/workflows/protocol-release-gate.yml\n M README.md\n M audit/deployment-flow-analysis.md\n M audit/final-decision-summary.md\n M audit/permission-resolution-matrix.md\n M audit/release-manifest.unsigned.json\n M audit/sbom.cdx.json\n M docs/README.md\n M docs/lint-governance.md\n M docs/operational-governance-owner-decisions.md\n M docs/production-deploy-workflow-draft.yml\n M docs/release-provenance.md\n M docs/spec/19-supabase-split-function-runbook.md\n M package-lock.json\n M package.json\n M scripts/verify-assurance-invariants.mjs\n?? .github/workflows/supabase-production-deploy.yml\n?? audit/management-governance-plan.md\n?? docs/github-branch-protection-governance.md\n?? eslint.config.js\n?? scripts/verify-supabase-migration-list-output.mjs",
     "remoteOrigin": "https://github.com/Archiver-KA/Orina-Protocol-Runtime"
   },
   "build": {
@@ -24,18 +24,18 @@
   "dependencyInputs": [
     {
       "path": "package.json",
-      "sha256": "a4b7fb6f89b6ea0a66dc788591a45b9dffba0cc7122512de6fd219bbec5022fc",
-      "bytes": 6554
+      "sha256": "fd6105b440b76fb36029a483b2ded3b4e49b4861b510851788889fd45caa84dd",
+      "bytes": 6818
     },
     {
       "path": "package-lock.json",
-      "sha256": "11aa69d5b7305c74697e7242848b8d135dadd0a58a3a995d9c6315332155e65b",
-      "bytes": 310462
+      "sha256": "ccc084c078151a1d27b4057d299f10dafd6704baee59e164778fb48e76bad695",
+      "bytes": 352086
     },
     {
       "path": "audit/sbom.cdx.json",
-      "sha256": "cf5abffeab8aabf05462b6de2716e0f88f2bd24bc4e6b920037d5fc47eb5e409",
-      "bytes": 626711
+      "sha256": "590fb29ee192d837f053417f69f7979155ee7ed87c24d9d3648e2056a8215728",
+      "bytes": 733297
     }
   ],
   "artifacts": {

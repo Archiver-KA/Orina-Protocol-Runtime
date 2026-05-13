@@ -88,19 +88,53 @@ Classification: OWNER_DECISION_REQUIRED
 gh api repos/Archiver-KA/Orina-Protocol-Runtime/actions/secrets --jq ".secrets[].name"
 ```
 
-## Supplier CDN Policy
+## GitHub Branch Protection
 
 Classification: OWNER_DECISION_REQUIRED
 
+- Decision needed: configure and enforce `main` branch protection or a branch ruleset with required release-gate checks.
+- Risk if deferred: pushes or merges to `main` may bypass required-check enforcement, leaving deployment governance dependent on operator discipline.
+- Evidence needed: read-only branch protection or ruleset metadata showing required checks for `Viewer Release Gate` and `Supabase Security Audit`.
+- Minimum authority required: GitHub repository administration authority to configure; read-only metadata authority to verify.
+- Safe owner-run command:
+
+```powershell
+$env:GITHUB_BRANCH_PROTECTION_TOKEN='<read-only token>'
+npm run verify:github-branch-protection -- --repo Archiver-KA/Orina-Protocol-Runtime --branch main
+Remove-Item Env:\GITHUB_BRANCH_PROTECTION_TOKEN
+```
+
+See `docs/github-branch-protection-governance.md`.
+
+## Supabase Backend Deployment Workflow
+
+Classification: PARTIAL
+
+- Decision needed: configure GitHub `production` environment protection and required secret names for `.github/workflows/supabase-production-deploy.yml`.
+- Risk if deferred: Supabase backend deployment remains possible through local CLI operations rather than a GitHub environment-gated path.
+- Evidence needed: GitHub environment protection metadata and secret-name inventory; no secret values.
+- Minimum authority required: GitHub repository administration authority to configure environment protection and secrets; read-only metadata authority to verify.
+- Safe owner-run command:
+
+```powershell
+gh api repos/Archiver-KA/Orina-Protocol-Runtime/environments/production
+```
+
+## Supplier CDN Policy
+
+Classification: PARTIAL
+
 - Decision needed: decide whether supplier media origins such as `https://s.alicdn.com` are approved, proxied, blocked, or sanitized against an allowlist.
 - Risk if deferred: browser clients may request third-party supplier media origins outside the documented origin policy.
-- Evidence needed: owner-approved supplier media origin policy and any CSP/media proxy decision.
+- Evidence needed: owner-approved long-term supplier media origin policy and any CSP/media proxy decision.
 - Minimum authority required: local documentation/test update after owner decision; no secret or deployment authority.
 - Safe owner-run command:
 
 ```powershell
 npm run smoke:cdp:readonly-security
 ```
+
+Current deployment smoke explicitly classifies `https://s.alicdn.com` as supplier media only. Long-term governance remains open.
 
 ## CORS Preview-Origin Ownership
 

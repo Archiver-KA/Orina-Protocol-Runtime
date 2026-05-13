@@ -172,3 +172,17 @@ This update used local repository write access and package metadata reads only. 
 ## Stop Rule
 
 Autonomous escalation stops here. The next actions that can close remaining owner-decision items require explicit owner facts, read-only GitHub/Supabase/Cloudflare metadata, or a short-lived authenticated JWT. No broader authority should be used without a new approval contract.
+
+## Management Governance Update
+
+Audit date: 2026-05-13
+
+Owner selected ESLint and authorized continuation on repository governance work. This update did not mutate GitHub branch protection, Cloudflare settings, Supabase settings, CI secrets, production data, signing configuration, or wallet state.
+
+| Item | Current Status | Exact Blocker | Minimum Permission Needed | Can Codex Continue Autonomously | Human Owner Action Required | Residual Risk If Deferred | Recommended Next Action |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| ESLint baseline | IMPLEMENTED | No blocker for current baseline. | None. | Yes for staged rule additions. | No for current baseline. | Deferred broader lint rules are not enforced. | Keep `npm run lint:check` in CI; expand rules incrementally. |
+| GitHub branch protection | OWNER_DECISION_REQUIRED | Repository cannot configure or prove GitHub rulesets from local files. | GitHub repository admin authority to configure; read-only token to verify. | No | Yes | `main` can still deploy without GitHub-enforced required checks. | Configure `main` ruleset/branch protection, then run `npm run verify:github-branch-protection`. |
+| Supabase backend deployment workflow | PARTIAL | Workflow exists, but GitHub production environment protection and required secrets are external. | GitHub repository admin/config authority. | No | Yes | Backend deploy may still rely on local CLI unless owners use the workflow. | Configure `production` environment protection and required secret names. |
+| Release provenance artifacts | IMPLEMENTED unsigned | No blocker for unsigned artifacts. Signing remains undecided. | None for unsigned artifacts; signing authority only after owner signing decision. | Yes for unsigned artifact maintenance. | Yes for signed releases. | Release artifacts remain unsigned. | Decide signing model separately. |
+| Supplier media CDN | PARTIAL | Deployment smoke classifies `https://s.alicdn.com`, but long-term policy is still not chosen. | Owner policy decision. | No | Yes | Supplier media privacy/availability posture remains policy-driven rather than fully governed. | Choose approve, proxy, block, or sanitize. |

@@ -82,7 +82,7 @@ Initial insufficient evidence:
 
 Residual risk:
 
-- Backend deployment relies on owner-approved Supabase CLI operations rather than a repository CI/CD workflow.
+- Backend deployment has a repository workflow path in `.github/workflows/supabase-production-deploy.yml`, but it still requires owner-configured GitHub `production` environment protection and required secrets before it can replace local CLI operations as the normal path.
 - Direct unauthenticated platform-level 401 responses may still include platform-managed CORS behavior outside the application handler; authenticated health and preflight checks matched repository expectations.
 
 Execution evidence:
@@ -113,13 +113,16 @@ The owner later granted explicit production deployment authority. Deployment pro
 
 ## Minimum Closure Path
 
-Before approval:
+Before the next approval:
 
-1. Commit the full release candidate and identify the exact deployable SHA.
-2. Verify GitHub branch protection and required checks with `npm run verify:github-branch-protection` using a read-only token, or provide owner-run redacted output.
-3. Verify Cloudflare Worker Builds configuration for Worker `apporinaio`: GitHub source repo, branch `main`, build command `npm run build`, output `dist`, and required public build variables by name only.
-4. Resolve or owner-accept the Supabase Security Advisor `RLS Disabled in Public` finding with repository evidence.
-5. Resolve or owner-accept the non-preflight wildcard CORS behavior on Supabase 401 responses.
-6. Approve, proxy, block, or otherwise govern `https://s.alicdn.com` supplier media origin.
-7. Define or approve the Supabase backend production deployment path.
-8. Re-run all required release gates and browser smoke, or record explicit owner-approved exceptions.
+1. Verify GitHub branch protection and required checks with `npm run verify:github-branch-protection` using a read-only token, or provide owner-run redacted output.
+2. Configure GitHub `production` environment protection for `.github/workflows/supabase-production-deploy.yml`.
+3. Configure required GitHub secret names for backend deployment without exposing values:
+   - `SUPABASE_ACCESS_TOKEN`
+   - `SUPABASE_PROJECT_REF`
+   - `SUPABASE_DB_AUDIT_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+4. Verify Cloudflare Worker Builds configuration for Worker `apporinaio`: GitHub source repo, branch `main`, build command `npm run build`, output `dist`, and required public build variables by name only.
+5. Keep the Supabase Security Advisor `RLS Disabled in Public` acceptance tied to repository evidence that only `public.spatial_ref_sys` has RLS disabled.
+6. Convert supplier media handling for `https://s.alicdn.com` from deployment-smoke approval into a long-term owner policy: approve, proxy, block, or sanitize.
+7. Re-run all required release gates, including `npm run lint:check`, and browser smoke before approval.

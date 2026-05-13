@@ -1,0 +1,138 @@
+name: Supabase Production Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      approved_commit:
+        description: Exact commit SHA approved for production backend deployment.
+        required: true
+        type: string
+      approval_record:
+        description: Link or identifier for the owner approval record.
+        required: true
+        type: string
+      confirm:
+        description: Type DEPLOY_SUPABASE_PRODUCTION to deploy Supabase Edge Functions.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-functions:
+    name: Deploy Supabase Edge Functions
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_AUDIT_URL: ${{ secrets.SUPABASE_DB_AUDIT_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: Validate dispatch approval inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.confirm }}" != "DEPLOY_SUPABASE_PRODUCTION" ]; then
+            echo "Refusing to deploy: confirmation input did not match."
+            exit 1
+          fi
+          if [ "${{ github.sha }}" != "${{ inputs.approved_commit }}" ]; then
+            echo "Refusing to deploy: workflow SHA does not match approved commit."
+            echo "Workflow SHA: ${{ github.sha }}"
+            echo "Approved SHA: ${{ inputs.approved_commit }}"
+            exit 1
+          fi
+          if [ -z "${{ inputs.approval_record }}" ]; then
+            echo "Refusing to deploy: approval record is required."
+            exit 1
+          fi
+
+      - name: Checkout approved commit
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.98.2
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify required secrets by presence only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF SUPABASE_DB_AUDIT_URL VITE_SUPABASE_ANON_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required secret or environment variable: $name"
+              exit 1
+            fi
+          done
+
+      - name: Run local static gates
+        run: |
+          npm run typecheck
+          npm run lint:check
+          npm run security:check-client-secrets
+          npm run security:scan
+          npm run audit:supabase:security-definer -- --db-url "$SUPABASE_DB_AUDIT_URL"
+
+      - name: Verify Supabase migration alignment
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration list --db-url "$SUPABASE_DB_AUDIT_URL" | tee supabase-migration-list.txt
+          npm run verify:supabase-migration-list -- supabase-migration-list.txt
+
+      - name: Deploy split Supabase functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase functions deploy orina-auth-bridge-v1 --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions deploy orina-ai-m2m-v2 --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions deploy orina-seller-minting-v1 --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions deploy orina-receipt-sync-v1 --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions deploy make-server-b0d68fc8 --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions deploy orina-chat-v1 --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions deploy orina-order-autotime-v1 --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Verify production CORS and health
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_url="https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/make-server-b0d68fc8/health"
+          allowed_headers="$(mktemp)"
+          denied_headers="$(mktemp)"
+          curl -sS -o /tmp/orina-health.json -D "$allowed_headers" \
+            -H "Origin: https://app.orina.io" \
+            -H "apikey: $VITE_SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $VITE_SUPABASE_ANON_KEY" \
+            "$base_url"
+          grep -qi '^access-control-allow-origin: https://app\.orina\.io' "$allowed_headers"
+          curl -sS -o /dev/null -D "$allowed_headers" -X OPTIONS \
+            -H "Origin: https://app.orina.io" \
+            -H "Access-Control-Request-Method: GET" \
+            "$base_url"
+          grep -qi '^access-control-allow-origin: https://app\.orina\.io' "$allowed_headers"
+          curl -sS -o /dev/null -D "$denied_headers" -X OPTIONS \
+            -H "Origin: https://evil.example" \
+            -H "Access-Control-Request-Method: GET" \
+            "$base_url"
+          if grep -qi '^access-control-allow-origin:' "$denied_headers"; then
+            echo "Unexpected CORS allow-origin header for denied origin."
+            exit 1
+          fi

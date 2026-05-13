@@ -45,6 +45,9 @@ jobs:
       - name: Run typecheck baseline
         run: npm run typecheck
 
+      - name: Run ESLint baseline
+        run: npm run lint:check
+
       - name: Run security scan
         run: npm run security:scan
 
@@ -62,6 +65,15 @@ jobs:
 
       - name: Generate unsigned release manifest
         run: npm run release:manifest
+
+      - name: Upload release provenance artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-provenance-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            audit/sbom.cdx.json
+            audit/release-manifest.unsigned.json
 
       - name: Assert public SEO artifacts
         shell: bash
