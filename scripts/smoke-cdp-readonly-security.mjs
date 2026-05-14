@@ -5,6 +5,7 @@ import process from 'node:process';
 const DEFAULT_CDP_URL = 'http://127.0.0.1:9222';
 const DEFAULT_GOTO_URL = 'http://localhost:5173/';
 const DEFAULT_TIMEOUT_MS = 20_000;
+const DEFAULT_CDP_COMMAND_TIMEOUT_MS = 15_000;
 
 function parseArgs(argv) {
   const options = {
@@ -187,7 +188,21 @@ class CdpSession {
     const id = this.nextId++;
     const message = JSON.stringify({ id, method, params });
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject, method });
+      const timeout = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`CDP command timed out: ${method}`));
+      }, DEFAULT_CDP_COMMAND_TIMEOUT_MS);
+      this.pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timeout);
+          resolve(value);
+        },
+        reject: (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        },
+        method,
+      });
       this.ws.send(message);
     });
   }
@@ -279,20 +294,29 @@ function walletInspectionScript() {
   if (!provider || typeof provider.request !== 'function') {
     return { hasEthereum: Boolean(provider), requestOk: false, accountCount: 0, chainIdPresent: false };
   }
+  const withTimeout = (promise) => Promise.race([
+    promise,
+    new Promise((resolve) => {
+      setTimeout(() => resolve({ __orinaTimedOut: true }), 8000);
+    }),
+  ]);
   return Promise.allSettled([
-    provider.request({ method: 'eth_accounts' }),
-    provider.request({ method: 'eth_chainId' }),
+    withTimeout(provider.request({ method: 'eth_accounts' })),
+    withTimeout(provider.request({ method: 'eth_chainId' })),
   ]).then(([accountsResult, chainResult]) => {
+    const accountsTimedOut = accountsResult.value?.__orinaTimedOut === true;
+    const chainTimedOut = chainResult.value?.__orinaTimedOut === true;
     const accounts = accountsResult.status === 'fulfilled' && Array.isArray(accountsResult.value)
       ? accountsResult.value
       : [];
     return {
       hasEthereum: true,
       isMetaMask: provider.isMetaMask === true,
-      requestOk: accountsResult.status === 'fulfilled',
+      requestOk: accountsResult.status === 'fulfilled' && !accountsTimedOut,
+      requestTimedOut: accountsTimedOut || chainTimedOut,
       accountCount: accounts.length,
       selectedAddressPresent: Boolean(provider.selectedAddress || accounts.length),
-      chainIdPresent: chainResult.status === 'fulfilled' && Boolean(chainResult.value),
+      chainIdPresent: chainResult.status === 'fulfilled' && !chainTimedOut && Boolean(chainResult.value),
     };
   });
 }
@@ -312,10 +336,18 @@ function indexedDbInspectionScript(maxRecordsPerStore) {
     /sk_seller_[A-Za-z0-9_-]{12,}/i,
   ];
   const hasLeak = (value) => leakPatterns.some((pattern) => pattern.test(String(value || '')));
-  const requestToPromise = (request) => new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error('IndexedDB request failed'));
-  });
+  const requestToPromise = (request) => {
+    let timeout;
+    return new Promise((resolve, reject) => {
+      timeout = setTimeout(() => {
+        reject(new Error('IndexedDB request timed out'));
+      }, 5000);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error('IndexedDB request failed'));
+    }).finally(() => {
+      clearTimeout(timeout);
+    });
+  };
   return (async () => {
     if (!indexedDB.databases) return { supported: false, databases: [], flaggedStores: [] };
     const databases = await indexedDB.databases();

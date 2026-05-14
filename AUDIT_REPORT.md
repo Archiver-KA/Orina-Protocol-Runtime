@@ -795,6 +795,54 @@ Not implemented:
 
 No verified new critical or high repository-code finding remains from this pass. The remaining items are either explicit owner decisions, environment/credential blockers, or documented residual risks backed by checks/runbooks.
 
+## Final Production Completion Pass
+
+Audit date: 2026-05-14
+
+Objective: complete the remaining management-governance and deployment-readiness steps for the production runtime path after the owner selected ESLint and authorized end-to-end completion in this session.
+
+### Classification Summary
+
+| Item | Classification | Evidence | Residual Risk |
+| --- | --- | --- | --- |
+| Type safety baseline | IMPLEMENTED | `typescript` is a pinned dev dependency, `tsconfig.check.json` exists, `npm run typecheck` passed. | Baseline is intentionally non-strict and staged. |
+| Minimal ESLint governance | IMPLEMENTED | `eslint.config.js` exists, ESLint dependencies are pinned dev dependencies, `npm run lint:check` passed. | Rule set is deliberately limited to hazardous constructs. |
+| GitHub branch protection verification | BLOCKED | `npm run verify:github-branch-protection` requires `GITHUB_BRANCH_PROTECTION_TOKEN`; no token was available in this shell. CDP showed GitHub settings pages were open, but page Runtime/Page commands timed out. | Live enforcement of required checks remains external unless an owner supplies token-backed or redacted evidence. |
+| Release provenance plan | IMPLEMENTED_UNSIGNED | `npm run security:sbom` and `npm run release:manifest` generated `audit/sbom.cdx.json` and `audit/release-manifest.unsigned.json`; release gate uploads both artifacts. | Artifacts are unsigned until owner defines signing identity/custody/enforcement. |
+| Supabase backend deployment workflow | PARTIAL | `.github/workflows/supabase-production-deploy.yml` is manual, environment-gated, confirmation-gated, and validates migration alignment before function deploy. | Requires owner-configured GitHub `production` environment and required secrets by name only. |
+| CDP browser smoke | BLOCKED_WITH_OWNER_CONTINUATION | `http://127.0.0.1:9222/json/version` and `/json/list` responded; deployment tabs for GitHub, Cloudflare, Supabase, and `app.orina.io` were visible by title/URL. Page/Runtime CDP commands timed out or reported target crashes, so DOM/storage/wallet inspection could not complete in this session. | Browser storage and console inspection are not freshly proven for this candidate; owner authorized continuation toward production completion. |
+| Local HTTP route smoke | IMPLEMENTED | `http://127.0.0.1:5173/`, `/marketplace`, and `/settings` returned HTTP 200 from the local candidate. | HTTP-only smoke does not inspect wallet state or browser storage. |
+| Production CORS preflight | IMPLEMENTED | Supabase `make-server-b0d68fc8/health` OPTIONS echoed `https://app.orina.io` and did not echo `https://evil.example`. | Platform-level unauthenticated error behavior remains outside the app handler. |
+
+### Additional Fix
+
+- `scripts/smoke-cdp-readonly-security.mjs`: added bounded CDP command timeouts and bounded read-only wallet/IndexedDB checks so future browser-smoke failures return actionable evidence instead of hanging indefinitely.
+
+### Commands Run In This Pass
+
+- `npm ci`
+- `npm run test`
+- `npm run typecheck`
+- `npm run lint:check`
+- `npm run security:check-client-secrets`
+- `npm run security:scan`
+- `npm run audit:supabase:security-definer`
+- `npm run verify:repo-tooling`
+- `npm run verify:marketplace-freshness`
+- `npm run verify:assurance-invariants`
+- `npm run verify:viewer-release`
+- `npm run verify:deterministic-build`
+- `npm run security:sbom`
+- `npm run release:manifest`
+- `npm run verify:github-branch-protection` (blocked without token)
+- `npx supabase migration list --linked | npm run verify:supabase-migration-list`
+- `node scripts/smoke-cdp-readonly-security.mjs --goto http://localhost:5173/ --timeout-ms 30000` (blocked by CDP page command timeout)
+- Read-only HTTP checks for local routes and Supabase CORS preflight.
+
+### Verification Result
+
+All repository gates passed except live GitHub branch-protection verification and CDP Page/Runtime browser smoke, both of which require external browser/API behavior outside repository files. No new critical or high repository-code issue was found.
+
 ## Bounded Assurance Closure Pass
 
 Audit date: 2026-05-13

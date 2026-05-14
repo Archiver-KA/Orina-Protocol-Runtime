@@ -1,6 +1,6 @@
 {
   "schema": "orina.release-manifest.unsigned.v1",
-  "generatedAt": "2026-05-13T13:12:17.465Z",
+  "generatedAt": "2026-05-14T04:27:31.562Z",
   "signed": false,
   "signing": {
     "status": "not-signed",
@@ -9,9 +9,9 @@
   "source": {
     "packageName": "@orina/protocol-app",
     "packageVersion": "0.0.1",
-    "gitCommit": "6288557a559ef137f8d54d60c4ac5f1da8adb8d4",
+    "gitCommit": "4cf6d50c2e35106ec095a14a92cacced27a0a34e",
     "gitBranch": "codex/management-governance-eslint",
-    "gitStatusShort": "M .github/workflows/protocol-release-gate.yml\n M README.md\n M audit/deployment-flow-analysis.md\n M audit/final-decision-summary.md\n M audit/permission-resolution-matrix.md\n M audit/release-manifest.unsigned.json\n M audit/sbom.cdx.json\n M docs/README.md\n M docs/lint-governance.md\n M docs/operational-governance-owner-decisions.md\n M docs/production-deploy-workflow-draft.yml\n M docs/release-provenance.md\n M docs/spec/19-supabase-split-function-runbook.md\n M package-lock.json\n M package.json\n M scripts/verify-assurance-invariants.mjs\n?? .github/workflows/supabase-production-deploy.yml\n?? audit/management-governance-plan.md\n?? docs/github-branch-protection-governance.md\n?? eslint.config.js\n?? scripts/verify-supabase-migration-list-output.mjs",
+    "gitStatusShort": "M AUDIT_REPORT.md\n M RELEASE_CANDIDATE.md\n M audit/deployment-flow-analysis.md\n M audit/release-manifest.unsigned.json\n M audit/sbom.cdx.json\n M scripts/smoke-cdp-readonly-security.mjs",
     "remoteOrigin": "https://github.com/Archiver-KA/Orina-Protocol-Runtime"
   },
   "build": {
@@ -34,7 +34,7 @@
     },
     {
       "path": "audit/sbom.cdx.json",
-      "sha256": "590fb29ee192d837f053417f69f7979155ee7ed87c24d9d3648e2056a8215728",
+      "sha256": "c66789c365a55c25bd7062163a17ca1f66d734e7dcb635144dc8f4f151bb947e",
       "bytes": 733297
     }
   ],

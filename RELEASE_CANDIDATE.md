@@ -1,5 +1,38 @@
 # Release Candidate
 
+## 2026-05-14 Management Governance Candidate
+
+Branch before promotion: `codex/management-governance-eslint`
+Target branch: `main`
+Target frontend path: GitHub `main` -> Cloudflare Worker Builds -> Worker `apporinaio` -> `https://app.orina.io`
+Target backend path: Supabase project `vcixsdudkizgfikhmfuv`; no backend source change is present in this candidate.
+
+This candidate adds the remaining management-governance controls selected by the owner: typecheck baseline, minimal ESLint governance, branch-protection verifier, unsigned release provenance artifacts, a manual environment-gated Supabase production deployment workflow, operational governance docs, and bounded CDP smoke timeouts.
+
+Current local verification status before promotion:
+
+- `npm ci`: passed.
+- `npm run test`: passed; 13 test files, 40 tests.
+- `npm run typecheck`: passed.
+- `npm run lint:check`: passed.
+- `npm run security:check-client-secrets`: passed.
+- `npm run security:scan`: passed; aggregate `deps:ok | messaging:ok | ipfs:ok | ratelimit:ok | m2m:ok | cors:ok`.
+- `npm run audit:supabase:security-definer`: passed; 24 audited functions; findings `[]`.
+- `npm run verify:repo-tooling`: passed.
+- `npm run verify:marketplace-freshness`: passed.
+- `npm run verify:assurance-invariants`: passed; 30 checks.
+- `npm run verify:viewer-release`: passed; build completed and prerender generated 261 public routes.
+- `npm run verify:deterministic-build`: passed; 376 files compared; differences `[]`.
+- `npm run security:sbom`: passed; generated `audit/sbom.cdx.json`.
+- `npm run release:manifest`: passed; generated `audit/release-manifest.unsigned.json`.
+- `npx supabase migration list --linked | npm run verify:supabase-migration-list`: passed; local and remote migrations aligned through `000073`.
+- `npm run verify:github-branch-protection`: blocked because `GITHUB_BRANCH_PROTECTION_TOKEN` is not present.
+- CDP browser smoke: blocked because page targets timed out on Page/Runtime commands; `json/version` and `json/list` remained readable and showed GitHub, Cloudflare, Supabase, and production app tabs.
+- Supplemental local HTTP smoke: `/`, `/marketplace`, and `/settings` returned HTTP 200 from `http://127.0.0.1:5173`.
+- Supplemental Supabase CORS preflight: allowed `https://app.orina.io`; denied `https://evil.example`.
+
+Owner-authorized production continuation in this session allows promotion despite the CDP Page/Runtime blocker. This does not close the branch-protection verification blocker or the unsigned-release owner decision.
+
 Candidate date: 2026-05-13
 Branch: `main`
 Remote: `https://github.com/Archiver-KA/Orina-Protocol-Runtime`

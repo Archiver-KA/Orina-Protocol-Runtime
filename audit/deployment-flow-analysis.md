@@ -126,3 +126,34 @@ Before the next approval:
 5. Keep the Supabase Security Advisor `RLS Disabled in Public` acceptance tied to repository evidence that only `public.spatial_ref_sys` has RLS disabled.
 6. Convert supplier media handling for `https://s.alicdn.com` from deployment-smoke approval into a long-term owner policy: approve, proxy, block, or sanitize.
 7. Re-run all required release gates, including `npm run lint:check`, and browser smoke before approval.
+
+## 2026-05-14 Completion Addendum
+
+The owner selected ESLint for lint governance and authorized end-to-end completion in this session.
+
+Additional repository controls added before the next production promotion:
+
+- Typecheck baseline with pinned dev-only TypeScript tooling.
+- Minimal ESLint hazardous-construct baseline with pinned dev-only ESLint tooling.
+- Manual, environment-gated Supabase production deployment workflow.
+- Release-gate artifact generation/upload for the unsigned release manifest and SBOM.
+- Supabase migration-list parser for CI-safe drift verification.
+- CDP smoke hardening so unresponsive Page/Runtime targets fail with explicit timeout evidence instead of hanging.
+
+Read-only CDP status:
+
+- `http://127.0.0.1:9222/json/version` responded.
+- `http://127.0.0.1:9222/json/list` showed GitHub, Cloudflare, Supabase, and `app.orina.io` tabs.
+- Page/Runtime commands against page targets timed out, and newly created targets reported crashes. No wallet confirmation was accepted, and no browser secret values were inspected.
+
+Supplemental non-CDP checks:
+
+- Local candidate routes `/`, `/marketplace`, and `/settings` returned HTTP 200 from `http://127.0.0.1:5173`.
+- Supabase CORS preflight for `https://app.orina.io` returned `Access-Control-Allow-Origin: https://app.orina.io`.
+- Supabase CORS preflight for `https://evil.example` did not return `Access-Control-Allow-Origin`.
+
+Residual governance before claiming fully enforced deployment management:
+
+- Branch protection/required checks still need token-backed verification or owner-provided redacted evidence.
+- The Supabase production workflow still needs owner-configured GitHub `production` environment protection and required secrets by name only.
+- Release artifacts remain unsigned until the owner defines signing authority and custody.
