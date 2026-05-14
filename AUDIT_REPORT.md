@@ -1347,3 +1347,68 @@ This pass addressed the remaining management/governance issues that can be handl
 - Decide signing identity/custody/enforcement for release artifacts.
 - Decide long-term supplier media policy for `https://s.alicdn.com`.
 - Fill operational owner facts for incident response, key rotation, recovery objectives, and disaster recovery drills.
+
+## Supabase Public Schema Grant Readiness Pass
+
+Audit date: 2026-05-14
+
+This pass addressed the Supabase 2026 Data API public-schema default grant change and re-checked the live Advisor finding shown in Supabase Studio. No production mutation, deployment, secret printing, wallet action, or infrastructure setting change was performed.
+
+### Findings
+
+| Item | Classification | Evidence | Residual Risk |
+| --- | --- | --- | --- |
+| Supabase Data API explicit grants | IMPLEMENTED | Added migration `000074_public_data_api_explicit_grants_and_postgis_rls.sql`; `npm run audit:supabase:data-api-grants` reports 66 migration-created public tables and 66 explicit grant decisions. | The migration must be applied to each Supabase project before the new default matters for that project. |
+| Supabase Advisor `RLS Disabled in Public` | IMPLEMENTED IN REPOSITORY, PENDING DEPLOYMENT | Read-only linked metadata query shows the only live public table with RLS disabled is `public.spatial_ref_sys`. Migration `000074` enables RLS and read-only Data API access for `spatial_ref_sys` when present. | Supabase Studio will keep showing the warning until the migration is applied to the linked project. |
+| `seller_minting_config` public RLS policy | IMPLEMENTED IN REPOSITORY, PENDING DEPLOYMENT | Read-only linked metadata query shows live policy `seller_minting_config_all` with `roles={public}` and `cmd=ALL`. Migration `000074` replaces it with authenticated owner-scoped select/insert/update policies and service-role Data API grants. | Live project remains unchanged until migration deployment. |
+
+### Files Changed
+
+- `AUDIT_REPORT.md`
+- `README.md`
+- `SECURITY.md`
+- `docs/spec/19-supabase-split-function-runbook.md`
+- `package.json`
+- `scripts/security-scan-system.mjs`
+- `scripts/verify-assurance-invariants.mjs`
+- `scripts/verify-supabase-public-data-api-grants.mjs`
+- `supabase/audit/README.md`
+- `supabase/migrations/000074_public_data_api_explicit_grants_and_postgis_rls.sql`
+
+### Commands Run
+
+- `rg -ni "\\bcreate\\s+table|\\bgrant\\s+.*\\s+on\\s+(?:table\\s+)?public\\.|\\balter\\s+table\\s+public\\..*enable\\s+row\\s+level\\s+security|create\\s+extension.*postgis|spatial_ref_sys" supabase/migrations supabase scripts docs README.md SECURITY.md AUDIT_REPORT.md RELEASE_CANDIDATE.md`
+- `rg -n "\\.from\\(|\\.rpc\\(|/rest/v1/|/graphql/v1/|supabase\\.from|supabase\\.rpc" src supabase scripts -g "*.ts" -g "*.tsx" -g "*.js" -g "*.mjs" -g "*.cjs"`
+- `npx supabase db query --agent=no --linked -o json "select schemaname, tablename, rowsecurity from pg_tables where schemaname = 'public' and rowsecurity is false order by tablename;"`
+- `npx supabase db query --agent=no --linked -o json "select schemaname, tablename, rowsecurity from pg_tables where schemaname = 'public' and tablename in ('seller_minting_config','spatial_ref_sys') order by tablename;"`
+- `npx supabase db query --agent=no --linked -o json "select policyname, roles, cmd from pg_policies where schemaname = 'public' and tablename = 'seller_minting_config' order by policyname;"`
+- `npx supabase db query --agent=no --linked -o json "select grantee, table_name, privilege_type from information_schema.role_table_grants where table_schema = 'public' and table_name in ('seller_minting_config','spatial_ref_sys') and grantee in ('anon','authenticated','service_role') order by table_name, grantee, privilege_type;"`
+- `npm run audit:supabase:data-api-grants`
+- `npm run lint:check`
+- `npm run typecheck`
+- `npm run security:scan`
+- `npm run verify:assurance-invariants`
+- `npm run verify:repo-tooling`
+- `npm run audit:supabase:security-definer`
+- `npm run test`
+- `npm run security:check-client-secrets`
+- `git diff --check`
+
+Two parallel read-only Supabase metadata queries timed out and their local CLI child processes were stopped. No production data mutation occurred.
+
+### Verification Results
+
+- `npm run audit:supabase:data-api-grants`: passed; 66 public tables created by migrations, 66 with explicit Data API grants, `spatial_ref_sys` RLS/read-only handling present.
+- `npm run security:scan`: passed; aggregate `deps:ok | messaging:ok | ipfs:ok | ratelimit:ok | m2m:ok | cors:ok | data-api-grants:ok`.
+- `npm run verify:assurance-invariants`: passed; 32 checks.
+- `npm run verify:repo-tooling`: passed.
+- `npm run audit:supabase:security-definer`: passed; 24 audited functions; findings `[]`.
+- `npm run lint:check`: passed.
+- `npm run typecheck`: passed.
+- `npm run test`: passed; 13 test files, 40 tests.
+- `npm run security:check-client-secrets`: passed; no forbidden privileged-secret patterns in 279 files.
+- `git diff --check`: passed; Git printed existing LF-to-CRLF working-copy warnings for touched text files.
+
+### Operator Note
+
+To clear the current Supabase Studio warning in the linked project, deploy/apply migration `000074_public_data_api_explicit_grants_and_postgis_rls.sql` through the approved Supabase migration path. Do not use Dashboard quick fixes that bypass repository migrations, because the repository is the source of truth for grant and RLS policy state.

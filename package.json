@@ -33,6 +33,7 @@
     "smoke:review:e2e": "node supabase/audit/run_review_smoke_from_env.cjs",
     "audit:profile-reputation-view": "node scripts/verify-profile-reputation-summary-security.mjs",
     "audit:profile-reputation-view:auth-user": "node scripts/verify-profile-reputation-summary-security.mjs --create-temp-auth-user",
+    "audit:supabase:data-api-grants": "node scripts/verify-supabase-public-data-api-grants.mjs",
     "audit:supabase:security-definer": "node scripts/audit-supabase-security-definer.mjs",
     "security:check-client-secrets": "node scripts/check-client-no-privileged-supabase-secrets.mjs",
     "security:sbom": "node scripts/generate-sbom.mjs",

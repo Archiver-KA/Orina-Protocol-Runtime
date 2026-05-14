@@ -467,7 +467,59 @@ function scanCorsConfigurations() {
   };
 }
 
-function buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, rateLimiterScan, auditAliasScan, corsScan) {
+function scanSupabasePublicDataApiGrants() {
+  const scriptPath = path.join(ROOT, 'scripts', 'verify-supabase-public-data-api-grants.mjs');
+  if (!fs.existsSync(scriptPath)) {
+    return { ok: false, items: ['verify-supabase-public-data-api-grants.mjs not found'], report: null };
+  }
+
+  const result = spawnSync(process.execPath, [scriptPath], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  });
+
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout || '{}');
+  } catch {
+    report = null;
+  }
+
+  const items = [];
+  if (!report) {
+    items.push(`CRITICAL: unable to parse Data API grant verifier output: ${result.stderr || result.stdout || 'empty output'}`);
+  } else {
+    items.push(`Public tables created by migrations: ${report.publicTablesCreated}`);
+    items.push(`Tables with explicit Data API grants: ${report.tablesWithExplicitDataApiGrant}`);
+    items.push(
+      report.missingExplicitGrant?.length
+        ? `CRITICAL: missing explicit grants for ${report.missingExplicitGrant.map((entry) => entry.table).join(', ')}`
+        : 'All migration-created public tables have an explicit grant decision for Data API roles.',
+    );
+    items.push(
+      report.postgisSpatialRefSys?.enabled
+        ? 'PostGIS spatial_ref_sys RLS is enabled by migration when the table exists.'
+        : report.postgisSpatialRefSys?.ownerActionRequired
+          ? 'PostGIS spatial_ref_sys RLS remains an owner/Supabase-admin action because the table is extension-owned.'
+          : 'WARNING: PostGIS spatial_ref_sys RLS hardening is not present.',
+    );
+    items.push(
+      report.postgisSpatialRefSys?.selectGrant && report.postgisSpatialRefSys?.readPolicy
+        ? 'PostGIS spatial_ref_sys has explicit read-only Data API access.'
+        : report.postgisSpatialRefSys?.ownerActionRequired
+          ? 'PostGIS spatial_ref_sys Data API/RLS policy is tracked separately from normal app-table migration grants.'
+          : 'WARNING: PostGIS spatial_ref_sys read-only policy/grant is incomplete.',
+    );
+  }
+
+  return {
+    ok: result.status === 0 && Boolean(report?.pass),
+    items,
+    report,
+  };
+}
+
+function buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, rateLimiterScan, auditAliasScan, corsScan, dataApiGrantScan) {
   const areas = {
     dependencies: {
       status: vuln && (vuln.critical > 0 || vuln.high > 0) ? 'action_required' : vuln?.moderate ? 'review' : 'ok',
@@ -515,6 +567,14 @@ function buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, rateLimiterScan,
         ? 'No explicit wildcard CORS config found; shared edge app gates origins by allowlist/pattern.'
         : 'Review wildcard CORS usage in edge functions and restrict to the shared edge app policy.',
     },
+    supabaseDataApiGrants: {
+      status: dataApiGrantScan?.ok ? 'ok' : 'review',
+      summary: dataApiGrantScan?.ok
+        ? dataApiGrantScan.report?.postgisSpatialRefSys?.ownerActionRequired
+          ? 'Migration-created public app tables have explicit Data API grants; extension-owned spatial_ref_sys remains an owner/Supabase-admin action.'
+          : 'Migration-created public tables have explicit Data API grants and PostGIS spatial_ref_sys RLS hardening.'
+        : 'Review public schema table grants before Supabase public-schema default grant changes.',
+    },
     auditTooling: {
       status: auditAliasScan?.ok ? 'ok' : 'review',
       summary: auditAliasScan?.ok
@@ -530,6 +590,7 @@ function buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, rateLimiterScan,
     areas.rateLimiting.status === 'ok' ? 'ratelimit:ok' : 'ratelimit:risk',
     areas.m2mDelegatedAiWallet.status === 'ok' ? 'm2m:ok' : 'm2m:review',
     areas.cors.status === 'ok' ? 'cors:ok' : 'cors:review',
+    areas.supabaseDataApiGrants.status === 'ok' ? 'data-api-grants:ok' : 'data-api-grants:review',
   ].join(' | ');
 
   return { generatedAt: new Date().toISOString(), oneLineSummary: oneLine, areas };
@@ -541,6 +602,7 @@ function main() {
   const rateLimiterScan = scanRateLimiterModule();
   const auditAliasScan = scanAuditServiceRoleAliases();
   const corsScan = scanCorsConfigurations();
+  const dataApiGrantScan = scanSupabasePublicDataApiGrants();
 
   // 1) Client privileged secrets (existing script)
   try {
@@ -626,10 +688,11 @@ function main() {
   addSection('Distributed rate limiting (rate-limiter.ts)', rateLimiterScan.items, rateLimiterScan.ok ? 'info' : 'critical');
   addSection('Audit tooling secret aliases', auditAliasScan.items, auditAliasScan.ok ? 'info' : 'moderate');
   addSection('Edge function CORS posture', corsScan.items, corsScan.ok ? 'info' : 'moderate');
+  addSection('Supabase public Data API grants', dataApiGrantScan.items, dataApiGrantScan.ok ? 'info' : 'critical');
 
-  if (!messagingScan.ok || !ipfsScan.ok || !rateLimiterScan.ok) REPORT.exitCode = 1;
+  if (!messagingScan.ok || !ipfsScan.ok || !rateLimiterScan.ok || !dataApiGrantScan.ok) REPORT.exitCode = 1;
 
-  REPORT.aggregate = buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, rateLimiterScan, auditAliasScan, corsScan);
+  REPORT.aggregate = buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, rateLimiterScan, auditAliasScan, corsScan, dataApiGrantScan);
 
   console.log(JSON.stringify(REPORT, null, 2));
   process.exit(REPORT.exitCode);

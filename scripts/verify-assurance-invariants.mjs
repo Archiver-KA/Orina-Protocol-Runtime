@@ -27,6 +27,7 @@ function main() {
   const m2m = read('supabase/functions/server/ai-m2m-wallet.ts');
   const cors = read('supabase/functions/server/edge-app.ts');
   const freshness = read('scripts/verify-marketplace-browse-freshness.mjs');
+  const dataApiGrantVerifier = read('scripts/verify-supabase-public-data-api-grants.mjs');
 
   const checks = [
     check(
@@ -139,6 +140,21 @@ function main() {
         /DEPLOY_SUPABASE_PRODUCTION/.test(read('.github/workflows/supabase-production-deploy.yml')),
       '.github/workflows/supabase-production-deploy.yml is workflow_dispatch-only, uses the production environment, and requires an explicit confirmation input.',
       'GitHub environment protection rules are external and must be configured by an owner.',
+    ),
+    check(
+      'Supabase public Data API grant audit is available',
+      scripts['audit:supabase:data-api-grants'] === 'node scripts/verify-supabase-public-data-api-grants.mjs' &&
+        /missingExplicitGrant/.test(dataApiGrantVerifier) &&
+        /spatial_ref_sys/.test(dataApiGrantVerifier) &&
+        /ownerActionRequired/.test(dataApiGrantVerifier),
+      'package.json exposes audit:supabase:data-api-grants and the verifier checks explicit app-table grants while tracking PostGIS spatial_ref_sys as an owner action when migration ownership is insufficient.',
+      'The command is static; live production grant/RLS state still requires applying migrations and optional database metadata inspection.',
+    ),
+    check(
+      'release CI covers Supabase public Data API grant audit through security scan',
+      /npm run security:scan/.test(workflow) &&
+        /scanSupabasePublicDataApiGrants/.test(securityScan),
+      'Protocol Release Gate runs security:scan, and security-scan-system.mjs invokes the Data API grant verifier.',
     ),
     check(
       'connected smoke remains manual-only',

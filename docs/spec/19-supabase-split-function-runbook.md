@@ -1,6 +1,6 @@
 # Supabase Split Function Runbook
 
-Last verified by Codex audit: 2026-05-13
+Last verified by Codex audit: 2026-05-14
 
 ## Topology
 
@@ -62,6 +62,21 @@ Preferred production path:
 - confirmation input `DEPLOY_SUPABASE_PRODUCTION`
 
 The workflow verifies migration alignment, runs static/security gates, deploys functions in the order below, and checks production CORS/health after deploy. Local CLI deployment should be treated as break-glass unless the owner explicitly approves it.
+
+Schema migrations are separate from split Edge Function deployment. Before
+creating or replaying a project after Supabase's 2026 public-schema grant
+change, run:
+
+```bash
+npm run audit:supabase:data-api-grants
+```
+
+Every migration-created `public` table must have an explicit Data API grant for
+the roles that need access. RLS policies remain the authorization boundary. The
+PostGIS `public.spatial_ref_sys` reference table can be owned by
+`supabase_admin`; if the normal migration role cannot alter it, keep that
+Advisor item as an owner/Supabase-admin action and do not block app-table Data
+API grant deployment on unexecutable extension-table SQL.
 
 Deploy the isolated functions first, then the shared bundle and operational functions:
 

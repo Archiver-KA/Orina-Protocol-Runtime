@@ -1,6 +1,6 @@
 # Supabase Audit Layout
 
-Last verified by Codex audit: 2026-05-13
+Last verified by Codex audit: 2026-05-14
 
 This directory keeps runnable audit tooling at the top level and separates generated output into dedicated folders.
 
@@ -62,6 +62,29 @@ Scripts that validate seller identity through the bridge and then write canonica
 The SECURITY DEFINER audit entrypoint is:
 
 - `npm run audit:supabase:security-definer -- --linked`
+
+The public Data API grant audit entrypoint is:
+
+- `npm run audit:supabase:data-api-grants`
+
+Supabase's 2026 public-schema default change means migrations that create
+`public` tables must also make Data API grants explicit for the roles that need
+access. The verifier scans repository migrations for `CREATE TABLE` statements
+and checks for explicit `anon`, `authenticated`, or `service_role` table grants.
+
+The PostGIS `public.spatial_ref_sys` reference table may be owned by
+`supabase_admin`, which means the normal migration role cannot enable RLS on it.
+When that ownership boundary appears, track the Advisor item as an owner or
+Supabase-admin action instead of adding unexecutable SQL to a migration.
+
+When adding a new `public` table:
+
+- enable RLS in the same migration series;
+- grant only the Data API role privileges required by existing RLS policy intent;
+- grant service-role access only for Edge Functions or operator jobs that use the
+  Data API;
+- do not use broad `ALTER DEFAULT PRIVILEGES` or `GRANT ... ON ALL TABLES`
+  defaults as a substitute for per-table review.
 
 The audit checks exact execute grants and `search_path` for every reviewed `public` `SECURITY DEFINER` function. New `SECURITY DEFINER` functions must be added to the audit script with a written note explaining why elevated execution is required; marketplace browse page RPCs and service-role-only browse-index refresh functions are intentionally reviewed there.
 

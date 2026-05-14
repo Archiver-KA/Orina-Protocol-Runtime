@@ -1,6 +1,6 @@
 # Orina Protocol - Runtime
 
-Last verified by Codex audit: 2026-05-13
+Last verified by Codex audit: 2026-05-14
 
 Orina Protocol - Runtime is the standalone runtime repository for the Orina marketplace application. It keeps the production-facing frontend, Supabase runtime surfaces, release gates, and current-code documentation without the old workspace-specific agent metadata and local archive material.
 
@@ -23,6 +23,7 @@ npm run lint:check
 npm run security:scan
 npm run security:sbom
 npm run release:manifest
+npm run audit:supabase:data-api-grants
 npm run verify:repo-tooling
 npm run verify:marketplace-freshness
 npm run verify:assurance-invariants

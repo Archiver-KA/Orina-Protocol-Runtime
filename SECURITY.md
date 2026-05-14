@@ -1,6 +1,6 @@
 # Security
 
-Last verified by Codex audit: 2026-05-13
+Last verified by Codex audit: 2026-05-14
 
 ## Reporting
 
@@ -18,6 +18,8 @@ The current supported source is the runtime repository on `main` plus the releas
 - Protected Edge Function writes must require H1 wallet claim JWTs and wallet-address matching.
 - Upload, chat, AI, and moderation write paths should use the distributed rate limiter backed by `public.rate_limit_increment`.
 - Public marketplace browse RPCs may be readable by `anon` and `authenticated`, but `SECURITY DEFINER` functions must be reviewed in `scripts/audit-supabase-security-definer.mjs`.
+- Public-schema tables exposed through Supabase Data API must have explicit table grants in migrations. RLS remains the authorization boundary; do not use broad default table grants as a substitute for per-table review.
+- PostGIS `public.spatial_ref_sys` is extension-owned in the linked project. If Supabase Advisor reports RLS disabled for that table, resolve it through owner/Supabase-admin authority; do not add migration SQL that the normal migration role cannot execute.
 - Edge CORS must echo approved origins only. In production set `ORINA_CORS_ENV=production`, list extra production origins in `ORINA_CORS_ALLOWED_ORIGINS`, and enable broad preview hosts only with `ORINA_CORS_ALLOW_PREVIEW_ORIGINS=true`.
 - Browser smoke treats external network origins as policy-controlled. Supplier/product media CDNs, including Alibaba-derived image hosts, are not approved unless documented and added to the smoke allowlist by an owner decision.
 - AI M2M delegate invite ids must use cryptographic randomness with at least 32 bytes of entropy, expire before accept, reject replay after claim, and stay behind the distributed rate limiter.
@@ -32,6 +34,7 @@ npm run security:check-client-secrets
 npm run security:scan
 npm run security:sbom
 npm run release:manifest
+npm run audit:supabase:data-api-grants
 npm run audit:supabase:security-definer
 npm run typecheck
 npm run verify:repo-tooling
