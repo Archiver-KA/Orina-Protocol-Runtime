@@ -1352,15 +1352,17 @@ This pass addressed the remaining management/governance issues that can be handl
 
 Audit date: 2026-05-14
 
-This pass addressed the Supabase 2026 Data API public-schema default grant change and re-checked the live Advisor finding shown in Supabase Studio. No production mutation, deployment, secret printing, wallet action, or infrastructure setting change was performed.
+This pass addressed the Supabase 2026 Data API public-schema default grant change, re-checked the live Advisor finding shown in Supabase Studio, and applied migration `000074` through the approved Supabase migration path. No secret printing, wallet action, Cloudflare deployment, GitHub settings mutation, branch protection mutation, or CI secret mutation was performed.
+
+Applied source commit: `7135433` (`supabase: add explicit data api grants`). This commit is local in the workspace unless pushed separately.
 
 ### Findings
 
 | Item | Classification | Evidence | Residual Risk |
 | --- | --- | --- | --- |
-| Supabase Data API explicit grants | IMPLEMENTED | Added migration `000074_public_data_api_explicit_grants_and_postgis_rls.sql`; `npm run audit:supabase:data-api-grants` reports 66 migration-created public tables and 66 explicit grant decisions. | The migration must be applied to each Supabase project before the new default matters for that project. |
-| Supabase Advisor `RLS Disabled in Public` | IMPLEMENTED IN REPOSITORY, PENDING DEPLOYMENT | Read-only linked metadata query shows the only live public table with RLS disabled is `public.spatial_ref_sys`. Migration `000074` enables RLS and read-only Data API access for `spatial_ref_sys` when present. | Supabase Studio will keep showing the warning until the migration is applied to the linked project. |
-| `seller_minting_config` public RLS policy | IMPLEMENTED IN REPOSITORY, PENDING DEPLOYMENT | Read-only linked metadata query shows live policy `seller_minting_config_all` with `roles={public}` and `cmd=ALL`. Migration `000074` replaces it with authenticated owner-scoped select/insert/update policies and service-role Data API grants. | Live project remains unchanged until migration deployment. |
+| Supabase Data API explicit grants | IMPLEMENTED AND APPLIED | Migration `000074_public_data_api_explicit_grants_and_postgis_rls.sql` is recorded in remote `supabase_migrations.schema_migrations`; linked metadata query found no non-extension public table missing a Data API role grant. Static verifier reports 66 migration-created public tables and 66 explicit grant decisions. | The same migration still must be applied to any other Supabase project that runs this repository schema. |
+| Supabase Advisor `RLS Disabled in Public` | OWNER_DECISION_REQUIRED | The first migration push failed on `public.spatial_ref_sys` with `SQLSTATE 42501` because the linked project owns the table as `supabase_admin`. Live metadata after the successful app-table migration still shows `public.spatial_ref_sys` as the only public table with RLS disabled. | The Supabase Studio warning may remain until an owner/Supabase-admin path resolves the extension-owned PostGIS reference table, or the owner accepts the Advisor exception. |
+| `seller_minting_config` public RLS policy | IMPLEMENTED AND APPLIED | Live policy query now returns only authenticated owner-scoped `SELECT`, `INSERT`, and `UPDATE` policies: `seller_minting_config_select_owner_v1`, `seller_minting_config_insert_owner_v1`, and `seller_minting_config_update_owner_v1`. The live grant query returned no `anon` grant rows for this table. | Service-role table privileges remain elevated by design for server-side handlers and maintenance paths. |
 
 ### Files Changed
 
@@ -1393,12 +1395,28 @@ This pass addressed the Supabase 2026 Data API public-schema default grant chang
 - `npm run test`
 - `npm run security:check-client-secrets`
 - `git diff --check`
+- `git commit --amend --no-edit`
+- `npx supabase migration list --linked`
+- `npx supabase db push --linked --dry-run --agent=no`
+- `npx supabase db push --linked --yes --agent=no`
+- `npx supabase db query --agent=no --linked -o json "select version, name from supabase_migrations.schema_migrations where version = '000074';"`
+- `npx supabase db query --agent=no --linked -o json "select policyname, roles, cmd from pg_policies where schemaname = 'public' and tablename = 'seller_minting_config' order by policyname;"`
+- `npx supabase db query --agent=no --linked -o json "select schemaname, tablename, rowsecurity from pg_tables where schemaname = 'public' and rowsecurity is false order by tablename;"`
+- `npx supabase db query --agent=no --linked -o json "select c.relname as table_name from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and c.relname <> 'spatial_ref_sys' and not exists (select 1 from information_schema.role_table_grants g where g.table_schema = 'public' and g.table_name = c.relname and g.grantee in ('anon','authenticated','service_role')) order by c.relname;"`
+- `npx supabase db query --agent=no --linked -o json "select c.relname as table_name, pg_catalog.pg_get_userbyid(c.relowner) as owner, c.relrowsecurity as rowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname in ('spatial_ref_sys', 'seller_minting_config') order by c.relname;"`
 
-Two parallel read-only Supabase metadata queries timed out and their local CLI child processes were stopped. No production data mutation occurred.
+An initial `npx supabase db push --linked --yes --agent=no` attempt failed before completion at the `spatial_ref_sys` block with `ERROR: must be owner of table spatial_ref_sys (SQLSTATE 42501)`. The source migration was then narrowed to executable app-table grant and policy changes, with `spatial_ref_sys` tracked as an owner/Supabase-admin action. Parallel read-only Supabase metadata queries also triggered a temporary Supabase pooler authentication circuit breaker; subsequent Supabase CLI verification was run sequentially only.
 
 ### Verification Results
 
-- `npm run audit:supabase:data-api-grants`: passed; 66 public tables created by migrations, 66 with explicit Data API grants, `spatial_ref_sys` RLS/read-only handling present.
+- `npx supabase migration list --linked`: passed after application; local and remote are aligned through `000074`.
+- `npx supabase db push --linked --dry-run --agent=no`: passed before application; only `000074_public_data_api_explicit_grants_and_postgis_rls.sql` would be pushed.
+- `npx supabase db push --linked --yes --agent=no`: passed after narrowing the unexecutable extension-table block; migration `000074` applied.
+- `supabase_migrations.schema_migrations`: contains `version='000074'`, `name='public_data_api_explicit_grants_and_postgis_rls'`.
+- Live public table grant query: no non-extension public table lacked a Data API role grant.
+- Live `seller_minting_config` policy query: authenticated owner-scoped `SELECT`, `INSERT`, and `UPDATE` policies are present; prior public `FOR ALL` policy is gone.
+- Live public RLS-disabled query: only `public.spatial_ref_sys` remains; owner query shows `spatial_ref_sys` owner `supabase_admin`, while `seller_minting_config` owner is `postgres` and RLS is enabled.
+- `npm run audit:supabase:data-api-grants`: passed; 66 public tables created by migrations, 66 with explicit Data API grants, `spatial_ref_sys` marked as owner/Supabase-admin action.
 - `npm run security:scan`: passed; aggregate `deps:ok | messaging:ok | ipfs:ok | ratelimit:ok | m2m:ok | cors:ok | data-api-grants:ok`.
 - `npm run verify:assurance-invariants`: passed; 32 checks.
 - `npm run verify:repo-tooling`: passed.
@@ -1411,4 +1429,4 @@ Two parallel read-only Supabase metadata queries timed out and their local CLI c
 
 ### Operator Note
 
-To clear the current Supabase Studio warning in the linked project, deploy/apply migration `000074_public_data_api_explicit_grants_and_postgis_rls.sql` through the approved Supabase migration path. Do not use Dashboard quick fixes that bypass repository migrations, because the repository is the source of truth for grant and RLS policy state.
+Migration `000074` is now applied to the linked Supabase project. If Supabase Studio still shows `RLS Disabled in Public` for `public.spatial_ref_sys`, do not add more normal migration SQL for that table without owner/Supabase-admin evidence; the linked project currently owns it as `supabase_admin`, and the normal migration role cannot alter its RLS state. The remaining action is an owner/Supabase-admin decision for the extension-owned PostGIS reference table, not an unapplied app-table grant migration.
