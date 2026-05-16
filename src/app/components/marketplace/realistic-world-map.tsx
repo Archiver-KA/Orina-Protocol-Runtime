@@ -10,7 +10,7 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { Gauge, Layers, MapPin, ShieldCheck, TrendingUp, Users } from 'lucide-react';
 import { Map as MapCanvas, MapRef } from '@/app/components/ui/map';
-import { Marker } from 'react-map-gl/maplibre';
+import { Marker, Popup } from 'react-map-gl/maplibre';
 import { getTaxonomyBadgeTone } from '@/utils/taxonomyAppearance';
 
 interface MarketplaceAsset {
@@ -245,6 +245,78 @@ function getZoomModeLabel(zoom: number) {
   return 'Asset pins';
 }
 
+function MarketplaceMarkerHoverCard({ marker }: { marker: MapDisplayMarker }) {
+  const asset = marker.asset;
+  const categoryTone = getTaxonomyBadgeTone(marker.category || asset.category);
+
+  return (
+    <div className="w-[210px] max-w-[calc(100vw-2rem)] animate-in rounded-[22px] border border-ui-border-subtle bg-ui-card p-2 font-[var(--font-sans)] shadow-[0_10px_30px_-10px_rgba(44,194,149,0.4),0_0_20px_rgba(44,194,149,0.2)] backdrop-blur-[20px] fade-in slide-in-from-bottom-2 duration-200">
+      <div className="relative mb-2 aspect-[1.55] overflow-hidden rounded-xl">
+        <img
+          alt={marker.label}
+          className="h-full w-full object-cover"
+          src={asset.image}
+        />
+
+        <div
+          className="absolute right-1 top-1 inline-flex max-w-[calc(100%-0.5rem)] items-center rounded-full border px-2 py-0.5 text-[7px] font-semibold uppercase tracking-[0.12em] backdrop-blur-md"
+          style={{
+            background: categoryTone.background,
+            borderColor: categoryTone.borderColor,
+            color: categoryTone.textColor,
+            boxShadow: `0 14px 32px -28px ${categoryTone.shadowColor}`,
+          }}
+          title={marker.categoryLabel}
+        >
+          <span className="truncate">{marker.categoryLabel}</span>
+        </div>
+
+        {marker.verified && (
+          <div className="absolute left-1 top-1 flex items-center gap-0.5 rounded border border-[#2CC295]/20 bg-black/90 px-1 py-0.5 text-[7px] font-semibold text-[#2CC295]">
+            <svg
+              className="h-2 w-2"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
+        )}
+      </div>
+
+      <div className="mb-1.5 px-1.5">
+        <h4 className="line-clamp-2 text-[11px] font-semibold leading-tight tracking-tight text-ui-primary">
+          {marker.level === 'asset' ? asset.name : marker.label}
+        </h4>
+        <p className="mt-1 line-clamp-2 text-[10px] leading-tight text-ui-secondary">{marker.subtitle}</p>
+        <div className="mt-2 grid grid-cols-3 gap-1.5">
+          <div className="rounded-lg bg-[var(--t-surface-2)] px-2 py-1">
+            <p className="text-[8px] uppercase tracking-[0.12em] text-ui-muted">Trust</p>
+            <p className="text-[10px] font-semibold text-ui-primary">{Math.round(marker.trustScore)}</p>
+          </div>
+          <div className="rounded-lg bg-[var(--t-surface-2)] px-2 py-1">
+            <p className="text-[8px] uppercase tracking-[0.12em] text-ui-muted">Sales</p>
+            <p className="text-[10px] font-semibold text-ui-primary">{marker.successfulSales}</p>
+          </div>
+          <div className="rounded-lg bg-[var(--t-surface-2)] px-2 py-1">
+            <p className="text-[8px] uppercase tracking-[0.12em] text-ui-muted">Assets</p>
+            <p className="text-[10px] font-semibold text-ui-primary">{marker.count}</p>
+          </div>
+        </div>
+        {marker.level !== 'asset' && (
+          <p className="mt-2 text-[9px] leading-4 text-ui-muted">
+            Click to zoom into top supplier listings.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function RealisticWorldMap({
   filteredAssets,
   totalListings,
@@ -263,6 +335,10 @@ export function RealisticWorldMap({
   const displayMarkers = useMemo(
     () => buildDisplayMarkers(filteredAssets, viewState.zoom),
     [filteredAssets, viewState.zoom],
+  );
+  const hoveredMarker = useMemo(
+    () => displayMarkers.find((marker) => marker.key === hoveredMarkerKey) || null,
+    [displayMarkers, hoveredMarkerKey],
   );
   const visibleSupplierCount = useMemo(
     () => new Set(filteredAssets.map((asset) => asset.supplierKey || asset.seller.name)).size,
@@ -345,9 +421,9 @@ export function RealisticWorldMap({
   return (
     <div className="relative h-full w-full overflow-hidden bg-transparent">
       {/* Hover-expand Stats Bar */}
-      <div className="absolute left-4 top-4 z-20 pointer-events-auto">
+      <div className="pointer-events-none absolute left-4 right-4 top-4 z-20">
         <div
-          className="group flex max-w-[calc(100vw-7rem)] items-center gap-1 overflow-hidden rounded-full bg-[var(--t-card-bg)] px-2 py-2 text-ui-secondary shadow-[0_18px_34px_-24px_rgba(0,0,0,0.58)] backdrop-blur-[12px] transition-all duration-300 select-none hover:gap-2 hover:px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/45"
+          className="group pointer-events-auto flex w-fit max-w-full items-center gap-1 overflow-hidden rounded-full bg-[var(--t-card-bg)] px-2 py-2 text-ui-secondary shadow-[0_18px_34px_-24px_rgba(0,0,0,0.58)] backdrop-blur-[12px] transition-all duration-300 select-none hover:gap-2 hover:px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/45"
           role="group"
           tabIndex={0}
           title={`${filteredAssets.length.toLocaleString()} visible assets of ${totalListings.toLocaleString()} total listings; ${verifiedCount.toLocaleString()} verified assets`}
@@ -464,7 +540,6 @@ export function RealisticWorldMap({
           const markerTone = getMarkerTone(marker);
           const isCluster = marker.level !== 'asset';
           const markerZIndex = isHovered || isSelected ? 50000 : hoveredMarkerKey ? 1 : isCluster ? 30 : 10;
-          const categoryTone = getTaxonomyBadgeTone(marker.category || asset.category);
 
           return (
             <Marker
@@ -534,88 +609,26 @@ export function RealisticWorldMap({
                   )}
                 </div>
 
-                {/* Hover Card */}
-                {isHovered && (
-                  <div
-                    className="absolute pointer-events-none z-[50001]"
-                    style={{
-                      left: '50%',
-                      bottom: '26px',
-                      transform: 'translateX(-35%)',
-                    }}
-                  >
-                    <div
-                      className="w-[210px] animate-in rounded-[22px] border border-ui-border-subtle bg-ui-card p-2 font-[var(--font-sans)] shadow-[0_10px_30px_-10px_rgba(44,194,149,0.4),0_0_20px_rgba(44,194,149,0.2)] backdrop-blur-[20px] fade-in slide-in-from-bottom-2 duration-200"
-                    >
-                      <div className="relative mb-2 aspect-[1.55] overflow-hidden rounded-xl">
-                        <img
-                          alt={marker.label}
-                          className="h-full w-full object-cover"
-                          src={asset.image}
-                        />
-
-                        <div
-                          className="absolute right-1 top-1 inline-flex max-w-[calc(100%-0.5rem)] items-center rounded-full border px-2 py-0.5 text-[7px] font-semibold uppercase tracking-[0.12em] backdrop-blur-md"
-                          style={{
-                            background: categoryTone.background,
-                            borderColor: categoryTone.borderColor,
-                            color: categoryTone.textColor,
-                            boxShadow: `0 14px 32px -28px ${categoryTone.shadowColor}`,
-                          }}
-                          title={marker.categoryLabel}
-                        >
-                          <span className="truncate">{marker.categoryLabel}</span>
-                        </div>
-
-                        {marker.verified && (
-                          <div className="absolute left-1 top-1 flex items-center gap-0.5 rounded border border-[#2CC295]/20 bg-black/90 px-1 py-0.5 text-[7px] font-semibold text-[#2CC295]">
-                            <svg
-                              className="h-2 w-2"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="mb-1.5 px-1.5">
-                        <h4 className="line-clamp-2 text-[11px] font-semibold leading-tight tracking-tight text-ui-primary">
-                          {marker.level === 'asset' ? asset.name : marker.label}
-                        </h4>
-                        <p className="mt-1 text-[10px] leading-tight text-ui-secondary">{marker.subtitle}</p>
-                        <div className="mt-2 grid grid-cols-3 gap-1.5">
-                          <div className="rounded-lg bg-[var(--t-surface-2)] px-2 py-1">
-                            <p className="text-[8px] uppercase tracking-[0.12em] text-ui-muted">Trust</p>
-                            <p className="text-[10px] font-semibold text-ui-primary">{Math.round(marker.trustScore)}</p>
-                          </div>
-                          <div className="rounded-lg bg-[var(--t-surface-2)] px-2 py-1">
-                            <p className="text-[8px] uppercase tracking-[0.12em] text-ui-muted">Sales</p>
-                            <p className="text-[10px] font-semibold text-ui-primary">{marker.successfulSales}</p>
-                          </div>
-                          <div className="rounded-lg bg-[var(--t-surface-2)] px-2 py-1">
-                            <p className="text-[8px] uppercase tracking-[0.12em] text-ui-muted">Assets</p>
-                            <p className="text-[10px] font-semibold text-ui-primary">{marker.count}</p>
-                          </div>
-                        </div>
-                        {marker.level !== 'asset' && (
-                          <p className="mt-2 text-[9px] leading-4 text-ui-muted">
-                            Click to zoom into top supplier listings.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             </Marker>
           );
         })}
+
+        {hoveredMarker && (
+          <Popup
+            longitude={hoveredMarker.longitude}
+            latitude={hoveredMarker.latitude}
+            closeButton={false}
+            closeOnClick={false}
+            focusAfterOpen={false}
+            offset={Math.max(18, getMarkerSize(hoveredMarker) / 2 + 10)}
+            padding={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            maxWidth="210px"
+            className="marketplace-map-hover-popup"
+          >
+            <MarketplaceMarkerHoverCard marker={hoveredMarker} />
+          </Popup>
+        )}
       </MapCanvas>
     </div>
   );

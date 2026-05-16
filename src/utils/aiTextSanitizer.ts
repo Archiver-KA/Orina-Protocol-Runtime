@@ -30,6 +30,22 @@ function normalizeAIWhitespace(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
+function stripAIHiddenText(value: string): string {
+  return String(value || '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
+    .replace(/```[\s\S]*?```/g, ' ');
+}
+
+function normalizeAIVisibleWhitespace(value: string): string {
+  return value
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/[ \t\f\v]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 export function looksLikeAIInternalReasoning(value: string): boolean {
   const lowered = normalizeAIWhitespace(value).toLowerCase();
   if (!lowered) return false;
@@ -57,14 +73,11 @@ function isUsableCandidate(value: string): boolean {
 }
 
 export function sanitizeAIVisibleText(value: string, fallback = ''): string {
-  const normalized = normalizeAIWhitespace(
-    String(value || '')
-      .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
-      .replace(/```[\s\S]*?```/g, ' '),
-  );
+  const visibleSource = stripAIHiddenText(value);
+  const normalized = normalizeAIWhitespace(visibleSource);
 
   if (!normalized) return fallback;
-  if (!looksLikeAIInternalReasoning(normalized)) return normalized;
+  if (!looksLikeAIInternalReasoning(normalized)) return normalizeAIVisibleWhitespace(visibleSource);
 
   const quotedCandidates = Array.from(normalized.matchAll(/["“]([^"”\r\n]{24,360})["”]/g))
     .map((match) => cleanCandidate(match[1]))

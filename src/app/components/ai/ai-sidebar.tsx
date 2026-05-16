@@ -70,26 +70,31 @@ const AI_SIDEBAR_PILL_CLASS =
   'studio-glass-chip rounded-full border-0 bg-[var(--t-surface-10)] text-ui-secondary transition-colors hover:bg-[var(--t-input-focus-bg)] hover:text-ui-primary';
 const AI_LINK_ONLY_LINE_REGEX = /^(?:[-*]\s*)?(?:(?:\u{1F517}|\u{1F587}\u{FE0F}|\u{1F4CE})\s*)?\[([^\]]+)\]\((https?:\/\/[^\)]+)\)$/u;
 const AI_LINK_ICON_PREFIX_REGEX = /(^|[\s])(?:(?:\u{1F517}|\u{1F587}\u{FE0F}|\u{1F4CE})\s*)(?=\[[^\]]+\]\((https?:\/\/[^\)]+)\))/gu;
+const AI_INLINE_NUMBERED_ITEM_REGEX = /([^\n])\s+(\d{1,2}\.\s+(?=\S))/g;
+const AI_NUMBERED_LINE_REGEX = /^(\d{1,2})\.\s+(.+)$/;
 
 // ── Simple inline markdown renderer ─────────────────────────────────────────
-function renderMarkdown(text: string) {
-  // Split into lines, handle each
-  return text.split('\n').map((line, li) => {
+function normalizeAIResponseLayout(text: string) {
+  return String(text || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(AI_INLINE_NUMBERED_ITEM_REGEX, '$1\n$2')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function renderInlineMarkdown(line: string) {
     const trimmedLine = line.trim();
     const linkOnlyMatch = trimmedLine.match(AI_LINK_ONLY_LINE_REGEX);
     if (linkOnlyMatch) {
       return (
-        <span key={li} className="block">
-          <a
-            href={linkOnlyMatch[2]}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-2.5 py-1 text-[10px] font-semibold tracking-[0.01em] text-ui-secondary no-underline transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#7CF0CB]"
-          >
-            {linkOnlyMatch[1]}
-          </a>
-          {li < text.split('\n').length - 1 && <br />}
-        </span>
+        <a
+          href={linkOnlyMatch[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-2.5 py-1 text-[10px] font-semibold tracking-[0.01em] text-ui-secondary no-underline transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#7CF0CB]"
+        >
+          {linkOnlyMatch[1]}
+        </a>
       );
     }
 
@@ -116,7 +121,32 @@ function renderMarkdown(text: string) {
       last = m.index + m[0].length;
     }
     if (last < normalizedLine.length) parts.push(normalizedLine.slice(last));
-    return <span key={li}>{parts}{li < text.split('\n').length - 1 && <br />}</span>;
+    return parts;
+}
+
+function renderMarkdown(text: string) {
+  return normalizeAIResponseLayout(text).split('\n').map((line, index) => {
+    const trimmedLine = line.trim();
+
+    if (!trimmedLine) {
+      return <div key={index} aria-hidden="true" className="h-1" />;
+    }
+
+    const numberedMatch = trimmedLine.match(AI_NUMBERED_LINE_REGEX);
+    if (numberedMatch) {
+      return (
+        <div key={index} className="ai-response-list-item">
+          <span className="ai-response-list-index">{numberedMatch[1]}</span>
+          <span className="ai-response-line-content">{renderInlineMarkdown(numberedMatch[2])}</span>
+        </div>
+      );
+    }
+
+    return (
+      <p key={index} className="ai-response-paragraph">
+        {renderInlineMarkdown(trimmedLine)}
+      </p>
+    );
   });
 }
 
@@ -158,7 +188,7 @@ function ChatBubble({ entry, animateResponse = false }: { entry: AIChatEntry; an
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-2`}>
       <div
-        className={`${isUser ? 'max-w-[82%]' : 'max-w-[96%] w-full'} rounded-[14px] px-3.5 py-2.5 text-[13px] leading-relaxed ${
+        className={`${isUser ? 'max-w-[82%]' : 'w-full max-w-[min(780px,100%)]'} min-w-0 rounded-[14px] px-3.5 py-2.5 text-[13px] leading-relaxed ${
           isUser
             ? 'ai-user-chat-bubble rounded-br-[4px] font-medium'
             : 'bg-transparent text-ui-primary'
@@ -782,7 +812,48 @@ export function AISidebar({
       }
 
       .ai-response-text {
-        display: block;
+        display: flex;
+        min-width: 0;
+        max-width: 100%;
+        flex-direction: column;
+        gap: 0.5rem;
+        overflow-wrap: anywhere;
+        word-break: normal;
+      }
+
+      .ai-response-paragraph {
+        margin: 0;
+        max-width: 100%;
+      }
+
+      .ai-response-list-item {
+        display: grid;
+        grid-template-columns: 1.55rem minmax(0, 1fr);
+        gap: 0.55rem;
+        align-items: start;
+        max-width: 100%;
+        border-radius: 16px;
+        background: var(--t-surface-5);
+        padding: 0.55rem 0.65rem;
+      }
+
+      .ai-response-list-index {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.55rem;
+        height: 1.55rem;
+        border-radius: 999px;
+        background: rgba(44, 194, 149, 0.12);
+        color: #7CF0CB;
+        font-size: 0.68rem;
+        font-weight: 700;
+        line-height: 1;
+      }
+
+      .ai-response-line-content {
+        min-width: 0;
+        overflow-wrap: anywhere;
       }
 
       .ai-typing-cursor {
@@ -914,7 +985,7 @@ export function AISidebar({
             {/* Messages */}
             <style>{`.hidden-msgs-scroll::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }`}</style>
             <div 
-              className="min-h-0 flex-1 overflow-y-auto px-3 py-3 space-y-1 hidden-msgs-scroll"
+              className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 pt-3 space-y-1 hidden-msgs-scroll"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
               {entries.length === 0 && (

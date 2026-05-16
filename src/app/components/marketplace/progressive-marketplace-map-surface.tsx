@@ -33,6 +33,7 @@ interface MarketplaceMapAsset {
 
 interface ProgressiveMarketplaceMapSurfaceProps {
   mapEngineRequested: boolean;
+  mapEngineReady: boolean;
   onRequestMapEngine: () => void;
   filteredAssets: MarketplaceMapAsset[];
   totalListings: number;
@@ -91,7 +92,10 @@ function MarketplaceMapShell({
   onToggleVerified,
   onActivate,
   loading,
-}: Omit<ProgressiveMarketplaceMapSurfaceProps, 'mapEngineRequested' | 'children'> & {
+}: Omit<
+  ProgressiveMarketplaceMapSurfaceProps,
+  'mapEngineRequested' | 'mapEngineReady' | 'onRequestMapEngine' | 'children'
+> & {
   loading: boolean;
 }) {
   const topLocations = useMemo(() => buildTopLocations(filteredAssets), [filteredAssets]);
@@ -120,7 +124,7 @@ function MarketplaceMapShell({
       <div className="absolute right-[22%] top-[33%] h-[10px] w-[10px] rounded-full bg-white/70 shadow-[0_0_18px_rgba(255,255,255,0.25)]" />
       <div className="absolute right-[14%] bottom-[26%] h-[12px] w-[12px] rounded-full bg-[#2CC295]/85 shadow-[0_0_24px_rgba(44,194,149,0.52)]" />
 
-      <div className="absolute left-4 top-4 z-20 flex flex-wrap items-center gap-3 rounded-full bg-[rgba(18,19,23,0.82)] px-4 py-3 backdrop-blur-[12px] shadow-[0_18px_34px_-22px_rgba(0,0,0,0.58)]">
+      <div className="absolute left-4 top-4 z-20 flex max-w-[calc(100%-2rem)] flex-wrap items-center gap-3 rounded-full bg-[rgba(18,19,23,0.82)] px-4 py-3 backdrop-blur-[12px] shadow-[0_18px_34px_-22px_rgba(0,0,0,0.58)]">
         <div className="flex items-center gap-2">
           <div className="h-2.5 w-2.5 rounded-full bg-[#2CC295]" />
           <span className="text-[13px] font-semibold text-white">{formatCompactCount(filteredAssets.length)}</span>
@@ -259,6 +263,7 @@ function MarketplaceMapShell({
 
 export function ProgressiveMarketplaceMapSurface({
   mapEngineRequested,
+  mapEngineReady,
   onRequestMapEngine,
   filteredAssets,
   totalListings,
@@ -275,11 +280,11 @@ export function ProgressiveMarketplaceMapSurface({
       verifiedOnly={verifiedOnly}
       onToggleVerified={onToggleVerified}
       onActivate={onRequestMapEngine}
-      loading={mapEngineRequested}
+      loading={mapEngineRequested && !mapEngineReady}
     />
   );
 
-  if (!mapEngineRequested) {
+  if (!mapEngineRequested || !mapEngineReady) {
     return shell;
   }
 

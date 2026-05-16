@@ -153,7 +153,8 @@ export function AgentSettings({
     [m2mSnapshot],
   );
 
-  const sidebarCardClass = 'p-4 bg-[var(--t-surface-5)] rounded-xl';
+  const sidebarCardClass = 'min-w-0 overflow-hidden p-4 bg-[var(--t-surface-5)] rounded-xl';
+  const sidebarValueClass = 'min-w-0 text-right text-ui-primary [overflow-wrap:anywhere]';
   const canRenderM2MRuntime = isM2MSectionMounted;
 
   return (
@@ -251,16 +252,16 @@ export function AgentSettings({
         <StudioSidebarShell widthClassName="w-[var(--t-shell-right-rail-w)]" className="bg-ui-page border-l-0 p-2.5">
           <div className="h-full min-h-0 rounded-[var(--t-card-radius-lg)] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
             <div className="p-6 bg-gradient-to-b from-[var(--t-surface-2)] to-transparent">
-              <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
+              <h2 className="min-w-0 text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
                 <WalletCards className="text-ui-muted" size={18} />
-                AI Wallet Status
+                <span className="min-w-0 truncate">AI Wallet Status</span>
               </h2>
               <p className="text-xs text-ui-muted mt-1">
                 See wallet status, balance, permissions, and recent activity.
               </p>
             </div>
 
-            <div className="min-h-0 flex-grow overflow-y-auto p-5 space-y-6 custom-scrollbar">
+            <div className="min-h-0 flex-grow overflow-x-hidden overflow-y-auto p-5 space-y-6 custom-scrollbar">
               {!canRenderM2MRuntime ? (
                 <div className={sidebarCardClass}>
                   <div className="flex items-start gap-3">
@@ -316,25 +317,25 @@ export function AgentSettings({
                     <div className="space-y-2 text-xs">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-ui-muted">Permissions</span>
-                        <span className="text-ui-primary text-right">{selectedPermissions}</span>
+                        <span className={sidebarValueClass}>{selectedPermissions}</span>
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-ui-muted">Max / order</span>
-                        <span className="text-ui-primary">{m2mSnapshot?.maxPerOrder || 'n/a'}</span>
+                        <span className={sidebarValueClass}>{m2mSnapshot?.maxPerOrder || 'n/a'}</span>
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-ui-muted">Max total</span>
-                        <span className="text-ui-primary">{m2mSnapshot?.maxTotal || 'n/a'}</span>
+                        <span className={sidebarValueClass}>{m2mSnapshot?.maxTotal || 'n/a'}</span>
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-ui-muted">Expiry</span>
-                        <span className="text-ui-primary">
+                        <span className={sidebarValueClass}>
                           {m2mSnapshot ? `${m2mSnapshot.expiryDays} days` : 'n/a'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-ui-muted">Main wallet backup</span>
-                        <span className="text-ui-primary">
+                        <span className={sidebarValueClass}>
                           {m2mSnapshot?.rootFallbackEnabled ? 'Always On' : 'Disabled'}
                         </span>
                       </div>
@@ -359,7 +360,7 @@ export function AgentSettings({
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <div className="text-ui-muted mb-1">Balance</div>
-                          <div className="text-ui-primary">
+                          <div className="text-ui-primary [overflow-wrap:anywhere]">
                             {m2mSnapshot?.walletBalanceFormatted || '0'}
                             {m2mSnapshot?.paymentTokenSymbol ? ` ${m2mSnapshot.paymentTokenSymbol}` : ''}
                           </div>
@@ -384,7 +385,7 @@ export function AgentSettings({
                         </div>
                         <div>
                           <div className="text-ui-muted mb-1">Token</div>
-                          <div className="text-ui-primary">
+                          <div className="text-ui-primary [overflow-wrap:anywhere]">
                             {m2mSnapshot?.paymentTokenSymbol || shortenAddress(m2mSnapshot?.paymentToken)}
                           </div>
                         </div>
@@ -403,7 +404,7 @@ export function AgentSettings({
                         </span>
                       </div>
                       <div className="space-y-2">
-                        <div className="text-sm font-semibold text-ui-primary">
+                        <div className="text-sm font-semibold text-ui-primary [overflow-wrap:anywhere]">
                           {m2mSnapshot.selectedDelegate.label || 'AI signer'}
                         </div>
                         <div className="text-xs text-ui-muted break-all">
@@ -428,8 +429,8 @@ export function AgentSettings({
                         <div key={item.id} className="flex items-start gap-3">
                           <div className={`mt-1 h-2.5 w-2.5 rounded-full ${renderActivityTone(item)}`} />
                           <div className="min-w-0 flex-1">
-                            <div className="text-xs font-semibold text-ui-primary">{item.label}</div>
-                            <div className="text-[10px] text-ui-muted mt-1">{item.detail}</div>
+                            <div className="text-xs font-semibold text-ui-primary [overflow-wrap:anywhere]">{item.label}</div>
+                            <div className="text-[10px] text-ui-muted mt-1 [overflow-wrap:anywhere]">{item.detail}</div>
                             <div className="text-[10px] text-ui-muted mt-1">{formatTimestamp(item.timestamp)}</div>
                           </div>
                         </div>

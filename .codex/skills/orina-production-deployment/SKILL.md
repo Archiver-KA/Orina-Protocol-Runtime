@@ -29,9 +29,10 @@ Frontend:
 Backend:
 
 1. Confirm Supabase migration history is aligned.
-2. Deploy only the required Supabase functions through the owner-approved Supabase path.
-3. Follow the split-function order when multiple functions changed.
-4. Verify CORS, security-definer audit, auth bridge, and affected function routes.
+2. Keep database migrations separate from Edge Function deployment; use the approved Supabase migration path for schema changes.
+3. Deploy Supabase Edge Functions through `.github/workflows/supabase-production-deploy.yml` after exact commit approval, production environment approval, and confirmation input `DEPLOY_SUPABASE_PRODUCTION`.
+4. Follow the split-function order when multiple functions changed.
+5. Verify CORS, security-definer audit, migration alignment, health, auth bridge, and affected function routes.
 
 ## Required Local Gates
 
@@ -87,7 +88,7 @@ Use `APPROVED_FOR_CI_CD_DEPLOYMENT` only when all are true:
 - SBOM and unsigned release manifest are generated;
 - branch protection and required checks are verified, or owner supplies redacted evidence;
 - browser smoke passes, or the owner explicitly approves a named exception;
-- backend Supabase deploy path and affected functions are known;
+- backend Supabase deploy path, affected functions, migration state, and approval record are known;
 - rollback authority and stop conditions are recorded;
 - owner explicitly approves the exact commit, branch, workflow/path, and production environment.
 

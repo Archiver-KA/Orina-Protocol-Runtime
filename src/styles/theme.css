@@ -471,6 +471,23 @@
   display: none !important;
 }
 
+.marketplace-map-hover-popup {
+  pointer-events: none;
+  z-index: 50001;
+}
+
+.marketplace-map-hover-popup .maplibregl-popup-content {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 22px;
+  box-shadow: none;
+}
+
+.marketplace-map-hover-popup .maplibregl-popup-tip {
+  display: none;
+}
+
 .custom-marker {
   background: transparent !important;
   border: none !important;

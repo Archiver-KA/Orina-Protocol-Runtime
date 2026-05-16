@@ -52,17 +52,27 @@ import {
   TAXONOMY_SYNC_EVENT,
 } from '@/utils/taxonomy';
 
-let realisticWorldMapPromise: Promise<typeof import('./marketplace/realistic-world-map')> | null = null;
+type RealisticWorldMapModule = typeof import('./marketplace/realistic-world-map');
+
+let realisticWorldMapModule: RealisticWorldMapModule | null = null;
+let realisticWorldMapPromise: Promise<RealisticWorldMapModule> | null = null;
 
 function preloadRealisticWorldMap() {
-  realisticWorldMapPromise ??= import('./marketplace/realistic-world-map');
+  realisticWorldMapPromise ??= import('./marketplace/realistic-world-map')
+    .then((module) => {
+      realisticWorldMapModule = module;
+      return module;
+    })
+    .catch((error) => {
+      realisticWorldMapPromise = null;
+      throw error;
+    });
   return realisticWorldMapPromise;
 }
 
-const RealisticWorldMap = lazy(async () => {
-  const module = await preloadRealisticWorldMap();
-  return { default: module.RealisticWorldMap };
-});
+function getRealisticWorldMapComponent() {
+  return realisticWorldMapModule?.RealisticWorldMap ?? null;
+}
 
 const AssetDetailsModal = lazy(async () => {
   const module = await import('./asset-details-modal');
@@ -597,6 +607,7 @@ export function Marketplace({
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
   const [mapEngineRequested, setMapEngineRequested] = useState(() => initialViewMode === 'map');
+  const [mapEngineReady, setMapEngineReady] = useState(false);
   const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>([]);
   const [catalogHydrationStatus, setCatalogHydrationStatus] = useState<MarketplaceCatalogHydrationStatus>('loading');
   const [catalogPageQueryKey, setCatalogPageQueryKey] = useState('');
@@ -618,6 +629,7 @@ export function Marketplace({
   const catalogRequestIdRef = useRef(0);
   const profileRequestIdRef = useRef(0);
   const collectionRequestIdRef = useRef(0);
+  const mapEngineLoadRequestRef = useRef(0);
   const assetResultRenderLimitRef = useRef(resultRenderLimit);
   const resultsScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const resultsLoadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -633,13 +645,41 @@ export function Marketplace({
     }
   }, [contentMode, resultRenderLimit]);
 
+  const preloadMapEngine = useCallback(() => {
+    const requestId = mapEngineLoadRequestRef.current + 1;
+    mapEngineLoadRequestRef.current = requestId;
+    const preloadPromise = preloadRealisticWorldMap();
+
+    void preloadPromise
+      .then(() => {
+        if (mapEngineLoadRequestRef.current === requestId) {
+          setMapEngineReady(true);
+        }
+      })
+      .catch(() => {
+        if (mapEngineLoadRequestRef.current === requestId) {
+          setMapEngineReady(false);
+        }
+      });
+
+    return preloadPromise;
+  }, []);
+
   const requestMapEngine = useCallback(() => {
-    setMapEngineRequested((current) => {
-      if (!current) {
-        void preloadRealisticWorldMap();
-      }
-      return true;
-    });
+    setMapEngineRequested(true);
+    void preloadMapEngine();
+  }, [preloadMapEngine]);
+
+  useEffect(() => {
+    if (mapEngineRequested && !mapEngineReady) {
+      void preloadMapEngine();
+    }
+  }, [mapEngineReady, mapEngineRequested, preloadMapEngine]);
+
+  useEffect(() => {
+    return () => {
+      mapEngineLoadRequestRef.current += 1;
+    };
   }, []);
 
   useEffect(() => {
@@ -648,17 +688,17 @@ export function Marketplace({
     }
 
     return scheduleMarketplaceIdleTask(() => {
-      void preloadRealisticWorldMap();
+      void preloadMapEngine();
     });
-  }, [contentMode, mapEngineRequested, viewMode]);
+  }, [contentMode, mapEngineRequested, preloadMapEngine, viewMode]);
 
   const handleSetViewMode = useCallback((nextMode: 'grid' | 'list' | 'map') => {
     if (nextMode === 'map') {
-      void preloadRealisticWorldMap();
       setMapEngineRequested(true);
+      void preloadMapEngine();
     }
     setViewMode(nextMode);
-  }, []);
+  }, [preloadMapEngine]);
 
   const assetCategoryOptions = useMemo(
     () => {
@@ -1434,6 +1474,7 @@ export function Marketplace({
     () => marketplaceAssets.filter((asset) => asset.verified).length,
     [marketplaceAssets]
   );
+  const RealisticWorldMapComponent = mapEngineReady ? getRealisticWorldMapComponent() : null;
   const isAssetsCatalogLoading =
     contentMode === 'assets' &&
     catalogHydrationStatus === 'loading' &&
@@ -1521,12 +1562,12 @@ export function Marketplace({
                   onClick={() => handleSetViewMode('map')}
                   onPointerEnter={() => {
                     if (contentMode === 'assets') {
-                      void preloadRealisticWorldMap();
+                      void preloadMapEngine();
                     }
                   }}
                   onFocus={() => {
                     if (contentMode === 'assets') {
-                      void preloadRealisticWorldMap();
+                      void preloadMapEngine();
                     }
                   }}
                   active={viewMode === 'map'}
@@ -1707,6 +1748,7 @@ export function Marketplace({
               <div className="h-full overflow-hidden rounded-[var(--t-card-radius-xl)] bg-[var(--t-surface-2)] shadow-[0_24px_60px_-42px_rgba(0,0,0,0.34)]">
                 <ProgressiveMarketplaceMapSurface
                   mapEngineRequested={mapEngineRequested}
+                  mapEngineReady={mapEngineReady}
                   onRequestMapEngine={requestMapEngine}
                   filteredAssets={mapAssets}
                   totalListings={marketplaceAssets.length}
@@ -1714,30 +1756,32 @@ export function Marketplace({
                   verifiedOnly={verifiedOnly}
                   onToggleVerified={setVerifiedOnly}
                 >
-                  <RealisticWorldMap
-                    filteredAssets={mapAssets}
-                    totalListings={marketplaceAssets.length}
-                    verifiedCount={verifiedAssetCount}
-                    viewState={marketplaceMapViewState}
-                    onViewStateChange={setMarketplaceMapViewState}
-                    onAssetClick={(mapAsset) => {
-                      const asset = displayedAssets.find(
-                        (a, index) => (parseInt(a.id.replace(/\D/g, '')) || index) === mapAsset.id
-                      );
-                      if (asset) {
-                        if (onNavigateToAsset) {
-                          onNavigateToAsset(asset.id, 'marketplace');
-                          return;
+                  {RealisticWorldMapComponent && (
+                    <RealisticWorldMapComponent
+                      filteredAssets={mapAssets}
+                      totalListings={marketplaceAssets.length}
+                      verifiedCount={verifiedAssetCount}
+                      viewState={marketplaceMapViewState}
+                      onViewStateChange={setMarketplaceMapViewState}
+                      onAssetClick={(mapAsset) => {
+                        const asset = displayedAssets.find(
+                          (a, index) => (parseInt(a.id.replace(/\D/g, '')) || index) === mapAsset.id
+                        );
+                        if (asset) {
+                          if (onNavigateToAsset) {
+                            onNavigateToAsset(asset.id, 'marketplace');
+                            return;
+                          }
+                          setSelectedAsset(asset);
+                          setIsModalOpen(true);
                         }
-                        setSelectedAsset(asset);
-                        setIsModalOpen(true);
-                      }
-                    }}
-                    selectedAssetId={null}
-                    onMarkerClick={() => {}}
-                    verifiedOnly={verifiedOnly}
-                    onToggleVerified={setVerifiedOnly}
-                  />
+                      }}
+                      selectedAssetId={null}
+                      onMarkerClick={() => {}}
+                      verifiedOnly={verifiedOnly}
+                      onToggleVerified={setVerifiedOnly}
+                    />
+                  )}
                 </ProgressiveMarketplaceMapSurface>
               </div>
             )}

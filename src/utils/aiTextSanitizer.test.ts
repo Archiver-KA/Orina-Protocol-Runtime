@@ -16,4 +16,10 @@ describe('aiTextSanitizer', () => {
 
     expect(sanitizeAIVisibleText(copy)).toBe(copy);
   });
+
+  it('preserves user-facing line breaks while cleaning extra spaces', () => {
+    const copy = 'Top matches:\n  1. Verified supplier  \n2. Local exporter';
+
+    expect(sanitizeAIVisibleText(copy)).toBe('Top matches:\n1. Verified supplier\n2. Local exporter');
+  });
 });
