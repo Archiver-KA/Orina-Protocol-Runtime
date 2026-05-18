@@ -67,6 +67,7 @@ interface RealisticWorldMapProps {
 type MapMarkerLevel = 'country' | 'supplier' | 'grid' | 'asset';
 
 const SYSTEM_MARKER_GREEN = '#2CC295';
+const CLUSTER_MARKER_GRAY = '#8da3ad';
 const HOVER_CARD_CLOSE_DELAY_MS = 180;
 
 interface MapDisplayMarker {
@@ -272,10 +273,7 @@ function getMarkerSize(marker: MapDisplayMarker) {
 }
 
 function getMarkerTone(marker: MapDisplayMarker) {
-  if (marker.successfulSales > 0) return '#f5b84b';
-  if (marker.trustScore >= 75 || marker.verified) return SYSTEM_MARKER_GREEN;
-  if (marker.trustScore >= 55) return '#76d7bd';
-  return SYSTEM_MARKER_GREEN;
+  return marker.level === 'asset' ? SYSTEM_MARKER_GREEN : CLUSTER_MARKER_GRAY;
 }
 
 function getZoomModeLabel(zoom: number) {
@@ -601,16 +599,16 @@ export function RealisticWorldMap({
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--t-surface-5)] px-2 py-1 text-ui-secondary">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#f5b84b]" />
-                  Sales
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#8da3ad]" />
+                  Hubs
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--t-surface-5)] px-2 py-1 text-ui-secondary">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#2CC295]" />
-                  Trusted
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#8da3ad]" />
+                  Clusters
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--t-surface-5)] px-2 py-1 text-ui-secondary">
                   <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--color-primary-custom)]" />
-                  Standard
+                  Assets
                 </span>
               </div>
             </div>
