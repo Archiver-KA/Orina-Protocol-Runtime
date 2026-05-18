@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Gauge, Layers, MapPin, ShieldCheck, TrendingUp, Users } from 'lucide-react';
 import { Map as MapCanvas, MapRef } from '@/app/components/ui/map';
 import { Marker, Popup } from 'react-map-gl/maplibre';
@@ -65,6 +65,9 @@ interface RealisticWorldMapProps {
 }
 
 type MapMarkerLevel = 'country' | 'supplier' | 'grid' | 'asset';
+
+const SYSTEM_MARKER_GREEN = '#2CC295';
+const HOVER_CARD_CLOSE_DELAY_MS = 180;
 
 interface MapDisplayMarker {
   key: string;
@@ -192,6 +195,28 @@ function buildGridKey(asset: MarketplaceAsset, cellSize: number) {
   return `${lat.toFixed(2)}:${lng.toFixed(2)}`;
 }
 
+function buildAssetCoordinateKey(asset: MarketplaceAsset) {
+  return `${asset.latitude.toFixed(5)}:${asset.longitude.toFixed(5)}`;
+}
+
+function getAssetPinOffset(asset: MarketplaceAsset, duplicateIndex: number, zoom: number) {
+  if (duplicateIndex === 0) return { latitude: 0, longitude: 0 };
+
+  const seed = Array.from(asset.assetKey || String(asset.id)).reduce(
+    (hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) | 0,
+    0,
+  );
+  const angle = ((Math.abs(seed) % 360) * Math.PI) / 180;
+  const radiusPx = 8 + (duplicateIndex % 5) * 3.5;
+  const degreesPerPixel = 360 / (512 * Math.pow(2, Math.max(zoom, 1)));
+  const latitudeScale = Math.max(0.35, Math.cos((asset.latitude * Math.PI) / 180));
+
+  return {
+    latitude: Math.sin(angle) * radiusPx * degreesPerPixel,
+    longitude: (Math.cos(angle) * radiusPx * degreesPerPixel) / latitudeScale,
+  };
+}
+
 function buildDisplayMarkers(assets: MarketplaceAsset[], zoom: number): MapDisplayMarker[] {
   if (zoom < 3.2) {
     return groupAssets(
@@ -221,21 +246,36 @@ function buildDisplayMarkers(assets: MarketplaceAsset[], zoom: number): MapDispl
     ).slice(0, 140);
   }
 
+  const coordinateCounts = new Map<string, number>();
+
   return assets
-    .map((asset) => createMarkerFromAssets('asset', `asset:${asset.id}`, asset.name, [asset]))
+    .map((asset) => {
+      const coordinateKey = buildAssetCoordinateKey(asset);
+      const duplicateIndex = coordinateCounts.get(coordinateKey) || 0;
+      coordinateCounts.set(coordinateKey, duplicateIndex + 1);
+
+      const marker = createMarkerFromAssets('asset', `asset:${asset.id}`, asset.name, [asset]);
+      const offset = getAssetPinOffset(asset, duplicateIndex, zoom);
+
+      return {
+        ...marker,
+        latitude: clamp(marker.latitude + offset.latitude, -85, 85),
+        longitude: marker.longitude + offset.longitude,
+      };
+    })
     .sort((left, right) => right.displayScore - left.displayScore);
 }
 
 function getMarkerSize(marker: MapDisplayMarker) {
-  if (marker.level === 'asset') return marker.displayScore > 70 ? 13 : 9.6;
+  if (marker.level === 'asset') return marker.displayScore > 70 ? 15 : 11.5;
   return clamp(22 + Math.sqrt(marker.count) * 5.2, 30, 76);
 }
 
 function getMarkerTone(marker: MapDisplayMarker) {
   if (marker.successfulSales > 0) return '#f5b84b';
-  if (marker.trustScore >= 75 || marker.verified) return '#2CC295';
+  if (marker.trustScore >= 75 || marker.verified) return SYSTEM_MARKER_GREEN;
   if (marker.trustScore >= 55) return '#76d7bd';
-  return '#8da3ad';
+  return SYSTEM_MARKER_GREEN;
 }
 
 function getZoomModeLabel(zoom: number) {
@@ -245,12 +285,33 @@ function getZoomModeLabel(zoom: number) {
   return 'Asset pins';
 }
 
-function MarketplaceMarkerHoverCard({ marker }: { marker: MapDisplayMarker }) {
+function MarketplaceMarkerHoverCard({
+  marker,
+  onActivate,
+  onPointerEnter,
+  onPointerLeave,
+}: {
+  marker: MapDisplayMarker;
+  onActivate: () => void;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
+}) {
   const asset = marker.asset;
   const categoryTone = getTaxonomyBadgeTone(marker.category || asset.category);
 
   return (
-    <div className="w-[210px] max-w-[calc(100vw-2rem)] animate-in rounded-[22px] border border-ui-border-subtle bg-ui-card p-2 font-[var(--font-sans)] shadow-[0_10px_30px_-10px_rgba(44,194,149,0.4),0_0_20px_rgba(44,194,149,0.2)] backdrop-blur-[20px] fade-in slide-in-from-bottom-2 duration-200">
+    <button
+      type="button"
+      className="block w-[210px] max-w-[calc(100vw-2rem)] animate-in cursor-pointer rounded-[22px] border border-ui-border-subtle bg-ui-card p-2 text-left font-[var(--font-sans)] shadow-[0_10px_30px_-10px_rgba(44,194,149,0.4),0_0_20px_rgba(44,194,149,0.2)] backdrop-blur-[20px] transition-transform fade-in slide-in-from-bottom-2 duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/45"
+      aria-label={marker.level === 'asset' ? `Open ${asset.name}` : `Zoom into ${marker.label}`}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        onActivate();
+      }}
+    >
       <div className="relative mb-2 aspect-[1.55] overflow-hidden rounded-xl">
         <img
           alt={marker.label}
@@ -313,7 +374,7 @@ function MarketplaceMarkerHoverCard({ marker }: { marker: MapDisplayMarker }) {
           </p>
         )}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -332,6 +393,7 @@ export function RealisticWorldMap({
   const [hoveredMarkerKey, setHoveredMarkerKey] = useState<string | null>(null);
   const [mapStyle, setMapStyle] = useState<'default' | 'satellite'>('default');
   const mapRef = useRef<MapRef>(null);
+  const hoverCloseTimeoutRef = useRef<number | null>(null);
   const displayMarkers = useMemo(
     () => buildDisplayMarkers(filteredAssets, viewState.zoom),
     [filteredAssets, viewState.zoom],
@@ -348,7 +410,39 @@ export function RealisticWorldMap({
     () => filteredAssets.reduce((sum, asset) => sum + Math.max(0, normalizeScore(asset.successfulSales, 0)), 0),
     [filteredAssets],
   );
+  const displayMarkerKeys = useMemo(() => new Set(displayMarkers.map((marker) => marker.key)), [displayMarkers]);
   const zoomModeLabel = getZoomModeLabel(viewState.zoom);
+
+  const clearHoverCloseTimer = useCallback(() => {
+    if (hoverCloseTimeoutRef.current === null) return;
+    window.clearTimeout(hoverCloseTimeoutRef.current);
+    hoverCloseTimeoutRef.current = null;
+  }, []);
+
+  const openMarkerCard = useCallback(
+    (markerKey: string) => {
+      clearHoverCloseTimer();
+      setHoveredMarkerKey(markerKey);
+    },
+    [clearHoverCloseTimer],
+  );
+
+  const scheduleMarkerCardClose = useCallback(() => {
+    clearHoverCloseTimer();
+    hoverCloseTimeoutRef.current = window.setTimeout(() => {
+      setHoveredMarkerKey(null);
+      hoverCloseTimeoutRef.current = null;
+    }, HOVER_CARD_CLOSE_DELAY_MS);
+  }, [clearHoverCloseTimer]);
+
+  useEffect(() => () => clearHoverCloseTimer(), [clearHoverCloseTimer]);
+
+  useEffect(() => {
+    if (hoveredMarkerKey && !displayMarkerKeys.has(hoveredMarkerKey)) {
+      clearHoverCloseTimer();
+      setHoveredMarkerKey(null);
+    }
+  }, [clearHoverCloseTimer, displayMarkerKeys, hoveredMarkerKey]);
 
   const toggleMapStyle = useCallback(() => {
     setMapStyle((prev) => (prev === 'default' ? 'satellite' : 'default'));
@@ -515,7 +609,7 @@ export function RealisticWorldMap({
                   Trusted
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--t-surface-5)] px-2 py-1 text-ui-secondary">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-[#8da3ad]" />
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--color-primary-custom)]" />
                   Standard
                 </span>
               </div>
@@ -533,13 +627,13 @@ export function RealisticWorldMap({
       >
         {/* Zoom-aware marketplace markers */}
         {displayMarkers.map((marker) => {
-          const asset = marker.asset;
           const isHovered = hoveredMarkerKey === marker.key;
           const isSelected = selectedAssetId === marker.id;
           const markerSize = getMarkerSize(marker);
           const markerTone = getMarkerTone(marker);
           const isCluster = marker.level !== 'asset';
-          const markerZIndex = isHovered || isSelected ? 50000 : hoveredMarkerKey ? 1 : isCluster ? 30 : 10;
+          const hasActiveHover = Boolean(hoveredMarker);
+          const markerZIndex = isHovered || isSelected ? 50000 : hasActiveHover ? 1 : isCluster ? 30 : 10;
 
           return (
             <Marker
@@ -558,11 +652,11 @@ export function RealisticWorldMap({
                   className="pointer-events-auto cursor-pointer transition-transform duration-200"
                   style={{
                     transform:
-                      isHovered || isSelected ? 'scale(1.14)' : hoveredMarkerKey ? 'scale(0.92)' : 'scale(1)',
-                    opacity: hoveredMarkerKey && !isHovered && !isSelected ? 0.55 : 1,
+                      isHovered || isSelected ? 'scale(1.14)' : hasActiveHover ? 'scale(0.92)' : 'scale(1)',
+                    opacity: hasActiveHover && !isHovered && !isSelected ? 0.55 : 1,
                   }}
-                  onMouseEnter={() => setHoveredMarkerKey(marker.key)}
-                  onMouseLeave={() => setHoveredMarkerKey(null)}
+                  onPointerEnter={() => openMarkerCard(marker.key)}
+                  onPointerLeave={scheduleMarkerCardClose}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleMarkerClick(marker);
@@ -603,7 +697,7 @@ export function RealisticWorldMap({
                         borderWidth: marker.verified ? '2px' : '1.6px',
                         borderColor: markerTone,
                         backgroundColor: markerTone,
-                        boxShadow: `0 0 0 4px ${markerTone}1f, 0 0 18px ${markerTone}70`,
+                        boxShadow: `0 0 0 5px ${markerTone}26, 0 0 22px ${markerTone}80`,
                       }}
                     />
                   )}
@@ -626,7 +720,12 @@ export function RealisticWorldMap({
             maxWidth="210px"
             className="marketplace-map-hover-popup"
           >
-            <MarketplaceMarkerHoverCard marker={hoveredMarker} />
+            <MarketplaceMarkerHoverCard
+              marker={hoveredMarker}
+              onActivate={() => handleMarkerClick(hoveredMarker)}
+              onPointerEnter={() => openMarkerCard(hoveredMarker.key)}
+              onPointerLeave={scheduleMarkerCardClose}
+            />
           </Popup>
         )}
       </MapCanvas>

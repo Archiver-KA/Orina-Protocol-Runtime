@@ -472,11 +472,12 @@
 }
 
 .marketplace-map-hover-popup {
-  pointer-events: none;
+  pointer-events: auto;
   z-index: 50001;
 }
 
 .marketplace-map-hover-popup .maplibregl-popup-content {
+  pointer-events: auto;
   margin: 0;
   padding: 0;
   background: transparent;

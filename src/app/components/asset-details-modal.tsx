@@ -30,6 +30,7 @@ import {
 import { loadRatings } from '@/utils/reputationUtils';
 import { getCategoryDisplayLabel } from '@/utils/taxonomy';
 import { navigateToMarketplaceCategory } from '@/utils/appNavigation';
+import { getMarketplaceAssetChainInfo } from '@/utils/marketplaceNetwork';
 
 interface AssetDetailsModalProps {
   asset: MarketplaceAsset;
@@ -99,6 +100,38 @@ function getAssetListingDurationDisplay(asset: MarketplaceAsset): string | null 
   return `${days}d ${hours}h ${minutes}m`;
 }
 
+type MarketplaceAssetExplorerMetadata = MarketplaceAsset & {
+  assetContract?: string | null;
+  chainId?: number | string | null;
+};
+
+function parseExplorerChainId(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
+}
+
+function normalizeExplorerBaseUrl(value?: string | null): string | null {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return null;
+
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  return withProtocol.replace(/\/+$/, '');
+}
+
+function buildAssetExplorerUrl(asset: MarketplaceAsset): string | null {
+  const explorerMetadata = asset as MarketplaceAssetExplorerMetadata;
+  const chainInfo = getMarketplaceAssetChainInfo({
+    blockchain: asset.blockchain,
+    network: asset.network,
+    chainId: parseExplorerChainId(explorerMetadata.chainId),
+  });
+  const explorerBaseUrl = normalizeExplorerBaseUrl(chainInfo.explorer);
+  const contractAddress = String(asset.contractAddress || explorerMetadata.assetContract || '').trim();
+  if (!explorerBaseUrl || !contractAddress) return null;
+
+  return `${explorerBaseUrl}/address/${contractAddress}`;
+}
+
 export function AssetDetailsModal({
   asset: initialAsset,
   onClose,
@@ -131,6 +164,7 @@ export function AssetDetailsModal({
     );
   }, [catalogRevision, initialAsset]);
   const assetListingDuration = useMemo(() => getAssetListingDurationDisplay(asset), [asset]);
+  const assetExplorerUrl = useMemo(() => buildAssetExplorerUrl(asset), [asset]);
   const { address } = useEffectiveViewer();
   const access = useAccessMode();
   const protocolChain = useProtocolChain();
@@ -311,6 +345,15 @@ export function AssetDetailsModal({
   const handleCategoryRoute = () => {
     onClose();
     navigateToMarketplaceCategory({ category: asset.category });
+  };
+
+  const handleViewOnExplorerClick = () => {
+    if (!assetExplorerUrl) {
+      toast.error('Explorer link is unavailable for this asset.');
+      return;
+    }
+
+    window.open(assetExplorerUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleBuyClick = async () => {
@@ -536,7 +579,9 @@ export function AssetDetailsModal({
                           </div>
                           <StudioActionButton
                             variant="secondary"
+                            onClick={handleViewOnExplorerClick}
                             className="w-full justify-center text-xs font-semibold"
+                            title={assetExplorerUrl ?? 'Explorer link unavailable'}
                           >
                             <ExternalLink size={14} />
                             View on Explorer
