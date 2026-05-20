@@ -53,15 +53,29 @@ Backend deployment sequence:
 2. Checkout the approved commit.
 3. Install Node dependencies and Supabase CLI.
 4. Verify required secrets by presence only.
-5. Run static/security gates:
+5. Validate deployment secret shapes:
+   - `SUPABASE_PROJECT_REF` looks like the 20-character Supabase project ref.
+   - `SUPABASE_DB_AUDIT_URL` parses as a real `postgres://` or `postgresql://` URL with username, password, hostname, and explicit port.
+   - `VITE_SUPABASE_ANON_KEY` is present and plausibly shaped.
+6. Run static/security gates:
    - `npm run typecheck`
    - `npm run lint:check`
    - `npm run security:check-client-secrets`
    - `npm run security:scan`
    - `npm run audit:supabase:security-definer -- --db-url "$SUPABASE_DB_AUDIT_URL"`
-6. Verify Supabase migration alignment with `supabase migration list` plus `npm run verify:supabase-migration-list`.
-7. Deploy split Supabase functions in order.
-8. Verify production CORS and health.
+7. Verify Supabase migration alignment with `supabase migration list` plus `npm run verify:supabase-migration-list`.
+8. Deploy split Supabase functions in order.
+9. Verify production CORS and health.
+
+Use the repo deploy helper as the standard local preflight/dispatch wrapper:
+
+```powershell
+npm run deploy:production:preflight
+npm run deploy:production:supabase
+npm run deploy:production:verify-backend
+```
+
+The helper checks the local release state, required secret names, database URL shape, GitHub workflow dispatch, workflow completion, and backend health/CORS. If it fails, fix the named blocker before dispatching again.
 
 Split function order for multi-function deploys:
 
@@ -94,6 +108,7 @@ Backend:
 - migration history aligned;
 - Supabase CORS behavior matches repository docs;
 - `npm run audit:supabase:security-definer` passes;
+- `npm run deploy:production:preflight` passes before dispatch;
 - `.github/workflows/supabase-production-deploy.yml` dispatch input values are known without exposing secrets;
 - GitHub `production` environment approval is available for backend deployment;
 - no production DB mutation is performed outside the approved path.
@@ -107,6 +122,8 @@ Stop and do not approve when:
 - Cloudflare Worker Builds configuration cannot be verified;
 - Supabase Edge Function deploy is attempted outside `.github/workflows/supabase-production-deploy.yml` without break-glass approval;
 - Supabase migration history cannot be proven aligned;
+- `SUPABASE_DB_AUDIT_URL` is missing, placeholder-shaped, or not a parseable Postgres connection URL;
+- required GitHub Actions secret names cannot be proven configured;
 - database migration is required but only Edge Function deployment authority is available;
 - workflow SHA does not exactly match the approved backend commit;
 - CORS returns wildcard origins for protected runtime routes;

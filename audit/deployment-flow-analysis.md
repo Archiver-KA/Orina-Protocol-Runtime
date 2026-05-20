@@ -214,3 +214,34 @@ Deployment order remains:
 3. Let Cloudflare Worker Builds deploy frontend from GitHub `main`.
 4. Apply Supabase migration `000075` before deploying Edge Functions that depend on `public.edge_idempotency_records`.
 5. Dispatch `.github/workflows/supabase-production-deploy.yml` for the exact approved commit and verify production CORS/health.
+
+### 2026-05-20 Production Deploy Flow Standardization
+
+The owner authorized use of CDP port `9222` for read-only deployment review and asked to standardize the next deployment flow.
+
+Read-only CDP status:
+
+- GitHub personal access token settings, repository branch settings, and Actions secret pages were visible.
+- Supabase database settings for project `vcixsdudkizgfikhmfuv` were visible as `main PRODUCTION`.
+- No browser secret values, cookies, local/session storage, wallet material, or dashboard confirmation values were inspected.
+- No GitHub or Supabase UI mutation was attempted.
+
+Repository flow controls added:
+
+- `scripts/orina-production-deploy.mjs` provides the standard preflight, workflow dispatch, workflow polling, and production backend health/CORS verification wrapper.
+- `npm run deploy:production:preflight` validates required local secret names, `SUPABASE_DB_AUDIT_URL` shape, clean `main`, `HEAD == origin/main`, and GitHub Actions secret names before dispatch.
+- `npm run deploy:production:supabase` runs preflight, dispatches `Supabase Production Deploy`, polls the run, and verifies backend health/CORS.
+- `npm run deploy:production:verify-backend` performs a read-only backend health/CORS check.
+- `.github/workflows/supabase-production-deploy.yml` now validates deployment secret shapes before local static gates, so malformed database audit URLs fail early with a clear reason.
+- `docs/production-deploy-standard-flow.md` records the operator runbook and stop conditions.
+
+Deployment completion:
+
+- `SUPABASE_DB_AUDIT_URL` was corrected to use the Supabase transaction pooler on port `6543` with `statement_cache_capacity=0`, which allows GitHub runners to avoid the direct database host IPv6 path and avoids prepared-statement collisions through the transaction pooler.
+- Local `npm run audit:supabase:security-definer` passed through the corrected DB URL: 24 audited functions, findings `[]`.
+- Local `npx supabase migration list --db-url <redacted>` plus `npm run verify:supabase-migration-list` passed: local and remote aligned through `000075`.
+- Required GitHub Actions deployment secrets were updated by name only; no secret values were printed or recorded.
+- Supabase Production Deploy workflow run `26161693412` completed with conclusion `success` for approved commit `6d6c0e3c144d015eff5b655fa7827da21acd7f90`.
+- Post-deploy backend verification passed: health GET `200`, allowed-origin OPTIONS `204`, denied-origin OPTIONS `204` without `access-control-allow-origin`.
+
+Earlier failed workflow dispatches stopped before Edge Function deployment and are retained as troubleshooting evidence for missing/invalid database audit credentials and direct-host GitHub runner connectivity.

@@ -6,7 +6,7 @@ Target branch: `main`
 Target frontend path: GitHub `main` -> Cloudflare Worker Builds -> Worker `apporinaio` -> `https://app.orina.io`
 Target backend path: Supabase project `vcixsdudkizgfikhmfuv`; migration `000075` must be applied before Edge Functions that use `edge_idempotency_records` are deployed.
 
-Status: `APPROVED_FOR_CI_CD_DEPLOYMENT` after owner approval and branch-protection verification on 2026-05-20.
+Status: `DEPLOYED_BY_CI_CD` after owner approval, branch-protection verification, migration application, and successful Supabase Production Deploy workflow on 2026-05-20.
 
 This candidate adds server-side idempotent replay for authenticated JSON Edge writes. The Edge middleware claims duplicate delivery by hashed `Authorization` scope plus `Idempotency-Key`, replays completed non-secret responses, returns `425 Retry-After` for in-flight duplicates, and blocks duplicate delivery for one-time secret responses without storing the secret body.
 
@@ -38,9 +38,11 @@ Deployment status:
 
 - Code candidate commit: `8ae79d39f6bca1f15add7634ad4d181e84e3426b`.
 - Branch protection verifier passed: `main` requires `Viewer Release Gate`.
-- Supabase production remote still needs migration `000075` before Edge Function deployment.
+- Supabase production remote is aligned through migration `000075`.
+- Supabase Production Deploy workflow run `26161693412` completed successfully for approved commit `6d6c0e3c144d015eff5b655fa7827da21acd7f90`.
+- Production backend health/CORS verification passed after deploy: health GET `200`, allowed OPTIONS `204`, denied OPTIONS `204` without allow-origin.
 - Release artifacts remain unsigned by design until owner selects signing authority.
-- Approved deployment order: push `main`, apply migration `000075`, dispatch Supabase Production Deploy for the exact approved commit, verify production.
+- Executed deployment order: pushed `main`, applied migration `000075`, dispatched Supabase Production Deploy for the exact approved commit, verified production.
 
 Deployment approval contract: `audit/deployment-approval-contract.json`
 

@@ -1,9 +1,9 @@
 {
   "schema": "orina.deployment-approval-contract.v1",
   "generatedAt": "2026-05-20T17:27:11+07:00",
-  "status": "APPROVED_FOR_CI_CD_DEPLOYMENT",
+  "status": "DEPLOYED_BY_CI_CD",
   "authorityClass": "DEPLOYMENT_AUTHORITY",
-  "deploymentTriggered": false,
+  "deploymentTriggered": true,
   "mutationAttempted": false,
   "secretValuesInspected": false,
   "ownerAuthorityEvidence": "Owner explicitly approved commit, push, and deploy for the idempotency replay candidate in the current session, then confirmed GitHub branch protection/ruleset was enabled for main.",
@@ -69,6 +69,21 @@
     "workflow": ".github/workflows/supabase-production-deploy.yml",
     "environment": "production",
     "requiredConfirmInput": "DEPLOY_SUPABASE_PRODUCTION"
+  },
+  "deploymentResult": {
+    "completedAt": "2026-05-20T19:14:30+07:00",
+    "approvedCommitSha": "6d6c0e3c144d015eff5b655fa7827da21acd7f90",
+    "supabaseProductionDeployRunId": "26161693412",
+    "supabaseProductionDeployRunUrl": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/26161693412",
+    "workflowConclusion": "success",
+    "migrationAlignedThrough": "000075",
+    "securityDefinerAudit": "passed via SUPABASE_DB_AUDIT_URL; 24 audited functions; findings []",
+    "backendHealthCorsVerification": "passed; health GET 200, allowed OPTIONS 204, denied OPTIONS 204 without allow-origin",
+    "secretValuesInspected": false,
+    "notes": [
+      "SUPABASE_DB_AUDIT_URL uses the Supabase transaction pooler on port 6543 with statement_cache_capacity=0 for GitHub runner compatibility.",
+      "Earlier failed dispatch attempts stopped before Edge Function deployment."
+    ]
   },
   "verificationEvidence": {
     "npmCi": "passed; 584 packages installed, 585 audited; 8 moderate npm audit findings remain",

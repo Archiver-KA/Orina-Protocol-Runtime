@@ -83,6 +83,9 @@ jobs:
             fi
           done
 
+      - name: Validate deployment secret shapes
+        run: node scripts/orina-production-deploy.mjs --preflight --ci --skip-github-secret-check
+
       - name: Run local static gates
         run: |
           npm run typecheck

@@ -30,9 +30,10 @@ Backend:
 
 1. Confirm Supabase migration history is aligned.
 2. Keep database migrations separate from Edge Function deployment; use the approved Supabase migration path for schema changes.
-3. Deploy Supabase Edge Functions through `.github/workflows/supabase-production-deploy.yml` after exact commit approval, production environment approval, and confirmation input `DEPLOY_SUPABASE_PRODUCTION`.
-4. Follow the split-function order when multiple functions changed.
-5. Verify CORS, security-definer audit, migration alignment, health, auth bridge, and affected function routes.
+3. Run `npm run deploy:production:preflight` to validate clean `main`, required GitHub secret names, and deployment secret shapes before workflow dispatch.
+4. Deploy Supabase Edge Functions through `.github/workflows/supabase-production-deploy.yml` after exact commit approval, production environment approval, and confirmation input `DEPLOY_SUPABASE_PRODUCTION`.
+5. Follow the split-function order when multiple functions changed.
+6. Verify CORS, security-definer audit, migration alignment, health, auth bridge, and affected function routes.
 
 ## Required Local Gates
 
@@ -52,6 +53,7 @@ npm run verify:deterministic-build
 npm run verify:assurance-invariants
 npm run security:sbom
 npm run release:manifest
+npm run deploy:production:preflight
 ```
 
 Run `npm run verify:github-branch-protection` only when an explicit read-only token is available. Do not print token values.
