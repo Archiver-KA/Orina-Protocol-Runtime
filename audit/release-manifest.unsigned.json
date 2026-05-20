@@ -1,6 +1,6 @@
 {
   "schema": "orina.release-manifest.unsigned.v1",
-  "generatedAt": "2026-05-20T00:57:49.114Z",
+  "generatedAt": "2026-05-20T10:28:13.524Z",
   "signed": false,
   "signing": {
     "status": "not-signed",
@@ -9,9 +9,9 @@
   "source": {
     "packageName": "@orina/protocol-app",
     "packageVersion": "0.0.1",
-    "gitCommit": "831b9f6fa28662575e5c011e4e0fb05b7509cee6",
+    "gitCommit": "8ae79d39f6bca1f15add7634ad4d181e84e3426b",
     "gitBranch": "main",
-    "gitStatusShort": "M RELEASE_CANDIDATE.md\n M audit/deployment-approval-contract.json\n M audit/deployment-flow-analysis.md\n M audit/release-manifest.unsigned.json\n M audit/sbom.cdx.json\n M src/utils/aiM2MWalletClient.ts\n M src/utils/apiKeysClient.ts\n M src/utils/supabaseRest.ts\n M supabase/functions/server/edge-app.ts\n M supabase/functions/server/index.tsx\n?? .codex/skills/orina-security-hardening/\n?? audit/security-improvement-plan.md\n?? docs/resilience-runbook.md\n?? src/utils/resilience.test.ts\n?? src/utils/resilience.ts\n?? supabase/functions/server/idempotency-replay.ts\n?? supabase/migrations/000075_edge_idempotency_replay.sql",
+    "gitStatusShort": "M RELEASE_CANDIDATE.md\n M audit/deployment-approval-contract.json\n M audit/deployment-flow-analysis.md",
     "remoteOrigin": "https://github.com/Archiver-KA/Orina-Protocol-Runtime"
   },
   "build": {

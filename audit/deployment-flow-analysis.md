@@ -192,3 +192,25 @@ Deployment was not triggered because the deployment skill stop conditions are ac
 - branch protection / required checks are blocked by missing `GITHUB_BRANCH_PROTECTION_TOKEN`;
 - release artifacts are still unsigned;
 - no owner-approved CI/CD workflow dispatch with exact SHA and approval record was executed.
+
+### Branch Protection Recheck
+
+After the owner enabled GitHub branch protection/ruleset for `main`, the branch-protection verifier was rerun using `GITHUB_BRANCH_PROTECTION_TOKEN` from the local environment without printing the token value.
+
+Result:
+
+- `npm run verify:github-branch-protection`: passed.
+- GitHub branch protection endpoint returned status `200`.
+- Required status checks are enabled and strict.
+- Required check context: `Viewer Release Gate`.
+- Workflows are active for `Protocol Release Gate` and `Supabase Production Deploy`.
+
+Updated approval decision: `APPROVED_FOR_CI_CD_DEPLOYMENT`
+
+Deployment order remains:
+
+1. Push the exact approved commit to `main`.
+2. Let GitHub run `Protocol Release Gate`.
+3. Let Cloudflare Worker Builds deploy frontend from GitHub `main`.
+4. Apply Supabase migration `000075` before deploying Edge Functions that depend on `public.edge_idempotency_records`.
+5. Dispatch `.github/workflows/supabase-production-deploy.yml` for the exact approved commit and verify production CORS/health.

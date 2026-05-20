@@ -1,21 +1,21 @@
 {
   "schema": "orina.deployment-approval-contract.v1",
-  "generatedAt": "2026-05-20T07:56:13+07:00",
-  "status": "NOT_APPROVED",
-  "authorityClass": "DEPLOYMENT_REVIEW_ONLY",
+  "generatedAt": "2026-05-20T17:27:11+07:00",
+  "status": "APPROVED_FOR_CI_CD_DEPLOYMENT",
+  "authorityClass": "DEPLOYMENT_AUTHORITY",
   "deploymentTriggered": false,
   "mutationAttempted": false,
   "secretValuesInspected": false,
-  "ownerRequest": "Check server-side idempotent replay through Supabase project vcixsdudkizgfikhmfuv / CDP port 9222, complete the implementation, and use the deployment skill for existing changes.",
+  "ownerAuthorityEvidence": "Owner explicitly approved commit, push, and deploy for the idempotency replay candidate in the current session, then confirmed GitHub branch protection/ruleset was enabled for main.",
   "repository": {
     "remote": "https://github.com/Archiver-KA/Orina-Protocol-Runtime",
     "branch": "main",
-    "headShaAtReview": "831b9f6fa28662575e5c011e4e0fb05b7509cee6",
-    "candidateCommitSha": null,
-    "workingTreeClean": false
+    "codeCandidateCommitSha": "8ae79d39f6bca1f15add7634ad4d181e84e3426b",
+    "approvalRecordCommitSha": "recorded-after-commit",
+    "workingTreeCleanBeforeApprovalRecord": true
   },
   "candidateSummary": {
-    "serverSideIdempotentReplay": "Implemented locally with migration-backed Edge middleware for authenticated JSON writes.",
+    "serverSideIdempotentReplay": "Implemented with migration-backed Edge middleware for authenticated JSON writes.",
     "migration": "supabase/migrations/000075_edge_idempotency_replay.sql",
     "edgeMiddleware": "supabase/functions/server/idempotency-replay.ts",
     "clientResilience": [
@@ -26,6 +26,20 @@
     ],
     "secretReplayPolicy": "One-time secret-bearing responses are marked completed_no_replay and are not persisted in replay storage."
   },
+  "branchProtectionEvidence": {
+    "command": "npm run verify:github-branch-protection",
+    "checkedAt": "2026-05-20T10:26:30.239Z",
+    "pass": true,
+    "branchProtectionStatus": 200,
+    "requiredStatusChecks": {
+      "enabled": true,
+      "strict": true,
+      "contexts": [
+        "Viewer Release Gate"
+      ]
+    },
+    "tokenPrinted": false
+  },
   "cdpSupabaseEvidence": {
     "cdpUrl": "http://127.0.0.1:9222",
     "projectUrl": "https://supabase.com/dashboard/project/vcixsdudkizgfikhmfuv",
@@ -34,13 +48,27 @@
     "mutationAttempted": false,
     "secretValuesInspected": false
   },
-  "migrationEvidence": {
-    "command": "npx supabase migration list --linked",
+  "migrationPlan": {
+    "preApprovalCommand": "npx supabase migration list --linked",
     "remoteAlignedThrough": "000074",
     "localOnlyMigrations": [
       "000075"
     ],
-    "deploymentOrderingRequired": "Apply database migration 000075 before deploying Edge Functions that depend on edge_idempotency_records."
+    "deploymentOrderingRequired": "Apply database migration 000075 before deploying Edge Functions that depend on edge_idempotency_records.",
+    "approvedProductionMutation": true
+  },
+  "frontendDeploymentPath": {
+    "model": "GitHub main push triggers Protocol Release Gate and Cloudflare Worker Builds for Worker apporinaio.",
+    "requiredWorkflow": "Protocol Release Gate",
+    "requiredCheck": "Viewer Release Gate",
+    "productionHost": "https://app.orina.io"
+  },
+  "backendDeploymentPath": {
+    "model": "Apply pending Supabase migration through the approved migration path, then dispatch .github/workflows/supabase-production-deploy.yml for the exact approved commit.",
+    "projectRef": "vcixsdudkizgfikhmfuv",
+    "workflow": ".github/workflows/supabase-production-deploy.yml",
+    "environment": "production",
+    "requiredConfirmInput": "DEPLOY_SUPABASE_PRODUCTION"
   },
   "verificationEvidence": {
     "npmCi": "passed; 584 packages installed, 585 audited; 8 moderate npm audit findings remain",
@@ -59,8 +87,7 @@
     "deterministicBuild": "passed; 376 files compared, differences []",
     "sbom": "passed; CycloneDX 1.5, 577 components, 578 dependencies",
     "releaseManifest": "passed; unsigned manifest, 376 artifacts",
-    "browserSmoke": "passed on clean local origin http://127.0.0.1:5191 after a transient marketplace warmup rerun; no leak matches, no unexpected origins, no wildcard function CORS, no wallet confirmation targets",
-    "branchProtection": "blocked; GITHUB_BRANCH_PROTECTION_TOKEN is not present"
+    "browserSmoke": "passed on clean local origin http://127.0.0.1:5191 after a transient marketplace warmup rerun; no leak matches, no unexpected origins, no wildcard function CORS, no wallet confirmation targets"
   },
   "candidateArtifacts": {
     "sbom": "audit/sbom.cdx.json",
@@ -70,23 +97,26 @@
     "dependencyLockfile": "package-lock.json",
     "dependencyLockfileSha256": "CCC084C078151A1D27B4057D299F10DAFD6704BAEE59E164778FB48E76BAD695"
   },
+  "rollbackPlan": [
+    "For frontend rollback, revert or restore the previous known-good GitHub main commit and let Cloudflare Worker Builds redeploy.",
+    "For Supabase Edge Functions, redeploy the previous known-good function bundle through the approved Supabase deployment path.",
+    "For database migration 000075, prefer forward fix; if rollback is required, remove middleware dependency before dropping public.edge_idempotency_records."
+  ],
   "stopConditions": [
-    "Working tree is dirty and no exact candidate commit SHA exists.",
-    "Database migration 000075 is local-only; production remote is aligned only through 000074.",
-    "Branch protection / required checks cannot be verified because GITHUB_BRANCH_PROTECTION_TOKEN is absent.",
-    "Release manifest is unsigned.",
-    "Deployment path requires owner-approved CI/CD handoff; no GitHub workflow dispatch with exact SHA and approval record was executed."
+    "Any required local or CI verification command fails.",
+    "GitHub push to main is rejected by branch protection.",
+    "Supabase migration history shows remote-only drift before applying 000075.",
+    "Supabase Edge Function workflow dispatch cannot target the exact approved commit.",
+    "CORS returns wildcard origins for protected runtime routes.",
+    "Browser smoke finds unapproved origins or secret leakage.",
+    "A dashboard, wallet, GitHub, or Supabase confirmation dialog appears that requires manual confirmation."
   ],
-  "requiredOwnerActionsBeforeDeployment": [
-    "Review and commit the full candidate diff to produce an exact SHA.",
-    "Apply or approve the database migration path for 000075 before Edge Function deployment.",
-    "Provide read-only branch-protection evidence or set GITHUB_BRANCH_PROTECTION_TOKEN for verification.",
-    "Approve the exact commit SHA, target branch main, Supabase production project vcixsdudkizgfikhmfuv, and CI/CD workflow path.",
-    "Confirm rollback authority for both DB migration and Edge Function deployment."
-  ],
-  "rollbackPlanRequired": [
-    "Database rollback or forward-fix plan for public.edge_idempotency_records.",
-    "Supabase Edge Function redeploy plan for the previous known-good commit.",
-    "Frontend rollback through GitHub main / Cloudflare Worker Builds if the frontend candidate is included."
-  ]
+  "approval": {
+    "approved": true,
+    "approvedBranch": "main",
+    "approvedProjectRef": "vcixsdudkizgfikhmfuv",
+    "approvedFrontendPath": "GitHub main to Cloudflare Worker Builds",
+    "approvedBackendPath": "Supabase migration 000075 followed by Supabase Production Deploy workflow",
+    "approvedByOwnerInCurrentSession": true
+  }
 }
