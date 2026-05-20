@@ -4,6 +4,11 @@ import {
   getSupabaseBridgeAccessToken,
   isSupabaseAuthClaimBridgeEnabled,
 } from '@/utils/supabaseAuthClaimBridge';
+import {
+  isResilienceError,
+  resilientFetch,
+  type ResilientFetchPolicy,
+} from '@/utils/resilience';
 
 type Json = Record<string, any> | any[];
 
@@ -46,6 +51,26 @@ function buildUrl(path: string): string {
   return `${restBase()}${normalized}`;
 }
 
+function buildRestResiliencePolicy(path: string, init: RequestInit): ResilientFetchPolicy {
+  const method = String(init.method || 'GET').toUpperCase();
+  const isRead = method === 'GET' || method === 'HEAD';
+  const tableOrRpc = path.split('?')[0]?.replace(/^\/+/, '').replace(/\//g, ':') || 'unknown';
+  return {
+    operation: `supabase-rest:${method.toLowerCase()}:${tableOrRpc}`,
+    timeoutMs: isRead ? 8_000 : 10_000,
+    retry: {
+      maxAttempts: isRead ? 3 : 1,
+      baseDelayMs: 250,
+      maxDelayMs: 1_500,
+    },
+    circuit: {
+      key: isRead ? 'supabase-rest-read' : 'supabase-rest-write',
+      failureThreshold: isRead ? 4 : 2,
+      openMs: isRead ? 15_000 : 30_000,
+    },
+  };
+}
+
 async function requestJson<T = any>(path: string, init: RequestInit = {}): Promise<T> {
   if (!isSupabaseRestEnabled()) {
     throw new SupabaseRestError('Supabase REST is not configured');
@@ -60,10 +85,26 @@ async function requestJson<T = any>(path: string, init: RequestInit = {}): Promi
     }
   }
 
-  const res = await fetch(buildUrl(path), {
-    ...init,
-    headers: buildHeaders(init.headers as Record<string, string> | undefined),
-  });
+  let res: Response;
+  try {
+    res = await resilientFetch(
+      buildUrl(path),
+      {
+        ...init,
+        headers: buildHeaders(init.headers as Record<string, string> | undefined),
+      },
+      buildRestResiliencePolicy(path, init),
+    );
+  } catch (error) {
+    if (isResilienceError(error)) {
+      throw new SupabaseRestError(error.message, undefined, {
+        resilienceCode: error.code,
+        operation: error.operation,
+        requestId: error.requestId,
+      });
+    }
+    throw error;
+  }
 
   const text = await res.text();
   let payload: any = null;
@@ -169,7 +210,8 @@ export function isSupabaseWriteBlocked(error: unknown): boolean {
 
 export function isSupabaseConnectivityIssue(error: unknown): boolean {
   if (error instanceof TypeError) return true;
-  if (!(error instanceof SupabaseRestError)) return false;
+  if (!(error instanceof SupabaseRestError)) return isResilienceError(error);
+  if (error.payload?.resilienceCode) return true;
   return (error.status ?? 0) >= 500;
 }
 

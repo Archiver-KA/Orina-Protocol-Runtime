@@ -18,6 +18,10 @@ import {
   getSupabaseBridgeAccessToken,
   isSupabaseAuthClaimBridgeEnabled,
 } from '@/utils/supabaseAuthClaimBridge';
+import {
+  createIdempotencyKey,
+  resilientFetch,
+} from '@/utils/resilience';
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
 const DEFAULT_AI_M2M_FN_NAME = 'orina-ai-m2m-v2';
@@ -298,11 +302,28 @@ async function requestWithWalletAuth<T>(
     for (const endpoint of AI_M2M_ENDPOINTS) {
       const requestPath = buildAIM2MRequestPath(endpoint, requestResourcePath);
       try {
-        const response = await fetch(`${endpoint.baseUrl}${requestPath}`, {
+        const method = String(init?.method || 'GET').toUpperCase();
+        const response = await resilientFetch(`${endpoint.baseUrl}${requestPath}`, {
           ...init,
           headers: {
             ...headers,
             ...(init?.headers || {}),
+          },
+        }, {
+          operation: `ai-m2m:${method.toLowerCase()}:${requestResourcePath}`,
+          timeoutMs: method === 'GET' ? 8_000 : 12_000,
+          idempotencyKey: method === 'GET'
+            ? undefined
+            : createIdempotencyKey(`ai-m2m:${method.toLowerCase()}:${requestResourcePath}`),
+          retry: {
+            maxAttempts: method === 'GET' ? 3 : 2,
+            baseDelayMs: 250,
+            maxDelayMs: 1_500,
+          },
+          circuit: {
+            key: `edge-ai-m2m:${endpoint.functionName}:${endpoint.kind}`,
+            failureThreshold: method === 'GET' ? 4 : 2,
+            openMs: method === 'GET' ? 15_000 : 30_000,
           },
         });
 

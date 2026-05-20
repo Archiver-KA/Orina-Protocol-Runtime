@@ -1,5 +1,49 @@
 # Release Candidate
 
+## 2026-05-20 Server-Side Idempotency Candidate
+
+Target branch: `main`
+Target frontend path: GitHub `main` -> Cloudflare Worker Builds -> Worker `apporinaio` -> `https://app.orina.io`
+Target backend path: Supabase project `vcixsdudkizgfikhmfuv`; migration `000075` must be applied before Edge Functions that use `edge_idempotency_records` are deployed.
+
+Status: `NOT_APPROVED` for production deployment.
+
+This candidate adds server-side idempotent replay for authenticated JSON Edge writes. The Edge middleware claims duplicate delivery by hashed `Authorization` scope plus `Idempotency-Key`, replays completed non-secret responses, returns `425 Retry-After` for in-flight duplicates, and blocks duplicate delivery for one-time secret responses without storing the secret body.
+
+Current local verification status:
+
+- `npm ci`: passed; 584 packages installed, 585 audited; 8 moderate dependency findings remain.
+- `npm run test`: passed; 14 test files, 46 tests.
+- `npm run typecheck`: passed.
+- `npm run lint:check`: passed.
+- `npm run security:check-client-secrets`: passed.
+- `npm run security:scan`: passed; 8 moderate dependency findings remain.
+- `npm run audit:supabase:data-api-grants`: passed; 67 public tables and 67 explicit Data API grant decisions.
+- `npm run audit:supabase:security-definer`: passed against linked project; 24 audited functions; findings `[]`.
+- `deno check --node-modules-dir=auto supabase/functions/server/idempotency-replay.ts`: passed.
+- `deno check --node-modules-dir=auto supabase/functions/orina-ai-m2m-v2/index.ts`: passed.
+- `deno check --node-modules-dir=auto supabase/functions/make-server-b0d68fc8/index.ts`: passed.
+- `npm run verify:repo-tooling`: passed.
+- `npm run verify:marketplace-freshness`: passed.
+- `npm run verify:assurance-invariants`: passed.
+- `npm run verify:viewer-release`: passed; build completed and prerender generated 261 public routes.
+- `npm run verify:deterministic-build`: passed; 376 files compared; differences `[]`.
+- `npm run security:sbom`: passed; generated `audit/sbom.cdx.json`.
+- `npm run release:manifest`: passed; generated `audit/release-manifest.unsigned.json`.
+- `npx supabase migration list --linked`: remote is aligned through `000074`; local `000075` is pending.
+- `npm run verify:github-branch-protection`: blocked because `GITHUB_BRANCH_PROTECTION_TOKEN` is not present.
+- `node scripts/smoke-cdp-readonly-security.mjs --goto http://127.0.0.1:5191/`: passed on a clean local origin after a transient marketplace warmup rerun.
+
+Deployment blockers:
+
+- Working tree is dirty and no exact candidate commit SHA exists.
+- Supabase production remote has not applied migration `000075`.
+- Branch protection / required checks are not verified.
+- Release artifacts remain unsigned.
+- The approved deployment path requires owner-approved CI/CD handoff with exact SHA and approval record.
+
+Deployment approval contract: `audit/deployment-approval-contract.json`
+
 ## 2026-05-14 Management Governance Candidate
 
 Branch before promotion: `codex/management-governance-eslint`

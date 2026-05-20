@@ -1,5 +1,6 @@
 import { Hono, type Context } from "npm:hono";
 import { logger } from "npm:hono/logger";
+import { registerIdempotencyReplayMiddleware } from "./idempotency-replay.ts";
 
 const EXACT_ALLOWED_ORIGINS = new Set([
   "https://app.orina.io",
@@ -20,9 +21,9 @@ const LOCAL_ORIGIN_PATTERNS = [
 ];
 
 const CORS_ALLOW_HEADERS =
-  "authorization, x-client-info, apikey, content-type";
+  "authorization, x-client-info, apikey, content-type, x-orina-request-id, x-orina-operation, x-orina-attempt, idempotency-key";
 const CORS_ALLOW_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
-const CORS_EXPOSE_HEADERS = "Content-Length";
+const CORS_EXPOSE_HEADERS = "Content-Length, X-Orina-Request-Id, Retry-After";
 const CORS_MAX_AGE = "600";
 
 function readEdgeEnv(name: string): string {
@@ -90,6 +91,10 @@ function createCorsHeaders(origin?: string | null) {
   return headers;
 }
 
+function readRequestId(context: Context) {
+  return String(context.req.header("X-Orina-Request-Id") || "").trim();
+}
+
 export function applyCorsHeaders(context: Context) {
   const headers = createCorsHeaders(context.req.header("Origin"));
   headers.forEach((value, key) => {
@@ -110,9 +115,13 @@ export function registerCorsMiddleware(app: Hono) {
 
     const corsHeaders = createCorsHeaders(c.req.header("Origin"));
     const responseHeaders = new Headers(c.res.headers);
+    const requestId = readRequestId(c);
     corsHeaders.forEach((value, key) => {
       responseHeaders.set(key, value);
     });
+    if (requestId) {
+      responseHeaders.set("X-Orina-Request-Id", requestId);
+    }
 
     c.res = new Response(c.res.body, {
       status: c.res.status,
@@ -127,6 +136,7 @@ export function createEdgeApp() {
 
   app.use("*", logger(console.log));
   registerCorsMiddleware(app);
+  registerIdempotencyReplayMiddleware(app);
 
   return app;
 }

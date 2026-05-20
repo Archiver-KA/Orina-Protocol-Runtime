@@ -157,3 +157,38 @@ Residual governance before claiming fully enforced deployment management:
 - Branch protection/required checks still need token-backed verification or owner-provided redacted evidence.
 - The Supabase production workflow still needs owner-configured GitHub `production` environment protection and required secrets by name only.
 - Release artifacts remain unsigned until the owner defines signing authority and custody.
+
+## 2026-05-20 Idempotency Replay Addendum
+
+The owner requested a check of server-side idempotent replay for Supabase project `vcixsdudkizgfikhmfuv` through CDP port `9222`, completion of the implementation, and deployment-skill handling for the current changes.
+
+Read-only CDP status:
+
+- `http://127.0.0.1:9222/json/version` responded.
+- The Supabase dashboard tab was open at `/dashboard/project/vcixsdudkizgfikhmfuv`.
+- Redacted page labels showed project `ATP`, environment `main PRODUCTION`, `STATUS Healthy`, and last migration `public_data_api_explicit_grants_and_postgis_rls`.
+- No dashboard mutation was attempted and no browser secret values were inspected.
+
+Repository implementation added:
+
+- `supabase/migrations/000075_edge_idempotency_replay.sql` creates service-role-only `public.edge_idempotency_records` with deny-all RLS for browser/API roles.
+- `supabase/functions/server/idempotency-replay.ts` adds Edge middleware for authenticated JSON write idempotency.
+- `supabase/functions/server/edge-app.ts` and `supabase/functions/server/index.tsx` register the middleware for split and shared function entrypoints.
+- Browser clients now send correlation/idempotency headers and retry only replay-safe writes; API key generation remains no-retry because the raw key is a one-time secret and must not be persisted for replay.
+
+Verification evidence:
+
+- `npm ci`, `npm run test`, `npm run typecheck`, `npm run lint:check`, `npm run security:check-client-secrets`, `npm run security:scan`, `npm run audit:supabase:data-api-grants`, `npm run audit:supabase:security-definer`, `npm run verify:repo-tooling`, `npm run verify:marketplace-freshness`, `npm run verify:assurance-invariants`, `npm run verify:viewer-release`, `npm run verify:deterministic-build`, `npm run security:sbom`, and `npm run release:manifest` passed.
+- Deno check passed for the idempotency middleware plus representative shared and split Edge entrypoints.
+- CDP readonly browser smoke passed on clean local origin `http://127.0.0.1:5191/` after a transient marketplace warmup rerun.
+- `npx supabase migration list --linked` showed local `000075` is not applied on the production remote, which is aligned only through `000074`.
+
+Approval decision: `NOT_APPROVED`
+
+Deployment was not triggered because the deployment skill stop conditions are active:
+
+- working tree is dirty and no exact candidate commit SHA exists;
+- production database migration `000075` is pending and must precede Edge Function deployment;
+- branch protection / required checks are blocked by missing `GITHUB_BRANCH_PROTECTION_TOKEN`;
+- release artifacts are still unsigned;
+- no owner-approved CI/CD workflow dispatch with exact SHA and approval record was executed.

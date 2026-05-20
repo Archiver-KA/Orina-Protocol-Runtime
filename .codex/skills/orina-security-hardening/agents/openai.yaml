@@ -1,0 +1,4 @@
+interface:
+  display_name: "Orina Security Hardening"
+  short_description: "Plan and audit Orina security controls"
+  default_prompt: "Use $orina-security-hardening to plan and verify Orina Runtime security hardening work."

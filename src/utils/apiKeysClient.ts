@@ -7,6 +7,10 @@ import {
   isBridgeAuthRequiredError,
   isSupabaseAuthClaimBridgeEnabled,
 } from '@/utils/supabaseAuthClaimBridge';
+import {
+  createIdempotencyKey,
+  resilientFetch,
+} from '@/utils/resilience';
 
 const BASE_URL = getSupabaseFunctionsBaseUrl();
 const API_KEYS_BASE_PATH = '/ai/api-keys';
@@ -108,6 +112,11 @@ function isRetryableProtectedAuthFailure(status: number, payload: any): boolean 
   );
 }
 
+function isReplaySafeWrite(path: string, method: string): boolean {
+  if (method === 'GET') return true;
+  return !path.endsWith('/generate');
+}
+
 async function getProtectedHeaders(walletAddress: string, promptOnAuthMissing: boolean, withJson = false) {
   if (!walletAddress) {
     throw new Error('Wallet address is required');
@@ -152,12 +161,30 @@ async function request<T>(
   retryOnAuthFailure = true,
 ): Promise<T> {
   const method = String(init?.method || 'GET').toUpperCase();
+  const replaySafeWrite = isReplaySafeWrite(path, method);
   const headers = await getProtectedHeaders(walletAddress, promptOnAuthMissing, method !== 'GET');
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const idempotencyKey = method === 'GET'
+    ? undefined
+    : createIdempotencyKey(`api-keys:${method.toLowerCase()}:${path}`);
+  const response = await resilientFetch(`${BASE_URL}${path}`, {
     ...init,
     headers: {
       ...headers,
       ...(init?.headers || {}),
+    },
+  }, {
+    operation: `api-keys:${method.toLowerCase()}:${path}`,
+    timeoutMs: method === 'GET' ? 8_000 : 12_000,
+    idempotencyKey,
+    retry: {
+      maxAttempts: method === 'GET' ? 3 : replaySafeWrite ? 2 : 1,
+      baseDelayMs: 250,
+      maxDelayMs: 1_500,
+    },
+    circuit: {
+      key: 'edge-api-keys',
+      failureThreshold: method === 'GET' ? 4 : 2,
+      openMs: method === 'GET' ? 15_000 : 30_000,
     },
   });
 
