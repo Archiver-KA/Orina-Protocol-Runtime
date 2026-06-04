@@ -3,8 +3,8 @@ import type { AIM2MAction } from '@/app/types/ai-m2m-wallet';
 import { LIVE_PROTOCOL_CONTRACTS } from '@/utils/protocolNetwork';
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
-const DEFAULT_M2M_DELEGATION_MANAGER = '0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58';
-const DEFAULT_M2M_AI_WALLET_FACTORY_V2 = '0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2';
+const DEFAULT_M2M_DELEGATION_MANAGER = '0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13';
+const DEFAULT_M2M_AI_WALLET_FACTORY_V2 = '0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441';
 
 function parseOptionalAddress(value: string | undefined): `0x${string}` | null {
   const normalized = String(value || '').trim();
@@ -20,7 +20,8 @@ export const M2M_FEATURES = {
   SESSION_MODEL: 'delegated_session_v1',
   EXECUTION_MODE: 'direct_delegate_transactions',
   PREFUND_REQUIRED: false,
-  REDEPLOY_ON_EXPIRY: true,
+  REDEPLOY_ON_EXPIRY: false,
+  NO_EXPIRY_OPTION: true,
   SWEEP_IDLE_FUNDS_TO_PARENT: true,
   ROOT_FALLBACK_ENABLED: true,
   ONCHAIN_READY: Boolean(M2M_CONTRACTS.DELEGATION_MANAGER && M2M_CONTRACTS.AI_WALLET_FACTORY_V2),

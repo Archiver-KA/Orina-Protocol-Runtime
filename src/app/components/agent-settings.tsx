@@ -330,7 +330,7 @@ export function AgentSettings({
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-ui-muted">Expiry</span>
                         <span className={sidebarValueClass}>
-                          {m2mSnapshot ? `${m2mSnapshot.expiryDays} days` : 'n/a'}
+                          {m2mSnapshot ? (m2mSnapshot.expiryDays === 0 ? 'No expiry' : `${m2mSnapshot.expiryDays} days`) : 'n/a'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-3">

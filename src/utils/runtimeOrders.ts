@@ -363,6 +363,9 @@ function extractRuntimeOrderMetadata(row: ProtocolOrderRow) {
     runtimeOrder?: PersistedOrderUiRecord;
     paymentTokenSymbol?: string;
     paymentTokenDecimals?: number;
+    feeToken?: string;
+    feeTokenSymbol?: string;
+    feeTokenDecimals?: number;
     assetUid?: string;
     onchainAssetId?: string | number;
     tokenId?: string;
@@ -426,8 +429,11 @@ export function toProtocolOrderRow(order: OrderUiRecord, scope?: RuntimeOrderSco
       canonical_status_source: "chain_projection",
       paymentTokenSymbol: paymentTokenSnapshot.symbol,
       paymentTokenDecimals: paymentTokenSnapshot.decimals,
-      paymentToken: order.paymentToken,
-      assetUid: order.assetUid ?? null,
+        paymentToken: order.paymentToken,
+        feeToken: (order.feeToken ?? order.paymentToken).toLowerCase(),
+        feeTokenSymbol: order.feeTokenSymbol ?? paymentTokenSnapshot.symbol,
+        feeTokenDecimals: order.feeTokenDecimals ?? paymentTokenSnapshot.decimals,
+        assetUid: order.assetUid ?? null,
       onchainAssetId: order.assetId.toString(),
       tokenId: order.tokenId ?? order.assetId.toString(),
       assetContract: order.assetContract ?? resolvedScope.assetContract,
@@ -449,6 +455,9 @@ export function toProtocolOrderRow(order: OrderUiRecord, scope?: RuntimeOrderSco
         paymentToken: order.paymentToken.toLowerCase(),
         paymentTokenSymbol: paymentTokenSnapshot.symbol,
         paymentTokenDecimals: paymentTokenSnapshot.decimals,
+        feeToken: (order.feeToken ?? order.paymentToken).toLowerCase(),
+        feeTokenSymbol: order.feeTokenSymbol ?? paymentTokenSnapshot.symbol,
+        feeTokenDecimals: order.feeTokenDecimals ?? paymentTokenSnapshot.decimals,
         assetId: order.assetId.toString(),
         assetUid: order.assetUid ?? null,
         tokenId: order.tokenId ?? order.assetId.toString(),
@@ -519,6 +528,26 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow, scope?: RuntimeOrder
     parseNumberLike(
       chainSnapshot?.paymentTokenDecimals ?? metadata.paymentTokenDecimals ?? null,
       DEFAULT_TOKEN_DECIMALS,
+    ),
+  );
+  const feeToken = parseAddressLike(
+    coalesceString(
+      typeof chainSnapshot?.feeToken === "string" ? chainSnapshot.feeToken : undefined,
+      metadata.feeToken,
+      persisted?.feeToken,
+    ) ?? paymentToken,
+  );
+  const feeTokenSnapshot = resolvePaymentTokenSnapshot(
+    feeToken,
+    coalesceString(
+      typeof chainSnapshot?.feeTokenSymbol === "string" ? chainSnapshot.feeTokenSymbol : undefined,
+      metadata.feeTokenSymbol,
+      persisted?.feeTokenSymbol,
+      paymentTokenSnapshot.symbol,
+    ),
+    parseNumberLike(
+      chainSnapshot?.feeTokenDecimals ?? metadata.feeTokenDecimals ?? persisted?.feeTokenDecimals ?? paymentTokenSnapshot.decimals,
+      paymentTokenSnapshot.decimals,
     ),
   );
   const selectedAttributes = metadata.selectedAttributes ?? [];
@@ -679,6 +708,9 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow, scope?: RuntimeOrder
     paymentToken,
     paymentTokenSymbol: paymentTokenSnapshot.symbol,
     paymentTokenDecimals: paymentTokenSnapshot.decimals,
+    feeToken,
+    feeTokenSymbol: feeTokenSnapshot.symbol,
+    feeTokenDecimals: feeTokenSnapshot.decimals,
     platformFeeBpsSnapshot,
     daoFeeBpsSnapshot,
     burnFeeBpsSnapshot,
@@ -831,6 +863,9 @@ export function createRuntimeOrderFromRwaIntent(params: {
   paymentToken: `0x${string}`;
   paymentTokenSymbol?: string;
   paymentTokenDecimals?: number;
+  feeToken?: `0x${string}`;
+  feeTokenSymbol?: string;
+  feeTokenDecimals?: number;
   shippingAddressSnapshot?: OrderShippingAddressSnapshot | null;
   shippingMethodLabel?: string;
   selectedAttributes?: OrderUiRecord["selectedAttributes"];
@@ -861,6 +896,26 @@ export function createRuntimeOrderFromRwaIntent(params: {
     params.paymentTokenSymbol,
     params.paymentTokenDecimals,
   );
+  const feeToken = params.feeToken ?? paymentToken;
+  const feeTokenSnapshot = resolvePaymentTokenSnapshot(
+    feeToken,
+    params.feeTokenSymbol,
+    params.feeTokenDecimals,
+  );
+  const feeTokenIsOri = feeToken.toLowerCase() === PAYMENT_TOKENS.ORI.toLowerCase();
+  const feeTokenIsStable =
+    feeToken.toLowerCase() === PAYMENT_TOKENS.USDT.toLowerCase() ||
+    feeToken.toLowerCase() === PAYMENT_TOKENS.USDC.toLowerCase();
+  const platformFeeBpsSnapshot = feeTokenIsOri
+    ? BigInt(PROTOCOL.ORI_PLATFORM_FEE_BPS)
+    : feeTokenIsStable
+      ? BigInt(PROTOCOL.STABLECOIN_PLATFORM_FEE_BPS)
+      : BigInt(PROTOCOL.DEFAULT_PLATFORM_FEE_BPS);
+  const daoFeeBpsSnapshot = feeTokenIsOri
+    ? BigInt(PROTOCOL.ORI_DAO_FEE_BPS)
+    : feeTokenIsStable
+      ? BigInt(PROTOCOL.STABLECOIN_DAO_FEE_BPS)
+      : BigInt(PROTOCOL.DEFAULT_DAO_FEE_BPS);
 
   const order: OrderUiRecord = {
     orderId: params.orderId,
@@ -909,9 +964,12 @@ export function createRuntimeOrderFromRwaIntent(params: {
     paymentToken,
     paymentTokenSymbol: paymentTokenSnapshot.symbol,
     paymentTokenDecimals: paymentTokenSnapshot.decimals,
-    platformFeeBpsSnapshot: BigInt(PROTOCOL.STABLECOIN_PLATFORM_FEE_BPS),
-    daoFeeBpsSnapshot: BigInt(PROTOCOL.DEFAULT_DAO_FEE_BPS),
-    burnFeeBpsSnapshot: BigInt(PROTOCOL.DEFAULT_BURN_FEE_BPS),
+    feeToken,
+    feeTokenSymbol: feeTokenSnapshot.symbol,
+    feeTokenDecimals: feeTokenSnapshot.decimals,
+    platformFeeBpsSnapshot,
+    daoFeeBpsSnapshot,
+    burnFeeBpsSnapshot: 0n,
     shippingAddressSnapshot: params.shippingAddressSnapshot ?? null,
     shippingMethodLabel: params.shippingMethodLabel,
     disputeBuyerShareBps: undefined,

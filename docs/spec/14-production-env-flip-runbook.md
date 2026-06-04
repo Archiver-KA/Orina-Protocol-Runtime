@@ -2,28 +2,30 @@
 
 ## Goal
 
-Flip frontend, backend, and audit tooling to the improved ATP runtime deployed on **BSC Testnet chain 97** on **March 29, 2026**.
+Flip frontend, backend, and audit tooling to an ATP runtime deployment on **BSC Testnet chain 97**.
+
+This file is updated for the June 4, 2026 ATP v3.5 beta runtime. The March 29, 2026 v3.4.1 runtime is historical and must not be used for new beta traffic.
 
 This runbook starts after contracts are already deployed and wired.
 
 Use `foundry/CUTOVER_CHECKLIST.md` for the on-chain transaction checklist. Use this document for the app/backend/runtime flip.
 
-## Live address set
+## Current beta address set
 
 | Key | Address |
 | --- | --- |
-| `MARKETPLACE_ATP` | `0xBc6f46000b2709714C3908BB6b71BAb67A2d1495` |
-| `ORINA_RWA` | `0x72C3477C57097f3791501F3839bB380A019B754f` |
-| `RECEIPT_NFT` | `0x73719A7364c72cB0Ee77595773E9596976e298d1` |
-| `PAYMENT_GATEWAY` | `0xC220B68De5C6A19CfD179a37Ba5F6caE8BC57008` |
-| `FEE_MANAGER` | `0x418de18d1BD72A5Ff7A9470f94043D245C65a67B` |
-| `DISPUTE_MANAGER` | `0x550debf6291a7EA8Aa27aCC9ACa92397972eC47e` |
-| `AUTOTIME_MANAGER` | `0xE8d1Ac4463fE0805eB7234ebEe51Dd85d091622C` |
-| `UNIT_REGISTRY` | `0x07f460A5f3a346e060e3d810821fB020eDDCe718` |
-| `SHIPPING_REGISTRY` | `0xD3c02C986559145AC7f70ccA69b1A2A351810aA2` |
-| `TIMELOCK` | `0x9B230c649c391d809617819a91ffB5FA6AB4888a` |
-| `DELEGATION_MANAGER` | `0x024478973e3bBD33C85c6A0271DbaCE6608b10dB` |
-| `AI_WALLET_FACTORY_V2` | `0xCFE177c0930eaDDD183262dff5B57E7397d55b7E` |
+| `MARKETPLACE_ATP` | `0x18E1C8ab257FAf16Ec8257A9715d07661194150B` |
+| `ORINA_RWA` | `0x3a591AB1aB3A281f999AAD1644b020CbEC463C47` |
+| `RECEIPT_NFT` | `0x16A35bdD00dCfb9010504FbD1b2B97e26bB315ca` |
+| `PAYMENT_GATEWAY` | `0x082d75D8cA96C6e97B6b451Ad4857454A53D5C15` |
+| `FEE_MANAGER` | `0xD32fc966835D8eb7D26A12BEcCa86c749A60eFb3` |
+| `DISPUTE_MANAGER` | `0xCD27B85e7EA6FB1FDC484ae9083286DdCC14DC21` |
+| `AUTOTIME_MANAGER` | `0x5639792243617841800df8F1450B86223c3d86f4` |
+| `UNIT_REGISTRY` | `0x4ea45450064CD5B7c88EcAaE6a145652FEDd5df0` |
+| `SHIPPING_REGISTRY` | `0x16402c8C883a01dbfD2D7E58A46D3E9434396836` |
+| `TIMELOCK` | `0x5452CE749EDA1bE82132743AA224e7C86023A7F4` |
+| `DELEGATION_MANAGER` | `0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13` |
+| `AI_WALLET_FACTORY_V2` | `0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441` |
 
 ## Source-of-truth files
 
@@ -41,7 +43,7 @@ These files must agree before traffic is flipped:
 
 ### 1.1 Contracts
 
-Confirm `src/config/contracts.ts` matches the live addresses above and keeps `ACTIVE_CHAIN_ID` on `97`.
+Confirm `src/config/contracts.ts` matches the current beta addresses above and keeps `ACTIVE_CHAIN_ID` on `97`.
 
 ### 1.2 Signing domain
 
@@ -71,8 +73,8 @@ These files should not be signing the legacy order payload anymore.
 
 The root `.env` must keep:
 
-- `VITE_M2M_DELEGATION_MANAGER=0x024478973e3bBD33C85c6A0271DbaCE6608b10dB`
-- `VITE_M2M_AI_WALLET_FACTORY_V2=0xCFE177c0930eaDDD183262dff5B57E7397d55b7E`
+- `VITE_M2M_DELEGATION_MANAGER=0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13`
+- `VITE_M2M_AI_WALLET_FACTORY_V2=0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441`
 
 Supabase values remain unchanged unless the backend project itself is also being rotated.
 
@@ -86,7 +88,8 @@ Required checks:
 
 - no duplicate `MARKETPLACE_ATP_ADDRESS`
 - no stale core addresses from the previous runtime
-- `DEPLOY_NAMESPACE=orina-atp-v3.4.1-m2m-bsc-testnet-20260329-r6`
+- current beta namespace: `DEPLOY_NAMESPACE=orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604`
+- v3.5 beta env must not include a protocol burn address or burn-fee distribution target
 
 ### 2.2 Audit runtime config
 
@@ -169,8 +172,8 @@ node supabase/audit/verify_protocol_projection_rest.cjs
 
 Expected result:
 
-- `protocol_orders` rows belong to `0xBc6f46000b2709714C3908BB6b71BAb67A2d1495`
-- `protocol_assets` rows belong to `0x72C3477C57097f3791501F3839bB380A019B754f`
+- `protocol_orders` rows belong to `0x18E1C8ab257FAf16Ec8257A9715d07661194150B`
+- `protocol_assets` rows belong to `0x3a591AB1aB3A281f999AAD1644b020CbEC463C47`
 - metadata shows chain-backed projection state
 
 ### 3.5 App build
@@ -183,6 +186,7 @@ Expected result:
 
 - production build succeeds
 - no compile drift from the new EIP-712 shape or contract constants
+- `MarketplaceATP` order domain remains version `3.4`; `FeeManager` and `PaymentGateway` report version `3.5` on the current v3.5 beta runtime
 
 ### 3.6 Foundry regression
 

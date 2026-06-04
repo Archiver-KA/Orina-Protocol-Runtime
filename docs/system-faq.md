@@ -1,12 +1,12 @@
 # Orina Protocol Runtime FAQ
 
-Last aligned with runtime code on 2026-04-25.
+Last aligned with runtime code on 2026-06-04.
 
 ## General
 
 ### What is Orina Protocol Runtime?
 
-It is the current production-facing runtime app for Orina Protocol. It includes the React frontend, wallet flows, BNB Chain Testnet ATP v3.4.1 contracts, Supabase runtime surfaces, Edge Functions, release checks, and current-code documentation.
+It is the current production-facing runtime app for Orina Protocol. It includes the React frontend, wallet flows, BNB Chain Testnet ATP v3.5 beta contracts, Supabase runtime surfaces, Edge Functions, release checks, and current-code documentation.
 
 ### Which network is live right now?
 
@@ -75,13 +75,23 @@ The runtime uses local deltas for immediate feedback and syncs canonical listing
 
 ### What is the current order signing payload?
 
-The current EIP-712 order payload is:
+The default EIP-712 order payload is:
 
 ```text
 Order(orderId,buyer,seller,paymentToken,assetId,grossPrice,amount,estDeliverySeconds)
 ```
 
+When the buyer pays protocol fee with a token different from the payment token, the buyer signs:
+
+```text
+OrderWithFeeToken(orderId,buyer,seller,paymentToken,feeToken,assetId,grossPrice,amount,estDeliverySeconds)
+```
+
 Older payloads without `paymentToken` and `assetId` are obsolete.
+
+### Can USDT/USDC purchases pay protocol fee in ORI?
+
+Yes. In the v3.5 beta runtime, USDT/USDC purchases can pay fee in the payment token at total 2%, or pay fee in ORI at total 1%. The beta path assumes ORI/payment-token parity; mainnet needs an oracle quote before signing and escrow.
 
 ### What are the buyer steps?
 
@@ -120,7 +130,7 @@ Changing Settings later does not rewrite old asset snapshots. Correct major mist
 
 ### Is NFT minting fully equivalent to RWA minting?
 
-The UI supports an NFT asset type path. The protocol config still identifies the RWA branch as the current canonical finalized receipt flow and marks the NFT direct-buy branch as reserved/future in contract constants. Do not document NFT direct-buy behavior as fully equivalent unless the target deployment and smoke results prove it.
+No. The v3.5 protocol supports two asset outcomes: RWA orders mint non-transferable receipt NFTs after finalization, while NFT orders mint transferable ERC721 tokens after finalization. The direct-buy lifecycle still uses ATP escrow, seller confirmation, delivery/review, and dispute handling.
 
 ## Orders And Disputes
 
@@ -209,4 +219,3 @@ Confirm the same wallet and live chain are selected. Then check `orina_runtime_m
 ### API key generation fails.
 
 Check wallet auth session, Supabase function namespace, bridge token creation, and `VITE_SUPABASE_URL`/anon key configuration. The smoke script can verify this path through Chrome CDP and redacts generated keys.
-

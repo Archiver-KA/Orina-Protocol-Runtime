@@ -21,9 +21,11 @@ import { useState, useCallback } from 'react';
 import {
   buildDisputeAgreementTypedData,
   getOrderEip712Domain,
+  ORDER_WITH_FEE_TOKEN_TYPES,
   ORDER_TYPES,
   type DisputeAgreementSignMessage,
   type OrderSignMessage,
+  type OrderWithFeeTokenSignMessage,
 } from '@/config/eip712';
 import { MARKETPLACE_ABI } from '@/config/abis';
 import { getWalletErrorMessage } from '@/utils/walletErrors';
@@ -46,7 +48,7 @@ export function useSignOrder() {
   const [error, setError] = useState<Error | null>(null);
   const [signature, setSignature] = useState<`0x${string}` | null>(null);
 
-  const signOrder = useCallback(async (message: OrderSignMessage): Promise<`0x${string}`> => {
+  const signOrder = useCallback(async (message: OrderSignMessage | OrderWithFeeTokenSignMessage): Promise<`0x${string}`> => {
     setIsPending(true);
     setError(null);
     setSignature(null);
@@ -57,6 +59,9 @@ export function useSignOrder() {
       }
 
       const domain = getOrderEip712Domain(chainId, marketplaceAddress);
+      const useFeeTokenSchema =
+        'feeToken' in message &&
+        message.feeToken.toLowerCase() !== message.paymentToken.toLowerCase();
       const sig = await signTypedDataAsync({
         domain: {
           name: domain.name,
@@ -64,18 +69,30 @@ export function useSignOrder() {
           chainId: BigInt(domain.chainId),
           verifyingContract: domain.verifyingContract,
         },
-        types: ORDER_TYPES,
-        primaryType: 'Order',
-        message: {
-          orderId: message.orderId,
-          buyer: message.buyer,
-          seller: message.seller,
-          paymentToken: message.paymentToken,
-          assetId: message.assetId,
-          grossPrice: message.grossPrice,
-          amount: message.amount,
-          estDeliverySeconds: message.estDeliverySeconds,
-        },
+        types: useFeeTokenSchema ? ORDER_WITH_FEE_TOKEN_TYPES : ORDER_TYPES,
+        primaryType: useFeeTokenSchema ? 'OrderWithFeeToken' : 'Order',
+        message: useFeeTokenSchema
+          ? {
+              orderId: message.orderId,
+              buyer: message.buyer,
+              seller: message.seller,
+              paymentToken: message.paymentToken,
+              feeToken: message.feeToken,
+              assetId: message.assetId,
+              grossPrice: message.grossPrice,
+              amount: message.amount,
+              estDeliverySeconds: message.estDeliverySeconds,
+            }
+          : {
+              orderId: message.orderId,
+              buyer: message.buyer,
+              seller: message.seller,
+              paymentToken: message.paymentToken,
+              assetId: message.assetId,
+              grossPrice: message.grossPrice,
+              amount: message.amount,
+              estDeliverySeconds: message.estDeliverySeconds,
+            },
       });
 
       setSignature(sig);
@@ -120,6 +137,7 @@ export function useBuyerSign1() {
   const sign = useCallback(async (params: {
     seller: `0x${string}`;
     paymentToken: `0x${string}`;
+    feeToken?: `0x${string}`;
     assetId: bigint;
     grossPrice: bigint;
     amount: bigint;
@@ -133,6 +151,7 @@ export function useBuyerSign1() {
       buyer: address,
       seller: params.seller,
       paymentToken: params.paymentToken,
+      ...(params.feeToken ? { feeToken: params.feeToken } : {}),
       assetId: params.assetId,
       grossPrice: params.grossPrice,
       amount: params.amount,
@@ -160,6 +179,7 @@ export function useSellerSign2() {
     orderId: bigint;
     buyer: `0x${string}`;
     paymentToken: `0x${string}`;
+    feeToken?: `0x${string}`;
     assetId: bigint;
     grossPrice: bigint;
     amount: bigint;
@@ -172,6 +192,7 @@ export function useSellerSign2() {
       buyer: params.buyer,
       seller: address,
       paymentToken: params.paymentToken,
+      ...(params.feeToken ? { feeToken: params.feeToken } : {}),
       assetId: params.assetId,
       grossPrice: params.grossPrice,
       amount: params.amount,
@@ -192,6 +213,7 @@ export function useBuyerSign3() {
     orderId: bigint;
     seller: `0x${string}`;
     paymentToken: `0x${string}`;
+    feeToken?: `0x${string}`;
     assetId: bigint;
     grossPrice: bigint;
     amount: bigint;
@@ -204,6 +226,7 @@ export function useBuyerSign3() {
       buyer: address,
       seller: params.seller,
       paymentToken: params.paymentToken,
+      ...(params.feeToken ? { feeToken: params.feeToken } : {}),
       assetId: params.assetId,
       grossPrice: params.grossPrice,
       amount: params.amount,

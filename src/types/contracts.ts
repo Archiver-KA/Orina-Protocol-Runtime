@@ -1,5 +1,5 @@
 /**
- * Orina ATP Protocol v3.4-m2m - TypeScript Types
+ * Orina ATP Protocol v3.5 beta - TypeScript Types
  * ==============================================
  * Matching current Solidity structs and enums for type-safe frontend.
  */

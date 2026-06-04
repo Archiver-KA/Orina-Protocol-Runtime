@@ -60,7 +60,6 @@ function isUninitializedMarketplaceOrderSnapshot(snapshot: MarketplaceOrderSnaps
     split,
     platformFeeBpsSnapshot,
     daoFeeBpsSnapshot,
-    burnFeeBpsSnapshot,
     referralFeeBpsSnapshot,
     finalized,
     sellerConfirmed,
@@ -88,7 +87,6 @@ function isUninitializedMarketplaceOrderSnapshot(snapshot: MarketplaceOrderSnaps
     && isZeroSplitSettlementSnapshot(split)
     && platformFeeBpsSnapshot === 0n
     && daoFeeBpsSnapshot === 0n
-    && burnFeeBpsSnapshot === 0n
     && referralFeeBpsSnapshot === 0n
     && finalized === false
     && sellerConfirmed === false
@@ -142,6 +140,17 @@ async function readCanonicalOrdersFromChain(
     })),
   });
 
+  const feeTokenResults = await publicClient.multicall({
+    allowFailure: true,
+    contracts: baseOrders.map((order) => ({
+      address: scope.marketplaceContract as `0x${string}`,
+      chainId: scope.chainId,
+      abi: MARKETPLACE_ABI,
+      functionName: 'feeTokenForOrder',
+      args: [order.orderId] as const,
+    })),
+  });
+
   const disputeResults = scope.disputeManagerAddress
     ? await publicClient.multicall({
         allowFailure: true,
@@ -166,7 +175,11 @@ async function readCanonicalOrdersFromChain(
       return [];
     }
 
-    const chainOrder = reconcileOrderFromChain(order, snapshot);
+    const feeTokenResult = feeTokenResults[index];
+    const feeToken = feeTokenResult?.status === 'success'
+      ? feeTokenResult.result as `0x${string}`
+      : order.feeToken;
+    const chainOrder = reconcileOrderFromChain(order, snapshot, { feeToken });
 
     const disputeResult = disputeResults[index];
     if (disputeResult.status !== 'success') {

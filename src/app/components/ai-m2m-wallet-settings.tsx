@@ -59,6 +59,7 @@ interface DelegationSessionView {
 
 const ACTION_ORDER: AIM2MAction[] = ['buy', 'mint', 'sign_order'];
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address;
+const NO_EXPIRY_UINT64 = (2n ** 64n) - 1n;
 
 function normalizeLineList(value: string): string[] {
   return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
@@ -90,6 +91,12 @@ function formatTimestamp(value: string | null | undefined): string {
 function formatHash(value: string | undefined): string {
   if (!value || value.length < 12) return value || 'n/a';
   return `${value.slice(0, 10)}...${value.slice(-8)}`;
+}
+
+function formatExpiryDaysLabel(value: string | number | null | undefined) {
+  const days = Number(value || 0);
+  if (days === 0) return 'No expiry';
+  return `${days} day${days === 1 ? '' : 's'}`;
 }
 
 function isValidAmountString(value: string): boolean {
@@ -183,7 +190,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
   const [allowedActions, setAllowedActions] = useState<AIM2MAction[]>(cachedConfigResponse?.config.allowedActions.length ? cachedConfigResponse.config.allowedActions : ['buy']);
   const [maxPerOrder, setMaxPerOrder] = useState(cachedConfigResponse?.config.maxPerOrder ?? '');
   const [maxTotal, setMaxTotal] = useState(cachedConfigResponse?.config.maxTotal ?? '');
-  const [expiryDays, setExpiryDays] = useState(String(cachedConfigResponse?.config.expiryDays || 7));
+  const [expiryDays, setExpiryDays] = useState(String(cachedConfigResponse?.config.expiryDays ?? 7));
   const [counterpartyText, setCounterpartyText] = useState(cachedConfigResponse?.config.counterpartyAllowlist.join('\n') ?? '');
   const [notes, setNotes] = useState(cachedConfigResponse?.config.notes || '');
   const [inviteCode, setInviteCode] = useState('');
@@ -211,6 +218,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
   const flowSession = activeSessionNonce !== undefined ? activeSession : undefined;
   const predictedExpiry = useMemo(() => {
     const days = Number(expiryDays || 0);
+    if (days === 0) return NO_EXPIRY_UINT64;
     if (!Number.isFinite(days) || days <= 0) return undefined;
     return BigInt(Math.floor(Date.now() / 1000) + days * 24 * 60 * 60);
   }, [expiryDays]);
@@ -250,7 +258,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
     if (!enabled) return false;
     const expiry = Number(expiryDays || 0);
     if (!normalizedActions.length) return false;
-    if (!Number.isInteger(expiry) || expiry < 1 || expiry > 30) return false;
+    if (!Number.isInteger(expiry) || expiry < 0 || expiry > 30) return false;
     if (!requiresFundingVault) return true;
     if (!paymentTokenAddress) return false;
     if (!isValidAmountString(maxPerOrder) || !isValidAmountString(maxTotal)) return false;
@@ -384,7 +392,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
     setAllowedActions(nextConfig.allowedActions.length ? nextConfig.allowedActions : ['buy']);
     setMaxPerOrder(nextConfig.maxPerOrder || '');
     setMaxTotal(nextConfig.maxTotal || '');
-    setExpiryDays(String(nextConfig.expiryDays || 7));
+    setExpiryDays(String(nextConfig.expiryDays ?? 7));
     setCounterpartyText(nextConfig.counterpartyAllowlist.join('\n'));
     setNotes(nextConfig.notes || '');
   };
@@ -796,7 +804,8 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
                 <CustomDropdown
                   variant="compact"
                   options={[
-                    ...(![1, 7, 30].includes(Number(expiryDays)) ? [{ value: String(expiryDays), label: `${expiryDays} days` }] : []),
+                    ...(![0, 1, 7, 30].includes(Number(expiryDays)) ? [{ value: String(expiryDays), label: formatExpiryDaysLabel(expiryDays) }] : []),
+                    { value: "0", label: "No expiry" },
                     { value: "1", label: "1 day" },
                     { value: "7", label: "7 days" },
                     { value: "30", label: "30 days" }
@@ -842,7 +851,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
             <div className="rounded-lg bg-[var(--t-surface-5)] px-4 py-4 text-sm text-ui-muted space-y-2">
               <p>Next setup number: {sessionPreview.nextSessionNonce !== undefined ? sessionPreview.nextSessionNonce.toString() : 'n/a'}</p>
               <p>Allowed actions: {actionSummary}</p>
-              <p>Duration: {expiryDays} day{Number(expiryDays) === 1 ? '' : 's'}</p>
+              <p>Duration: {formatExpiryDaysLabel(expiryDays)}</p>
               <p>Wallet: {cycleWalletAddress || 'n/a'}</p>
             </div>
             <button onClick={handleDeployWallet} disabled={!configReady || !m2mOnchainReady || saving || busyAction !== null || deployWalletMutation.isPending || deployWalletMutation.isConfirming || Boolean(deployedWalletAddress)} className="w-full px-4 py-2.5 rounded-full bg-[#2CC295] text-black text-sm font-semibold disabled:opacity-50">
@@ -864,7 +873,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
               <p>Wallet: {cycleWalletAddress || 'n/a'}</p>
               <p>Status: {runtimeStatusLabel}</p>
               <p>Unused balance: {tokenBalanceFormatted || '0'} {getPaymentTokenSymbol(paymentToken) || ''}</p>
-              <p>Ends: {walletExpiry !== undefined ? new Date(Number(walletExpiry) * 1000).toLocaleString() : 'n/a'}</p>
+              <p>Ends: {walletExpiry === NO_EXPIRY_UINT64 ? 'No expiry' : walletExpiry !== undefined ? new Date(Number(walletExpiry) * 1000).toLocaleString() : 'n/a'}</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <button onClick={async () => { try { setRuntimeError(''); setStatusMessage(''); await revokeWalletMutation.revokeWallet(); } catch (error) { setRuntimeError(error instanceof Error ? error.message : 'Unable to revoke the AI wallet cycle.'); } }} disabled={!deployedWalletAddress || sessionStatus !== 'active' || revokeWalletMutation.isPending || revokeWalletMutation.isConfirming} className="w-full px-4 py-2.5 rounded-full bg-[#F5B942] text-black text-sm font-semibold disabled:opacity-50">

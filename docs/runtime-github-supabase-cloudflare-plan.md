@@ -5,6 +5,7 @@
 - Canonical repo: `C:\ORINA\ATPProtocol2\Orina Protocol - Runtime`
 - Branch: `main`
 - Remote: `origin -> https://github.com/Archiver-KA/Orina-Protocol-Runtime`
+- Protocol runtime: ATP v3.5 beta on BSC Testnet, namespace `orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604`
 - Live frontend hostname: `https://app.orina.io`
 - Live Cloudflare Worker service: `apporinaio`
 - Existing root-site assets remain outside this plan:
@@ -126,8 +127,8 @@ Recommended for exact parity with the current live runtime:
 - `VITE_SUPABASE_AI_M2M_PATH_PREFIX=`
 - `VITE_SUPABASE_SELLER_MINTING_FN_NAME=orina-seller-minting-v1`
 - `VITE_SUPABASE_RECEIPT_SYNC_FN_NAME=orina-receipt-sync-v1`
-- `VITE_M2M_DELEGATION_MANAGER=0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58`
-- `VITE_M2M_AI_WALLET_FACTORY_V2=0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2`
+- `VITE_M2M_DELEGATION_MANAGER=0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13`
+- `VITE_M2M_AI_WALLET_FACTORY_V2=0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441`
 - `VITE_WALLET_AUTH_SESSION_TTL_MS=604800000`
 
 Do not put frontend-incompatible secrets into the Cloudflare Worker build:
@@ -144,8 +145,8 @@ Do not put frontend-incompatible secrets into the Cloudflare Worker build:
 - `VITE_SUPABASE_SHARED_SERVER_FN_NAME=make-server-b0d68fc8`
 - `VITE_SUPABASE_AUTH_BRIDGE_ENABLED=true`
 - `VITE_ENABLE_SUPABASE_CONFIG_FALLBACK=true`
-- `VITE_M2M_DELEGATION_MANAGER=0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58`
-- `VITE_M2M_AI_WALLET_FACTORY_V2=0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2`
+- `VITE_M2M_DELEGATION_MANAGER=0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13`
+- `VITE_M2M_AI_WALLET_FACTORY_V2=0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441`
 
 Operational notes:
 

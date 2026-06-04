@@ -1,6 +1,6 @@
 # AI M2M Supabase Deploy And Runtime Verification
 
-> Historical shared-bundle checklist replaced by the split-function runbook in `docs/spec/19-supabase-split-function-runbook.md`. This file keeps the current verification matrix and compatibility notes for April 2026.
+> Historical shared-bundle checklist replaced by the split-function runbook in `docs/spec/19-supabase-split-function-runbook.md`. This file keeps the current verification matrix and compatibility notes for the ATP v3.5 beta runtime.
 
 ## Current Runtime Bases
 
@@ -39,8 +39,8 @@ VITE_SUPABASE_AUTH_BRIDGE_ENABLED=true
 VITE_SUPABASE_AUTH_BRIDGE_FN_NAME=orina-auth-bridge-v1
 VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX=
 VITE_SUPABASE_AI_M2M_FN_NAME=orina-ai-m2m-v2
-VITE_M2M_DELEGATION_MANAGER=0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58
-VITE_M2M_AI_WALLET_FACTORY_V2=0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2
+VITE_M2M_DELEGATION_MANAGER=0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13
+VITE_M2M_AI_WALLET_FACTORY_V2=0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441
 ```
 
 ## Secrets Gate
@@ -115,6 +115,7 @@ Expected result after saving a policy:
 - response includes `config.selectedDelegateId`
 - response overview keeps `rootFallbackEnabled = true`
 - policy reloads correctly on refresh
+- `expiryDays = 0` persists only when the user intentionally selected no-expiry; root revoke remains available
 
 ### 5. Optional Action Execution
 

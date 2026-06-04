@@ -1,5 +1,5 @@
-/**
- * RuntimeStatusPanel — Router-aware runtime diagnostics
+﻿/**
+ * RuntimeStatusPanel â€” Router-aware runtime diagnostics
  * =====================================================
  * Mirrors the previous runtime panel but binds explorer/chain labels
  * to the canonical live protocol deployment instead of browsing selection.
@@ -38,7 +38,7 @@ function statusText(status: ProbeStatus) {
 }
 
 function shortAddr(addr: string) {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+  return `${addr.slice(0, 6)}â€¦${addr.slice(-4)}`;
 }
 
 function formatBps(bps: bigint) {
@@ -184,7 +184,7 @@ export function RuntimeStatusPanel() {
       )}
 
       <div>
-        <SectionHeader icon={<span className="text-[#2CC295] text-xs">⛓</span>} label="Chain Connectivity" />
+        <SectionHeader icon={<span className="text-[#2CC295] text-xs">â›“</span>} label="Chain Connectivity" />
         <ProbeRow
           label={report.chain.detail}
           value={`chainId: ${report.chain.chainId}`}
@@ -193,11 +193,11 @@ export function RuntimeStatusPanel() {
       </div>
 
       <div>
-        <SectionHeader icon={<span className="text-[#2CC295] text-xs">📄</span>} label="Contract Liveness" />
+        <SectionHeader icon={<span className="text-[#2CC295] text-xs">ðŸ“„</span>} label="Contract Liveness" />
         <div className="space-y-1.5">
           {report.isLoading
             ? Array.from({ length: 9 }).map((_, i) => (
-                <ProbeRow key={i} label="Loading…" status="loading" />
+                <ProbeRow key={i} label="Loadingâ€¦" status="loading" />
               ))
             : report.contracts.length === 0
               ? <ProbeRow label={`${networkLabel} has no live deployment configured`} status="warn" />
@@ -215,34 +215,35 @@ export function RuntimeStatusPanel() {
       </div>
 
       <div>
-        <SectionHeader icon={<span className="text-[#2CC295] text-xs">💰</span>} label="Fee Manager Config" />
+        <SectionHeader icon={<span className="text-[#2CC295] text-xs">ðŸ’°</span>} label="Fee Manager Config" />
         {report.isLoading ? (
-          <ProbeRow label="Loading fees…" status="loading" />
+          <ProbeRow label="Loading feesâ€¦" status="loading" />
         ) : !report.fees ? (
           <ProbeRow label="Fee manager not available on this network" status="warn" />
         ) : (
           <div className="space-y-1.5">
             <ProbeRow
-              label="Total fees"
+              label="USDT/USDC fees"
               value={formatBps(report.fees.totalBps)}
               status={report.fees.status}
               sub={report.fees.detail}
             />
-            <div className="grid grid-cols-3 gap-1.5">
-              <ProbeRow label="Platform" value={formatBps(report.fees.platformBps)} status="ok" />
-              <ProbeRow label="DAO" value={formatBps(report.fees.daoBps)} status="ok" />
-              <ProbeRow label="Burn" value={formatBps(report.fees.burnBps)} status="ok" />
+            <div className="grid grid-cols-2 gap-1.5">
+              <ProbeRow label="Stable Platform" value={formatBps(report.fees.platformBps)} status="ok" />
+              <ProbeRow label="Stable DAO" value={formatBps(report.fees.daoBps)} status="ok" />
+              <ProbeRow label="ORI Total" value={formatBps(report.fees.oriTotalBps)} status="ok" />
+              <ProbeRow label="ORI Split" value={`${formatBps(report.fees.oriPlatformBps)} / ${formatBps(report.fees.oriDaoBps)}`} status="ok" />
             </div>
           </div>
         )}
       </div>
 
       <div>
-        <SectionHeader icon={<span className="text-[#2CC295] text-xs">📏</span>} label="UnitRegistry Seeds" />
+        <SectionHeader icon={<span className="text-[#2CC295] text-xs">ðŸ“</span>} label="UnitRegistry Seeds" />
         <div className="grid grid-cols-3 gap-1.5">
           {report.isLoading
             ? Array.from({ length: 9 }).map((_, i) => (
-                <ProbeRow key={i} label="…" status="loading" />
+                <ProbeRow key={i} label="â€¦" status="loading" />
               ))
             : report.units.length === 0
               ? <ProbeRow label="No seeded units available on this network" status="warn" />
@@ -259,7 +260,7 @@ export function RuntimeStatusPanel() {
       </div>
 
       <div>
-        <SectionHeader icon={<span className="text-[#2CC295] text-xs">🗄</span>} label="Supabase Runtime Tables" />
+        <SectionHeader icon={<span className="text-[#2CC295] text-xs">ðŸ—„</span>} label="Supabase Runtime Tables" />
         <div className="space-y-1.5">
           {supabaseLoading
             ? ['protocol_assets', 'protocol_orders'].map((t) => (
@@ -277,7 +278,7 @@ export function RuntimeStatusPanel() {
       </div>
 
       <p className="text-[10px] text-ui-muted text-center">
-        {networkLabel} {chainId ? `(chainId ${chainId})` : ''} · Protocol v3.4 · Probed at {new Date().toLocaleTimeString()}
+        {networkLabel} {chainId ? `(chainId ${chainId})` : ''} - Protocol v3.5 beta - Probed at {new Date().toLocaleTimeString()}
       </p>
     </div>
   );

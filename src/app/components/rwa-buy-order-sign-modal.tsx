@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'motion/react';
+﻿import { AnimatePresence, motion } from 'motion/react';
 import {
   Calendar,
   ChevronLeft,
@@ -21,7 +21,7 @@ import { useAccessMode } from '@/hooks/useAccessMode';
 import { useProtocolChain } from '@/hooks/useProtocolChain';
 import { useCreateOrder } from '@/hooks/useOrders';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
-import { PAYMENT_TOKENS, type PaymentTokenSymbol } from '@/config/contracts';
+import { PAYMENT_TOKENS, PROTOCOL, type PaymentTokenSymbol } from '@/config/contracts';
 import { ERC20_ABI, MARKETPLACE_ABI } from '@/config/abis';
 import { createRuntimeOrderFromRwaIntent } from '@/utils/runtimeOrders';
 import { upsertRuntimeOrder } from '@/utils/runtimeOrders';
@@ -98,7 +98,6 @@ function isZeroMarketplaceOrderSnapshot(snapshot: MarketplaceOrderSnapshot) {
     split,
     platformFeeBpsSnapshot,
     daoFeeBpsSnapshot,
-    burnFeeBpsSnapshot,
     referralFeeBpsSnapshot,
     finalized,
     sellerConfirmed,
@@ -127,7 +126,6 @@ function isZeroMarketplaceOrderSnapshot(snapshot: MarketplaceOrderSnapshot) {
     && split[1] === 0n
     && platformFeeBpsSnapshot === 0n
     && daoFeeBpsSnapshot === 0n
-    && burnFeeBpsSnapshot === 0n
     && referralFeeBpsSnapshot === 0n
     && finalized === false
     && sellerConfirmed === false
@@ -135,6 +133,23 @@ function isZeroMarketplaceOrderSnapshot(snapshot: MarketplaceOrderSnapshot) {
     && sellerSig === '0x'
     && buyerSig2 === '0x'
   );
+}
+
+function convertBaseUnitsAtOneToOne(amount: bigint, fromDecimals: number, toDecimals: number) {
+  if (fromDecimals === toDecimals) return amount;
+  const diff = Math.abs(toDecimals - fromDecimals);
+  const scale = 10n ** BigInt(diff);
+  return toDecimals > fromDecimals ? amount * scale : amount / scale;
+}
+
+function getFeeBpsForToken(symbol: PaymentTokenSymbol) {
+  if (symbol === 'ORI') {
+    return PROTOCOL.ORI_PLATFORM_FEE_BPS + PROTOCOL.ORI_DAO_FEE_BPS + PROTOCOL.DEFAULT_REFERRAL_FEE_BPS;
+  }
+  if (symbol === 'USDT' || symbol === 'USDC') {
+    return PROTOCOL.STABLECOIN_PLATFORM_FEE_BPS + PROTOCOL.STABLECOIN_DAO_FEE_BPS + PROTOCOL.DEFAULT_REFERRAL_FEE_BPS;
+  }
+  return PROTOCOL.DEFAULT_PLATFORM_FEE_BPS + PROTOCOL.DEFAULT_DAO_FEE_BPS + PROTOCOL.DEFAULT_REFERRAL_FEE_BPS;
 }
 
 function parseAssetPriceToBaseUnits(price: string, decimals: number): bigint | null {
@@ -285,6 +300,41 @@ export function RwaBuyOrderSignModal({
   } | null>(null);
   const [submittedOrderId, setSubmittedOrderId] = useState<string | null>(null);
   const [submittedProjectionSynced, setSubmittedProjectionSynced] = useState<boolean | null>(null);
+  const [feeTokenMode, setFeeTokenMode] = useState<'payment' | 'ori'>('payment');
+  const supportsOriFeeToken = paymentToken.symbol === 'USDT' || paymentToken.symbol === 'USDC';
+  const feeToken = useMemo(() => {
+    if (supportsOriFeeToken && feeTokenMode === 'ori') {
+      return {
+        symbol: 'ORI' as PaymentTokenSymbol,
+        address: PAYMENT_TOKENS.ORI,
+      };
+    }
+    return paymentToken;
+  }, [feeTokenMode, paymentToken, supportsOriFeeToken]);
+  const usesSeparateFeeToken = feeToken.address.toLowerCase() !== paymentToken.address.toLowerCase();
+  const feeTokenDecimalsRead = useReadContract({
+    chainId: chainId ?? undefined,
+    address: feeToken.address,
+    abi: ERC20_ABI,
+    functionName: 'decimals',
+    query: { enabled: Boolean(chainId && usesSeparateFeeToken) },
+  });
+  const feeTokenBalanceRead = useReadContract({
+    chainId: chainId ?? undefined,
+    address: feeToken.address,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf',
+    args: address && isValidEvmAddress(address) ? [address] : undefined,
+    query: { enabled: Boolean(chainId && usesSeparateFeeToken && address && isValidEvmAddress(address)) },
+  });
+  const feeTokenAllowanceRead = useReadContract({
+    chainId: chainId ?? undefined,
+    address: feeToken.address,
+    abi: ERC20_ABI,
+    functionName: 'allowance',
+    args: address && isValidEvmAddress(address) && paymentGatewayAddress ? [address, paymentGatewayAddress] : undefined,
+    query: { enabled: Boolean(chainId && usesSeparateFeeToken && address && isValidEvmAddress(address) && paymentGatewayAddress) },
+  });
 
   useEffect(() => {
     if (!orderError) return;
@@ -296,6 +346,12 @@ export function RwaBuyOrderSignModal({
   useEffect(() => {
     if (approvalError) resetApproval();
   }, [address, approvalError, resetApproval]);
+
+  useEffect(() => {
+    if (!supportsOriFeeToken && feeTokenMode !== 'payment') {
+      setFeeTokenMode('payment');
+    }
+  }, [feeTokenMode, supportsOriFeeToken]);
 
   useEffect(() => {
     let active = true;
@@ -331,6 +387,15 @@ export function RwaBuyOrderSignModal({
   const paymentTokenAllowance = paymentTokenAllowanceRead.data !== undefined
     ? paymentTokenAllowanceRead.data as bigint
     : undefined;
+  const feeTokenDecimals = usesSeparateFeeToken
+    ? (feeTokenDecimalsRead.data !== undefined ? Number(feeTokenDecimalsRead.data) : null)
+    : paymentTokenDecimals;
+  const feeTokenBalance = usesSeparateFeeToken
+    ? (feeTokenBalanceRead.data !== undefined ? feeTokenBalanceRead.data as bigint : undefined)
+    : paymentTokenBalance;
+  const feeTokenAllowance = usesSeparateFeeToken
+    ? (feeTokenAllowanceRead.data !== undefined ? feeTokenAllowanceRead.data as bigint : undefined)
+    : paymentTokenAllowance;
 
   const unitPriceBase = useMemo(
     () => (paymentTokenDecimals === null ? null : parseAssetPriceToBaseUnits(asset.price, paymentTokenDecimals)),
@@ -340,6 +405,14 @@ export function RwaBuyOrderSignModal({
     () => (unitPriceBase !== null ? unitPriceBase * BigInt(quantity) : null),
     [unitPriceBase, quantity]
   );
+  const feeBps = getFeeBpsForToken(feeToken.symbol);
+  const requiredFeeBase = useMemo(() => {
+    if (!usesSeparateFeeToken || totalPriceBase === null || paymentTokenDecimals === null || feeTokenDecimals === null) {
+      return 0n;
+    }
+    const quoteBase = convertBaseUnitsAtOneToOne(totalPriceBase, paymentTokenDecimals, feeTokenDecimals);
+    return (quoteBase * BigInt(feeBps)) / 10000n;
+  }, [feeBps, feeTokenDecimals, paymentTokenDecimals, totalPriceBase, usesSeparateFeeToken]);
   const unitPriceNumeric = useMemo(() => {
     const raw = Number.parseFloat(asset.price.replace(/[^\d.]/g, ''));
     return Number.isFinite(raw) ? raw : 0;
@@ -364,12 +437,14 @@ export function RwaBuyOrderSignModal({
     canonicalAssetId !== null &&
     sellerAddress !== null &&
     totalPriceBase !== null &&
-    paymentTokenDecimals !== null;
+    paymentTokenDecimals !== null &&
+    (!usesSeparateFeeToken || feeTokenDecimals !== null);
   const orderDataIssues = [
     canonicalAssetId === null ? 'Missing on-chain asset ID' : null,
     sellerAddress === null ? 'Missing seller wallet address' : null,
     totalPriceBase === null ? 'Missing or invalid price/token amount' : null,
     paymentTokenDecimals === null ? 'Payment token metadata unavailable' : null,
+    usesSeparateFeeToken && feeTokenDecimals === null ? 'Fee token metadata unavailable' : null,
   ].filter((issue): issue is string => Boolean(issue));
   const hasEnoughPaymentTokenBalance = totalPriceBase !== null
     && paymentTokenBalance !== undefined
@@ -377,11 +452,22 @@ export function RwaBuyOrderSignModal({
   const hasEnoughPaymentTokenAllowance = totalPriceBase !== null
     && paymentTokenAllowance !== undefined
     && paymentTokenAllowance >= totalPriceBase;
-  const needsApprovalStep = Boolean(signedPayload)
+  const hasEnoughFeeTokenBalance = !usesSeparateFeeToken
+    || (feeTokenBalance !== undefined && feeTokenBalance >= requiredFeeBase);
+  const hasEnoughFeeTokenAllowance = !usesSeparateFeeToken
+    || (feeTokenAllowance !== undefined && feeTokenAllowance >= requiredFeeBase);
+  const needsPaymentApprovalStep = Boolean(signedPayload)
     && totalPriceBase !== null
     && paymentTokenDecimals !== null
     && hasEnoughPaymentTokenBalance
     && !hasEnoughPaymentTokenAllowance;
+  const needsFeeApprovalStep = Boolean(signedPayload)
+    && usesSeparateFeeToken
+    && requiredFeeBase > 0n
+    && feeTokenDecimals !== null
+    && hasEnoughFeeTokenBalance
+    && !hasEnoughFeeTokenAllowance;
+  const needsApprovalStep = needsPaymentApprovalStep || needsFeeApprovalStep;
 
   const targetDays = Math.max(1, Math.ceil((startOfLocalDay(targetDate).getTime() - today.getTime()) / DAY_MS));
   const effectiveDeliveryDays = Math.max(1, targetDays);
@@ -428,12 +514,13 @@ export function RwaBuyOrderSignModal({
         const amount = BigInt(quantity);
         let signature: `0x${string}`;
         let mode: 'preview' | 'predicted-live' = 'preview';
-        let note = 'Buyer Sig #1 ready (preview mode — orderId may differ at submission).';
+        let note = 'Buyer Sig #1 ready (preview mode â€” orderId may differ at submission).';
 
         if (canUsePredictedSignature && predictedOrderId !== undefined) {
           signature = await buyerSig1.sign({
             seller: sellerAddress,
             paymentToken: paymentToken.address,
+            feeToken: usesSeparateFeeToken ? feeToken.address : undefined,
             assetId: canonicalAssetId,
             grossPrice: totalPriceBase,
             amount,
@@ -447,6 +534,7 @@ export function RwaBuyOrderSignModal({
             buyer: address,
             seller: sellerAddress,
             paymentToken: paymentToken.address,
+            feeToken: usesSeparateFeeToken ? feeToken.address : undefined,
             assetId: canonicalAssetId,
             grossPrice: totalPriceBase,
             amount,
@@ -480,28 +568,35 @@ export function RwaBuyOrderSignModal({
   };
 
   const handleApprovePaymentToken = async () => {
-    if (totalPriceBase === null || paymentTokenDecimals === null) {
-      toast.error('Payment token is not ready yet. Please wait and try again.');
+    const approvalToken = needsFeeApprovalStep ? feeToken : paymentToken;
+    const approvalAmount = needsFeeApprovalStep ? requiredFeeBase : totalPriceBase;
+    const approvalDecimals = needsFeeApprovalStep ? feeTokenDecimals : paymentTokenDecimals;
+    const approvalAllowance = needsFeeApprovalStep ? feeTokenAllowance : paymentTokenAllowance;
+    const approvalAllowanceRead = needsFeeApprovalStep ? feeTokenAllowanceRead : paymentTokenAllowanceRead;
+    const approvalBalanceRead = needsFeeApprovalStep ? feeTokenBalanceRead : paymentTokenBalanceRead;
+
+    if (approvalAmount === null || approvalDecimals === null || approvalAmount <= 0n) {
+      toast.error('Token approval is not ready yet. Please wait and try again.');
       return;
     }
 
-    if (!hasEnoughPaymentTokenBalance) {
-      toast.error(`Insufficient ${paymentToken.symbol} balance for escrow`);
+    if (needsFeeApprovalStep ? !hasEnoughFeeTokenBalance : !hasEnoughPaymentTokenBalance) {
+      toast.error(`Insufficient ${approvalToken.symbol} balance for escrow`);
       return;
     }
 
     const continueApprovePaymentToken = async () => {
-      if (!chainId) {
+      if (!chainId || !paymentGatewayAddress) {
         toast.error('Protocol network is not enabled for token approval');
         return;
       }
 
       try {
-        const currentAllowance = paymentTokenAllowance ?? 0n;
+        const currentAllowance = approvalAllowance ?? 0n;
 
-        if (currentAllowance >= totalPriceBase) {
-          await paymentTokenAllowanceRead.refetch();
-          toast.success(`${paymentToken.symbol} approval already available`);
+        if (currentAllowance >= approvalAmount) {
+          await approvalAllowanceRead.refetch();
+          toast.success(`${approvalToken.symbol} approval already available`);
           return;
         }
 
@@ -513,7 +608,7 @@ export function RwaBuyOrderSignModal({
         if (currentAllowance > 0n) {
           const resetHash = await writeApprovalAsync({
             chainId,
-            address: paymentToken.address,
+            address: approvalToken.address,
             abi: ERC20_ABI,
             functionName: 'approve',
             args: [paymentGatewayAddress, 0n],
@@ -521,38 +616,38 @@ export function RwaBuyOrderSignModal({
 
           const resetReceipt = await publicClient.waitForTransactionReceipt({ hash: resetHash });
           if (resetReceipt.status !== 'success') {
-            throw new Error(`Failed to reset ${paymentToken.symbol} approval`);
+            throw new Error(`Failed to reset ${approvalToken.symbol} approval`);
           }
         }
 
         const approvalTxHash = await writeApprovalAsync({
           chainId,
-          address: paymentToken.address,
+          address: approvalToken.address,
           abi: ERC20_ABI,
           functionName: 'approve',
-          args: [paymentGatewayAddress, totalPriceBase],
+          args: [paymentGatewayAddress, approvalAmount],
         });
 
         const approvalReceipt = await publicClient.waitForTransactionReceipt({ hash: approvalTxHash });
         if (approvalReceipt.status !== 'success') {
-          throw new Error(`${paymentToken.symbol} approval transaction reverted`);
+          throw new Error(`${approvalToken.symbol} approval transaction reverted`);
         }
 
         await Promise.all([
-          paymentTokenAllowanceRead.refetch(),
-          paymentTokenBalanceRead.refetch(),
+          approvalAllowanceRead.refetch(),
+          approvalBalanceRead.refetch(),
         ]);
 
-        toast.success(`${paymentToken.symbol} approved for order escrow`);
+        toast.success(`${approvalToken.symbol} approved for escrow`);
       } catch (error) {
-        console.error('[RWA Modal] Approve payment token failed:', error);
-        toast.error(getWalletErrorMessage(error, `Failed to approve ${paymentToken.symbol}`));
+        console.error('[RWA Modal] Approve token failed:', error);
+        toast.error(getWalletErrorMessage(error, `Failed to approve ${approvalToken.symbol}`));
       }
     };
 
     if (!(await requireWalletActionAsync({
       capability: 'protocol_order_write',
-      actionLabel: `approve ${paymentToken.symbol}`,
+      actionLabel: `approve ${approvalToken.symbol}`,
       fallbackPage: 'marketplace',
       onSecurityCheckConfirmed: continueApprovePaymentToken,
     }))) {
@@ -562,10 +657,10 @@ export function RwaBuyOrderSignModal({
     await continueApprovePaymentToken();
   };
 
-  // ── Step 2: Submit signed order on-chain ──────────────────────
+  // â”€â”€ Step 2: Submit signed order on-chain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleSubmitOrder = async () => {
     if (!signedPayload || !hasValidOrderData) {
-      toast.error('Signature missing — please sign first');
+      toast.error('Signature missing â€” please sign first');
       return;
     }
 
@@ -589,6 +684,16 @@ export function RwaBuyOrderSignModal({
 
     if (!hasEnoughPaymentTokenAllowance) {
       toast.error(`Approve ${paymentToken.symbol} for the escrow contract before submitting`);
+      return;
+    }
+
+    if (!hasEnoughFeeTokenBalance) {
+      toast.error(`Insufficient ${feeToken.symbol} balance for protocol fee escrow`);
+      return;
+    }
+
+    if (!hasEnoughFeeTokenAllowance) {
+      toast.error(`Approve ${feeToken.symbol} for the protocol fee escrow before submitting`);
       return;
     }
 
@@ -620,6 +725,7 @@ export function RwaBuyOrderSignModal({
           totalPriceBase,
           estDeliverySeconds,
           signedPayload.signature,
+          usesSeparateFeeToken ? feeToken.address : undefined,
         );
 
         const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
@@ -643,6 +749,9 @@ export function RwaBuyOrderSignModal({
           paymentToken: paymentToken.address,
           paymentTokenSymbol: paymentToken.symbol,
           paymentTokenDecimals: paymentTokenDecimals,
+          feeToken: feeToken.address,
+          feeTokenSymbol: feeToken.symbol,
+          feeTokenDecimals: feeTokenDecimals ?? paymentTokenDecimals ?? undefined,
           shippingAddressSnapshot: toOrderShippingSnapshot(preferredShippingAddress),
           shippingMethodLabel: preferredShippingAddress ? 'Buyer default delivery address' : undefined,
           selectedAttributes,
@@ -665,7 +774,7 @@ export function RwaBuyOrderSignModal({
           throw new Error('Order transaction confirmed but contract order slot is still empty. Please retry after refreshing the latest order state.');
         }
 
-        const reconciledOrder = reconcileOrderFromChain(baseOrder, chainOrder);
+        const reconciledOrder = reconcileOrderFromChain(baseOrder, chainOrder, { feeToken: feeToken.address });
         upsertRuntimeOrder(reconciledOrder, {
           chainId,
           marketplaceContract: marketplaceAddress,
@@ -712,11 +821,16 @@ export function RwaBuyOrderSignModal({
   const signatureError = buyerSig1.error || previewSigner.error;
   const paymentTokenBalanceDisplay = formatTokenAmountDisplay(paymentTokenBalance, paymentTokenDecimals);
   const paymentTokenAllowanceDisplay = formatTokenAmountDisplay(paymentTokenAllowance, paymentTokenDecimals);
+  const feeTokenBalanceDisplay = formatTokenAmountDisplay(feeTokenBalance, feeTokenDecimals);
+  const feeTokenAllowanceDisplay = formatTokenAmountDisplay(feeTokenAllowance, feeTokenDecimals);
   const requiredEscrowDisplay = totalPriceBase !== null
     ? formatTokenAmountDisplay(totalPriceBase, paymentTokenDecimals)
     : '...';
+  const requiredFeeDisplay = usesSeparateFeeToken
+    ? formatTokenAmountDisplay(requiredFeeBase, feeTokenDecimals)
+    : '0';
   const signButtonLabel = isSigning
-    ? 'Signing…'
+    ? 'Signingâ€¦'
     : !protocolChain.isConnected
       ? 'Connect Wallet'
       : access.isAuthPending
@@ -724,11 +838,12 @@ export function RwaBuyOrderSignModal({
         : !protocolChain.isOnProtocolChain
           ? 'Switch Network'
           : 'Sign Order';
+  const approvalTokenSymbol = needsFeeApprovalStep ? feeToken.symbol : paymentToken.symbol;
   const approveButtonLabel = approvalPending || approvalConfirming
-    ? `Approving ${paymentToken.symbol}…`
-    : `Approve ${paymentToken.symbol}`;
+    ? `Approving ${approvalTokenSymbol}â€¦`
+    : `Approve ${approvalTokenSymbol}`;
   const submitButtonLabel = orderPending || orderConfirming
-    ? 'Submitting…'
+    ? 'Submittingâ€¦'
     : orderConfirmed
       ? 'Submitted!'
       : !signedPayload
@@ -743,10 +858,14 @@ export function RwaBuyOrderSignModal({
                 ? 'Switch Network'
                 : !hasEnoughPaymentTokenBalance
                   ? 'Insufficient Balance'
+                  : !hasEnoughFeeTokenBalance
+                    ? `Insufficient ${feeToken.symbol}`
                   : needsApprovalStep
                     ? approveButtonLabel
-                    : !hasEnoughPaymentTokenAllowance
-                      ? `Approve ${paymentToken.symbol}`
+                  : !hasEnoughPaymentTokenAllowance
+                    ? `Approve ${paymentToken.symbol}`
+                    : !hasEnoughFeeTokenAllowance
+                      ? `Approve ${feeToken.symbol}`
                       : 'Submit Order';
   const totalDisplay = `${(unitPriceNumeric * quantity).toLocaleString(undefined, { maximumFractionDigits: 4 })} ${asset.currency}`;
   const estTargetLabel = formatDateLong(targetDate);
@@ -855,13 +974,13 @@ export function RwaBuyOrderSignModal({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ui-muted">Delivery</p>
-                      <p className="text-sm font-semibold text-ui-primary">{effectiveDeliveryDays} days — {formatDateShort(targetDate)}</p>
+                      <p className="text-sm font-semibold text-ui-primary">{effectiveDeliveryDays} days â€” {formatDateShort(targetDate)}</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Buyer Sig card — shown in left column after signing */}
+              {/* Buyer Sig card â€” shown in left column after signing */}
               {signedPayload && (
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
@@ -888,7 +1007,7 @@ export function RwaBuyOrderSignModal({
                 </motion.div>
               )}
 
-              {/* Escrow Readiness card — shown in left column after signing */}
+              {/* Escrow Readiness card â€” shown in left column after signing */}
               {signedPayload && (
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
@@ -899,17 +1018,35 @@ export function RwaBuyOrderSignModal({
                   <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-ui-muted">Escrow Readiness</p>
                   <div className="space-y-2 text-xs">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-ui-secondary">Required</span>
+                      <span className="text-ui-secondary">Payment Escrow</span>
                       <span className="font-semibold text-ui-primary">{requiredEscrowDisplay} {paymentToken.symbol}</span>
                     </div>
+                    {usesSeparateFeeToken && (
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-ui-secondary">Protocol Fee Escrow</span>
+                        <span className="font-semibold text-ui-primary">{requiredFeeDisplay} {feeToken.symbol}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-ui-secondary">Wallet Balance</span>
+                      <span className="text-ui-secondary">{paymentToken.symbol} Balance</span>
                       <span className="font-semibold text-ui-primary">{paymentTokenBalanceDisplay} {paymentToken.symbol}</span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-ui-secondary">Approved To Escrow</span>
+                      <span className="text-ui-secondary">{paymentToken.symbol} Approved</span>
                       <span className="font-semibold text-ui-primary">{paymentTokenAllowanceDisplay} {paymentToken.symbol}</span>
                     </div>
+                    {usesSeparateFeeToken && (
+                      <>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-ui-secondary">{feeToken.symbol} Balance</span>
+                          <span className="font-semibold text-ui-primary">{feeTokenBalanceDisplay} {feeToken.symbol}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-ui-secondary">{feeToken.symbol} Approved</span>
+                          <span className="font-semibold text-ui-primary">{feeTokenAllowanceDisplay} {feeToken.symbol}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                   {!hasEnoughPaymentTokenBalance && (
                     <div className="mt-3 rounded-[20px] border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
@@ -921,11 +1058,21 @@ export function RwaBuyOrderSignModal({
                       Approve {paymentToken.symbol} for {requiredEscrowDisplay} before submitting the order on-chain.
                     </div>
                   )}
+                  {usesSeparateFeeToken && !hasEnoughFeeTokenBalance && (
+                    <div className="mt-3 rounded-[20px] border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                      This wallet does not hold enough {feeToken.symbol} for the protocol fee escrow.
+                    </div>
+                  )}
+                  {usesSeparateFeeToken && hasEnoughFeeTokenBalance && !hasEnoughFeeTokenAllowance && (
+                    <div className="mt-3 rounded-[20px] border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                      Approve {feeToken.symbol} for {requiredFeeDisplay} before submitting the order on-chain.
+                    </div>
+                  )}
                 </motion.div>
               )}
             </div>
 
-            {/* ── Right Column ── */}
+            {/* â”€â”€ Right Column â”€â”€ */}
               <div className="space-y-4">
               <ProtocolChainBanner
                 isConnected={protocolChain.isConnected}
@@ -1028,6 +1175,35 @@ export function RwaBuyOrderSignModal({
                       {paymentToken.symbol}
                     </span>
                   </div>
+                  {supportsOriFeeToken && (
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <span className="text-ui-secondary">Fee Token</span>
+                      <div className="inline-flex rounded-full border border-ui-border-subtle bg-[var(--t-surface-2)] p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setFeeTokenMode('payment')}
+                          className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                            feeTokenMode === 'payment'
+                              ? 'bg-ui-card text-ui-primary'
+                              : 'text-ui-muted hover:text-ui-primary'
+                          }`}
+                        >
+                          {paymentToken.symbol}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFeeTokenMode('ori')}
+                          className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                            feeTokenMode === 'ori'
+                              ? 'bg-[#2CC295] text-black'
+                              : 'text-ui-muted hover:text-ui-primary'
+                          }`}
+                        >
+                          ORI
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-start justify-between gap-3 text-xs">
                     <span className="text-ui-secondary">Shipping Snapshot</span>
                     <span className="max-w-[18rem] text-right font-semibold text-ui-primary">
@@ -1071,8 +1247,8 @@ export function RwaBuyOrderSignModal({
                   title={
                     orderConfirmed ? 'Order submitted successfully' :
                       orderError ? `Error: ${orderError.message}` :
-                        orderConfirming ? 'Confirming on blockchain…' :
-                          'Submitting order…'
+                        orderConfirming ? 'Confirming on blockchainâ€¦' :
+                          'Submitting orderâ€¦'
                   }
                   description={
                     orderConfirmed
@@ -1136,7 +1312,9 @@ export function RwaBuyOrderSignModal({
                       || signedPayload.mode !== 'predicted-live'
                       || paymentTokenDecimals === null
                       || !hasEnoughPaymentTokenBalance
+                      || !hasEnoughFeeTokenBalance
                       || (!needsApprovalStep && !hasEnoughPaymentTokenAllowance)
+                      || (!needsApprovalStep && !hasEnoughFeeTokenAllowance)
                     }
                     size="lg"
                     className="flex-1 h-[45px] rounded-full justify-center text-sm disabled:cursor-not-allowed disabled:opacity-60"

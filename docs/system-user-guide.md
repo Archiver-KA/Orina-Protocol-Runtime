@@ -1,19 +1,20 @@
 # Orina Protocol Runtime User Guide
 
-Last aligned with runtime code on 2026-04-25.
+Last aligned with runtime code on 2026-06-04.
 
-This guide describes the current `Orina Protocol - Runtime` application, not the older documentation site snapshot. The live protocol surface is ATP v3.4.1 on BNB Chain Testnet, backed by a React/Vite client, Wagmi/Viem wallet flows, Supabase REST/Edge Functions, and local wallet-scoped runtime caches.
+This guide describes the current `Orina Protocol - Runtime` application, not the older documentation site snapshot. The live beta protocol surface is ATP v3.5 on BNB Chain Testnet, backed by a React/Vite client, Wagmi/Viem wallet flows, Supabase REST/Edge Functions, and local wallet-scoped runtime caches.
 
 ## Current Runtime Baseline
 
 - Frontend: React, TypeScript, Vite, Tailwind, Wagmi, Viem.
 - Wallet connector: browser injected EIP-1193 wallets, with MetaMask as the primary tested wallet.
 - Live protocol network: BNB Chain Testnet, chain id `97`.
-- Protocol namespace: `orina-atp-v3.4.1-m2m-bsc-testnet-20260329-r6`.
-- Primary marketplace contract: `MarketplaceATP` at `0xBc6f46000b2709714C3908BB6b71BAb67A2d1495`.
-- Asset contract: `OrinaRWA` at `0x72C3477C57097f3791501F3839bB380A019B754f`.
-- Receipt contract: `RWAReceiptNFT` at `0x73719A7364c72cB0Ee77595773E9596976e298d1`.
+- Protocol namespace: `orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604`.
+- Primary marketplace contract: `MarketplaceATP` at `0x18E1C8ab257FAf16Ec8257A9715d07661194150B`.
+- Asset contract: `OrinaRWA` at `0x3a591AB1aB3A281f999AAD1644b020CbEC463C47`.
+- Receipt contract: `RWAReceiptNFT` at `0x16A35bdD00dCfb9010504FbD1b2B97e26bB315ca`.
 - Supported payment token list in the client: testnet `USDT`, `USDC`, `WBNB`, and `ORI`.
+- Protocol fee model: no burn; USDT/USDC fee token total is 2% (`1%` platform + `1%` DAO), ORI fee token total is 1% (`0.5%` platform + `0.5%` DAO).
 
 Other networks can appear in the UI as coming-soon options, but protocol writes are enabled only for the configured live network.
 
@@ -150,15 +151,23 @@ Use this path for RWA purchase actions:
 5. Select a delivery address if the flow asks for one.
 6. Sign the buyer order request.
 
-The current ATP order payload is EIP-712 signed as:
+The default ATP order payload is EIP-712 signed as:
 
 ```text
 Order(orderId,buyer,seller,paymentToken,assetId,grossPrice,amount,estDeliverySeconds)
 ```
 
+When the protocol fee is paid in a different token from the payment token, the buyer signs:
+
+```text
+OrderWithFeeToken(orderId,buyer,seller,paymentToken,feeToken,assetId,grossPrice,amount,estDeliverySeconds)
+```
+
+For the v3.5 beta runtime, USDT/USDC purchases can keep the fee in the payment token at total 2%, or pay protocol fee in ORI at total 1%. The beta UI uses a 1:1 ORI/payment-token assumption; production must use the oracle quote layer before signature and escrow.
+
 The purchase lifecycle is:
 
-1. Buyer calls `createOrder`; funds are escrowed through `PaymentGateway`.
+1. Buyer calls `createOrder`, or `createOrderWithFeeToken` when `feeToken != paymentToken`; funds and protocol fee are escrowed through `PaymentGateway`.
 2. Seller has 24 hours to call `sellerConfirm`.
 3. If the seller changes the delivery time, buyer has 24 hours to re-accept through `payOrder`.
 4. Once payment is committed, the order enters the delivery period.
@@ -179,12 +188,14 @@ Before minting:
 
 Open `Minting`:
 
-1. Choose `RWA` for real-world asset records or `NFT` for the current NFT-type listing path.
+1. Choose `RWA` for real-world asset records or `NFT` for transferable ERC721 asset listings.
 2. Enter asset name, description, media, category, price, and amount.
 3. For RWA, choose unit and expiry behavior.
 4. Add configurable buyer attributes if required.
 5. Review the preview panel and mint.
 6. Approve wallet security and transaction prompts.
+
+RWA orders mint non-transferable post-finalization receipt NFTs and revert transfer attempts with `RWA receipt non-transferable`. NFT orders mint transferable ERC721 tokens after finalization.
 
 Minted runtime records are cached under:
 
@@ -254,6 +265,8 @@ The `Agent Setting` page includes:
 - Seller AI minting configuration.
 - AI M2M delegated wallet controls.
 
+Delegated M2M policy supports bounded expiring sessions and an explicit no-expiry option. No-expiry sessions remain revocable by the root wallet and should be paired with counterparty binding, action-mask limits, per-order caps, total caps, and ATP term policy.
+
 Sensitive API keys are not stored in plain localStorage. API key generation uses wallet auth, Supabase bridge tokens, and server-side key storage. Smoke scripts redact generated keys in output.
 
 ## Verification With Port 9222
@@ -274,4 +287,3 @@ Minimum local smoke setup:
 - Do not expose service-role keys in any `VITE_*` variable.
 - Keep `src/config/contracts.ts`, `src/config/eip712.ts`, and Supabase projection tooling aligned with the same deployment namespace.
 - Do not document old mock behavior as current runtime behavior unless the specific page still uses fixtures.
-

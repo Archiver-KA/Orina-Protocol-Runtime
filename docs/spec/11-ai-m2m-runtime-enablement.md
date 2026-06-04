@@ -1,8 +1,8 @@
 # AI M2M Runtime Enablement
 
-Last verified by Codex audit: 2026-05-12
+Last verified by Codex audit: 2026-06-04
 
-> Current-state summary for April 2026. The operational deploy order and command set live in `docs/spec/19-supabase-split-function-runbook.md`.
+> Current-state summary for the ATP v3.5 beta runtime. The operational deploy order and command set live in `docs/spec/19-supabase-split-function-runbook.md`.
 
 ## Purpose
 
@@ -19,8 +19,8 @@ This note records the runtime prerequisites that must be true before the delegat
 Current baseline:
 
 - Supabase project ref: `vcixsdudkizgfikhmfuv`
-- BSC testnet `DelegationManager`: `0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58`
-- BSC testnet `AIWalletFactoryV2`: `0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2`
+- BSC testnet `DelegationManager`: `0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13`
+- BSC testnet `AIWalletFactoryV2`: `0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441`
 
 Legacy shared-bundle routes like `/functions/v1/make-server-b0d68fc8/ai/m2m/*` or `/auth/supabase-claim-bridge/*` should only be used intentionally for backward-compatibility troubleshooting.
 
@@ -44,8 +44,8 @@ VITE_SUPABASE_AI_M2M_FN_NAME=orina-ai-m2m-v2
 VITE_SUPABASE_SELLER_MINTING_FN_NAME=orina-seller-minting-v1
 VITE_SUPABASE_RECEIPT_SYNC_FN_NAME=orina-receipt-sync-v1
 
-VITE_M2M_DELEGATION_MANAGER=0xcC2C55DcC834D83fddcb7C2aA0B07A7ED6585E58
-VITE_M2M_AI_WALLET_FACTORY_V2=0xc1eF71c92200bFE3bc304Bc20ee2D89da26E4ca2
+VITE_M2M_DELEGATION_MANAGER=0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13
+VITE_M2M_AI_WALLET_FACTORY_V2=0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441
 ```
 
 Notes:
@@ -105,6 +105,7 @@ Expected UI state:
 - `Root Fallback` shows `Always On`
 - `Generate Delegate` and `Create Enroll Code` are enabled when auth succeeds
 - saved policy persists `selectedDelegateId`, token choice, limits, and expiry
+- no-expiry policy can be selected intentionally and remains root-revocable
 
 ### On-chain Readiness
 

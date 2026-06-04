@@ -1,9 +1,9 @@
-/**
- * useRuntimeProbe — Phase 3A Runtime Status Check
+﻿/**
+ * useRuntimeProbe â€” Phase 3A Runtime Status Check
  * =================================================
  * Probes all deployed contracts on BSC Testnet (chainId 97):
  *   1. Contract liveness (9 contracts via VERSION / nextXxxId reads)
- *   2. UnitRegistry seeds (9 units: PIECE → SET)
+ *   2. UnitRegistry seeds (9 units: PIECE â†’ SET)
  *   3. FeeManager config (platform/DAO/burn/total bps)
  *   4. ShippingRegistry options (nextOptionId)
  *   5. Wallet chain (expects chainId 97)
@@ -13,6 +13,7 @@
 import { useReadContracts, useChainId } from 'wagmi';
 import { useMemo } from 'react';
 import {
+  PAYMENT_TOKENS,
   UNIT_IDS,
   PROTOCOL,
 } from '@/config/contracts';
@@ -30,7 +31,7 @@ import {
 import { restSelect, isSupabaseRestEnabled } from '@/utils/supabaseRest';
 import { useProtocolDataNetwork } from './useProtocolDataNetwork';
 
-// ── Types ──────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type ProbeStatus = 'ok' | 'warn' | 'error' | 'loading';
 
@@ -54,8 +55,10 @@ export interface UnitProbeResult {
 export interface FeeProbeResult {
   platformBps: bigint;
   daoBps: bigint;
-  burnBps: bigint;
   totalBps: bigint;
+  oriPlatformBps: bigint;
+  oriDaoBps: bigint;
+  oriTotalBps: bigint;
   status: ProbeStatus;
   detail?: string;
 }
@@ -136,7 +139,7 @@ function normalizeRuntimeUnitResult(result: unknown): RuntimeUnitResult | null {
   return null;
 }
 
-// ── Supabase probe (non-hook, called in effect) ────────────────
+// â”€â”€ Supabase probe (non-hook, called in effect) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function probeSupabaseTables(): Promise<SupabaseTableProbeResult[]> {
   if (!isSupabaseRestEnabled()) {
@@ -158,7 +161,7 @@ export async function probeSupabaseTables(): Promise<SupabaseTableProbeResult[]>
       results.push({ table, status: 'ok' });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      // 406 / empty result is still "table exists" — only hard errors = error
+      // 406 / empty result is still "table exists" â€” only hard errors = error
       results.push({ table, status: 'error', detail: msg });
     }
   }
@@ -166,13 +169,13 @@ export async function probeSupabaseTables(): Promise<SupabaseTableProbeResult[]>
   return results;
 }
 
-// ── Main hook ──────────────────────────────────────────────────
+// â”€â”€ Main hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function useRuntimeProbe() {
   const walletChainId = useChainId();
   const { chainId: protocolChainId, contracts: protocolContracts, networkLabel } = useProtocolDataNetwork();
 
-  // ── Build multicall contracts array ──────────────────────────
+  // â”€â”€ Build multicall contracts array â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const calls = useMemo(() => {
     if (!protocolChainId || !protocolContracts) return [] as const;
 
@@ -202,17 +205,15 @@ export function useRuntimeProbe() {
     { chainId: protocolChainId, address: protocolContracts.RECEIPT_NFT, abi: RECEIPT_NFT_ABI, functionName: 'VERSION' },
 
     // --- FeeManager config ---
-    // 11: platformFeeBps
-    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'platformFeeBps' },
-    // 12: daoFeeBps
-    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'daoFeeBps' },
-    // 13: burnFeeBps
-    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'burnFeeBps' },
-    // 14: getTotalFeeBps
-    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getTotalFeeBps' },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getPlatformFeeBpsForToken', args: [PAYMENT_TOKENS.USDT] },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getDaoFeeBpsForToken', args: [PAYMENT_TOKENS.USDT] },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getTotalFeeBpsForToken', args: [PAYMENT_TOKENS.USDT] },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getPlatformFeeBpsForToken', args: [PAYMENT_TOKENS.ORI] },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getDaoFeeBpsForToken', args: [PAYMENT_TOKENS.ORI] },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getTotalFeeBpsForToken', args: [PAYMENT_TOKENS.ORI] },
 
-    // --- UnitRegistry seeds (IDs 0–8) ---
-    // 15–23: getUnit(0..8)
+    // --- UnitRegistry seeds (IDs 0â€“8) ---
+    // 15â€“23: getUnit(0..8)
     ...Object.values(UNIT_IDS).map((id) => ({
       chainId: protocolChainId,
       address: protocolContracts.UNIT_REGISTRY,
@@ -228,12 +229,12 @@ export function useRuntimeProbe() {
     query: { enabled: calls.length > 0, staleTime: 30_000 },
   });
 
-  // ── Parse results ─────────────────────────────────────────────
+  // â”€â”€ Parse results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const report = useMemo<RuntimeProbeReport>(() => {
     const loading = calls.length > 0 && (isLoading || !data);
 
-    // ── Chain probe ──────────────────────────────────────────────
+    // â”€â”€ Chain probe â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const chain: ChainProbeResult = {
       chainId: walletChainId,
       expected: protocolChainId ?? 0,
@@ -244,7 +245,7 @@ export function useRuntimeProbe() {
       detail: !protocolChainId
         ? `${networkLabel} is not configured for runtime probing yet`
         : walletChainId === protocolChainId
-        ? `${networkLabel} (${protocolChainId}) ✓`
+        ? `${networkLabel} (${protocolChainId}) âœ“`
         : walletChainId === 0
         ? `No wallet connected. Expected ${networkLabel} (${protocolChainId})`
         : `Wrong chain: ${walletChainId}, expected ${protocolChainId} (${networkLabel})`,
@@ -266,8 +267,10 @@ export function useRuntimeProbe() {
       const fallbackFees: FeeProbeResult = {
         platformBps: 0n,
         daoBps: 0n,
-        burnBps: 0n,
         totalBps: 0n,
+        oriPlatformBps: 0n,
+        oriDaoBps: 0n,
+        oriTotalBps: 0n,
         status: 'warn',
         detail: `${networkLabel} does not expose a live protocol deployment yet.`,
       };
@@ -292,7 +295,7 @@ export function useRuntimeProbe() {
     const val = (index: number) => get(index)?.result;
     const ok = (index: number) => get(index)?.status === 'success';
 
-    // ── Contracts liveness ────────────────────────────────────────
+    // â”€â”€ Contracts liveness â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     type ContractSpec = {
       name: string;
@@ -323,7 +326,7 @@ export function useRuntimeProbe() {
       const counter = spec.counterIdx >= 0 ? (val(spec.counterIdx) as bigint | undefined) : undefined;
 
       let detail = '';
-      if (!alive) detail = 'Call failed — contract unreachable or ABI mismatch';
+      if (!alive) detail = 'Call failed â€” contract unreachable or ABI mismatch';
       else if (counter !== undefined) detail = `${spec.counterLabel}: ${counter.toString()}`;
 
       return {
@@ -335,45 +338,59 @@ export function useRuntimeProbe() {
       };
     });
 
-    // ── Fee probe ──────────────────────────────────────────────────
+    // â”€â”€ Fee probe â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     let fees: FeeProbeResult | null = null;
-    if (ok(11) && ok(12) && ok(13) && ok(14)) {
+    if (ok(11) && ok(12) && ok(13) && ok(14) && ok(15) && ok(16)) {
       const platformBps = val(11) as bigint;
-      const daoBps      = val(12) as bigint;
-      const burnBps     = val(13) as bigint;
-      const totalBps    = val(14) as bigint;
+      const daoBps = val(12) as bigint;
+      const totalBps = val(13) as bigint;
+      const oriPlatformBps = val(14) as bigint;
+      const oriDaoBps = val(15) as bigint;
+      const oriTotalBps = val(16) as bigint;
 
       const expectedTotal = BigInt(
-        PROTOCOL.DEFAULT_PLATFORM_FEE_BPS +
-        PROTOCOL.DEFAULT_DAO_FEE_BPS +
-        PROTOCOL.DEFAULT_BURN_FEE_BPS
+        PROTOCOL.STABLECOIN_PLATFORM_FEE_BPS +
+        PROTOCOL.STABLECOIN_DAO_FEE_BPS +
+        PROTOCOL.DEFAULT_REFERRAL_FEE_BPS
       );
-      const totalMatch = totalBps === expectedTotal;
+      const expectedOriTotal = BigInt(
+        PROTOCOL.ORI_PLATFORM_FEE_BPS +
+        PROTOCOL.ORI_DAO_FEE_BPS +
+        PROTOCOL.DEFAULT_REFERRAL_FEE_BPS
+      );
+      const totalMatch = totalBps === expectedTotal && oriTotalBps === expectedOriTotal;
 
       fees = {
         platformBps,
         daoBps,
-        burnBps,
         totalBps,
+        oriPlatformBps,
+        oriDaoBps,
+        oriTotalBps,
         status: totalMatch ? 'ok' : 'warn',
         detail: totalMatch
-          ? `Total ${totalBps}bps matches expected ${expectedTotal}bps`
-          : `Total ${totalBps}bps ≠ expected ${expectedTotal}bps — fees may have been updated`,
+          ? `USDT ${totalBps}bps and ORI ${oriTotalBps}bps match v3.5 no-burn presets`
+          : `Expected USDT ${expectedTotal}bps and ORI ${expectedOriTotal}bps`,
       };
     } else {
       fees = {
-        platformBps: 0n, daoBps: 0n, burnBps: 0n, totalBps: 0n,
+        platformBps: 0n,
+        daoBps: 0n,
+        totalBps: 0n,
+        oriPlatformBps: 0n,
+        oriDaoBps: 0n,
+        oriTotalBps: 0n,
         status: 'error',
         detail: 'FeeManager read failed',
       };
     }
 
-    // ── Units probe ────────────────────────────────────────────────
+    // â”€â”€ Units probe â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     const unitNames = Object.keys(UNIT_IDS);
     const units: UnitProbeResult[] = unitNames.map((key, i) => {
-      const idx = 15 + i;
+      const idx = 17 + i;
       const result = get(idx);
       if (result?.status !== 'success' || !result.result) {
         return {
@@ -411,7 +428,7 @@ export function useRuntimeProbe() {
       };
     });
 
-    // ── Summary ────────────────────────────────────────────────────
+    // â”€â”€ Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     const allStatuses: ProbeStatus[] = [
       ...contractResults.map((c) => c.status),

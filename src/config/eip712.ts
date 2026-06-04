@@ -53,6 +53,20 @@ export const ORDER_TYPES = {
   ],
 } as const;
 
+export const ORDER_WITH_FEE_TOKEN_TYPES = {
+  OrderWithFeeToken: [
+    { name: 'orderId', type: 'uint256' },
+    { name: 'buyer', type: 'address' },
+    { name: 'seller', type: 'address' },
+    { name: 'paymentToken', type: 'address' },
+    { name: 'feeToken', type: 'address' },
+    { name: 'assetId', type: 'uint256' },
+    { name: 'grossPrice', type: 'uint256' },
+    { name: 'amount', type: 'uint256' },
+    { name: 'estDeliverySeconds', type: 'uint256' },
+  ],
+} as const;
+
 // ── Mutual Split EIP-712 Types (DisputeManager) ──────────────
 // Must match:
 // MUTUAL_SPLIT_TYPEHASH = keccak256("MutualSplit(uint256 orderId,uint256 openedAt,uint256 deadline)")
@@ -108,6 +122,10 @@ export interface OrderSignMessage {
   estDeliverySeconds: bigint;
 }
 
+export interface OrderWithFeeTokenSignMessage extends OrderSignMessage {
+  feeToken: `0x${string}`;
+}
+
 /**
  * Build the EIP-712 typed data object for signing an order.
  * Used by:
@@ -134,6 +152,34 @@ export function buildOrderTypedData(
       buyer: message.buyer,
       seller: message.seller,
       paymentToken: message.paymentToken,
+      assetId: message.assetId,
+      grossPrice: message.grossPrice,
+      amount: message.amount,
+      estDeliverySeconds: message.estDeliverySeconds,
+    },
+  };
+}
+
+export function buildOrderWithFeeTokenTypedData(
+  message: OrderWithFeeTokenSignMessage,
+  options?: {
+    chainId?: number;
+    verifyingContract?: `0x${string}`;
+  },
+) {
+  const domain = options?.chainId && options?.verifyingContract
+    ? getOrderEip712Domain(options.chainId, options.verifyingContract)
+    : EIP712_DOMAIN;
+  return {
+    domain,
+    types: ORDER_WITH_FEE_TOKEN_TYPES,
+    primaryType: 'OrderWithFeeToken' as const,
+    message: {
+      orderId: message.orderId,
+      buyer: message.buyer,
+      seller: message.seller,
+      paymentToken: message.paymentToken,
+      feeToken: message.feeToken,
       assetId: message.assetId,
       grossPrice: message.grossPrice,
       amount: message.amount,

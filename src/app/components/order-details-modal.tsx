@@ -59,13 +59,18 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
   const safeGrossPriceNum = Number.isFinite(grossPriceNum) ? grossPriceNum : 0;
   const platformFeeBps = Number.isFinite(Number(order.platformFeeBpsSnapshot)) ? Number(order.platformFeeBpsSnapshot) : 0;
   const daoFeeBps = Number.isFinite(Number(order.daoFeeBpsSnapshot)) ? Number(order.daoFeeBpsSnapshot) : 0;
-  const burnFeeBps = Number.isFinite(Number(order.burnFeeBpsSnapshot)) ? Number(order.burnFeeBpsSnapshot) : 0;
   const platformFee = (safeGrossPriceNum * platformFeeBps) / 10000;
   const daoFee = (safeGrossPriceNum * daoFeeBps) / 10000;
-  const burnFee = (safeGrossPriceNum * burnFeeBps) / 10000;
-  const sellerReceives = Math.max(safeGrossPriceNum - platformFee - daoFee - burnFee, 0);
+  const usesSeparateFeeToken = Boolean(
+    order.feeToken &&
+    order.feeToken.toLowerCase() !== order.paymentToken.toLowerCase(),
+  );
+  const sellerReceives = usesSeparateFeeToken
+    ? safeGrossPriceNum
+    : Math.max(safeGrossPriceNum - platformFee - daoFee, 0);
   const status = ORDER_STATES[order.state] ?? 'UNKNOWN';
   const paymentSymbol = getOrderPaymentSymbol(order.paymentTokenSymbol);
+  const feeSymbol = getOrderPaymentSymbol(order.feeTokenSymbol ?? order.paymentTokenSymbol);
   const grossPriceLabel = formatOrderGrossPrice(order.grossPrice, order.paymentTokenSymbol, order.paymentTokenDecimals);
   const quantityLabel = formatOrderQuantity(order.amount, order.unitLabel, order.unitName);
   const shippingDetails = getOrderShippingDetails(order.shippingAddressSnapshot, order.shippingMethodLabel);
@@ -73,6 +78,10 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
   const formatPaymentValue = (value: number) => {
     const safeValue = Number.isFinite(value) ? value : 0;
     return `${safeValue.toFixed(safeValue >= 1 ? 4 : 6)} ${paymentSymbol}`;
+  };
+  const formatFeeValue = (value: number) => {
+    const safeValue = Number.isFinite(value) ? value : 0;
+    return `${safeValue.toFixed(safeValue >= 1 ? 4 : 6)} ${feeSymbol}`;
   };
   const sectionShellClass = 'studio-portal-surface rounded-[28px] border border-ui-border-subtle bg-[var(--t-surface-5)] p-5';
   const insetShellClass = 'rounded-none border-0 bg-transparent p-0';
@@ -271,16 +280,18 @@ export function OrderDetailsModal({ order, onClose }: OrderDetailsModalProps) {
                         <span className={breakdownRowLabelClass}>
                           Platform Fee ({platformFeeBps / 100}%)
                         </span>
-                        <span className={breakdownSubvalueClass}>{formatPaymentValue(platformFee)}</span>
+                        <span className={breakdownSubvalueClass}>{formatFeeValue(platformFee)}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className={breakdownRowLabelClass}>DAO Fee ({daoFeeBps / 100}%)</span>
-                        <span className={breakdownSubvalueClass}>{formatPaymentValue(daoFee)}</span>
+                        <span className={breakdownSubvalueClass}>{formatFeeValue(daoFee)}</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className={breakdownRowLabelClass}>Burn Fee ({burnFeeBps / 100}%)</span>
-                        <span className={breakdownSubvalueClass}>{formatPaymentValue(burnFee)}</span>
-                      </div>
+                      {usesSeparateFeeToken ? (
+                        <div className="flex items-center justify-between">
+                          <span className={breakdownRowLabelClass}>Fee Token</span>
+                          <span className={breakdownSubvalueClass}>{feeSymbol}</span>
+                        </div>
+                      ) : null}
                       <div className={dividerClass} />
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold text-ui-primary">Seller Receives</span>

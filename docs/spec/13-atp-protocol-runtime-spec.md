@@ -2,9 +2,9 @@
 
 ## Scope
 
-This document is the current protocol spec for the improved ATP deployment that went live on **BSC Testnet (chain 97)** on **March 29, 2026**.
+This document records the current ATP v3.5 beta deployment that went live on **BSC Testnet (chain 97)** on **June 4, 2026**.
 
-It describes the protocol actually deployed in this repo, not a generic RWA, DeFi, vault, or AMM architecture.
+It describes ATP as implemented by this repo, not a generic RWA, DeFi, vault, or AMM architecture. Address tables below are the current beta source of truth for the Foundry runtime and app/backend cutover work.
 
 ATP here means:
 
@@ -14,29 +14,29 @@ ATP here means:
 - RWA consumption/finalization
 - optional AI/M2M delegated execution bound to the ATP stack
 
-## Current Deployment
+## Current BSC Testnet Beta Deployment
 
 ### Core runtime
 
 | Contract | Address |
 | --- | --- |
-| `MarketplaceATP` | `0xBc6f46000b2709714C3908BB6b71BAb67A2d1495` |
-| `OrinaRWA` | `0x72C3477C57097f3791501F3839bB380A019B754f` |
-| `RWAReceiptNFT` | `0x73719A7364c72cB0Ee77595773E9596976e298d1` |
-| `PaymentGateway` | `0xC220B68De5C6A19CfD179a37Ba5F6caE8BC57008` |
-| `FeeManager` | `0x418de18d1BD72A5Ff7A9470f94043D245C65a67B` |
-| `DisputeManager` | `0x550debf6291a7EA8Aa27aCC9ACa92397972eC47e` |
-| `AutoTimeManager` | `0xE8d1Ac4463fE0805eB7234ebEe51Dd85d091622C` |
-| `UnitRegistry` | `0x07f460A5f3a346e060e3d810821fB020eDDCe718` |
-| `ShippingRegistry` | `0xD3c02C986559145AC7f70ccA69b1A2A351810aA2` |
-| `TimelockController` | `0x9B230c649c391d809617819a91ffB5FA6AB4888a` |
+| `MarketplaceATP` | `0x18E1C8ab257FAf16Ec8257A9715d07661194150B` |
+| `OrinaRWA` | `0x3a591AB1aB3A281f999AAD1644b020CbEC463C47` |
+| `RWAReceiptNFT` | `0x16A35bdD00dCfb9010504FbD1b2B97e26bB315ca` |
+| `PaymentGateway` | `0x082d75D8cA96C6e97B6b451Ad4857454A53D5C15` |
+| `FeeManager` | `0xD32fc966835D8eb7D26A12BEcCa86c749A60eFb3` |
+| `DisputeManager` | `0xCD27B85e7EA6FB1FDC484ae9083286DdCC14DC21` |
+| `AutoTimeManager` | `0x5639792243617841800df8F1450B86223c3d86f4` |
+| `UnitRegistry` | `0x4ea45450064CD5B7c88EcAaE6a145652FEDd5df0` |
+| `ShippingRegistry` | `0x16402c8C883a01dbfD2D7E58A46D3E9434396836` |
+| `TimelockController` | `0x5452CE749EDA1bE82132743AA224e7C86023A7F4` |
 
 ### M2M runtime
 
 | Contract | Address |
 | --- | --- |
-| `DelegationManager` | `0x024478973e3bBD33C85c6A0271DbaCE6608b10dB` |
-| `AIWalletFactoryV2` | `0xCFE177c0930eaDDD183262dff5B57E7397d55b7E` |
+| `DelegationManager` | `0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13` |
+| `AIWalletFactoryV2` | `0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441` |
 
 ### Governance and fee endpoints
 
@@ -48,13 +48,38 @@ ATP here means:
 | Fee vault | `0x130fF04D269f0E9C0eaa984C167bd746bB68F82a` |
 | DAO vault | `0x8069c3e6E6156707746885d9328a35C874B835CF` |
 | Referral vault | `0x3FB0B92FcC489A53eb0F172e5D919346e2DeF3c2` |
-| Burn address | `0x8A251D3340Fff21BA5Db0164fA3F3735B051a16d` |
+
+No protocol burn address is used by the v3.5 beta fee model.
 
 ### Deployment artifacts
 
 - Core: `foundry/broadcast/DeployFullSystemDirect.s.sol/97/run-latest.json`
 - M2M: `foundry/broadcast/DeployM2MSystem.s.sol/97/run-latest.json`
-- Namespace: `orina-atp-v3.4.1-m2m-bsc-testnet-20260329-r6`
+- Namespace: `orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604`
+- Smoke root flow: `foundry/broadcast/SmokeRootMintOrderEndToEnd.s.sol/97/run-latest.json`
+- Smoke dispute flow: `foundry/broadcast/SmokeNormalDisputeEndToEnd.s.sol/97/run-latest.json`
+- Smoke AI/M2M flow: `foundry/broadcast/SmokeAIMintOrderEndToEnd.s.sol/97/run-latest.json`
+
+### Runtime version and fee status
+
+- Release label: `ATP v3.5` fee/delegation hardening.
+- `FeeManager.VERSION` and `PaymentGateway.VERSION` are `3.5`.
+- `MarketplaceATP.VERSION` remains `3.4` for EIP-712 order-domain compatibility.
+- Protocol burn fee is removed from fee calculation, order snapshots, payment distribution, deploy env template, and smoke/deploy scripts.
+
+### Post-deploy beta smoke result
+
+| Check | Result |
+| --- | --- |
+| Root mint/order/finalize | PASS, asset `0`, order `0`, finalized |
+| Normal dispute open | PASS, asset `1`, order `1`, disputed |
+| AI/M2M mint/order/finalize | PASS, wallet `0x09718EA91cC28C53DFb644C4886A16Da9742a478`, session `0`, asset `2`, order `2`, finalized |
+| AI/M2M session cleanup | PASS, `DelegationManager.hasActiveCycle(seller) == false` |
+| Counters after smoke | `nextAssetId == 3`, `nextOrderId == 3` |
+
+### Previous testnet deployment
+
+The March 29, 2026 v3.4.1 deployment is retained only as historical context. It is not the current target for new beta traffic.
 
 ## Supported payment tokens
 
@@ -72,13 +97,13 @@ ATP here means:
 - `PaymentGateway` for escrow, refunds, and settlement payout
 - `DisputeManager` for agreement, arbiter, and timeout dispute resolution
 - `AutoTimeManager` for time-based releases and cancellation handling
-- `RWAReceiptNFT` for buyer receipt minting on finalized RWA orders
+- `RWAReceiptNFT` for buyer receipt/asset token minting on finalized RWA and NFT orders
 - `OrinaRWA` for asset mint, lock, consume, unlock, and finalize flows
 - `DelegationManager` optionally, for AI/M2M execution
 
 `OrinaRWA` is not a general-purpose liquid marketplace NFT. In this runtime it is the canonical asset registry for ATP order flow.
 
-`RWAReceiptNFT` is the post-finalization receipt layer. It is non-transferable in the RWA branch.
+`RWAReceiptNFT` is the post-finalization ERC721 layer. Tokens backed by `AssetType.RWA` remain non-transferable receipts. Tokens backed by `AssetType.NFT` are transferable ERC721 tokens.
 
 ## Roles and trust surface
 
@@ -106,13 +131,18 @@ The signed order payload is:
 
 `Order(orderId,buyer,seller,paymentToken,assetId,grossPrice,amount,estDeliverySeconds)`
 
+For orders where protocol fees are paid in a separate token, the signed payload is:
+
+`OrderWithFeeToken(orderId,buyer,seller,paymentToken,feeToken,assetId,grossPrice,amount,estDeliverySeconds)`
+
 This payload is used across:
 
 - `createOrder()` by the buyer
+- `createOrderWithFeeToken()` by the buyer when `feeToken != paymentToken`
 - `sellerConfirm()` by the seller
 - `payOrder()` by the buyer only when the seller revised delivery timing
 
-This runtime intentionally binds `paymentToken` and `assetId` into the signed payload. Older payloads without those fields are obsolete.
+This runtime intentionally binds `paymentToken`, `assetId`, and separate `feeToken` when used into the signed payload. Older payloads without `paymentToken` and `assetId` are obsolete.
 
 ## Order lifecycle
 
@@ -123,7 +153,8 @@ This runtime intentionally binds `paymentToken` and `assetId` into the signed pa
 5. If the seller revises the delivery time, the buyer must sign again and call `payOrder` before `payDeadline`.
 6. The happy path ends with `confirmDelivery` or timed auto-release.
 7. The unhappy path opens a dispute, which is resolved by agreement, arbiter, or timeout split.
-8. Finalized RWA orders mint `RWAReceiptNFT` and consume/finalize the underlying asset state in `OrinaRWA`.
+8. Finalized RWA orders mint non-transferable `RWAReceiptNFT` receipts and consume/finalize the underlying asset state in `OrinaRWA`.
+9. Finalized NFT orders mint transferable ERC721 tokens through `RWAReceiptNFT` and consume/finalize the underlying asset state in `OrinaRWA`.
 
 ## Dispute model
 
@@ -141,12 +172,12 @@ Smart-wallet and `ERC1271` signatures are accepted through `IdentityValidator`, 
 
 The M2M stack is not a parallel marketplace. It is a constrained execution layer over ATP.
 
-The session config binds:
+The current session config binds:
 
-- `allowedTarget = MarketplaceATP`
-- `allowedSpender = PaymentGateway`
-- `allowedToken = chosen payment token`
-- expiry, action mask, per-order cap, total cap
+- `paymentToken = chosen payment token`
+- expiry or `NO_EXPIRY`, action mask, per-order cap, and total cap
+- counterparty allowlist hash when required by no-expiry buy/pay/confirm authority
+- ATP term policy: `restrictAssetId`, `assetId`, `maxAmount`, `minGrossPrice`, `maxGrossPrice`, and `maxDeliverySeconds`
 
 The delegate can only act through the session bounds enforced by `DelegationManager` and the deployed AI wallet.
 
@@ -159,6 +190,17 @@ This deployment includes the security fixes introduced during the March 29, 2026
 - `DisputeManager` mutual split signatures are domain-bound to the deployed contract.
 - `PaymentGateway` measures token balance delta on deposit and rejects short-transfer / fee-on-transfer escrow deposits.
 - `RWAReceiptNFT` writes receipt state before `_safeMint`, removing the unnecessary reentrancy window.
+
+The current v3.5 beta runtime additionally:
+
+- removes protocol burn fee from ATP settlement; fees are platform / DAO / referral only.
+- uses token-specific fee presets: USDT/USDC fee tokens charge total 2% (`1%` platform + `1%` DAO), while ORI fee tokens charge total 1% (`0.5%` platform + `0.5%` DAO).
+- snapshots both platform and DAO fee bps from the selected fee token. In `createOrderWithFeeToken()`, the fee token can differ from the payment token.
+- supports separate fee-token escrow, allowing USDT/USDC order payments with ORI protocol-fee payment through `createOrderWithFeeToken()`. The testnet/beta ORI fee mode assumes nominal ORI/payment-token parity; mainnet requires an oracle-provided price ratio before order signature and escrow.
+- supports `AssetType.NFT` order flow with transferable post-finalization ERC721 tokens while preserving non-transferable `AssetType.RWA` receipts.
+- splits dispute fees 50% platform / 50% DAO.
+- hardens delegated M2M sessions with ATP term binding and an explicit no-expiry option guarded by counterparty binding and root revoke.
+- keeps the exact auto-release boundary for buyer dispute and starts auto-release only after the buyer action window has fully closed.
 
 ## Operational invariants
 
@@ -200,13 +242,13 @@ Client-side runtime shadow state is local-only. It must not upsert into canonica
 
 ## Validation baseline
 
-The current runtime has already passed:
+The June 4, 2026 Foundry and on-chain beta gate passed:
 
-- `forge build --sizes --skip test`
-- `forge test --skip script`
-- `npm run build`
-- on-chain root flow smoke
-- on-chain dispute flow smoke
-- on-chain AI/M2M flow smoke
+- `forge test -vv`: 96 passed, 0 failed, 0 skipped.
+- `forge build --sizes --skip test`: pass; `MarketplaceATP` runtime size is 24,538 bytes with 38 bytes EIP-170 margin.
+- Fee readback: USDT/USDC total `200` bps split `100` platform + `100` DAO; ORI total `100` bps split `50` platform + `50` DAO.
+- On-chain root flow smoke: pass.
+- On-chain dispute flow smoke: pass.
+- On-chain AI/M2M flow smoke: pass.
 
-Use [14-production-env-flip-runbook.md](./14-production-env-flip-runbook.md) for the exact frontend/backend cutover procedure.
+Use [14-production-env-flip-runbook.md](./14-production-env-flip-runbook.md) for the exact frontend/backend cutover procedure and app build checks.

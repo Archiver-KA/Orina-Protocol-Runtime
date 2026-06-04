@@ -95,6 +95,9 @@ export interface OrderUiRecord {
   paymentToken: `0x${string}`;
   paymentTokenSymbol?: string;
   paymentTokenDecimals?: number;
+  feeToken?: `0x${string}`;
+  feeTokenSymbol?: string;
+  feeTokenDecimals?: number;
   platformFeeBpsSnapshot: bigint;
   daoFeeBpsSnapshot: bigint;
   burnFeeBpsSnapshot: bigint;

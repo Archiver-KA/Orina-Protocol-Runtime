@@ -64,8 +64,7 @@ export type MarketplaceOrderSnapshot = readonly [
   bigint,
   number,
   number,
-  readonly [number, bigint, bigint],
-  bigint,
+  readonly [bigint, bigint],
   bigint,
   bigint,
   bigint,
@@ -270,6 +269,7 @@ export function hasCanonicalOrderDelta(currentOrder: OrderUiRecord, nextOrder: O
 export function reconcileOrderFromChain(
   order: OrderUiRecord,
   chainOrder: MarketplaceOrderSnapshot,
+  options: { feeToken?: `0x${string}` } = {},
 ): OrderUiRecord {
   const [
     buyer,
@@ -290,7 +290,6 @@ export function reconcileOrderFromChain(
     _splitSettlement,
     platformFeeBpsSnapshot,
     daoFeeBpsSnapshot,
-    burnFeeBpsSnapshot,
     _referralFeeBpsSnapshot,
     finalized,
     sellerConfirmed,
@@ -300,6 +299,7 @@ export function reconcileOrderFromChain(
   ] = chainOrder;
   const state = Number(stateValue);
   const settlementType = Number(settlementTypeValue);
+  const feeToken = options.feeToken ?? order.feeToken ?? paymentToken;
   const semantics = resolveOrderSemantics({
     state,
     finalized,
@@ -317,6 +317,9 @@ export function reconcileOrderFromChain(
     buyer,
     seller,
     paymentToken,
+    feeToken,
+    feeTokenSymbol: order.feeTokenSymbol ?? order.paymentTokenSymbol,
+    feeTokenDecimals: order.feeTokenDecimals ?? order.paymentTokenDecimals,
     assetId,
     amount,
     grossPrice,
@@ -332,7 +335,7 @@ export function reconcileOrderFromChain(
     estDeliverySeconds,
     platformFeeBpsSnapshot,
     daoFeeBpsSnapshot,
-    burnFeeBpsSnapshot,
+    burnFeeBpsSnapshot: 0n,
     settlementType,
     sellerConfirmed,
     disputed: state === OrderState.DISPUTED,

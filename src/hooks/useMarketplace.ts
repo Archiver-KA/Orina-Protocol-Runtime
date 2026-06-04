@@ -281,10 +281,17 @@ export function useCreateOrder() {
     grossPriceProposed: bigint,
     proposedEstDeliverySeconds: bigint,
     buyerSig1: `0x${string}`,
+    feeToken?: `0x${string}`,
   ) => {
     if (!chainId || !marketplaceAddress || !address) {
       throw new Error('Protocol network is not enabled for order creation');
     }
+
+    const useSeparateFeeToken = Boolean(feeToken && feeToken.toLowerCase() !== paymentToken.toLowerCase());
+    const functionName = useSeparateFeeToken ? 'createOrderWithFeeToken' : 'createOrder';
+    const args = useSeparateFeeToken
+      ? [seller, paymentToken, feeToken as `0x${string}`, assetId, amount, grossPriceProposed, proposedEstDeliverySeconds, buyerSig1] as const
+      : [seller, paymentToken, assetId, amount, grossPriceProposed, proposedEstDeliverySeconds, buyerSig1] as const;
 
     let gas: bigint | undefined;
     if (publicClient) {
@@ -293,8 +300,8 @@ export function useCreateOrder() {
           account: address,
           address: marketplaceAddress,
           abi: MARKETPLACE_ABI,
-          functionName: 'createOrder',
-          args: [seller, paymentToken, assetId, amount, grossPriceProposed, proposedEstDeliverySeconds, buyerSig1],
+          functionName,
+          args,
         });
         gas = resolveBufferedGasLimit(estimatedGas, chainId);
       } catch (estimateError) {
@@ -306,8 +313,8 @@ export function useCreateOrder() {
       chainId,
       address: marketplaceAddress,
       abi: MARKETPLACE_ABI,
-      functionName: 'createOrder',
-      args: [seller, paymentToken, assetId, amount, grossPriceProposed, proposedEstDeliverySeconds, buyerSig1],
+      functionName,
+      args,
       ...(gas ? { gas } : {}),
     });
   };

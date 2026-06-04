@@ -403,15 +403,24 @@ export function Orders({
       throw new Error('Public client unavailable');
     }
 
-    const chainOrder = await publicClient.readContract({
-      chainId: chainId ?? undefined,
-      address: marketplaceAddress,
-      abi: MARKETPLACE_ABI,
-      functionName: 'orders',
-      args: [order.orderId],
-    }) as unknown as MarketplaceOrderSnapshot;
+    const [chainOrder, feeToken] = await Promise.all([
+      publicClient.readContract({
+        chainId: chainId ?? undefined,
+        address: marketplaceAddress,
+        abi: MARKETPLACE_ABI,
+        functionName: 'orders',
+        args: [order.orderId],
+      }) as Promise<unknown>,
+      publicClient.readContract({
+        chainId: chainId ?? undefined,
+        address: marketplaceAddress,
+        abi: MARKETPLACE_ABI,
+        functionName: 'feeTokenForOrder',
+        args: [order.orderId],
+      }) as Promise<`0x${string}`>,
+    ]);
 
-    return reconcileOrderFromChain(order, chainOrder);
+    return reconcileOrderFromChain(order, chainOrder as MarketplaceOrderSnapshot, { feeToken });
   };
 
   const syncOrderAfterWrite = async (order: OrderUiRecord) => {
@@ -906,6 +915,7 @@ export function Orders({
         orderId: currentOrder.orderId,
         buyer: currentOrder.buyer,
         paymentToken: currentOrder.paymentToken,
+        feeToken: currentOrder.feeToken,
         assetId: currentOrder.assetId,
         grossPrice: currentOrder.grossPrice,
         amount: currentOrder.amount,
@@ -1184,6 +1194,7 @@ export function Orders({
         orderId: currentOrder.orderId,
         seller: currentOrder.seller,
         paymentToken: currentOrder.paymentToken,
+        feeToken: currentOrder.feeToken,
         assetId: currentOrder.assetId,
         grossPrice: currentOrder.grossPrice,
         amount: currentOrder.amount,
