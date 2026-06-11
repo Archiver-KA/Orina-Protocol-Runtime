@@ -30,6 +30,7 @@ export const runtimeFlags = {
   enableCommunityMockData: readFlag('VITE_ENABLE_COMMUNITY_MOCK_DATA', false),
   enableSearchDemoPanels: readFlag('VITE_ENABLE_SEARCH_DEMO_PANELS', false),
   enableMarketplacePersonalization: readFlag('VITE_ENABLE_MARKETPLACE_PERSONALIZATION', true),
+  enableTestnetStarterKit: readFlag('VITE_ENABLE_TESTNET_STARTER_KIT', true),
 } as const;
 
 export const runtimeConfig = {
@@ -47,4 +48,8 @@ export const runtimeConfig = {
   ),
   sepoliaRpcUrl: readString('VITE_SEPOLIA_RPC_URL', ''),
   approximateEthUsdRate: readFloat('VITE_APPROX_ETH_USD_RATE', 0),
+  testnetTokenFaucetAddress: readString('VITE_TESTNET_TOKEN_FAUCET_ADDRESS', ''),
+  testnetUsdtAddress: readString('VITE_TESTNET_USDT_T_ADDRESS', ''),
+  testnetUsdcAddress: readString('VITE_TESTNET_USDC_T_ADDRESS', ''),
+  testnetTbnbFaucetUrl: readString('VITE_TESTNET_TBNB_FAUCET_URL', ''),
 } as const;

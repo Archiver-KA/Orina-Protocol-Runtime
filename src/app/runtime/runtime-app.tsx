@@ -12,6 +12,7 @@ import { ProtocolNetworkProvider } from '@/contexts/ProtocolNetworkContext';
 import { UserProvider } from '@/contexts/UserContext';
 import { useWalletModalContext, WalletModalProvider } from '@/contexts/WalletModalContext';
 import { useTheme } from '@/app/contexts/ThemeContext';
+import { useAccount } from 'wagmi';
 import { useUserInitialization } from '@/hooks/useUserInitialization';
 import { useAccessMode } from '@/hooks/useAccessMode';
 import { useAccessGuard } from '@/hooks/useAccessGuard';
@@ -19,6 +20,8 @@ import { useCommandPalette } from '@/hooks/useCommandPalette';
 import { getConversations as getChatConversations } from '@/utils/messagesClient';
 import { buildNotificationSourceId } from '@/utils/notifications';
 import { shortenUserDisplayName } from '@/utils/profileUtils';
+import { TESTNET_STARTER_KIT } from '@/config/testnetFaucet';
+import { TestnetStarterKitModal } from '@/app/components/testnet-starter-kit-modal';
 import type { RuntimeAppProps } from '@/app/runtime/runtime-app-types';
 import type { MintingSidebarTelemetry } from '@/app/components/minting-right-sidebar';
 
@@ -224,7 +227,9 @@ function RuntimeAppContent({
   const { addNotification } = useNotifications();
   const { applyThemeFromWallet } = useTheme();
   const { openConnectModal } = useWalletModalContext();
+  const { chainId } = useAccount();
   const [showAISidebar, setShowAISidebar] = useState(false);
+  const [testnetStarterKitOpen, setTestnetStarterKitOpen] = useState(false);
   const [mintingSidebarTelemetry, setMintingSidebarTelemetry] = useState<MintingSidebarTelemetry | null>(null);
 
   const { isGuest, effectiveConnectedAddress, canAccessPage, resolvePageForMode } = useAccessMode();
@@ -394,6 +399,8 @@ function RuntimeAppContent({
   const resolvedProfileAddress = selectedProfileAddress || effectiveConnectedAddress;
   const hasNativeShellRightRail = !isGuest && SHELL_RIGHT_RAIL_PAGES.has(activePage);
   const aiUsesEmbeddedRightRail = showAISidebar && AI_EMBEDDED_RAIL_PAGES.has(activePage);
+  const shouldShowTestnetStarterKit =
+    TESTNET_STARTER_KIT.enabled && chainId === TESTNET_STARTER_KIT.chainId;
   const mainGridColumns =
     hasNativeShellRightRail || aiUsesEmbeddedRightRail || LEGACY_GRID_RAIL_PAGES.has(activePage)
       ? '1fr var(--t-shell-right-rail-w)'
@@ -415,9 +422,20 @@ function RuntimeAppContent({
             />
           </div>
           <div className="absolute inset-x-0 top-0 z-20">
-            <Navbar activePage={activePage} setActivePage={guardedSetActivePage} onSearch={handleSearch} isGuest={isGuest} onToggleAI={() => setShowAISidebar((value) => !value)} aiActive={showAISidebar} />
+            <Navbar
+              activePage={activePage}
+              setActivePage={guardedSetActivePage}
+              onSearch={handleSearch}
+              isGuest={isGuest}
+              onToggleAI={() => setShowAISidebar((value) => !value)}
+              aiActive={showAISidebar}
+              onOpenTestnetStarterKit={shouldShowTestnetStarterKit ? () => setTestnetStarterKitOpen(true) : undefined}
+            />
           </div>
         </div>
+        {testnetStarterKitOpen && shouldShowTestnetStarterKit && (
+          <TestnetStarterKitModal onClose={() => setTestnetStarterKitOpen(false)} />
+        )}
         <DeferredWalletModals />
       </>
     );
@@ -438,7 +456,15 @@ function RuntimeAppContent({
         )}
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <Navbar activePage={activePage} setActivePage={guardedSetActivePage} onSearch={handleSearch} isGuest={isGuest} onToggleAI={() => setShowAISidebar((value) => !value)} aiActive={showAISidebar} />
+          <Navbar
+            activePage={activePage}
+            setActivePage={guardedSetActivePage}
+            onSearch={handleSearch}
+            isGuest={isGuest}
+            onToggleAI={() => setShowAISidebar((value) => !value)}
+            aiActive={showAISidebar}
+            onOpenTestnetStarterKit={shouldShowTestnetStarterKit ? () => setTestnetStarterKitOpen(true) : undefined}
+          />
 
           <main
             className="grid flex-1 grid-cols-1 overflow-hidden bg-ui-page text-ui-secondary lg:[grid-template-columns:var(--runtime-main-grid-columns)]"
@@ -739,6 +765,10 @@ function RuntimeAppContent({
       )}
 
       <DeferredWalletModals />
+
+      {testnetStarterKitOpen && shouldShowTestnetStarterKit && (
+        <TestnetStarterKitModal onClose={() => setTestnetStarterKitOpen(false)} />
+      )}
 
       {showAISidebar && !aiUsesEmbeddedRightRail && !INLINE_RAIL_AI_PAGES.has(activePage) && (
         <RuntimeErrorBoundary

@@ -78,6 +78,27 @@ The root `.env` must keep:
 
 Supabase values remain unchanged unless the backend project itself is also being rotated.
 
+### 1.5 Testnet starter kit env
+
+The Testnet Starter Kit is BSC Testnet-only onboarding infrastructure. It is not part of the core ATP address set.
+
+For testnet beta builds only:
+
+- `VITE_ENABLE_TESTNET_STARTER_KIT=true`
+- `VITE_TESTNET_TBNB_FAUCET_URL=<external tBNB faucet URL>`
+- `VITE_TESTNET_TOKEN_FAUCET_ADDRESS=0x6527262782C140e0A4724bef06431786556AfDE0`
+- `VITE_TESTNET_USDT_T_ADDRESS=0x8800279B4a5528628ef069698169C58B89377809`
+- `VITE_TESTNET_USDC_T_ADDRESS=0xbdcA834A71F5BFF1420eb5D1B0491d58a33141E5`
+
+These addresses are BSC Testnet-only mock token infrastructure from `foundry/broadcast/DeployTestnetTokenFaucet.s.sol/97/run-latest.json`.
+
+For mainnet or production-mainnet previews:
+
+- `VITE_ENABLE_TESTNET_STARTER_KIT=false`
+- remove all `VITE_TESTNET_*` faucet addresses
+- verify mock `USDT.t` / `USDC.t` are not allowlisted payment tokens
+- verify no faucet contract is deployed or referenced by production app config
+
 ## Phase 2. Backend and operator readiness
 
 ### 2.1 Foundry env
@@ -90,6 +111,7 @@ Required checks:
 - no stale core addresses from the previous runtime
 - current beta namespace: `DEPLOY_NAMESPACE=orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604`
 - v3.5 beta env must not include a protocol burn address or burn-fee distribution target
+- production/mainnet env must not include testnet faucet addresses or mock stablecoin addresses
 
 ### 2.2 Audit runtime config
 

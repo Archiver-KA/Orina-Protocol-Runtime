@@ -1,4 +1,4 @@
-import { Menu, MessageCircle, Search, Store } from 'lucide-react';
+import { FlaskConical, Menu, MessageCircle, Search, Store } from 'lucide-react';
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NotificationCenter } from '@/app/components/notifications/notification-center';
@@ -27,6 +27,7 @@ interface NavbarProps {
   isGuest?: boolean;
   onToggleAI?: () => void;
   aiActive?: boolean;
+  onOpenTestnetStarterKit?: () => void;
 }
 
 type IdleSchedulerWindow = Window & {
@@ -78,7 +79,15 @@ function scheduleDeferredNavbarWork(task: () => void) {
   return () => window.clearTimeout(handle);
 }
 
-export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, onToggleAI, aiActive }: NavbarProps) {
+export function Navbar({
+  activePage,
+  setActivePage,
+  onSearch,
+  isGuest = false,
+  onToggleAI,
+  aiActive,
+  onOpenTestnetStarterKit,
+}: NavbarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchDataReady, setSearchDataReady] = useState(false);
@@ -304,6 +313,19 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
               </button>
             );
           })}
+          {onOpenTestnetStarterKit && (
+            <button
+              type="button"
+              onClick={onOpenTestnetStarterKit}
+              className="inline-flex items-center gap-2 py-2 text-[13px] font-medium leading-none text-[rgba(226,232,240,0.72)] transition-colors hover:text-white"
+              style={{ fontFamily: "'Space Grotesk', var(--font-sans)" }}
+              aria-label="Open testnet starter kit"
+              title="Testnet Starter Kit"
+            >
+              <FlaskConical size={18} aria-hidden="true" />
+              <span className="hidden lg:inline">Testnet</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -490,6 +512,19 @@ export function Navbar({ activePage, setActivePage, onSearch, isGuest = false, o
                       <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[rgba(148,163,184,0.82)]">
                         {aiActive ? 'On' : 'Off'}
                       </span>
+                    </button>
+                  )}
+                  {onOpenTestnetStarterKit && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenTestnetStarterKit();
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="flex h-11 w-full items-center gap-3 rounded-[12px] px-4 text-left text-[rgba(203,213,225,0.92)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
+                    >
+                      <FlaskConical size={18} className="shrink-0 text-[rgba(148,163,184,0.9)]" />
+                      <span className="text-xs font-semibold">Testnet Starter Kit</span>
                     </button>
                   )}
                 </div>

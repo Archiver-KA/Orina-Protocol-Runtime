@@ -1,6 +1,6 @@
 # Orina Protocol Runtime User Guide
 
-Last aligned with runtime code on 2026-06-04.
+Last aligned with runtime code on 2026-06-07.
 
 This guide describes the current `Orina Protocol - Runtime` application, not the older documentation site snapshot. The live beta protocol surface is ATP v3.5 on BNB Chain Testnet, backed by a React/Vite client, Wagmi/Viem wallet flows, Supabase REST/Edge Functions, and local wallet-scoped runtime caches.
 
@@ -74,6 +74,8 @@ The connected runtime shell uses the left sidebar and top navigation:
 - `Agent Setting`: API keys, AI assistant, AI M2M wallet, and seller automation settings.
 - `Settings`: profile, delivery addresses, theme, wallet-scoped preferences.
 
+When connected on BSC Testnet, the top navigation can expose `Testnet Starter Kit`. That modal guides tBNB gas setup, testnet-only `USDT.t` / `USDC.t` claims, and QA rankings.
+
 The top search bar navigates to `/search` and can search assets, profiles, collections, and taxonomy categories.
 
 ## Wallet And Network Setup
@@ -83,6 +85,8 @@ The top search bar navigates to `/search` and can search assets, profiles, colle
 3. Switch to BNB Chain Testnet, chain id `97`.
 4. Keep testnet BNB available for gas.
 5. Use one of the configured ERC-20 payment tokens for protocol purchases. Native BNB is used for gas; WBNB is the payment-token form.
+
+For beta testing, use the Testnet Starter Kit modal only on BSC Testnet. `USDT.t` and `USDC.t` are faucet-minted mock tokens and must not be treated as mainnet stablecoins.
 
 If the app asks for a wallet security check, sign the requested message. That creates the wallet-auth session used for owner-scoped Supabase writes and sensitive settings.
 
