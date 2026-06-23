@@ -51,8 +51,9 @@ import { getMarketplaceAssetChainInfo } from '@/utils/marketplaceNetwork';
 import { ORINA_RWA_ABI } from '@/config/abis';
 import { decodeEventLog } from 'viem';
 import { useProtocolNetworkRouter } from '@/contexts/ProtocolNetworkContext';
-import { PROTOCOL_NETWORK_OPTIONS } from '@/utils/protocolNetwork';
+import { findProtocolNetworkOptionByValue, PROTOCOL_NETWORK_OPTIONS } from '@/utils/protocolNetwork';
 import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
+import { NetworkBrandLogo } from '@/app/components/ui/network-brand-logo';
 import { dispatchAppNavigation, navigateToMarketplaceCategory } from '@/utils/appNavigation';
 import type { MintingSidebarTelemetry } from '@/app/components/minting-right-sidebar';
 
@@ -1092,10 +1093,7 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
   const previewSupplyValue = assetType === 'RWA'
     ? `${normalizedMintAmount?.toString() || String(Math.max(1, Math.trunc(parsePositiveNumber(totalAmount, 1))))} units`
     : '1 of 1';
-  const previewChainBadgeLabel =
-    previewChainInfo.blockchain === 'BSC'
-      ? 'BNB'
-      : previewChainInfo.blockchain.slice(0, 3).toUpperCase();
+  const previewNetworkIcon = findProtocolNetworkOptionByValue(previewChainInfo.filterValue)?.icon ?? 'generic';
   const previewTitle = assetName.trim() || 'Genesis Asset';
   const previewDescription =
     description.trim() || 'Marketplace card preview updates as you edit mint metadata, pricing, and media.';
@@ -1622,6 +1620,7 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
                         options={mintCategoryOptions}
                         variant="compact"
                         className="w-full"
+                        menuClassName="max-h-[min(60vh,420px)] overflow-y-auto custom-scrollbar"
                         placeholder="Select taxonomy category"
                       />
                     </div>
@@ -1843,6 +1842,7 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
                       options={PROTOCOL_NETWORK_OPTIONS.map((network) => ({
                         value: network.key,
                         label: network.label,
+                        icon: <NetworkBrandLogo icon={network.icon} label={network.shortLabel} className="h-4 w-4" />,
                         tag: network.status === 'live' ? 'Live' : 'Coming',
                       }))}
                       className="w-full"
@@ -2093,11 +2093,12 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
                       </div>
 
                       <div className="absolute bottom-3 right-3 z-10">
-                        <div
-                          className="relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/60 text-[10px] font-semibold uppercase backdrop-blur-md"
-                          style={{ color: previewChainInfo.color }}
-                        >
-                          {previewChainBadgeLabel}
+                        <div className="relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/60 backdrop-blur-md">
+                          <NetworkBrandLogo
+                            icon={previewNetworkIcon}
+                            label={previewChainInfo.fullName}
+                            className="h-7 w-7"
+                          />
                           <span
                             className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-black ${
                               previewChainInfo.status === 'live' ? 'bg-[#2CC295]' : 'bg-zinc-500'

@@ -10,6 +10,7 @@ import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
 import type { CollectionSummary } from '@/types/collection';
 import { COLLECTIONS_SYNC_EVENT, loadCollectionsByOwner } from '@/utils/collectionsUtils';
 import { PROTOCOL_NETWORK_OPTIONS } from '@/utils/protocolNetwork';
+import { NetworkBrandLogo } from '@/app/components/ui/network-brand-logo';
 import { useBinanceTickerStream } from '@/utils/binanceMarketStream';
 
 export interface MintingSidebarTelemetry {
@@ -217,6 +218,7 @@ export function MintingRightSidebar({ telemetry = null }: MintingRightSidebarPro
                   options={PROTOCOL_NETWORK_OPTIONS.map((network) => ({
                     value: network.key,
                     label: network.shortLabel,
+                    icon: <NetworkBrandLogo icon={network.icon} label={network.shortLabel} className="h-4 w-4" />,
                     tag: network.status === 'live' ? 'Live' : 'Coming',
                   }))}
                   className="w-full"

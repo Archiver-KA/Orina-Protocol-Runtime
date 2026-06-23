@@ -6,6 +6,7 @@ import { Checkbox } from '@/app/components/ui/checkbox';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { StudioNoticePanel } from '@/app/components/ui/studio-notice-panel';
+import { CopyAddressButton } from '@/app/components/ui/copy-address-button';
 import type {
   AIM2MAction,
   AIM2MActivityItem,
@@ -885,7 +886,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
               <p>Ends: {walletExpiry === NO_EXPIRY_UINT64 ? 'No expiry' : walletExpiry !== undefined ? new Date(Number(walletExpiry) * 1000).toLocaleString() : 'n/a'}</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <button onClick={async () => { try { setRuntimeError(''); setStatusMessage(''); await revokeWalletMutation.revokeWallet(); } catch (error) { setRuntimeError(error instanceof Error ? error.message : 'Unable to revoke the AI wallet cycle.'); } }} disabled={!deployedWalletAddress || sessionStatus !== 'active' || revokeWalletMutation.isPending || revokeWalletMutation.isConfirming} className="w-full px-4 py-2.5 rounded-full bg-[#F5B942] text-black text-sm font-semibold disabled:opacity-50">
+              <button onClick={async () => { try { setRuntimeError(''); setStatusMessage(''); await revokeWalletMutation.revokeWallet(); } catch (error) { setRuntimeError(error instanceof Error ? error.message : 'Unable to revoke the AI wallet cycle.'); } }} disabled={!deployedWalletAddress || sessionStatus !== 'active' || revokeWalletMutation.isPending || revokeWalletMutation.isConfirming} className="w-full px-4 py-2.5 rounded-full bg-[var(--t-warning-orange-solid)] text-white text-sm font-semibold disabled:opacity-50">
                 {revokeWalletMutation.isPending || revokeWalletMutation.isConfirming ? 'Ending...' : 'End And Return Balance'}
               </button>
               <button onClick={async () => { try { setRuntimeError(''); setStatusMessage(''); await closeExpiredWalletMutation.closeExpiredWallet(); } catch (error) { setRuntimeError(error instanceof Error ? error.message : 'Unable to close the expired AI wallet cycle.'); } }} disabled={!deployedWalletAddress || sessionStatus !== 'expired' || walletState.closed === true || closeExpiredWalletMutation.isPending || closeExpiredWalletMutation.isConfirming} className="w-full px-4 py-2.5 rounded-full border border-ui-border-subtle text-ui-primary text-sm font-semibold disabled:opacity-50">
@@ -901,7 +902,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
               <p className="text-sm text-ui-muted mt-1">Send funds only if this setup needs buying power. Minting and signing can work without a balance.</p>
             </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="rounded-lg border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4"><div className="text-xs font-semibold uppercase tracking-widest text-ui-muted mb-2">Send Funds To</div><div className="text-sm text-ui-primary break-all">{runtimeWalletAddress || 'Finish setup to see the wallet address'}</div></div>
+                <div className="rounded-lg border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4"><div className="text-xs font-semibold uppercase tracking-widest text-ui-muted mb-2">Send Funds To</div><div className="flex items-start gap-1"><div className="min-w-0 flex-1 break-all text-sm text-ui-primary">{runtimeWalletAddress || 'Finish setup to see the wallet address'}</div><CopyAddressButton address={runtimeWalletAddress} className="-mr-1 -mt-1" /></div></div>
                 <div className="rounded-lg border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4"><div className="text-xs font-semibold uppercase tracking-widest text-ui-muted mb-2">Current Balance</div><div className="text-lg font-semibold text-ui-primary">{tokenBalanceFormatted || '0'} {getPaymentTokenSymbol(paymentToken) || ''}</div></div>
                 <div className="rounded-lg border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4"><div className="text-xs font-semibold uppercase tracking-widest text-ui-muted mb-2">Status</div><div className="text-sm text-ui-primary">{runtimeStatusLabel}</div></div>
             </div>

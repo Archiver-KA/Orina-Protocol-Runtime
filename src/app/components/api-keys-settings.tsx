@@ -124,7 +124,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
   const getPermissionBadgeColor = (permission: APIKeyPermission) => {
     const colors: Record<APIKeyPermission, string> = {
       read: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-      write: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+      write: 'bg-[var(--t-warning-orange-bg)] text-[var(--t-warning-orange-title)] border-[var(--t-warning-orange-border)]',
       mint: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
       delete: 'bg-red-500/10 text-red-400 border-red-500/20',
     };
@@ -193,11 +193,11 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
       </div>
 
       {requiresSecurityCheck ? (
-        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+        <div className="bg-[var(--t-warning-orange-bg)] border border-[var(--t-warning-orange-border)] rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <Shield className="mt-0.5 text-yellow-400" size={16} />
+            <Shield className="mt-0.5 text-[var(--t-warning-orange-title)]" size={16} />
             <div className="space-y-3">
-              <p className="text-xs text-yellow-100">
+              <p className="text-xs text-[var(--t-warning-orange-body)]">
                 API keys are protected. Confirm a one-time wallet security check before Orina loads or updates this workspace.
               </p>
               <button
@@ -374,7 +374,7 @@ export function APIKeysSettings({ walletAddress }: APIKeysSettingsProps) {
               </div>
 
               {apiKey.expiresAt && apiKey.isActive && (
-                <div className="mt-3 flex items-center gap-2 text-[10px] text-yellow-400">
+                <div className="mt-3 flex items-center gap-2 text-[10px] text-[var(--t-warning-orange-title)]">
                   <Clock size={10} />
                   Expires on {new Date(apiKey.expiresAt).toLocaleDateString('en-US', { 
                     month: 'long', 
@@ -600,10 +600,10 @@ function CreateAPIKeyForm({
               </button>
             </div>
 
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+            <div className="bg-[var(--t-warning-orange-bg)] border border-[var(--t-warning-orange-border)] rounded-lg p-4">
               <div className="flex gap-2">
-                <Shield className="text-yellow-400 shrink-0" size={16} />
-                <div className="text-xs text-yellow-200">
+                <Shield className="text-[var(--t-warning-orange-title)] shrink-0" size={16} />
+                <div className="text-xs text-[var(--t-warning-orange-body)]">
                   <strong className="block mb-1">Important Security Notice:</strong>
                   Store this key securely. Anyone with this key can perform actions on your behalf within the granted permissions.
                 </div>

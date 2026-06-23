@@ -5,7 +5,7 @@
  * Hỗ trợ Grid/List view, filtering, và search
  */
 
-import { ArrowRight, Bot, Briefcase, Building2, Check, ChevronDown, Clock, Image as ImageIcon, Package, Search, Grid, List, Map as MapIcon } from 'lucide-react';
+import { Bot, Briefcase, Building2, Check, ChevronDown, Clock, Image as ImageIcon, Package, Search, Grid, List, Map as MapIcon } from 'lucide-react';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, lazy, type ReactNode, type RefObject, type UIEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -649,7 +649,6 @@ function MarketplaceCategoryMegaDropdown({
     setIsOpen(false);
   };
 
-  const allSelected = selectedCategory === 'all';
   const panel = !isOpen || !panelPosition || typeof document === 'undefined' ? null : createPortal(
     <div
       ref={panelRef}
@@ -670,24 +669,6 @@ function MarketplaceCategoryMegaDropdown({
             <p className="mt-2 text-sm leading-6 text-ui-muted">
               Five primary categories define the beta marketplace. Real Estate is staged as coming soon.
             </p>
-            <button
-              type="button"
-              onClick={() => {
-                onChange('all');
-                setIsOpen(false);
-              }}
-              className={`mt-5 flex w-full items-center justify-between rounded-[18px] px-4 py-3 text-left transition-colors ${
-                allSelected
-                  ? 'bg-[#2CC295]/12 text-ui-primary'
-                  : 'bg-[var(--t-surface-5)] text-ui-secondary hover:bg-[var(--t-surface-10)] hover:text-ui-primary'
-              }`}
-            >
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold">All Categories</span>
-                <span className="mt-1 block text-xs text-ui-muted">Show every active listing</span>
-              </span>
-              {allSelected ? <Check size={16} className="shrink-0 text-[#2CC295]" /> : <ArrowRight size={15} className="shrink-0 text-ui-muted" />}
-            </button>
           </div>
 
           <div className="max-h-[min(68vh,620px)] overflow-y-auto p-4 custom-scrollbar">
@@ -695,7 +676,7 @@ function MarketplaceCategoryMegaDropdown({
               {groups.map((group) => (
                 <section
                   key={group.id}
-                  className={`min-w-0 rounded-[22px] border border-ui-border-subtle bg-[var(--t-surface-2)] p-3 ${group.disabled ? 'opacity-75' : ''}`}
+                  className={`min-w-0 p-3 ${group.disabled ? 'opacity-75' : ''}`}
                 >
                   <div className="mb-3 flex items-start gap-3">
                     <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${group.toneClassName}`}>
@@ -966,6 +947,7 @@ export function Marketplace({
   const collectionRequestIdRef = useRef(0);
   const mapEngineLoadRequestRef = useRef(0);
   const marketplaceFrameRef = useRef<HTMLDivElement | null>(null);
+  const categoryPanelContainerRef = useRef<HTMLDivElement | null>(null);
   const assetResultRenderLimitRef = useRef(resultRenderLimit);
   const resultsScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const resultsLoadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -1799,7 +1781,7 @@ export function Marketplace({
       {/* Main Content */}
       <div className="flex-1 relative flex flex-col overflow-hidden">
         <div ref={marketplaceFrameRef} className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col px-3 py-2 sm:px-4 lg:px-8 lg:py-3">
-          <div className="mobile-command-row px-0 sm:px-1 xl:items-center">
+          <div ref={categoryPanelContainerRef} className="mobile-command-row px-0 sm:px-1 xl:items-center">
             <div className="mobile-command-cluster">
               <StudioPillGroup className="rounded-full bg-[var(--t-surface-2)] shadow-none">
                 <StudioPillButton
@@ -1894,7 +1876,7 @@ export function Marketplace({
                   onChange={setSelectedCategory}
                   options={visibleCategoryOptions}
                   disabled={contentMode === 'profiles'}
-                  containerRef={marketplaceFrameRef}
+                  containerRef={categoryPanelContainerRef}
                 />
               </div>
 

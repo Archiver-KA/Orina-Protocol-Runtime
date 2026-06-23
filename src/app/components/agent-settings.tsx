@@ -13,6 +13,7 @@ import { RuntimeErrorBoundary } from '@/app/components/ui/runtime-error-boundary
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
 import { InlineAIRightRail } from '@/app/components/ui/inline-ai-right-rail';
+import { CopyAddressButton } from '@/app/components/ui/copy-address-button';
 import type {
   AIM2MActivityItem,
   AIM2MWalletRuntimeSnapshot,
@@ -152,7 +153,7 @@ function shortenAddress(value: string | null | undefined): string {
 
 function renderActivityTone(item: AIM2MActivityItem): string {
   if (item.status === 'success') return 'bg-[#2CC295]';
-  if (item.status === 'pending') return 'bg-[#F5B942]';
+  if (item.status === 'pending') return 'bg-[var(--t-warning-orange-solid)]';
   return 'bg-[var(--t-surface-10)]';
 }
 
@@ -407,8 +408,14 @@ export function AgentSettings({
                     <div className="space-y-3 text-xs">
                       <div>
                         <div className="text-ui-muted mb-1">AI Wallet</div>
-                        <div className="text-ui-primary break-all">
-                          {runtimeWalletLabel}
+                        <div className="flex items-start gap-1">
+                          <div className="min-w-0 flex-1 break-all text-ui-primary">
+                            {runtimeWalletLabel}
+                          </div>
+                          <CopyAddressButton
+                            address={m2mSnapshot?.deployedWalletAddress || m2mSnapshot?.predictedWalletAddress}
+                            className="-mr-1 -mt-1"
+                          />
                         </div>
                         <div className="text-[10px] text-ui-muted mt-1">{runtimeWalletCaption}</div>
                       </div>

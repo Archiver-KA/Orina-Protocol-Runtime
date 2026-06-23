@@ -22,6 +22,7 @@ import { StudioProgressBar } from '@/app/components/ui/studio-progress-bar';
 import { StudioTimelineItem } from '@/app/components/ui/studio-list-parts';
 import { InlineAIRightRail } from '@/app/components/ui/inline-ai-right-rail';
 import { ProtocolChainBanner } from '@/app/components/ui/protocol-chain-banner';
+import { NetworkBrandLogo } from '@/app/components/ui/network-brand-logo';
 import type { OrderUiRecord } from '@/types/order';
 import type { OrderNavigationRequest } from '@/types/orderNavigation';
 import { useUserOrders } from '@/hooks/useUserOrders';
@@ -78,60 +79,13 @@ import { syncOrderProjectionViaBridge } from '@/utils/orderProjectionSync';
 import { isOrderCompleted, resolveOrderSemantics } from '@/utils/orderSemantics';
 import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 
-const TEAL = '#2CC295';
-function NetworkIconEth() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <polygon points="12,2 20,12 12,22 4,12" stroke={TEAL} strokeWidth="1.5" fill="rgba(44,194,149,0.15)" />
-      <line x1="12" y1="2" x2="12" y2="22" stroke={TEAL} strokeWidth="1" />
-      <line x1="4" y1="12" x2="20" y2="12" stroke={TEAL} strokeWidth="1" opacity="0.5" />
-    </svg>
-  );
-}
-
-function NetworkIconPolygon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <polygon points="12,3 21,8.5 21,15.5 12,21 3,15.5 3,8.5" stroke="#a855f7" strokeWidth="1.5" fill="rgba(168,85,247,0.15)" />
-    </svg>
-  );
-}
-
-function NetworkIconArbitrum() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="9" stroke="#a855f7" strokeWidth="1.5" fill="rgba(168,85,247,0.15)" />
-      <path d="M8 16l4-8 4 8" stroke="#a855f7" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function NetworkIconSolana() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="5" width="18" height="3" rx="1.5" fill="#f97316" />
-      <rect x="3" y="10.5" width="14" height="3" rx="1.5" fill="#f97316" />
-      <rect x="3" y="16" width="18" height="3" rx="1.5" fill="#f97316" />
-    </svg>
-  );
-}
-
-function NetworkIconBNB() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="9" fill="rgba(234,179,8,0.15)" stroke="#eab308" strokeWidth="1.5" />
-      <text x="12" y="16" textAnchor="middle" fontSize="8" fill="#eab308" fontWeight="bold">BNB</text>
-    </svg>
-  );
-}
-
 const NETWORK_OPTIONS = [
   { value: 'all', label: 'All Networks' },
-  { value: 'eth', label: 'Ethereum Mainnet', icon: <NetworkIconEth />, tag: 'EVM' },
-  { value: 'poly', label: 'Polygon', icon: <NetworkIconPolygon /> },
-  { value: 'arb', label: 'Arbitrum One', icon: <NetworkIconArbitrum /> },
-  { value: 'sol', label: 'Solana', icon: <NetworkIconSolana /> },
-  { value: 'bnb', label: 'BNB Chain', icon: <NetworkIconBNB />, tag: 'EVM' },
+  { value: 'eth', label: 'Ethereum Mainnet', icon: <NetworkBrandLogo icon="ethereum" label="Ethereum" className="h-4 w-4" />, tag: 'EVM' },
+  { value: 'poly', label: 'Polygon', icon: <NetworkBrandLogo icon="polygon" label="Polygon" className="h-4 w-4" /> },
+  { value: 'arb', label: 'Arbitrum One', icon: <NetworkBrandLogo icon="generic" label="Arbitrum One" className="h-4 w-4" /> },
+  { value: 'sol', label: 'Solana', icon: <NetworkBrandLogo icon="solana" label="Solana" className="h-4 w-4" /> },
+  { value: 'bnb', label: 'BNB Chain', icon: <NetworkBrandLogo icon="bnb" label="BNB Chain" className="h-4 w-4" />, tag: 'EVM' },
 ];
 
 type OrderActionNoticeTone = 'success' | 'warning' | 'danger';

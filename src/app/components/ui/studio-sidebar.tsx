@@ -31,7 +31,7 @@ export function StudioSidebarShell({
 
 export function StudioSidebarHeader({ children, className, ...props }: BaseProps) {
   return (
-    <div className={cn('shrink-0 p-6 border-b border-[var(--color-panel-border)]', className)} {...props}>
+    <div className={cn('shrink-0 p-6', className, '!border-0')} {...props}>
       {children}
     </div>
   );
@@ -56,8 +56,9 @@ export function StudioSidebarFooter({ children, className, ...props }: BaseProps
   return (
     <div
       className={cn(
-        'border-t border-[var(--color-panel-border)] p-4 bg-[var(--color-sidebar-footer)] backdrop-blur-md space-y-3 flex-shrink-0',
-        className
+        'p-4 bg-[var(--color-sidebar-footer)] backdrop-blur-md space-y-3 flex-shrink-0',
+        className,
+        '!border-0',
       )}
       {...props}
     >

@@ -278,10 +278,10 @@ export function AIAgentSettings({ walletAddress }: AIAgentSettingsProps) {
           </div>
 
           {/* API Key Warning */}
-          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+          <div className="bg-[var(--t-warning-orange-bg)] border border-[var(--t-warning-orange-border)] rounded-lg p-4">
             <div className="flex gap-2">
-              <AlertCircle className="text-yellow-400 shrink-0" size={16} />
-              <div className="text-xs text-yellow-200">
+              <AlertCircle className="text-[var(--t-warning-orange-title)] shrink-0" size={16} />
+              <div className="text-xs text-[var(--t-warning-orange-body)]">
                 <strong className="block mb-1">API Key Required:</strong>
                 Keep an active API key with <strong>read</strong> access so AI can reference your listings.
               </div>

@@ -313,7 +313,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
           </div>
 
           {!panel.configured && (
-            <div className="mt-4 rounded-[8px] border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+            <div className="mt-4 rounded-[8px] border border-[var(--t-warning-orange-border)] bg-[var(--t-warning-orange-bg)] px-4 py-3 text-sm text-[var(--t-warning-orange-body)]">
               Faucet address and {panel.label} address are not configured yet.
             </div>
           )}
@@ -355,7 +355,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
   return (
     <StudioModalShell>
       <StudioModalBackdrop onBackdropClick={onClose} />
-      <StudioModalPanel className="relative z-10 max-w-[960px] rounded-[18px]">
+      <StudioModalPanel className="relative z-10 h-[680px] max-h-[calc(100vh-2rem)] max-w-[960px] rounded-[18px]">
         <StudioModalHeader className="flex items-start justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2CC295]">BSC Testnet only</p>
@@ -417,13 +417,13 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-ui-secondary">Chain</span>
-                    <span className={isOnTestnet ? 'text-[#2CC295]' : 'text-amber-200'}>
+                    <span className={isOnTestnet ? 'text-[#2CC295]' : 'text-[var(--t-warning-orange-title)]'}>
                       {isOnTestnet ? 'BSC Testnet' : 'Not testnet'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-ui-secondary">Faucet</span>
-                    <span className={faucetConfigured ? 'text-[#2CC295]' : 'text-amber-200'}>
+                    <span className={faucetConfigured ? 'text-[#2CC295]' : 'text-[var(--t-warning-orange-title)]'}>
                       {faucetConfigured ? 'Configured' : 'Pending deploy'}
                     </span>
                   </div>

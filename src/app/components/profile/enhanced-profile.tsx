@@ -1278,7 +1278,7 @@ export function EnhancedProfile({
         </div>
 
         {/* Tab Content */}
-        <div className="px-4 py-6 pb-16 sm:px-8 sm:py-10 sm:pb-20">
+        <div className="mx-auto w-full max-w-6xl px-4 py-6 pb-16 sm:px-8 sm:py-10 sm:pb-20">
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-8">
@@ -1438,7 +1438,7 @@ export function EnhancedProfile({
           )}
 
           {activeTab === 'reviews' && (
-            <div className="mx-auto w-full max-w-5xl space-y-6">
+            <div className="w-full space-y-6">
               <div className="rounded-[24px] bg-[var(--t-surface-2)] p-6 md:p-8">
                 <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                   <div className="space-y-2">
@@ -1612,7 +1612,7 @@ export function EnhancedProfile({
 
           {/* Story Tab */}
           {activeTab === 'story' && (
-            <div className="mx-auto w-full max-w-4xl">
+            <div className="w-full">
               {isOwnProfile && (
                 <div className="mb-3 text-right text-[10px] text-ui-secondary">
                   {storyCharacterCount}/{STORY_CHARACTER_LIMIT} chars • {storyImageCount}/{STORY_IMAGE_LIMIT} images
@@ -1921,7 +1921,7 @@ export function EnhancedProfile({
         ) : (
           <div className="h-full min-h-0 rounded-[28px] bg-[var(--t-card-bg)] backdrop-blur-[6px] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="border-b border-[var(--color-panel-border)] bg-gradient-to-b from-white/[0.02] to-transparent px-6 py-5">
+        <div className="bg-gradient-to-b from-white/[0.02] to-transparent px-6 py-5">
           <h2 className="text-ui-primary font-semibold flex items-center gap-2 text-sm uppercase tracking-wider">
             <Shield size={18} className="text-primary" />
             User Performance
@@ -2146,7 +2146,7 @@ export function EnhancedProfile({
         </div>
 
         {/* Footer */}
-        <div className="mt-auto border-t border-ui-border-subtle p-5 bg-[var(--t-surface-2)] backdrop-blur-md">
+        <div className="mt-auto p-5 bg-[var(--t-surface-2)] backdrop-blur-md">
           <button className="ui-secondary-button flex w-full items-center justify-center gap-2 rounded-xl border py-3 text-xs font-semibold transition-all">
             <Shield size={16} />
             View Verification Audit

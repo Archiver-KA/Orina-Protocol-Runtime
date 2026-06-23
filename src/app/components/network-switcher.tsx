@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Wallet } from 'lucide-react';
 import { useWalletModalContext } from '@/contexts/WalletModalContext';
 import { useProtocolNetworkRouter } from '@/contexts/ProtocolNetworkContext';
-import {
-  PROTOCOL_NETWORK_OPTIONS,
-  type ProtocolNetworkIcon,
-} from '@/utils/protocolNetwork';
+import { PROTOCOL_NETWORK_OPTIONS } from '@/utils/protocolNetwork';
+import { NetworkBrandLogo } from '@/app/components/ui/network-brand-logo';
 
 interface NetworkSwitcherProps {
   sidebarCollapsed?: boolean;
@@ -19,53 +16,6 @@ interface PanelPosition {
 }
 
 const PANEL_HEIGHT = 360;
-const NETWORK_LOGO_SOURCES: Record<ProtocolNetworkIcon, string> = {
-  avalanche: '/network-logos/avalanche.png',
-  bnb: '/network-logos/bnb.png',
-  base: '/network-logos/base.png',
-  polygon: '/network-logos/polygon.png',
-  solana: '/network-logos/solana.png',
-  ethereum: '/network-logos/ethereum.png',
-  generic: '',
-};
-
-function GenericLogo({ className = '' }: { className?: string }) {
-  return (
-    <div className={`flex items-center justify-center rounded-[14px] bg-[var(--t-surface-5)] ${className}`}>
-      <Wallet size={13} className="text-ui-secondary" />
-    </div>
-  );
-}
-
-function NetworkBrandLogo({ icon, className = '' }: { icon: ProtocolNetworkIcon; className?: string }) {
-  const source = NETWORK_LOGO_SOURCES[icon];
-  const [currentSrc, setCurrentSrc] = useState(source);
-
-  useEffect(() => {
-    setCurrentSrc(source);
-  }, [source]);
-
-  if (!source) {
-    return <GenericLogo className={className} />;
-  }
-
-  return (
-    <span className={`relative flex items-center justify-center overflow-hidden ${className}`}>
-      <img
-        src={currentSrc}
-        alt=""
-        loading="eager"
-        decoding="async"
-        className="h-full w-full object-contain"
-        onError={() => {
-          setCurrentSrc('');
-        }}
-      />
-      {!currentSrc && <GenericLogo className="h-full w-full" />}
-    </span>
-  );
-}
-
 export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -208,7 +158,7 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
                     }`}
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <NetworkBrandLogo icon={network.icon} className="h-[28px] w-[28px] shrink-0" />
+                      <NetworkBrandLogo icon={network.icon} label={network.shortLabel} className="h-[28px] w-[28px] shrink-0" />
                       <span className="truncate text-[13px] font-semibold text-ui-primary">{network.shortLabel}</span>
                     </div>
 
@@ -250,11 +200,11 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
         title={sidebarCollapsed ? activeNetwork.shortLabel : undefined}
       >
         {sidebarCollapsed ? (
-          <NetworkBrandLogo icon={activeNetwork.icon} className="h-[26px] w-[26px] shrink-0" />
+          <NetworkBrandLogo icon={activeNetwork.icon} label={activeNetwork.shortLabel} className="h-[26px] w-[26px] shrink-0" />
         ) : (
           <>
             <div className="flex min-w-0 items-center gap-3">
-              <NetworkBrandLogo icon={activeNetwork.icon} className="h-[28px] w-[28px] shrink-0" />
+              <NetworkBrandLogo icon={activeNetwork.icon} label={activeNetwork.shortLabel} className="h-[28px] w-[28px] shrink-0" />
               <span className="truncate text-[13px] font-semibold text-ui-primary">{activeNetwork.shortLabel}</span>
             </div>
           </>

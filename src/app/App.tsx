@@ -52,15 +52,15 @@ function shouldEnableRuntimeOnBoot(route: ReturnType<typeof readInitialRouteStat
   return Boolean(getWalletAuthSession());
 }
 
-function RuntimeLoadingSurface({ label }: { label: string }) {
+function RuntimeLoadingSurface() {
   return (
     <div className="flex h-screen min-h-screen items-center justify-center bg-ui-page px-6 py-8 text-ui-secondary">
       <StudioLoadingIndicator
         layout="stacked"
         tone="muted"
-        size={24}
-        label={label}
-        labelClassName="text-sm font-medium text-ui-secondary"
+        size={48}
+        role="status"
+        aria-label="Loading page"
       />
     </div>
   );
@@ -535,7 +535,7 @@ export default function App() {
           fallback={
             activePage === 'home'
               ? publicShell
-              : <RuntimeLoadingSurface label={`Loading ${activePage.replace(/-/g, ' ')}...`} />
+              : <RuntimeLoadingSurface />
           }
         >
           <RuntimeApp {...runtimeProps} />

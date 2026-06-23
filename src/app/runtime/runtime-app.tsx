@@ -126,13 +126,7 @@ const INLINE_RAIL_AI_PAGES = new Set([
 const LEGACY_GRID_RAIL_PAGES = new Set(['orders']);
 const MARKETPLACE_PRESERVED_RETURN_PAGES = new Set(['asset-details', 'profile', 'collection-details']);
 
-function SurfaceFallback({
-  label,
-  compact = false,
-}: {
-  label: string;
-  compact?: boolean;
-}) {
+function SurfaceFallback({ compact = false }: { compact?: boolean }) {
   return (
     <div
       className={
@@ -142,12 +136,12 @@ function SurfaceFallback({
       }
     >
       <StudioLoadingIndicator
-        layout={compact ? 'inline' : 'stacked'}
+        layout="stacked"
         tone="muted"
-        size={compact ? 16 : 22}
-        label={label}
-        className={compact ? 'text-ui-muted' : 'text-ui-muted'}
-        labelClassName={compact ? 'text-xs text-ui-muted' : 'text-sm font-medium text-ui-secondary'}
+        size={compact ? 32 : 44}
+        className="text-ui-muted"
+        role="status"
+        aria-label="Loading page"
       />
     </div>
   );
@@ -155,7 +149,6 @@ function SurfaceFallback({
 
 function LazySurface({
   children,
-  fallbackLabel,
   compact = false,
 }: {
   children: ReactNode;
@@ -163,7 +156,7 @@ function LazySurface({
   compact?: boolean;
 }) {
   return (
-    <Suspense fallback={<SurfaceFallback label={fallbackLabel} compact={compact} />}>
+    <Suspense fallback={<SurfaceFallback compact={compact} />}>
       {children}
     </Suspense>
   );
