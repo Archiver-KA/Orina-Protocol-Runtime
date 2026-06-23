@@ -94,6 +94,7 @@ EXECUTE FUNCTION set_updated_at();
 -- RLS
 ALTER TABLE seller_minting_config ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS seller_minting_config_all ON seller_minting_config;
 CREATE POLICY seller_minting_config_all
 ON seller_minting_config FOR ALL
 USING (true);
@@ -134,6 +135,7 @@ EXECUTE FUNCTION set_updated_at();
 
 ALTER TABLE market_trends ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS market_trends_readable_all ON market_trends;
 CREATE POLICY market_trends_readable_all
 ON market_trends FOR SELECT
 USING (true);
@@ -162,6 +164,7 @@ ON seller_performance (seller_id, category);
 
 ALTER TABLE seller_performance ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS seller_performance_readable ON seller_performance;
 CREATE POLICY seller_performance_readable
 ON seller_performance FOR SELECT
 USING (true);
@@ -185,6 +188,7 @@ CREATE TABLE IF NOT EXISTS market_benchmarks (
 
 ALTER TABLE market_benchmarks ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS market_benchmarks_readable ON market_benchmarks;
 CREATE POLICY market_benchmarks_readable
 ON market_benchmarks FOR SELECT
 USING (true);
@@ -192,6 +196,12 @@ USING (true);
 -- ============================================================================
 -- 8. SQL FUNCTIONS — Vector search, market analysis, forecasting, trust score
 -- ============================================================================
+
+DROP FUNCTION IF EXISTS vector_search_products(vector, text, int);
+DROP FUNCTION IF EXISTS get_market_analysis(text, int);
+DROP FUNCTION IF EXISTS predict_volume_at_price(text, uuid, numeric);
+DROP FUNCTION IF EXISTS get_seller_insights(uuid);
+DROP FUNCTION IF EXISTS get_buyer_trust_score(uuid);
 
 -- Function 1: Vector search for similar assets
 CREATE OR REPLACE FUNCTION vector_search_products(

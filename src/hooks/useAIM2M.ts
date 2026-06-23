@@ -23,6 +23,12 @@ export interface DeployAIM2MWalletInput {
   maxPerOrder: bigint;
   maxTotal: bigint;
   counterpartyAllowlistHash: Hex;
+  restrictAssetId?: boolean;
+  assetId?: bigint;
+  maxAmount?: bigint;
+  minGrossPrice?: bigint;
+  maxGrossPrice?: bigint;
+  maxDeliverySeconds?: bigint;
 }
 
 export interface PreparedContractCall {
@@ -35,6 +41,64 @@ const LIVE_M2M_REFETCH_MS = 4000;
 const DEFAULT_LIVE_PROTOCOL_CHAIN_ID = LIVE_PROTOCOL_CHAIN_ID;
 const DEFAULT_LIVE_MARKETPLACE_ADDRESS = LIVE_PROTOCOL_CONTRACTS.MARKETPLACE_ATP;
 const DEFAULT_LIVE_PAYMENT_GATEWAY_ADDRESS = LIVE_PROTOCOL_CONTRACTS.PAYMENT_GATEWAY;
+
+function assertAddressField(name: string, value: Address | undefined): asserts value is Address {
+  if (!value) throw new Error(`AI wallet deploy field is missing: ${name}`);
+}
+
+function assertBigIntField(name: string, value: bigint | undefined): asserts value is bigint {
+  if (typeof value !== 'bigint') throw new Error(`AI wallet deploy field is missing: ${name}`);
+}
+
+function assertBooleanField(name: string, value: boolean | undefined): asserts value is boolean {
+  if (typeof value !== 'boolean') throw new Error(`AI wallet deploy field is missing: ${name}`);
+}
+
+function buildDeployWalletConfigTuple(
+  input: DeployAIM2MWalletInput,
+  marketplaceAddress: Address,
+  paymentGatewayAddress: Address,
+) {
+  const restrictAssetId = input.restrictAssetId ?? false;
+  const assetId = input.assetId ?? 0n;
+  const maxAmount = input.maxAmount ?? 0n;
+  const minGrossPrice = input.minGrossPrice ?? 0n;
+  const maxGrossPrice = input.maxGrossPrice ?? 0n;
+  const maxDeliverySeconds = input.maxDeliverySeconds ?? 0n;
+  assertAddressField('root', input.root);
+  assertAddressField('delegate', input.delegate);
+  assertAddressField('allowedTarget', marketplaceAddress);
+  assertAddressField('allowedSpender', paymentGatewayAddress);
+  assertAddressField('allowedToken', input.allowedToken);
+  assertBigIntField('expiry', input.expiry);
+  assertBigIntField('actionMask', input.actionMask);
+  assertBigIntField('maxPerOrder', input.maxPerOrder);
+  assertBigIntField('maxTotal', input.maxTotal);
+  assertBooleanField('restrictAssetId', restrictAssetId);
+  assertBigIntField('assetId', assetId);
+  assertBigIntField('maxAmount', maxAmount);
+  assertBigIntField('minGrossPrice', minGrossPrice);
+  assertBigIntField('maxGrossPrice', maxGrossPrice);
+  assertBigIntField('maxDeliverySeconds', maxDeliverySeconds);
+  return [
+    input.root,
+    input.delegate,
+    marketplaceAddress,
+    paymentGatewayAddress,
+    input.allowedToken,
+    input.expiry,
+    input.actionMask,
+    input.maxPerOrder,
+    input.maxTotal,
+    input.counterpartyAllowlistHash,
+    restrictAssetId,
+    assetId,
+    maxAmount,
+    minGrossPrice,
+    maxGrossPrice,
+    maxDeliverySeconds,
+  ] as const;
+}
 
 function useLiveM2MScope() {
   const { chainId, marketplaceAddress, paymentGatewayAddress } = useProtocolDataNetwork();
@@ -474,24 +538,19 @@ export function useDeployAIM2MWallet() {
 
   const deployWallet = async (input: DeployAIM2MWalletInput) => {
     if (!M2M_CONTRACTS.AI_WALLET_FACTORY_V2) throw new Error('AI wallet factory address is not configured');
+    const resolvedMarketplaceAddress = marketplaceAddress ?? DEFAULT_LIVE_MARKETPLACE_ADDRESS;
+    const resolvedPaymentGatewayAddress = paymentGatewayAddress ?? DEFAULT_LIVE_PAYMENT_GATEWAY_ADDRESS;
+    if (!resolvedMarketplaceAddress || !resolvedPaymentGatewayAddress) {
+      throw new Error('AI wallet core contract addresses are not configured');
+    }
     return writeContractAsync({
       chainId,
       address: M2M_CONTRACTS.AI_WALLET_FACTORY_V2,
       abi: AI_WALLET_FACTORY_V2_ABI,
       functionName: 'deployWallet',
       gas: DEPLOY_AI_WALLET_GAS_LIMIT,
-      args: [{
-        root: input.root,
-        delegate: input.delegate,
-        allowedTarget: marketplaceAddress,
-        allowedSpender: paymentGatewayAddress,
-        allowedToken: input.allowedToken,
-        expiry: input.expiry,
-        actionMask: input.actionMask,
-        maxPerOrder: input.maxPerOrder,
-        maxTotal: input.maxTotal,
-        counterpartyAllowlistHash: input.counterpartyAllowlistHash,
-      }],
+      value: 0n,
+      args: [buildDeployWalletConfigTuple(input, resolvedMarketplaceAddress, resolvedPaymentGatewayAddress)],
     });
   };
 
@@ -543,18 +602,7 @@ export function prepareDeployAIM2MWalletTx(input: DeployAIM2MWalletInput): Prepa
     data: encodeFunctionData({
       abi: AI_WALLET_FACTORY_V2_ABI,
       functionName: 'deployWallet',
-      args: [{
-        root: input.root,
-        delegate: input.delegate,
-        allowedTarget: DEFAULT_LIVE_MARKETPLACE_ADDRESS,
-        allowedSpender: DEFAULT_LIVE_PAYMENT_GATEWAY_ADDRESS,
-        allowedToken: input.allowedToken,
-        expiry: input.expiry,
-        actionMask: input.actionMask,
-        maxPerOrder: input.maxPerOrder,
-        maxTotal: input.maxTotal,
-        counterpartyAllowlistHash: input.counterpartyAllowlistHash,
-      }],
+      args: [buildDeployWalletConfigTuple(input, DEFAULT_LIVE_MARKETPLACE_ADDRESS, DEFAULT_LIVE_PAYMENT_GATEWAY_ADDRESS)],
     }),
     value: 0n,
   };

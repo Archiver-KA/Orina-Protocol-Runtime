@@ -2,6 +2,7 @@ import { Hono } from 'npm:hono';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { verifyMessage } from 'npm:viem';
 import { assertAuthenticatedWalletMatch, requireAuthenticatedWallet } from './request-auth.ts';
+import { normalizeListingTaxonomy } from './taxonomy-normalizer.ts';
 
 const router = new Hono();
 
@@ -1256,13 +1257,20 @@ router.post('/asset-metadata-seed', async (c) => {
       const tags = Array.from(
         new Set((Array.isArray(item.tags) ? item.tags : []).map((t) => normalizeTag(String(t || ''))).filter(Boolean))
       );
+      const rawCategory = item.category ? String(item.category).trim() : '';
+      const rawSubcategory = item.subcategory ? String(item.subcategory).trim() : '';
+      const taxonomy = rawCategory || rawSubcategory
+        ? normalizeListingTaxonomy(rawCategory, rawSubcategory)
+        : null;
 
       return {
         asset_uid: assetUid,
         title,
         slug: normalizeSlug(String(item.slug || `${assetUid}-${title}`)) || assetUid,
-        category: item.category ? String(item.category).trim() : null,
-        subcategory: item.subcategory ? String(item.subcategory).trim() : null,
+        category: taxonomy?.categorySlug || null,
+        subcategory: taxonomy?.subcategorySlug || null,
+        category_label: taxonomy?.categoryLabel || null,
+        subcategory_label: taxonomy?.subcategoryLabel || null,
         description: item.description ? String(item.description) : null,
         cover_image_url: item.coverImageUrl ? String(item.coverImageUrl) : null,
         gallery_images: Array.isArray(item.galleryImages) ? item.galleryImages.filter((x) => typeof x === 'string') : [],
@@ -1282,6 +1290,8 @@ router.post('/asset-metadata-seed', async (c) => {
       slug: string;
       category: string | null;
       subcategory: string | null;
+      category_label: string | null;
+      subcategory_label: string | null;
       description: string | null;
       cover_image_url: string | null;
       gallery_images: string[];
@@ -1323,6 +1333,8 @@ router.post('/asset-metadata-seed', async (c) => {
             images: item.gallery_images,
             category: item.category,
             subcategory: item.subcategory,
+            category_label: item.category_label,
+            subcategory_label: item.subcategory_label,
             seller_wallet: auth.identity.walletAddress,
             seller: {
               address: auth.identity.walletAddress,

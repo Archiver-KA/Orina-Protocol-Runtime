@@ -14,6 +14,10 @@ import { toast } from 'sonner';
 import { useMintAsset } from '@/hooks/useAssets';
 import { useAllUnits } from '@/hooks/useUnits';
 import { AssetType, EXPLORER_URLS } from '@/config/contracts';
+import {
+  MARKETPLACE_BETA_CATEGORY_OPTIONS,
+  mergeMarketplaceCategoryOptions,
+} from '@/config/marketplaceCategories';
 import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { useTheme } from '@/app/contexts/ThemeContext';
@@ -372,6 +376,7 @@ function buildRuntimeMintedAssetRecord(
     name: draft.name,
     description: draft.description || `${draft.name} minted on Orina.`,
     category: categorySlug,
+    subcategory: draft.subcategory || undefined,
     blockchain: normalizedBlockchain,
     currentPrice,
     currentPriceUsd: formatRuntimeUsd(priceNumber, draft.priceCurrency),
@@ -541,12 +546,16 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
   );
   const mintCategoryOptions = useMemo(() => {
     const taxonomyOptions = getTaxonomyCategoryOptions();
-    if (!selectedMintCategory) return taxonomyOptions;
-    if (taxonomyOptions.some((option) => option.value === selectedMintCategory)) {
-      return taxonomyOptions;
+    const baseOptions = mergeMarketplaceCategoryOptions([
+      ...taxonomyOptions,
+      ...MARKETPLACE_BETA_CATEGORY_OPTIONS,
+    ]);
+    if (!selectedMintCategory) return baseOptions;
+    if (baseOptions.some((option) => option.value === selectedMintCategory)) {
+      return baseOptions;
     }
     return [
-      ...taxonomyOptions,
+      ...baseOptions,
       {
         value: selectedMintCategory,
         label: getCategoryDisplayLabel(selectedMintCategory, draftSubcategory || undefined),

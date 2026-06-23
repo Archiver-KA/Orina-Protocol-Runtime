@@ -42,12 +42,22 @@ ALTER TABLE IF EXISTS products
 ADD COLUMN IF NOT EXISTS attributes JSONB DEFAULT '{}'::jsonb;
 
 -- Vector similarity index (IVF-FLAT for fast approximate nearest neighbor)
-CREATE INDEX IF NOT EXISTS idx_products_embedding
-ON products USING ivfflat (embedding vector_cosine_ops);
+DO $$
+BEGIN
+  IF to_regclass('public.products') IS NOT NULL THEN
+    CREATE INDEX IF NOT EXISTS idx_products_embedding
+      ON products USING ivfflat (embedding vector_cosine_ops);
+  END IF;
+END $$;
 
 -- JSON attributes index for flexible queries
-CREATE INDEX IF NOT EXISTS idx_products_attributes
-ON products USING gin (attributes);
+DO $$
+BEGIN
+  IF to_regclass('public.products') IS NOT NULL THEN
+    CREATE INDEX IF NOT EXISTS idx_products_attributes
+      ON products USING gin (attributes);
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 3. ASSETS TABLE - Add AI generation tracking
@@ -61,8 +71,13 @@ ALTER TABLE IF EXISTS assets
 ADD COLUMN IF NOT EXISTS ai_analysis JSONB;
 
 -- Index for querying AI-generated assets
-CREATE INDEX IF NOT EXISTS idx_assets_ai_created
-ON assets (ai_created);
+DO $$
+BEGIN
+  IF to_regclass('public.assets') IS NOT NULL THEN
+    CREATE INDEX IF NOT EXISTS idx_assets_ai_created
+      ON assets (ai_created);
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 4. ORDERS TABLE - Add delivery tracking for AI analysis
@@ -78,8 +93,13 @@ ALTER TABLE IF EXISTS orders
 ADD COLUMN IF NOT EXISTS delivery_method TEXT;
 
 -- Index for delivery analytics
-CREATE INDEX IF NOT EXISTS idx_orders_delivery_speed
-ON orders (delivery_speed_days);
+DO $$
+BEGIN
+  IF to_regclass('public.orders') IS NOT NULL THEN
+    CREATE INDEX IF NOT EXISTS idx_orders_delivery_speed
+      ON orders (delivery_speed_days);
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 5. NEW TABLE: MARKET_TRENDS
@@ -128,7 +148,7 @@ ON market_trends (period_end DESC);
 CREATE OR REPLACE TRIGGER update_market_trends_updated_at
 BEFORE UPDATE ON market_trends
 FOR EACH ROW
-EXECUTE FUNCTION update_updated_at_column();
+EXECUTE FUNCTION public.set_updated_at();
 
 -- ============================================================================
 -- 6. NEW TABLE: SELLER_PERFORMANCE

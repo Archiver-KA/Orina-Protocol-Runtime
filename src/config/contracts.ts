@@ -8,6 +8,11 @@
 
 import { runtimeConfig } from '/utils/runtimeConfig';
 
+function parseRuntimeAddress(value: string, fallback: `0x${string}`): `0x${string}` {
+  const trimmed = String(value || '').trim();
+  return /^0x[a-fA-F0-9]{40}$/.test(trimmed) ? (trimmed as `0x${string}`) : fallback;
+}
+
 // Contract Addresses (v3.5 beta no-burn fee split - BSC Testnet)
 export const CONTRACTS = {
   // Core
@@ -42,8 +47,8 @@ export const MARKETPLACE = CONTRACTS.MARKETPLACE_ATP;
 // Báº¥t ká»³ ERC20 nÃ o Ä‘á»u Ä‘Æ°á»£c â€” whitelist UI Ä‘á»ƒ UX tá»‘t hÆ¡n
 // BNB native KHÃ”NG há»— trá»£ trá»±c tiáº¿p â†’ dÃ¹ng WBNB
 export const PAYMENT_TOKENS = {
-  USDT: '0x337610d27c682e347c9cd60bd4b3b107c9d34ddd' as `0x${string}`, // BSC Testnet USDT
-  USDC: '0x64544969ed7ebf5f083679233325356ebe738930' as `0x${string}`, // BSC Testnet USDC
+  USDT: parseRuntimeAddress(runtimeConfig.testnetUsdtAddress, '0x337610d27c682e347c9cd60bd4b3b107c9d34ddd'), // BSC Testnet USDT.t
+  USDC: parseRuntimeAddress(runtimeConfig.testnetUsdcAddress, '0x64544969ed7ebf5f083679233325356ebe738930'), // BSC Testnet USDC.t
   WBNB: '0xae13d989dac2f0debff460ac112a837c89baa7cd' as `0x${string}`, // Wrapped BNB testnet
   ORI:  '0x093969c2bb194e7424534918eca5119fa72a61d6' as `0x${string}`, // ORI token
 } as const;

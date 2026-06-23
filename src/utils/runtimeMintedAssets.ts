@@ -219,7 +219,11 @@ function buildGenericDetails(
       ) ?? tokenId,
     name,
     description: coalesceString(metadata.description, fallback?.description) ?? `On-chain ${unitName} asset #${tokenId}`,
-    category: normalizeCategoryFilterValue(coalesceString(metadata.category, fallback?.category) ?? unitName),
+    category: normalizeCategoryFilterValue(
+      coalesceString(metadata.category, fallback?.category) ?? unitName,
+      coalesceString(metadata.subcategory, fallback?.subcategory),
+    ),
+    subcategory: coalesceString(metadata.subcategory, fallback?.subcategory) || undefined,
     blockchain:
       resolvedScope.chainId === 56 || resolvedScope.chainId === 97
         ? "BSC"
@@ -474,7 +478,7 @@ function fromProtocolAssetRow(row: ProtocolAssetRow, scope?: RuntimeMintedAssetS
         id: tokenId,
         name: details.name,
         type: "NFT",
-        category: normalizeCategoryFilterValue(details.category),
+        category: normalizeCategoryFilterValue(details.category, details.subcategory),
         image: details.image,
         currentPrice:
           runtimeFallback?.assetType === "NFT" ? runtimeFallback.myAsset.currentPrice : details.currentPrice,
@@ -502,7 +506,7 @@ function fromProtocolAssetRow(row: ProtocolAssetRow, scope?: RuntimeMintedAssetS
       id: tokenId,
       name: details.name,
       type: "RWA",
-      category: normalizeCategoryFilterValue(details.category),
+      category: normalizeCategoryFilterValue(details.category, details.subcategory),
       image: details.image,
       status: normalizeAssetStatusLabel(row.status ?? fallbackRwaAsset?.status),
       availableAmount,

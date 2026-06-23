@@ -257,7 +257,6 @@ async function main() {
     config.SUPABASE_PUBLISHABLE_KEY,
   );
   const serviceRoleKey = firstNonEmpty(
-    config.VITE_SUPABASE_SERVICE_ROLE_KEY,
     config.SUPABASE_SERVICE_ROLE_KEY,
     config.ATP2_SUPABASE_SERVICE_ROLE_KEY,
   );

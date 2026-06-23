@@ -101,6 +101,7 @@ export interface AssetDetails {
   name: string;
   description: string;
   category: string;
+  subcategory?: string;
   blockchain: string;
   
   // Pricing

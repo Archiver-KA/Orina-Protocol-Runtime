@@ -104,12 +104,13 @@ async function main() {
     await client.connect();
     const result = await client.query(sql);
     console.error(`SQL_OK file=${sqlFile}`);
-    console.error(`COMMAND ${result.command || 'UNKNOWN'}`);
-    console.error(`ROW_COUNT ${typeof result.rowCount === 'number' ? result.rowCount : 'n/a'}`);
-
-    if (Array.isArray(result.rows) && result.rows.length > 0) {
-      const preview = result.rows.slice(0, 10);
-      console.error(JSON.stringify(preview, null, 2));
+    const results = Array.isArray(result) ? result : [result];
+    for (const [index, item] of results.entries()) {
+      console.error(`RESULT ${index + 1} COMMAND ${item.command || 'UNKNOWN'}`);
+      console.error(`RESULT ${index + 1} ROW_COUNT ${typeof item.rowCount === 'number' ? item.rowCount : 'n/a'}`);
+      if (Array.isArray(item.rows) && item.rows.length > 0) {
+        console.error(JSON.stringify(item.rows, null, 2));
+      }
     }
   } catch (err) {
     console.error('SQL_RUN_ERROR');

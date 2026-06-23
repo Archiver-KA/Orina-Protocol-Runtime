@@ -5,6 +5,7 @@ import {
   restSelect,
   toQuery,
 } from '@/utils/supabaseRest';
+import taxonomySeed from '../../data/taxonomy/orina_ai_taxonomy_v1.json';
 
 type LocaleStringMap = Record<string, string>;
 type LocaleAliasMap = Record<string, string[]>;
@@ -60,6 +61,7 @@ type TaxonomyStoredNode = {
 
 type NodeIndex = {
   bySlug: Map<string, TaxonomyNode>;
+  assetClassTerms: Map<string, TaxonomyNode[]>;
   categoryTerms: Map<string, TaxonomyNode[]>;
   subcategoryTerms: Map<string, TaxonomyNode[]>;
 };
@@ -76,7 +78,7 @@ export type NormalizedTaxonomySelection = {
   categoryLabel: string;
   subcategorySlug?: string;
   subcategoryLabel?: string;
-  matchedBy: 'category' | 'subcategory_promoted' | 'legacy_redirect' | 'raw_fallback';
+  matchedBy: 'asset_class' | 'category' | 'subcategory_promoted' | 'legacy_redirect' | 'raw_fallback';
 };
 
 const DEFAULT_LOCALE = 'en';
@@ -95,10 +97,23 @@ const LEGACY_NODE_REDIRECTS: Record<string, string> = {
   'digital arts': 'digital_assets',
   'digital asset': 'digital_assets',
   'digital assets': 'digital_assets',
+  'digital license': 'digital_license',
+  'digital licenses': 'digital_license',
+  'digital media': 'digital_media',
   nft: 'digital_assets',
   nfts: 'digital_assets',
   'real estate': 'real_estate',
   property: 'real_estate',
+  service: 'service_rights',
+  services: 'service_rights',
+  'service right': 'service_rights',
+  'service rights': 'service_rights',
+  'agent service': 'agent_services',
+  'agent services': 'agent_services',
+  'ai agent': 'agent_services',
+  'ai agents': 'agent_services',
+  automation: 'agent_services',
+  'automation service': 'agent_services',
   collectibles: 'luxury_collectibles',
   collectible: 'luxury_collectibles',
   luxury: 'luxury_collectibles',
@@ -107,6 +122,9 @@ const LEGACY_NODE_REDIRECTS: Record<string, string> = {
 };
 
 let cachedNodes = loadTaxonomyCacheFromStorage();
+if (cachedNodes.length === 0) {
+  cachedNodes = loadDefaultTaxonomyNodes();
+}
 let taxonomyIndex = buildNodeIndex(cachedNodes);
 let supportedLocales = deriveSupportedLocales(cachedNodes);
 let hydratePromise: Promise<TaxonomyNode[]> | null = null;
@@ -148,7 +166,9 @@ export async function hydrateTaxonomyFromSupabase(force = false): Promise<Taxono
         .map(mapRemoteRowToTaxonomyNode)
         .filter((node): node is TaxonomyNode => Boolean(node));
 
-      replaceCachedNodes(nextNodes);
+      if (nextNodes.length > 0) {
+        replaceCachedNodes(nextNodes);
+      }
       return cachedNodes;
     } catch (error) {
       console.debug('[Taxonomy] Remote hydrate skipped:', error);
@@ -277,8 +297,9 @@ export function normalizeTaxonomySelection(
   const rawCategory = cleanInput(category);
   const rawSubcategory = cleanInput(subcategory);
 
+  const assetClassMatch = findNode(rawCategory, 'asset_class');
   const categoryMatch = findNode(rawCategory, 'category');
-  const subcategoryMatch = findNode(rawSubcategory, 'subcategory', categoryMatch?.slug);
+  const subcategoryMatch = findNode(rawSubcategory, 'subcategory', categoryMatch?.slug ?? assetClassMatch?.slug);
   const promotedSubcategory = !subcategoryMatch ? findNode(rawCategory, 'subcategory') : undefined;
 
   const redirectedCategory = !categoryMatch && !promotedSubcategory
@@ -290,6 +311,7 @@ export function normalizeTaxonomySelection(
 
   const resolvedSubcategory = subcategoryMatch ?? promotedSubcategory ?? redirectedSubcategory;
   const resolvedCategory = categoryMatch
+    ?? assetClassMatch
     ?? redirectedCategory
     ?? (resolvedSubcategory ? taxonomyIndex.bySlug.get(resolvedSubcategory.parentSlug || '') : undefined)
     ?? findLegacyRedirectNode(rawCategory, 'asset_class');
@@ -298,6 +320,8 @@ export function normalizeTaxonomySelection(
     ? 'raw_fallback'
     : redirectedCategory || redirectedSubcategory
     ? 'legacy_redirect'
+    : resolvedCategory.nodeType === 'asset_class'
+    ? 'asset_class'
     : promotedSubcategory && !categoryMatch
     ? 'subcategory_promoted'
     : 'category';
@@ -470,12 +494,19 @@ function scheduleTaxonomyHydrate(force = false): void {
 
 function buildNodeIndex(allNodes: TaxonomyNode[]): NodeIndex {
   const bySlug = new Map<string, TaxonomyNode>();
+  const assetClassTerms = new Map<string, TaxonomyNode[]>();
   const categoryTerms = new Map<string, TaxonomyNode[]>();
   const subcategoryTerms = new Map<string, TaxonomyNode[]>();
 
   allNodes.forEach((node) => {
     bySlug.set(node.slug, node);
   });
+
+  allNodes
+    .filter((node) => node.nodeType === 'asset_class')
+    .forEach((node) => {
+      collectLookupTerms(node).forEach((term) => addIndexedNode(assetClassTerms, term, node));
+    });
 
   allNodes
     .filter((node) => node.nodeType === 'category')
@@ -491,20 +522,32 @@ function buildNodeIndex(allNodes: TaxonomyNode[]): NodeIndex {
 
   return {
     bySlug,
+    assetClassTerms,
     categoryTerms,
     subcategoryTerms,
   };
 }
 
+function loadDefaultTaxonomyNodes(): TaxonomyNode[] {
+  const seed = taxonomySeed as { nodes?: TaxonomyStoredNode[] };
+  return Array.isArray(seed.nodes)
+    ? seed.nodes
+        .map((entry) => mapUnknownToTaxonomyNode(entry))
+        .filter((node): node is TaxonomyNode => Boolean(node))
+    : [];
+}
+
 function findNode(
   input: string,
-  nodeType: 'category' | 'subcategory',
+  nodeType: 'asset_class' | 'category' | 'subcategory',
   parentSlug?: string
 ): TaxonomyNode | undefined {
   const lookupKey = normalizeTaxonomySearchKey(input);
   if (!lookupKey) return undefined;
 
-  const index = nodeType === 'category'
+  const index = nodeType === 'asset_class'
+    ? taxonomyIndex.assetClassTerms
+    : nodeType === 'category'
     ? taxonomyIndex.categoryTerms
     : taxonomyIndex.subcategoryTerms;
 

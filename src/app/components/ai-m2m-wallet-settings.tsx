@@ -60,6 +60,7 @@ interface DelegationSessionView {
 const ACTION_ORDER: AIM2MAction[] = ['buy', 'mint', 'sign_order'];
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address;
 const NO_EXPIRY_UINT64 = (2n ** 64n) - 1n;
+const M2M_DEFAULT_MAX_DELIVERY_SECONDS = 10n * 24n * 60n * 60n;
 
 function normalizeLineList(value: string): string[] {
   return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
@@ -667,6 +668,10 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
 
       setSubmittedSessionNonce(sessionPreview.nextSessionNonce);
       setPendingMirrorDelegateId(delegate.id);
+      const includesBuyPay = (actionMask & (1n << 1n)) !== 0n;
+      const includesMint = (actionMask & (1n << 2n)) !== 0n;
+      const includesSellerConfirm = (actionMask & (1n << 3n)) !== 0n;
+      const requiresDeliveryTerm = (actionMask & ((1n << 0n) | (1n << 1n) | (1n << 3n))) !== 0n;
       await deployWalletMutation.deployWallet({
         root: walletAddress as Address,
         delegate: delegate.delegateAddress as Address,
@@ -676,6 +681,10 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
         maxPerOrder: parsedMaxPerOrder,
         maxTotal: parsedMaxTotal,
         counterpartyAllowlistHash,
+        maxAmount: includesMint ? 1_000n : 0n,
+        minGrossPrice: includesSellerConfirm ? 1n : 0n,
+        maxGrossPrice: includesBuyPay ? parsedMaxPerOrder : 0n,
+        maxDeliverySeconds: requiresDeliveryTerm ? M2M_DEFAULT_MAX_DELIVERY_SECONDS : 0n,
       });
       setStatusMessage('Setup submitted. This creates your AI wallet and locks in the current rules in one step.');
     } catch (error) {

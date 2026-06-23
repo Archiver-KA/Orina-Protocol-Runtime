@@ -13,6 +13,13 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const SCAN_DIRS = ['src', 'utils'];
+const ENV_FILES = [
+  '.env',
+  '.env.local',
+  '.env.development',
+  '.env.production',
+  '.env.supabase-audit.local',
+];
 
 const FORBIDDEN = [
   { re: /\bSUPABASE_SERVICE_ROLE_KEY\b/, msg: 'SUPABASE_SERVICE_ROLE_KEY must not appear in client source' },
@@ -36,6 +43,7 @@ function walk(dir, out = []) {
 function main() {
   const files = SCAN_DIRS.flatMap((d) => walk(path.join(ROOT, d)));
   const hits = [];
+  const envHits = [];
 
   for (const file of files) {
     const text = fs.readFileSync(file, 'utf8');
@@ -46,14 +54,39 @@ function main() {
     }
   }
 
+  for (const name of ENV_FILES) {
+    const file = path.join(ROOT, name);
+    if (!fs.existsSync(file)) continue;
+
+    const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+    lines.forEach((line, index) => {
+      const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+      if (!match) return;
+
+      const envName = match[1];
+      if (/^VITE_[A-Z0-9_]*SERVICE_ROLE/i.test(envName)) {
+        envHits.push({ file: name, line: index + 1, envName, msg: 'Do not expose service role via VITE_* env name' });
+      }
+      if (/^VITE_[A-Z0-9_]*JWT_SECRET/i.test(envName)) {
+        envHits.push({ file: name, line: index + 1, envName, msg: 'Do not expose JWT signing secret via VITE_* env name' });
+      }
+    });
+  }
+
   if (hits.length) {
     console.error('Privileged Supabase secret pattern(s) in client bundle paths:\n');
     for (const h of hits) console.error(`  ${h.file}: ${h.msg}`);
     process.exit(1);
   }
 
+  if (envHits.length) {
+    console.error('Privileged Supabase secret env name(s) exposed with VITE_*:\n');
+    for (const h of envHits) console.error(`  ${h.file}:${h.line}: ${h.envName}: ${h.msg}`);
+    process.exit(1);
+  }
+
   console.log(
-    `OK: no forbidden privileged-secret patterns in ${files.length} files under ${SCAN_DIRS.join(', ')}`
+    `OK: no forbidden privileged-secret patterns in ${files.length} files under ${SCAN_DIRS.join(', ')}; env names checked`
   );
 }
 

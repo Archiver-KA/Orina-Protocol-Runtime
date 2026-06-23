@@ -1,0 +1,101 @@
+profileId,displayName,username,walletAddress,category,subcategory,city,country,address,longitude,latitude
+P001,Saigon Coffee Shop,@saigon-coffee-shop,0x8ba51ca237055e43a10845b0e04d6a236a2da24b,agri_food,coffee,Ho Chi Minh City,Vietnam,"14 Nguyen Hue Street, District 1, Ho Chi Minh City",106.7038,10.7758
+P002,Ethiopia Coffee Shop,@ethiopia-coffee-shop,0x2c1bbd011315df16ce76839594a95e51b4657a38,agri_food,coffee,Addis Ababa,Ethiopia,"Bole Road, Addis Ababa",38.789,8.9806
+P003,Nairobi Coffee Shop,@nairobi-coffee-shop,0x16403e986ab87b8e9599c4fc8092204844ca029b,agri_food,coffee,Nairobi,Kenya,"Mama Ngina Street, Nairobi",36.8172,-1.2864
+P004,Bogota Coffee Shop,@bogota-coffee-shop,0x3c6726236e8d44142a5bb873fdacdd22733adb9c,agri_food,coffee,Bogota,Colombia,"Carrera 7, Chapinero, Bogota",-74.0636,4.6483
+P005,Singapore Coffee Shop,@singapore-coffee-shop,0x39759a0bcfafe7393737292aebeb16102f79f297,agri_food,coffee,Singapore,Singapore,"18 Cross Street, Singapore",103.8489,1.2847
+P006,Rotterdam Coffee Shop,@rotterdam-coffee-shop,0x01fef5c29b023b92ef6fd4b863eaef1ac8508938,agri_food,coffee,Rotterdam,Netherlands,"Westblaak 92, Rotterdam",4.4777,51.9194
+P007,Dubai Coffee Shop,@dubai-coffee-shop,0x142c82a7bde8d1a60739ce055e3c182c3e0c6567,agri_food,coffee,Dubai,United Arab Emirates,"Al Mustaqbal Street, Dubai",55.2772,25.2048
+P008,Istanbul Coffee Shop,@istanbul-coffee-shop,0xe3d1b653c24722762b16e26db5ad675048e33f84,agri_food,coffee,Istanbul,Turkey,"Istiklal Avenue, Beyoglu, Istanbul",28.9784,41.0369
+P009,Melbourne Coffee Shop,@melbourne-coffee-shop,0x0ffae8134f1de62765eed5b3635904855c99efa4,agri_food,coffee,Melbourne,Australia,"Collins Street, Melbourne",144.9631,-37.8136
+P010,Seattle Coffee Shop,@seattle-coffee-shop,0x5bcd7f4c90df689401e1f45907bf6877d893eb95,agri_food,coffee,Seattle,United States,"1st Avenue, Seattle",-122.3405,47.608
+P011,Cape Town Coffee Shop,@cape-town-coffee-shop,0xe9b85e3c06a3a690481c72467776bda19c64b4c3,agri_food,coffee,Cape Town,South Africa,"Long Street, Cape Town",18.4174,-33.9249
+P012,Lisbon Coffee Shop,@lisbon-coffee-shop,0x69d2b1ba22395f9e659b78ac33a5d6ab2607fa2f,agri_food,coffee,Lisbon,Portugal,"Rua Augusta, Lisbon",-9.1376,38.7109
+P013,Seoul Coffee Shop,@seoul-coffee-shop,0xf3e1bedcdf32869e0324a6ace81577a5bf6c394e,agri_food,coffee,Seoul,South Korea,"Teheran-ro, Gangnam, Seoul",127.0276,37.4979
+P014,Milan Apparel Shop,@milan-apparel-shop,0x8f71bd4200712706546a9fb80691a68552c64ab8,fashion_textiles,garments,Milan,Italy,"Via Torino 21, Milan",9.1878,45.4637
+P015,Paris Apparel Shop,@paris-apparel-shop,0x0d4fe1d776f071b1ec858b1f2fb271d680a16edf,fashion_textiles,garments,Paris,France,"Rue Saint-Honore, Paris",2.3316,48.8663
+P016,London Apparel Shop,@london-apparel-shop,0xa1f1db67779819e7180996dec2a5dbd2337de3ab,fashion_textiles,garments,London,United Kingdom,"Carnaby Street, London",-0.1397,51.5136
+P017,Barcelona Apparel Shop,@barcelona-apparel-shop,0x3044c4bccbe22738aa52d6a612581d7a480d4a83,fashion_textiles,garments,Barcelona,Spain,"Passeig de Gracia, Barcelona",2.165,41.3917
+P018,Tokyo Apparel Shop,@tokyo-apparel-shop,0x69eb753cafa366fa3f167e07bff0f7e5b29dbcae,fashion_textiles,garments,Tokyo,Japan,"Cat Street, Shibuya, Tokyo",139.7041,35.6672
+P019,Seoul Apparel Shop,@seoul-apparel-shop,0x06d1cc223e485c951a2aaec85759789d9e5cafcd,fashion_textiles,garments,Seoul,South Korea,"Garosu-gil, Seoul",127.0229,37.5219
+P020,Los Angeles Apparel Shop,@los-angeles-apparel-shop,0xc219ac740c4fbb7c36a601bd8651c143b81bffcd,fashion_textiles,garments,Los Angeles,United States,"Melrose Avenue, Los Angeles",-118.344,34.0837
+P021,New York Apparel Shop,@new-york-apparel-shop,0x502210771a579008b93a615e3d305fdc916e4459,fashion_textiles,garments,New York,United States,"Broadway, SoHo, New York",-74.0007,40.7243
+P022,Mexico City Apparel Shop,@mexico-city-apparel-shop,0x2fcfcb0f0bb45d2087eaae6cde218dc9364979ba,fashion_textiles,garments,Mexico City,Mexico,"Avenida Presidente Masaryk, Mexico City",-99.1941,19.4336
+P023,Bangkok Apparel Shop,@bangkok-apparel-shop,0xd5921bd0e59ebfaa4d26d2b9d7a17b85ea883163,fashion_textiles,garments,Bangkok,Thailand,"Sukhumvit Road, Bangkok",100.568,13.7378
+P024,Jakarta Apparel Shop,@jakarta-apparel-shop,0x1d0b064148c0a4139907871161d0dac5a5ca9116,fashion_textiles,garments,Jakarta,Indonesia,"Jalan Sudirman, Jakarta",106.8227,-6.2088
+P025,Mumbai Apparel Shop,@mumbai-apparel-shop,0xc17a8e6e93245d85e1d533c6387259f5c8781d89,fashion_textiles,garments,Mumbai,India,"Linking Road, Bandra, Mumbai",72.8347,19.0632
+P026,Istanbul Apparel Shop,@istanbul-apparel-shop,0x39945579eb0cd2f7568ec9a8ff3c32ef83d17c6a,fashion_textiles,garments,Istanbul,Turkey,"Nisantasi, Istanbul",28.9894,41.052
+P027,Copenhagen Living Shop,@copenhagen-living-shop,0x3589a95e0fac3c127b29c9324e79e3afa0a287ed,home_living,furniture,Copenhagen,Denmark,"Bredgade 33, Copenhagen",12.5897,55.6848
+P028,Stockholm Living Shop,@stockholm-living-shop,0x1e265527ab593e14f5ca30646763d93704487ede,home_living,furniture,Stockholm,Sweden,"Birger Jarlsgatan, Stockholm",18.0711,59.3358
+P029,Berlin Living Shop,@berlin-living-shop,0x96b8c292bcb66b3c4ffafe64037263e942efcdfc,home_living,furniture,Berlin,Germany,"Torstrasse 72, Berlin",13.4067,52.529
+P030,Amsterdam Living Shop,@amsterdam-living-shop,0xa8eed85c6cd527fa6ca9a3add781989ea32a33c4,home_living,furniture,Amsterdam,Netherlands,"Prinsengracht, Amsterdam",4.883,52.3711
+P031,Singapore Living Shop,@singapore-living-shop,0x6d725982d137a411403fba70a18115da5b87e212,home_living,furniture,Singapore,Singapore,"Orchard Road, Singapore",103.8318,1.3048
+P032,Sydney Living Shop,@sydney-living-shop,0xfbd758096abd4a9acfa89f4a9ec3e63c195dafbc,home_living,furniture,Sydney,Australia,"George Street, Sydney",151.2073,-33.8675
+P033,Toronto Living Shop,@toronto-living-shop,0xfa34cd1c35f67ef7101417cf7dacd240534458bd,home_living,furniture,Toronto,Canada,"Queen Street West, Toronto",-79.4,43.6487
+P034,Vancouver Living Shop,@vancouver-living-shop,0x8096eb99b79f956f32eec3d6bb3818001dd72ca7,home_living,furniture,Vancouver,Canada,"Granville Street, Vancouver",-123.1207,49.2827
+P035,Dubai Living Shop,@dubai-living-shop,0xa8d178e0eee848cb06f9e55ec92330fab5340cad,home_living,furniture,Dubai,United Arab Emirates,"Sheikh Zayed Road, Dubai",55.2708,25.2048
+P036,Hong Kong Living Shop,@hong-kong-living-shop,0xe1792549c38c4fe6f5b1c4eb38bd77ff709443a0,home_living,furniture,Hong Kong,Hong Kong,"Queens Road Central, Hong Kong",114.1577,22.282
+P037,Osaka Living Shop,@osaka-living-shop,0x7016073e4f8176918dabb6cc9e3691bac98f5e99,home_living,furniture,Osaka,Japan,"Midosuji Avenue, Osaka",135.5019,34.6937
+P038,Sao Paulo Living Shop,@sao-paulo-living-shop,0xf4e8aaad6045935c4808849cf6626e8533df0f65,home_living,furniture,Sao Paulo,Brazil,"Avenida Paulista, Sao Paulo",-46.6544,-23.5614
+P039,Cape Town Living Shop,@cape-town-living-shop,0x91c7b79e65b6f25aeba93a48900f20685821ac28,home_living,furniture,Cape Town,South Africa,"Bree Street, Cape Town",18.4181,-33.9217
+P040,Seoul Device Shop,@seoul-device-shop,0x0e325b907ef5752c395332ebfb29888ff6f921f0,consumer_electronics,mobile_devices,Seoul,South Korea,"Yongsan Electronics Market, Seoul",126.9707,37.5326
+P041,Shenzhen Device Shop,@shenzhen-device-shop,0x8e56e6df6fd2c8e5eac75b8d017dadd624c315d5,consumer_electronics,mobile_devices,Shenzhen,China,"Huaqiangbei Road, Shenzhen",114.0859,22.5431
+P042,Tokyo Device Shop,@tokyo-device-shop,0x72bed3f3053ffd2841dfbd4f872850ff6a71c39c,consumer_electronics,mobile_devices,Tokyo,Japan,"Akihabara, Tokyo",139.7713,35.6984
+P043,Singapore Device Shop,@singapore-device-shop,0x453b48c129b4b01c82051c9c40bcfe0400a7da89,consumer_electronics,mobile_devices,Singapore,Singapore,"Sim Lim Square, Singapore",103.8527,1.3039
+P044,Taipei Device Shop,@taipei-device-shop,0xad237857602a78d00057e73bbad347b9b31b748a,consumer_electronics,mobile_devices,Taipei,Taiwan,"Guanghua Digital Plaza, Taipei",121.532,25.0443
+P045,Dubai Device Shop,@dubai-device-shop,0x9539bdd37584956010679ed4b7f3d5afc0f9a100,consumer_electronics,mobile_devices,Dubai,United Arab Emirates,"Deira Electronics Market, Dubai",55.3062,25.2697
+P046,London Device Shop,@london-device-shop,0x452e5a5b1986ea9c0b47ec9259417c62a23c83d4,consumer_electronics,mobile_devices,London,United Kingdom,"Tottenham Court Road, London",-0.1336,51.5208
+P047,New York Device Shop,@new-york-device-shop,0xa971ae58a477c327fd08080ec482316e75598522,consumer_electronics,mobile_devices,New York,United States,"Canal Street, New York",-73.9973,40.7196
+P048,Berlin Device Shop,@berlin-device-shop,0x2a878c2e575f81b6d0bfd62c71b66f44d18ff6ec,consumer_electronics,mobile_devices,Berlin,Germany,"Alexanderplatz, Berlin",13.4132,52.5219
+P049,Bangalore Device Shop,@bangalore-device-shop,0x1bddbdc5e5caba9ff78bb788ede0c9e0d011e053,consumer_electronics,mobile_devices,Bengaluru,India,"MG Road, Bengaluru",77.6033,12.9756
+P050,Bangkok Device Shop,@bangkok-device-shop,0xafe6386c29e357767e1ea35f6c84ff734c30727f,consumer_electronics,mobile_devices,Bangkok,Thailand,"MBK Center, Bangkok",100.5298,13.7444
+P051,Sao Paulo Device Shop,@sao-paulo-device-shop,0x1aa3848174ec5d380307a4581a4189d39430b53f,consumer_electronics,mobile_devices,Sao Paulo,Brazil,"Santa Ifigenia, Sao Paulo",-46.6388,-23.5388
+P052,Mexico City Device Shop,@mexico-city-device-shop,0xf746f402c052e9a11adf81706bb41f4b1532ad7d,consumer_electronics,mobile_devices,Mexico City,Mexico,"Eje Central, Mexico City",-99.1407,19.4328
+P053,Rotterdam Tool Supply,@rotterdam-tool-supply,0xd6703bd3cf633c9764157e57d6fac31ce01bd992,industrial_supply,tools_equipment,Rotterdam,Netherlands,"Waalhaven, Rotterdam",4.4384,51.8876
+P054,Hamburg Tool Supply,@hamburg-tool-supply,0xb9ce7ebf809c1eab5e3b04a3e73409cddd498400,industrial_supply,tools_equipment,Hamburg,Germany,"Speicherstadt, Hamburg",9.9916,53.5439
+P055,Houston Tool Supply,@houston-tool-supply,0x306fbf26bb5b2c4c10a1c0861bb4cc536b35aa1e,industrial_supply,tools_equipment,Houston,United States,"Commerce Street, Houston",-95.3598,29.7604
+P056,Chicago Tool Supply,@chicago-tool-supply,0xb1b39e73503749f5c62bf044532ddc6b1f075bed,industrial_supply,tools_equipment,Chicago,United States,"Fulton Market, Chicago",-87.65,41.8864
+P057,Dubai Tool Supply,@dubai-tool-supply,0x1af83fe18e83b0b8c179f29ab34f0e48ee73e77c,industrial_supply,tools_equipment,Dubai,United Arab Emirates,"Jebel Ali Free Zone, Dubai",55.0678,24.9857
+P058,Singapore Tool Supply,@singapore-tool-supply,0x9ce53aaac17c4bd66e2663b7f8ec52146adb0d58,industrial_supply,tools_equipment,Singapore,Singapore,"Jurong Port Road, Singapore",103.7217,1.3135
+P059,Shanghai Tool Supply,@shanghai-tool-supply,0x8cc49560278e721d95dec02c477126177ec278f3,industrial_supply,tools_equipment,Shanghai,China,"Pudong Avenue, Shanghai",121.5444,31.2389
+P060,Ho Chi Minh Tool Supply,@ho-chi-minh-tool-supply,0xebb64574acd9060b77e19650742b9288128daaf1,industrial_supply,tools_equipment,Ho Chi Minh City,Vietnam,"Vo Van Kiet Boulevard, Ho Chi Minh City",106.705,10.7556
+P061,Bangkok Tool Supply,@bangkok-tool-supply,0x89c5eda088d1dbf5d4ae2b3bb22bba5aefaf7978,industrial_supply,tools_equipment,Bangkok,Thailand,"Bang Na-Trat Road, Bangkok",100.6362,13.6682
+P062,Mumbai Tool Supply,@mumbai-tool-supply,0xb90c78ff37709f5f34ac9692c51defcd54fc4026,industrial_supply,tools_equipment,Mumbai,India,"Andheri East Industrial Estate, Mumbai",72.8697,19.1155
+P063,Istanbul Tool Supply,@istanbul-tool-supply,0x8f9c3e11bb64f356eb30449bc8bad97acdcc7b86,industrial_supply,tools_equipment,Istanbul,Turkey,"Maslak Industrial Zone, Istanbul",29.0225,41.1125
+P064,Sao Paulo Tool Supply,@sao-paulo-tool-supply,0x69099d2f6352e39228f5ad3e2736c1cad4a5e8fe,industrial_supply,tools_equipment,Sao Paulo,Brazil,"Mooca Industrial District, Sao Paulo",-46.5974,-23.5515
+P065,Detroit Motor Parts Shop,@detroit-motor-parts-shop,0xb10fa5fe298b1a17a5e314b1947cd4d6f1d9e229,automotive_parts,engine_parts,Detroit,United States,"Woodward Avenue, Detroit",-83.0458,42.3314
+P066,Stuttgart Motor Parts Shop,@stuttgart-motor-parts-shop,0xf9cd0cb575ec857c8ef7ac53eee3482072b311cc,automotive_parts,engine_parts,Stuttgart,Germany,"Konigstrasse, Stuttgart",9.1775,48.7758
+P067,Nagoya Motor Parts Shop,@nagoya-motor-parts-shop,0x83161dcb47f68c00afa7f7a55e451479b02185b3,automotive_parts,engine_parts,Nagoya,Japan,"Sakae, Nagoya",136.9066,35.1687
+P068,Turin Motor Parts Shop,@turin-motor-parts-shop,0xe4497792f8a82c09493fd835dbab870eb20f7948,automotive_parts,engine_parts,Turin,Italy,"Corso Francia, Turin",7.6586,45.0703
+P069,Seoul Motor Parts Shop,@seoul-motor-parts-shop,0x73ea1ad3614500bcf4a210fd0bc13c1170b258ac,automotive_parts,engine_parts,Seoul,South Korea,"Seongsu-dong, Seoul",127.0567,37.5446
+P070,Bangkok Motor Parts Shop,@bangkok-motor-parts-shop,0x0284ec9a5298dea9fe5f1b022d542cf17c6ec3c8,automotive_parts,engine_parts,Bangkok,Thailand,"Rama IX Road, Bangkok",100.57,13.7536
+P071,Mexico City Motor Parts Shop,@mexico-city-motor-parts-shop,0x773c22bc549aedfb6df1cc7d2ab9b992e55296df,automotive_parts,engine_parts,Mexico City,Mexico,"Avenida Insurgentes, Mexico City",-99.1677,19.405
+P072,Sao Paulo Motor Parts Shop,@sao-paulo-motor-parts-shop,0xd846cbfa468c26eaeaf5c1cd675c23506be58a69,automotive_parts,engine_parts,Sao Paulo,Brazil,"Avenida do Estado, Sao Paulo",-46.622,-23.5558
+P073,Dubai Motor Parts Shop,@dubai-motor-parts-shop,0x11dd6e414291e336d281b0dba0d3320c358586c0,automotive_parts,engine_parts,Dubai,United Arab Emirates,"Ras Al Khor Industrial Area, Dubai",55.3421,25.191
+P074,Istanbul Motor Parts Shop,@istanbul-motor-parts-shop,0x44c8fa8893d2bb5867c67bcb1c7719c7051e4853,automotive_parts,engine_parts,Istanbul,Turkey,"Ataturk Oto Sanayi, Istanbul",29.0214,41.1089
+P075,Melbourne Motor Parts Shop,@melbourne-motor-parts-shop,0xe5af4919570d92682c2f44076fd2449a3e79eb80,automotive_parts,engine_parts,Melbourne,Australia,"Elizabeth Street, Melbourne",144.9609,-37.8116
+P076,Johannesburg Motor Parts Shop,@johannesburg-motor-parts-shop,0x6fb20e376e70f3ce23f5835d1279f834826aa599,automotive_parts,engine_parts,Johannesburg,South Africa,"Main Reef Road, Johannesburg",28.0473,-26.2041
+P077,Shanghai Metal Supply,@shanghai-metal-supply,0xf62e86658040eb6bf36a9bbd3efd9b2239fb959e,raw_materials_packaging,metals,Shanghai,China,"Yangshan Port Area, Shanghai",121.7939,30.6267
+P078,Singapore Metal Supply,@singapore-metal-supply,0x0c538a3bc66ee052f731c317af92572a3fdbe0e0,raw_materials_packaging,metals,Singapore,Singapore,"Tuas Avenue, Singapore",103.639,1.3297
+P079,Rotterdam Metal Supply,@rotterdam-metal-supply,0x2cf668622bb50d478bdf34ab6f555fff6735b7a9,raw_materials_packaging,metals,Rotterdam,Netherlands,"Maasvlakte, Rotterdam",4.0292,51.9572
+P080,Dubai Metal Supply,@dubai-metal-supply,0x084dd7b007dfe0cfee76e1e7903cbe0223ea4186,raw_materials_packaging,metals,Dubai,United Arab Emirates,"Jebel Ali, Dubai",55.0678,24.9857
+P081,Mumbai Metal Supply,@mumbai-metal-supply,0xc529598c1ccc93eb3cac3a3f3c8025de1ece8e4a,raw_materials_packaging,metals,Mumbai,India,"Nhava Sheva Road, Navi Mumbai",72.9487,18.949
+P082,Istanbul Metal Supply,@istanbul-metal-supply,0x08f4a630da363e190b0fcb140356e677d0a7753a,raw_materials_packaging,metals,Istanbul,Turkey,"Gebze Organized Industrial Zone, Istanbul",29.4376,40.8064
+P083,Hamburg Metal Supply,@hamburg-metal-supply,0xd3ff6865626a77e0ed95950f5be9fdcbd3c95835,raw_materials_packaging,metals,Hamburg,Germany,"Veddel, Hamburg",10.0239,53.5262
+P084,Houston Metal Supply,@houston-metal-supply,0x51383e8ea78c2d4d048009c9d96cf6aa2bf347b2,raw_materials_packaging,metals,Houston,United States,"Port Houston, Houston",-95.2655,29.7368
+P085,Santiago Metal Supply,@santiago-metal-supply,0x14624a9eb83e852e77424915897d7251d7941654,raw_materials_packaging,metals,Santiago,Chile,"Avenida Apoquindo, Santiago",-70.5755,-33.415
+P086,Johannesburg Metal Supply,@johannesburg-metal-supply,0x291a98237b4901eb638e7fc3c22dd3e03dfcd676,raw_materials_packaging,metals,Johannesburg,South Africa,"City Deep, Johannesburg",28.0705,-26.2364
+P087,Seoul Metal Supply,@seoul-metal-supply,0x1c0a810d7788f1afeb73618d329515c9158bc5d7,raw_materials_packaging,metals,Seoul,South Korea,"Guro Digital Complex, Seoul",126.8954,37.4853
+P088,Sydney Metal Supply,@sydney-metal-supply,0x853780546196911e18e3784c4f962e7dc65e75d6,raw_materials_packaging,metals,Sydney,Australia,"Port Botany, Sydney",151.2215,-33.9604
+P089,Geneva Time Shop,@geneva-time-shop,0x820fcda8c758b2587fbb18c5106c747805c59d2a,luxury_collectibles,watches,Geneva,Switzerland,"Rue du Rhone, Geneva",6.15,46.2044
+P090,Zurich Time Shop,@zurich-time-shop,0xf7c7f5c690361f04fc69e6d1b5e2ffa34ffeadec,luxury_collectibles,watches,Zurich,Switzerland,"Bahnhofstrasse, Zurich",8.5392,47.3686
+P091,London Time Shop,@london-time-shop,0x47ea826271273e9a1df329df88d10ece9bf19e94,luxury_collectibles,watches,London,United Kingdom,"Bond Street, London",-0.1455,51.5129
+P092,New York Time Shop,@new-york-time-shop,0x6ade5abd7de5f336c97022258134600ec1ddeba4,luxury_collectibles,watches,New York,United States,"Madison Avenue, New York",-73.9707,40.7794
+P093,Tokyo Time Shop,@tokyo-time-shop,0x0bee4af4b45e01529ef4e90b08c81eb293f837fd,luxury_collectibles,watches,Tokyo,Japan,"Ginza, Tokyo",139.7671,35.6719
+P094,Hong Kong Time Shop,@hong-kong-time-shop,0x2a8ac00a1e940f48b5af734587b4c93ebf16b876,luxury_collectibles,watches,Hong Kong,Hong Kong,"Canton Road, Hong Kong",114.168,22.2964
+P095,Singapore Time Shop,@singapore-time-shop,0x3149466394e926a86a7c78db932b2949c4c8c2df,luxury_collectibles,watches,Singapore,Singapore,"Marina Bay, Singapore",103.8605,1.2834
+P096,Dubai Time Shop,@dubai-time-shop,0xa0625e972cb786ba0e4c5769af95dc6e49afdf77,luxury_collectibles,watches,Dubai,United Arab Emirates,"Dubai Mall, Dubai",55.2796,25.1972
+P097,Paris Time Shop,@paris-time-shop,0x43f23dbc24503cd94819be32409c003c75e0e49b,luxury_collectibles,watches,Paris,France,"Place Vendome, Paris",2.3295,48.8675
+P098,Milan Time Shop,@milan-time-shop,0x6a0dc3f5a77058e37390cecdb1a520acf2cbdaa5,luxury_collectibles,watches,Milan,Italy,"Via Montenapoleone, Milan",9.195,45.4681
+P099,Seoul Time Shop,@seoul-time-shop,0x329543d281b62608f35dca28f3a235457721b093,luxury_collectibles,watches,Seoul,South Korea,"Apgujeong, Seoul",127.0286,37.527
+P100,Los Angeles Time Shop,@los-angeles-time-shop,0x3931d00663e24b20d7a8ec3bd1917ca7efc85f5c,luxury_collectibles,watches,Los Angeles,United States,"Rodeo Drive, Beverly Hills",-118.4004,34.0696

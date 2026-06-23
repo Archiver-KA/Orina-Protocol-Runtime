@@ -21,29 +21,71 @@ import type {
 interface ViewportLazySectionProps {
   title: string;
   description: string;
+  eager?: boolean;
   minHeightClassName?: string;
   onViewportEnter?: () => void;
   children: ReactNode;
 }
 
+function findScrollableParent(node: HTMLElement): HTMLElement | null {
+  let parent = node.parentElement;
+  while (parent) {
+    const style = window.getComputedStyle(parent);
+    if (/(auto|scroll|overlay)/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight) {
+      return parent;
+    }
+    parent = parent.parentElement;
+  }
+  return null;
+}
+
+function isNearViewport(node: HTMLElement, root: HTMLElement | null, margin = 320): boolean {
+  const rect = node.getBoundingClientRect();
+  const rootRect = root?.getBoundingClientRect();
+  const top = rootRect?.top ?? 0;
+  const bottom = rootRect?.bottom ?? window.innerHeight;
+  return rect.bottom >= top - margin && rect.top <= bottom + margin;
+}
+
 function ViewportLazySection({
   title,
   description,
+  eager = false,
   minHeightClassName = 'min-h-[220px]',
   onViewportEnter,
   children,
 }: ViewportLazySectionProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [shouldRender, setShouldRender] = useState(false);
+  const hasNotifiedViewportEnterRef = useRef(false);
+  const [shouldRender, setShouldRender] = useState(eager);
+
+  useEffect(() => {
+    if (!eager) return;
+    setShouldRender(true);
+  }, [eager]);
+
+  useEffect(() => {
+    if (!shouldRender || hasNotifiedViewportEnterRef.current) return;
+    hasNotifiedViewportEnterRef.current = true;
+    onViewportEnter?.();
+  }, [shouldRender, onViewportEnter]);
 
   useEffect(() => {
     if (shouldRender) return;
     const node = containerRef.current;
     if (!node) return;
 
+    const scrollRoot = findScrollableParent(node);
+    const renderIfVisible = () => {
+      if (!isNearViewport(node, scrollRoot)) return false;
+      setShouldRender(true);
+      return true;
+    };
+
+    if (renderIfVisible()) return;
+
     if (typeof IntersectionObserver === 'undefined') {
       setShouldRender(true);
-      onViewportEnter?.();
       return;
     }
 
@@ -51,19 +93,31 @@ function ViewportLazySection({
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
           setShouldRender(true);
-          onViewportEnter?.();
           observer.disconnect();
         }
       },
       {
+        root: scrollRoot,
         rootMargin: '320px 0px',
         threshold: 0.01,
       },
     );
 
     observer.observe(node);
-    return () => observer.disconnect();
-  }, [shouldRender, onViewportEnter]);
+    const handleScroll = () => {
+      if (renderIfVisible()) observer.disconnect();
+    };
+    scrollRoot?.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleScroll);
+    const frame = window.requestAnimationFrame(handleScroll);
+
+    return () => {
+      observer.disconnect();
+      scrollRoot?.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+      window.cancelAnimationFrame(frame);
+    };
+  }, [shouldRender]);
 
   return (
     <div ref={containerRef} className={minHeightClassName}>
@@ -117,7 +171,7 @@ export function AgentSettings({
 
   useEffect(() => {
     setM2MSnapshot(null);
-    setIsM2MSectionMounted(false);
+    setIsM2MSectionMounted(Boolean(address));
   }, [address]);
 
   const selectedPermissions = useMemo(() => {
@@ -215,6 +269,7 @@ export function AgentSettings({
                   <ViewportLazySection
                     title="AI Wallet Automation"
                     description="This section loads only when needed so the page stays fast."
+                    eager={Boolean(address)}
                     minHeightClassName="min-h-[280px]"
                     onViewportEnter={() => setIsM2MSectionMounted(true)}
                   >

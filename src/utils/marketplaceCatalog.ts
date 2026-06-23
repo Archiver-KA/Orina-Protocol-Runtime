@@ -19,6 +19,7 @@ import {
   getSubcategoryDisplayLabel,
   normalizeCategoryFilterValue,
 } from '@/utils/taxonomy';
+import { normalizeMarketplaceLocationSnapshot } from '@/utils/marketplaceLocation';
 
 export const MARKETPLACE_CATALOG_SYNC_EVENT = 'orina:marketplace-catalog-changed';
 const MARKETPLACE_LOCAL_VIEW_COUNTS_KEY = 'orina:marketplace-local-view-counts';
@@ -1192,9 +1193,10 @@ function mapRemoteRowToMarketplaceAsset(
     ),
     createdAt,
     updatedAt,
-    assetLocationSnapshot:
-      (asRecord(metadata.assetLocationSnapshot) as MarketplaceAsset['assetLocationSnapshot']) ??
+    assetLocationSnapshot: normalizeMarketplaceLocationSnapshot(
+      metadata.assetLocationSnapshot,
       fallback?.assetLocationSnapshot,
+    ),
     deliverySnapshot:
       (asRecord(metadata.deliverySnapshot) as MarketplaceAsset['deliverySnapshot']) ??
       fallback?.deliverySnapshot,

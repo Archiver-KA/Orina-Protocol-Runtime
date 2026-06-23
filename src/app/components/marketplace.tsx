@@ -5,8 +5,9 @@
  * Hỗ trợ Grid/List view, filtering, và search
  */
 
-import { Search, Grid, List, Map as MapIcon } from 'lucide-react';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, lazy, type ReactNode, type UIEvent } from 'react';
+import { ArrowRight, Bot, Briefcase, Building2, Check, ChevronDown, Clock, Image as ImageIcon, Package, Search, Grid, List, Map as MapIcon } from 'lucide-react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, lazy, type ReactNode, type RefObject, type UIEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { SearchResultCard } from './search-result-card';
 import { ProfileSearchCard } from './profile-search-card';
@@ -42,6 +43,12 @@ import {
 } from '@/utils/marketplaceCatalog';
 import { PROTOCOL_NETWORK_OPTIONS } from '@/utils/protocolNetwork';
 import {
+  MARKETPLACE_BETA_CATEGORY_OPTIONS,
+  MARKETPLACE_STATIC_CATEGORY_VALUES,
+  mergeMarketplaceCategoryOptions,
+  type MarketplaceCategoryOption,
+} from '@/config/marketplaceCategories';
+import {
   getCategoryDisplayLabel,
   getCategoryOptionsFromValues,
   getTaxonomyCategoryOptions,
@@ -51,6 +58,7 @@ import {
   normalizeTaxonomySearchKey,
   TAXONOMY_SYNC_EVENT,
 } from '@/utils/taxonomy';
+import { buildMarketplaceMapAssets } from '@/utils/marketplaceLocation';
 
 type RealisticWorldMapModule = typeof import('./marketplace/realistic-world-map');
 
@@ -443,11 +451,338 @@ type MarketplaceBlockchainDropdownOption = {
   label: string;
 };
 
+type MarketplaceCategoryDropdownOption = MarketplaceCategoryOption;
+
+type MarketplaceCategoryPanelOption = MarketplaceCategoryDropdownOption & {
+  description?: string;
+  tag?: string;
+  disabled?: boolean;
+};
+
+type MarketplaceCategoryPanelGroup = {
+  id: string;
+  label: string;
+  description: string;
+  icon: ReactNode;
+  toneClassName: string;
+  disabled?: boolean;
+  options: MarketplaceCategoryPanelOption[];
+};
+
 const MARKETPLACE_PROTOCOL_BLOCKCHAIN_OPTIONS: MarketplaceBlockchainDropdownOption[] =
   PROTOCOL_NETWORK_OPTIONS.map((network) => ({
     value: network.key,
     label: network.shortLabel,
   }));
+
+function getCategoryPanelLabel(
+  selectedCategory: string,
+  options: MarketplaceCategoryDropdownOption[],
+): string {
+  if (selectedCategory === 'all') return 'All Categories';
+  return options.find((option) => option.value === selectedCategory)?.label || getCategoryDisplayLabel(selectedCategory);
+}
+
+function buildMarketplaceCategoryGroups(goodsOptions: MarketplaceCategoryDropdownOption[]): MarketplaceCategoryPanelGroup[] {
+  const visibleGoods = goodsOptions.filter((option) => option.value !== 'all' && !MARKETPLACE_STATIC_CATEGORY_VALUES.has(option.value));
+  return [
+    {
+      id: 'goods',
+      label: 'Goods',
+      description: 'Physical inventory, RWA lots, supply and collectible assets.',
+      icon: <Package size={18} />,
+      toneClassName: 'text-[#2CC295] bg-[#2CC295]/12',
+      options: visibleGoods.length > 0
+        ? visibleGoods.map((option) => ({ ...option, description: 'Live goods category' }))
+        : [{ value: 'all', label: 'All Goods', description: 'Show every active goods listing' }],
+    },
+    {
+      id: 'digital_assets',
+      label: 'Digital Assets',
+      description: 'NFTs, digital media, file rights and software-native assets.',
+      icon: <ImageIcon size={18} />,
+      toneClassName: 'text-[#7DD3FC] bg-[#7DD3FC]/12',
+      options: [
+        { value: 'digital_assets', label: 'All Digital Assets', description: 'NFT and digital inventory' },
+        { value: 'digital_art', label: 'Digital Art', description: 'Artwork, collectibles and media NFTs' },
+        { value: 'digital_media', label: 'Digital Media', description: 'Video, audio, files and creative assets' },
+        { value: 'digital_license', label: 'Digital License', description: 'Usage rights and access licenses' },
+      ],
+    },
+    {
+      id: 'service',
+      label: 'Service',
+      description: 'Human-delivered services with milestone or evidence-based delivery.',
+      icon: <Briefcase size={18} />,
+      toneClassName: 'text-[#F5B942] bg-[#F5B942]/12',
+      options: [
+        { value: 'service_rights', label: 'All Services', description: 'Browse service listings' },
+        { value: 'professional_services', label: 'Professional Services', description: 'Legal, finance, consulting and translation' },
+        { value: 'technical_services', label: 'Technical Services', description: 'Software, integration, audit and data work' },
+        { value: 'creative_services', label: 'Creative Services', description: 'Design, content, video and branding' },
+        { value: 'logistics_services', label: 'Logistics Services', description: 'Sourcing, freight, warehouse and inspection' },
+        { value: 'field_services', label: 'Field Services', description: 'Installation, repair and maintenance' },
+        { value: 'education_training', label: 'Education & Training', description: 'Courses, coaching and workshops' },
+      ],
+    },
+    {
+      id: 'agent_services',
+      label: 'Agent Service',
+      description: 'AI-assisted workflows, marketplace automations and operational agents.',
+      icon: <Bot size={18} />,
+      toneClassName: 'text-[#A78BFA] bg-[#A78BFA]/12',
+      options: [
+        { value: 'agent_services', label: 'All Agent Services', description: 'Browse AI agent listings' },
+        { value: 'seller_agent', label: 'Seller Agent', description: 'Auto replies, listing help and order follow-up' },
+        { value: 'procurement_agent', label: 'Procurement Agent', description: 'Supplier search, comparisons and negotiation' },
+        { value: 'market_research_agent', label: 'Market Research Agent', description: 'Pricing, trends and competitor scans' },
+        { value: 'operations_agent', label: 'Operations Agent', description: 'Order monitoring and exception handling' },
+        { value: 'content_agent', label: 'Content Agent', description: 'Listing generation, translation and metadata' },
+        { value: 'custom_workflow_agent', label: 'Custom Workflow Agent', description: 'User-defined automation packages' },
+      ],
+    },
+    {
+      id: 'real_estate',
+      label: 'Real Estate',
+      description: 'Property listings and real estate workflows are staged for a later legal/KYC release.',
+      icon: <Building2 size={18} />,
+      toneClassName: 'text-ui-muted bg-[var(--t-surface-10)]',
+      disabled: true,
+      options: [
+        { value: 'real_estate', label: 'Real Estate', description: 'Coming soon', tag: 'Coming Soon', disabled: true },
+        { value: 'residential_property', label: 'Residential', description: 'Coming soon', disabled: true },
+        { value: 'commercial_property', label: 'Commercial', description: 'Coming soon', disabled: true },
+        { value: 'rental_rights', label: 'Rental Rights', description: 'Coming soon', disabled: true },
+      ],
+    },
+  ];
+}
+
+interface MarketplaceCategoryMegaDropdownProps {
+  selectedCategory: string;
+  onChange: (value: string) => void;
+  options: MarketplaceCategoryDropdownOption[];
+  disabled?: boolean;
+  containerRef: RefObject<HTMLElement>;
+}
+
+function MarketplaceCategoryMegaDropdown({
+  selectedCategory,
+  onChange,
+  options,
+  disabled = false,
+  containerRef,
+}: MarketplaceCategoryMegaDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [panelPosition, setPanelPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const groups = useMemo(() => buildMarketplaceCategoryGroups(options), [options]);
+  const selectedLabel = getCategoryPanelLabel(selectedCategory, options);
+
+  const cancelClose = useCallback(() => {
+    if (!closeTimerRef.current) return;
+    clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = null;
+  }, []);
+
+  const openPanel = useCallback(() => {
+    if (disabled) return;
+    cancelClose();
+    setIsOpen(true);
+  }, [cancelClose, disabled]);
+
+  const scheduleClose = useCallback(() => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      setIsOpen(false);
+    }, 180);
+  }, []);
+
+  useEffect(() => () => cancelClose(), [cancelClose]);
+
+  useEffect(() => {
+    if (!isOpen || typeof window === 'undefined') {
+      setPanelPosition(null);
+      return undefined;
+    }
+
+    const updatePosition = () => {
+      const buttonRect = buttonRef.current?.getBoundingClientRect();
+      const containerRect = containerRef.current?.getBoundingClientRect();
+      const viewportPadding = 12;
+      const fallbackWidth = Math.max(320, window.innerWidth - viewportPadding * 2);
+      const width = containerRect?.width ?? fallbackWidth;
+      const left = containerRect?.left ?? viewportPadding;
+      const top = Math.min(
+        (buttonRect?.bottom ?? 76) + 8,
+        window.innerHeight - 120,
+      );
+      setPanelPosition({ top, left, width });
+    };
+
+    updatePosition();
+    const frame = window.requestAnimationFrame(updatePosition);
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [containerRef, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  const handleSelect = (option: MarketplaceCategoryPanelOption) => {
+    if (option.disabled) return;
+    onChange(option.value);
+    setIsOpen(false);
+  };
+
+  const allSelected = selectedCategory === 'all';
+  const panel = !isOpen || !panelPosition || typeof document === 'undefined' ? null : createPortal(
+    <div
+      ref={panelRef}
+      className="fixed z-[99999]"
+      style={{
+        top: panelPosition.top,
+        left: panelPosition.left,
+        width: panelPosition.width,
+      }}
+      onMouseEnter={openPanel}
+      onMouseLeave={scheduleClose}
+    >
+      <div className="overflow-hidden rounded-[28px] border border-ui-border-subtle bg-[var(--t-card-bg)] shadow-[0_26px_70px_-38px_rgba(0,0,0,0.72)] backdrop-blur-[18px]">
+        <div className="grid gap-0 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="border-b border-ui-border-subtle bg-[var(--t-surface-2)] p-5 lg:border-b-0 lg:border-r">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">Marketplace Categories</p>
+            <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em] text-ui-primary">Browse by market type</h3>
+            <p className="mt-2 text-sm leading-6 text-ui-muted">
+              Five primary categories define the beta marketplace. Real Estate is staged as coming soon.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                onChange('all');
+                setIsOpen(false);
+              }}
+              className={`mt-5 flex w-full items-center justify-between rounded-[18px] px-4 py-3 text-left transition-colors ${
+                allSelected
+                  ? 'bg-[#2CC295]/12 text-ui-primary'
+                  : 'bg-[var(--t-surface-5)] text-ui-secondary hover:bg-[var(--t-surface-10)] hover:text-ui-primary'
+              }`}
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">All Categories</span>
+                <span className="mt-1 block text-xs text-ui-muted">Show every active listing</span>
+              </span>
+              {allSelected ? <Check size={16} className="shrink-0 text-[#2CC295]" /> : <ArrowRight size={15} className="shrink-0 text-ui-muted" />}
+            </button>
+          </div>
+
+          <div className="max-h-[min(68vh,620px)] overflow-y-auto p-4 custom-scrollbar">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              {groups.map((group) => (
+                <section
+                  key={group.id}
+                  className={`min-w-0 rounded-[22px] border border-ui-border-subtle bg-[var(--t-surface-2)] p-3 ${group.disabled ? 'opacity-75' : ''}`}
+                >
+                  <div className="mb-3 flex items-start gap-3">
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${group.toneClassName}`}>
+                      {group.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <h4 className="truncate text-sm font-semibold text-ui-primary">{group.label}</h4>
+                        {group.disabled && (
+                          <span className="shrink-0 rounded-full bg-[var(--t-surface-10)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
+                            Coming Soon
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 line-clamp-3 text-[11px] leading-5 text-ui-muted">{group.description}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    {group.options.map((option) => {
+                      const isSelected = selectedCategory === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          disabled={option.disabled}
+                          onClick={() => handleSelect(option)}
+                          className={`flex w-full min-w-0 items-center justify-between gap-2 rounded-[16px] px-3 py-2.5 text-left transition-colors ${
+                            option.disabled
+                              ? 'cursor-not-allowed text-ui-muted'
+                              : isSelected
+                                ? 'bg-[#2CC295]/12 text-ui-primary'
+                                : 'text-ui-secondary hover:bg-[var(--t-surface-5)] hover:text-ui-primary'
+                          }`}
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-semibold">{option.label}</span>
+                            {option.description && (
+                              <span className="mt-0.5 block truncate text-[10px] text-ui-muted">{option.description}</span>
+                            )}
+                          </span>
+                          {option.tag ? (
+                            <span className="shrink-0 rounded-full bg-[var(--t-surface-10)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-ui-muted">
+                              {option.tag}
+                            </span>
+                          ) : isSelected ? (
+                            <Check size={14} className="shrink-0 text-[#2CC295]" />
+                          ) : option.disabled ? (
+                            <Clock size={13} className="shrink-0 text-ui-muted" />
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+
+  return (
+    <div
+      className={`relative overflow-visible ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+      onMouseEnter={openPanel}
+      onMouseLeave={scheduleClose}
+    >
+      <button
+        ref={buttonRef}
+        type="button"
+        disabled={disabled}
+        onClick={() => (isOpen ? setIsOpen(false) : openPanel())}
+        onFocus={openPanel}
+        className={`relative flex h-[var(--t-shell-control-h)] w-full items-center justify-between gap-2 overflow-hidden rounded-full border border-ui-border-subtle bg-ui-input px-4 text-left text-[11px] font-medium text-ui-primary transition-colors hover:bg-ui-input-focus focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/24 sm:text-[13px] ${isOpen ? 'bg-ui-input-focus' : ''}`}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+      >
+        <span className="min-w-0 truncate">{selectedLabel}</span>
+        <ChevronDown size={16} className={`shrink-0 text-ui-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {panel}
+    </div>
+  );
+}
 
 function normalizeMarketplaceBlockchainValue(value?: string | null) {
   return String(value || '')
@@ -630,6 +965,7 @@ export function Marketplace({
   const profileRequestIdRef = useRef(0);
   const collectionRequestIdRef = useRef(0);
   const mapEngineLoadRequestRef = useRef(0);
+  const marketplaceFrameRef = useRef<HTMLDivElement | null>(null);
   const assetResultRenderLimitRef = useRef(resultRenderLimit);
   const resultsScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const resultsLoadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -705,7 +1041,7 @@ export function Marketplace({
       const taxonomyOptions = getTaxonomyCategoryOptions();
       const fallbackOptions = getCategoryOptionsFromValues(getMarketplaceCatalogCategories(marketplaceAssets))
         .filter((option) => !taxonomyOptions.some((taxonomyOption) => taxonomyOption.value === option.value));
-      return [...taxonomyOptions, ...fallbackOptions];
+      return mergeMarketplaceCategoryOptions([...taxonomyOptions, ...fallbackOptions, ...MARKETPLACE_BETA_CATEGORY_OPTIONS]);
     },
     [marketplaceAssets, taxonomyVersion]
   );
@@ -715,7 +1051,7 @@ export function Marketplace({
       const taxonomyOptions = getTaxonomyCategoryOptions();
       const fallbackOptions = getCategoryOptionsFromValues(Array.from(liveValues))
         .filter((option) => !taxonomyOptions.some((taxonomyOption) => taxonomyOption.value === option.value));
-      return [...taxonomyOptions, ...fallbackOptions];
+      return mergeMarketplaceCategoryOptions([...taxonomyOptions, ...fallbackOptions, ...MARKETPLACE_BETA_CATEGORY_OPTIONS]);
     },
     [runtimeCollections, taxonomyVersion]
   );
@@ -1325,52 +1661,7 @@ export function Marketplace({
   const mapAssets = useMemo(
     () => {
       if (contentMode !== 'assets' || viewMode !== 'map') return [];
-
-      return displayedAssets.flatMap((asset, index) => {
-        const coordinates = asset.assetLocationSnapshot?.coordinates;
-        if (!coordinates) return [];
-
-        return [
-          {
-            id: parseInt(asset.id.replace(/\D/g, '')) || index,
-            name: asset.name,
-            category: asset.category,
-            categoryLabel: getCategoryDisplayLabel(asset.category),
-            price: asset.price,
-            usdPrice: asset.priceUSD || '$0',
-            image: asset.image,
-            latitude: coordinates.lat,
-            longitude: coordinates.lng,
-            city:
-              asset.assetLocationSnapshot?.geoPath[asset.assetLocationSnapshot.geoPath.length - 1]?.name ||
-              asset.assetLocationSnapshot?.countryNameSnapshot ||
-              'Unknown',
-            countryCode: asset.assetLocationSnapshot?.countryCode || '',
-            locationPrecision: asset.assetLocationSnapshot?.precision || 'unstructured',
-            assetKey: asset.id,
-            supplierKey: asset.seller.address || asset.seller.ensName || 'unknown-supplier',
-            trustScore: Math.max(0, Math.min(100, asset.seller.reputation ?? (asset.seller.verified ? 80 : 50))),
-            successfulSales: Math.max(0, (asset.totalSlots || 0) - (asset.availableSlots || 0)),
-            views: asset.views || 0,
-            likes: asset.likes || 0,
-            rank: asset.rank,
-            totalSlots: asset.totalSlots || 0,
-            availableSlots: asset.availableSlots || 0,
-            displayScore:
-              Math.max(0, Math.min(100, asset.seller.reputation ?? (asset.seller.verified ? 80 : 50))) * 0.45 +
-              Math.max(0, (asset.totalSlots || 0) - (asset.availableSlots || 0)) * 3 +
-              Math.log1p(asset.views || 0) * 7 +
-              Math.log1p(asset.likes || 0) * 10 +
-              (asset.verified ? 18 : 0) +
-              (typeof asset.rank === 'number' && asset.rank > 0 ? Math.max(0, 40 - asset.rank) : 0),
-            seller: {
-              name: asset.seller.ensName || asset.seller.address.slice(0, 10),
-              rating: `${asset.seller.reputation}%`,
-            },
-            verified: asset.verified,
-          },
-        ];
-      });
+      return buildMarketplaceMapAssets(displayedAssets);
     },
     [contentMode, displayedAssets, taxonomyVersion, viewMode]
   );
@@ -1507,7 +1798,7 @@ export function Marketplace({
     <div className="marketplace-page-theme h-full flex flex-col bg-ui-page overflow-hidden relative">
       {/* Main Content */}
       <div className="flex-1 relative flex flex-col overflow-hidden">
-        <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col px-3 py-2 sm:px-4 lg:px-8 lg:py-3">
+        <div ref={marketplaceFrameRef} className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col px-3 py-2 sm:px-4 lg:px-8 lg:py-3">
           <div className="mobile-command-row px-0 sm:px-1 xl:items-center">
             <div className="mobile-command-cluster">
               <StudioPillGroup className="rounded-full bg-[var(--t-surface-2)] shadow-none">
@@ -1598,17 +1889,12 @@ export function Marketplace({
               </div>
 
               <div className={`w-[8.75rem] shrink-0 sm:w-[11.75rem] xl:max-w-[212px] xl:flex-[0.78] ${contentMode === 'profiles' ? 'opacity-50 pointer-events-none' : ''}`}>
-                <CustomDropdown
-                  defaultValue={selectedCategory}
+                <MarketplaceCategoryMegaDropdown
+                  selectedCategory={selectedCategory}
                   onChange={setSelectedCategory}
-                  options={[
-                    { value: 'all', label: 'All Categories' },
-                    ...visibleCategoryOptions
-                  ]}
-                  variant="compact"
-                  className="w-full"
-                  triggerClassName="h-[var(--t-shell-control-h)] text-[11px] sm:text-[13px]"
-                  menuMinWidth={228}
+                  options={visibleCategoryOptions}
+                  disabled={contentMode === 'profiles'}
+                  containerRef={marketplaceFrameRef}
                 />
               </div>
 

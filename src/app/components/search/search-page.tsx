@@ -52,6 +52,10 @@ import {
   MARKETPLACE_CATALOG_SYNC_EVENT,
 } from '@/utils/marketplaceCatalog';
 import {
+  MARKETPLACE_BETA_CATEGORY_OPTIONS,
+  mergeMarketplaceCategoryOptions,
+} from '@/config/marketplaceCategories';
+import {
   getCategoryDisplayLabel,
   getTaxonomyCategoryOptions,
   hydrateTaxonomyFromSupabase,
@@ -224,7 +228,11 @@ export function SearchPage({
       const fallbackOptions = getMarketplaceCatalogCategories(marketplaceAssets)
         .filter((category) => !taxonomyOptions.some((option) => option.value === category))
         .map((category) => ({ value: category, label: getCategoryDisplayLabel(category) }));
-      return [...taxonomyOptions, ...fallbackOptions];
+      return mergeMarketplaceCategoryOptions([
+        ...taxonomyOptions,
+        ...fallbackOptions,
+        ...MARKETPLACE_BETA_CATEGORY_OPTIONS,
+      ]);
     },
     [marketplaceAssets, taxonomyVersion]
   );
@@ -235,7 +243,11 @@ export function SearchPage({
       const fallbackOptions = Array.from(liveValues)
         .filter((value) => !taxonomyOptions.some((option) => option.value === value))
         .map((value) => ({ value, label: getCategoryDisplayLabel(value) }));
-      return [...taxonomyOptions, ...fallbackOptions];
+      return mergeMarketplaceCategoryOptions([
+        ...taxonomyOptions,
+        ...fallbackOptions,
+        ...MARKETPLACE_BETA_CATEGORY_OPTIONS,
+      ]);
     },
     [runtimeCollections, taxonomyVersion]
   );

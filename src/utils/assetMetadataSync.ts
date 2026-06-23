@@ -12,7 +12,7 @@ import {
   encodeIn,
 } from '@/utils/supabaseRest';
 import { sendAssetMetadataSeedViaBridge } from '@/utils/supabaseAuthClaimBridge';
-import { normalizeCategoryFilterValue } from '@/utils/taxonomy';
+import { normalizeTaxonomySelection } from '@/utils/taxonomy';
 
 type AssetCatalogRow = {
   id: string;
@@ -122,7 +122,10 @@ function buildSeedItemFromRuntimeMintedRecord(
     metadata: index === 0 ? { role: 'cover' } : {},
   }));
 
-  const normalizedCategory = record.details.category ? normalizeCategoryFilterValue(record.details.category) : null;
+  const normalizedTaxonomy = record.details.category
+    ? normalizeTaxonomySelection(record.details.category, record.details.subcategory)
+    : null;
+  const normalizedCategory = normalizedTaxonomy?.categorySlug || null;
   const resolvedChainId = chainId ?? mapChainId(record.details.blockchain, undefined);
   const resolvedNetwork = inferNetworkFromChainId(resolvedChainId);
   const totalSlots = Number(record.myAsset.totalAmount || 0) || 0;
@@ -143,7 +146,7 @@ function buildSeedItemFromRuntimeMintedRecord(
     title,
     slug: slugify(`${assetUid}-${title}`) || assetUid,
     category: normalizedCategory,
-    subcategory: null,
+    subcategory: normalizedTaxonomy?.subcategorySlug || null,
     description: record.details.description || null,
     coverImageUrl: record.details.image || null,
     galleryImages,
@@ -222,7 +225,10 @@ function buildSeedItemFromAssetId(assetId: string): AssetMetadataSeedItem | null
   }));
 
   const namespace = isOwnedFixtureAssetId(normalized) ? 'owned_fixture' : 'owned_asset';
-  const normalizedCategory = details.category ? normalizeCategoryFilterValue(details.category) : null;
+  const normalizedTaxonomy = details.category
+    ? normalizeTaxonomySelection(details.category, details.subcategory)
+    : null;
+  const normalizedCategory = normalizedTaxonomy?.categorySlug || null;
 
   const tags = uniqueStrings([
     normalizedCategory || '',
@@ -239,7 +245,7 @@ function buildSeedItemFromAssetId(assetId: string): AssetMetadataSeedItem | null
     title,
     slug,
     category: normalizedCategory,
-    subcategory: null,
+    subcategory: normalizedTaxonomy?.subcategorySlug || null,
     description: details.description || null,
     coverImageUrl: details.image || null,
     galleryImages,

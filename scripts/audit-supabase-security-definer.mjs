@@ -14,7 +14,6 @@ const APP_FUNCTION_RULES = new Map([
   ['rate_limit_cleanup()', { roles: ['postgres', 'service_role'], searchPath: 'public' }],
   ['rate_limit_increment(p_scope_key text, p_endpoint text, p_wallet text, p_window_start timestamp with time zone)', { roles: ['postgres', 'service_role'], searchPath: 'public' }],
   ['record_asset_view_v1(p_asset_uid text, p_viewer_key text, p_wallet_address text)', { roles: ['anon', 'authenticated', 'postgres', 'service_role'], searchPath: 'public' }],
-  ['rls_auto_enable()', { roles: ['anon', 'authenticated', 'postgres', 'public', 'service_role'], searchPath: 'pg_catalog' }],
 ]);
 
 const REVIEWED_PRIVILEGED_FUNCTION_RULES = new Map([

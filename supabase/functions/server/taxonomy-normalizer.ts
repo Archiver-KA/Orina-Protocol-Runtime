@@ -24,8 +24,10 @@ type TaxonomySeed = {
 
 type NodeIndex = {
   bySlug: Map<string, TaxonomyNode>;
+  assetClasses: TaxonomyNode[];
   categories: TaxonomyNode[];
   subcategories: TaxonomyNode[];
+  assetClassTerms: Map<string, TaxonomyNode[]>;
   categoryTerms: Map<string, TaxonomyNode[]>;
   subcategoryTerms: Map<string, TaxonomyNode[]>;
 };
@@ -39,7 +41,7 @@ export type NormalizedTaxonomyMatch = {
   subcategoryLabel?: string;
   categoryQueryCandidates: string[];
   vectorSearchText: string;
-  matchedBy: "category" | "subcategory_promoted" | "raw_fallback";
+  matchedBy: "asset_class" | "category" | "subcategory_promoted" | "raw_fallback";
 };
 
 const seed = taxonomySeed as TaxonomySeed;
@@ -54,11 +56,12 @@ export function normalizeListingTaxonomy(
   const rawCategory = cleanInput(category);
   const rawSubcategory = cleanInput(subcategory);
 
+  const assetClassMatch = findNode(rawCategory, "asset_class");
   const categoryMatch = findNode(rawCategory, "category");
   const subcategoryMatch = findNode(
     rawSubcategory,
     "subcategory",
-    categoryMatch?.slug,
+    categoryMatch?.slug ?? assetClassMatch?.slug,
   );
 
   const promotedSubcategory = !subcategoryMatch
@@ -67,10 +70,13 @@ export function normalizeListingTaxonomy(
 
   const resolvedSubcategory = subcategoryMatch ?? promotedSubcategory;
   const resolvedCategory = categoryMatch
+    ?? assetClassMatch
     ?? (resolvedSubcategory ? TAXONOMY_INDEX.bySlug.get(resolvedSubcategory.parentSlug ?? "") : undefined);
 
   const matchedBy: NormalizedTaxonomyMatch["matchedBy"] = resolvedCategory
-    ? (promotedSubcategory && !categoryMatch ? "subcategory_promoted" : "category")
+    ? resolvedCategory.nodeType === "asset_class"
+      ? "asset_class"
+      : (promotedSubcategory && !categoryMatch ? "subcategory_promoted" : "category")
     : "raw_fallback";
 
   const canonicalCategorySlug = resolvedCategory?.slug ?? slugifyFallback(rawCategory);
@@ -99,13 +105,21 @@ export function normalizeListingTaxonomy(
 
 function buildNodeIndex(allNodes: TaxonomyNode[]): NodeIndex {
   const bySlug = new Map<string, TaxonomyNode>();
+  const assetClasses = allNodes.filter((node) => node.nodeType === "asset_class");
   const categories = allNodes.filter((node) => node.nodeType === "category");
   const subcategories = allNodes.filter((node) => node.nodeType === "subcategory");
+  const assetClassTerms = new Map<string, TaxonomyNode[]>();
   const categoryTerms = new Map<string, TaxonomyNode[]>();
   const subcategoryTerms = new Map<string, TaxonomyNode[]>();
 
   for (const node of allNodes) {
     bySlug.set(node.slug, node);
+  }
+
+  for (const node of assetClasses) {
+    for (const term of collectLookupTerms(node)) {
+      addIndexedNode(assetClassTerms, term, node);
+    }
   }
 
   for (const node of categories) {
@@ -122,8 +136,10 @@ function buildNodeIndex(allNodes: TaxonomyNode[]): NodeIndex {
 
   return {
     bySlug,
+    assetClasses,
     categories,
     subcategories,
+    assetClassTerms,
     categoryTerms,
     subcategoryTerms,
   };
@@ -131,7 +147,7 @@ function buildNodeIndex(allNodes: TaxonomyNode[]): NodeIndex {
 
 function findNode(
   input: string,
-  nodeType: "category" | "subcategory",
+  nodeType: "asset_class" | "category" | "subcategory",
   parentSlug?: string,
 ): TaxonomyNode | undefined {
   if (!input) return undefined;
@@ -139,7 +155,9 @@ function findNode(
   const lookupKey = normalizeSearchKey(input);
   if (!lookupKey) return undefined;
 
-  const index = nodeType === "category"
+  const index = nodeType === "asset_class"
+    ? TAXONOMY_INDEX.assetClassTerms
+    : nodeType === "category"
     ? TAXONOMY_INDEX.categoryTerms
     : TAXONOMY_INDEX.subcategoryTerms;
 

@@ -12,7 +12,7 @@ describe('buildSearchNavigationFilters', () => {
 
     expect(result).toMatchObject({
       query: 'copper inventory',
-      categories: ['metals'],
+      categories: ['raw_materials_packaging'],
     });
   });
 

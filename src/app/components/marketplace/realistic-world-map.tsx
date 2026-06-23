@@ -12,36 +12,7 @@ import { Gauge, Layers, MapPin, ShieldCheck, TrendingUp, Users } from 'lucide-re
 import { Map as MapCanvas, MapRef } from '@/app/components/ui/map';
 import { Marker, Popup } from 'react-map-gl/maplibre';
 import { getTaxonomyBadgeTone } from '@/utils/taxonomyAppearance';
-
-interface MarketplaceAsset {
-  id: number;
-  name: string;
-  category: string;
-  categoryLabel: string;
-  price: string;
-  usdPrice: string;
-  image: string;
-  latitude: number;
-  longitude: number;
-  city: string;
-  countryCode?: string;
-  locationPrecision?: string;
-  assetKey?: string;
-  supplierKey?: string;
-  trustScore?: number;
-  successfulSales?: number;
-  views?: number;
-  likes?: number;
-  rank?: number;
-  totalSlots?: number;
-  availableSlots?: number;
-  displayScore?: number;
-  seller: {
-    name: string;
-    rating: string;
-  };
-  verified: boolean;
-}
+import type { MarketplaceMapAsset as MarketplaceAsset } from '@/utils/marketplaceLocation';
 
 interface RealisticWorldMapProps {
   filteredAssets: MarketplaceAsset[];
