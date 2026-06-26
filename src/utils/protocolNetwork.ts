@@ -1,4 +1,4 @@
-import { ACTIVE_CHAIN_ID, CONTRACTS, EXPLORER_URLS, RPC_URLS } from '@/config/contracts';
+import { ACTIVE_CHAIN_ID, BASE_SEPOLIA_CONTRACTS, CONTRACTS, EXPLORER_URLS, RPC_URLS } from '@/config/contracts';
 
 const CHAIN_LABELS: Record<number, string> = {
   1: 'Ethereum Mainnet',
@@ -6,6 +6,7 @@ const CHAIN_LABELS: Record<number, string> = {
   97: 'BNB Smart Chain Testnet',
   137: 'Polygon',
   8453: 'Base',
+  84532: 'Base Sepolia',
   43114: 'Avalanche',
   11155111: 'Ethereum Sepolia',
 };
@@ -38,6 +39,18 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     rpcUrl: RPC_URLS[97],
     explorerUrl: EXPLORER_URLS[97],
     aliases: ['bsc testnet', 'bnb testnet', 'mainnet-v3'],
+  },
+  {
+    chainId: 84532,
+    key: 'base-sepolia',
+    label: 'Base Sepolia',
+    shortLabel: 'Base Sepolia',
+    icon: 'base',
+    status: 'coming',
+    contracts: BASE_SEPOLIA_CONTRACTS,
+    rpcUrl: RPC_URLS[84532],
+    explorerUrl: EXPLORER_URLS[84532],
+    aliases: ['base sepolia', 'base testnet'],
   },
   {
     chainId: 43114,

@@ -1,7 +1,7 @@
 ﻿/**
  * Orina ATP Protocol v3.5 beta - Contract Configuration
  * =====================================================
- * BSC Testnet beta cutover verified on 2026-06-04.
+ * BSC Testnet beta is the write-enabled runtime; Base Sepolia metadata was verified on 2026-06-26.
  * Fee split no-burn + transferable NFT branch + ORI fee-token option.
  * Namespace: orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604
  */
@@ -53,6 +53,25 @@ export const PAYMENT_TOKENS = {
   ORI:  '0x093969c2bb194e7424534918eca5119fa72a61d6' as `0x${string}`, // ORI token
 } as const;
 
+// Base Sepolia ATP v3.5 deployment. The app intentionally keeps this network
+// non-write-enabled until its runtime configuration and governance handoff are complete.
+export const BASE_SEPOLIA_CONTRACTS = {
+  MARKETPLACE_ATP: '0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14' as `0x${string}`,
+  ORINA_RWA:       '0x0a9efc1fb95be24743b1452ac4c974E5E925A453' as `0x${string}`,
+  RECEIPT_NFT:     '0x82d2f4e131d1EB34F9B6Ebc8CC37bdD1cca84e95' as `0x${string}`,
+  PAYMENT_GATEWAY: '0x1A880Ae46993282dd77C2dDCc5e36498eB616C92' as `0x${string}`,
+  FEE_MANAGER:       '0x51aB383A43d79f4127B7E7dCBcd892164FA2838F' as `0x${string}`,
+  AUTOTIME_MANAGER:  '0xa12273AD5b73c5F57139e84aa89Db52FE7Af05de' as `0x${string}`,
+  DISPUTE_MANAGER:   '0x952aE0562De695c63c1386458DB537193Ce293b4' as `0x${string}`,
+  UNIT_REGISTRY:     '0x5a709d6f4F0a084315C64272FFc158Dc61F0De38' as `0x${string}`,
+  SHIPPING_REGISTRY: '0x50fD56DcA706471B7f0Ab59051006aA2712c2DF2' as `0x${string}`,
+  TIMELOCK:    '0x989b893118237f710b7Efc8820147B61c68DcaEE' as `0x${string}`,
+  GNOSIS_SAFE: '0x554c4F489846e293bA251fb8B863FE1241306138' as `0x${string}`,
+  FEE_VAULT:      '0x130fF04D269f0E9C0eaa984C167bd746bB68F82a' as `0x${string}`,
+  DAO_VAULT:      '0x8069c3e6E6156707746885d9328a35C874B835CF' as `0x${string}`,
+  REFERRAL_VAULT: '0x3FB0B92FcC489A53eb0F172e5D919346e2DeF3c2' as `0x${string}`,
+} as const;
+
 export type PaymentTokenSymbol = keyof typeof PAYMENT_TOKENS;
 
 // â”€â”€ Standard Unit IDs (seeded on deploy) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -72,12 +91,14 @@ export const UNIT_IDS = {
 export const CHAIN_CONFIG = {
   PRIMARY_CHAIN_ID: 56,      // BSC Mainnet
   TESTNET_CHAIN_ID: 97,      // BSC Testnet
+  BASE_SEPOLIA_CHAIN_ID: 84532,
   DEV_CHAIN_ID: 11155111,    // Sepolia
 } as const;
 
 export const SUPPORTED_CHAINS = [
   CHAIN_CONFIG.PRIMARY_CHAIN_ID,
   CHAIN_CONFIG.TESTNET_CHAIN_ID,
+  CHAIN_CONFIG.BASE_SEPOLIA_CHAIN_ID,
   CHAIN_CONFIG.DEV_CHAIN_ID,
 ] as const;
 
@@ -169,6 +190,7 @@ export enum ShippingType {
 export const RPC_URLS = {
   [56]: 'https://bsc-dataseed.binance.org/',
   [97]: 'https://data-seed-prebsc-1-s1.bnbchain.org:8545/',
+  [84532]: 'https://sepolia.base.org',
   [11155111]: runtimeConfig.sepoliaRpcUrl || 'https://eth-sepolia.g.alchemy.com/v2/demo',
 } as const;
 
@@ -176,5 +198,6 @@ export const RPC_URLS = {
 export const EXPLORER_URLS = {
   [56]: 'https://bscscan.com',
   [97]: 'https://testnet.bscscan.com',
+  [84532]: 'https://sepolia.basescan.org',
   [11155111]: 'https://sepolia.etherscan.io',
 } as const;

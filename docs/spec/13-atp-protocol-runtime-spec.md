@@ -38,6 +38,33 @@ ATP here means:
 | `DelegationManager` | `0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13` |
 | `AIWalletFactoryV2` | `0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441` |
 
+## Base Sepolia Deployment
+
+Base Sepolia is a separately deployed ATP v3.5 testnet stack on chain `84532`, deployed on June 26, 2026 under namespace `orina-atp-v3.5-base-sepolia-20260626`. The runtime app remains write-enabled only for BSC Testnet; this Base address set is available for integration and verification work.
+
+| Contract | Address |
+| --- | --- |
+| `MarketplaceATP` | `0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14` |
+| `OrinaRWA` | `0x0a9efc1fb95be24743b1452ac4c974E5E925A453` |
+| `RWAReceiptNFT` | `0x82d2f4e131d1EB34F9B6Ebc8CC37bdD1cca84e95` |
+| `PaymentGateway` | `0x1A880Ae46993282dd77C2dDCc5e36498eB616C92` |
+| `FeeManager` | `0x51aB383A43d79f4127B7E7dCBcd892164FA2838F` |
+| `DisputeManager` | `0x952aE0562De695c63c1386458DB537193Ce293b4` |
+| `AutoTimeManager` | `0xa12273AD5b73c5F57139e84aa89Db52FE7Af05de` |
+| `UnitRegistry` | `0x5a709d6f4F0a084315C64272FFc158Dc61F0De38` |
+| `ShippingRegistry` | `0x50fD56DcA706471B7f0Ab59051006aA2712c2DF2` |
+| `TimelockController` | `0x989b893118237f710b7Efc8820147B61c68DcaEE` |
+| `DelegationManager` | `0xFC0038B7CC628966f8a7f14414c9386c2d6cB288` |
+| `AIWalletFactoryV2` | `0x0E5E106A7F81233Fe07115Aeb3777e847adB09cB` |
+
+| Token | Address |
+| --- | --- |
+| `ORI` | `0xD87493f4C02aad2c67Ce12aa534d188Bf44FCcAB` |
+| `USDT.t` | `0x11E6c8f2806b32dAC427E7Df07F67602647eF87A` |
+| `USDC.t` | `0xD6E84789741Ea2DE727961cCB383454E4A845035` |
+
+`MarketplaceATP.VERSION` is `3.4`; `FeeManager.VERSION` and `PaymentGateway.VERSION` are `3.5`, matching the BSC Testnet beta. The deployed Base stack still requires its governance-role handoff before it is suitable as a mainnet template.
+
 ### Governance and fee endpoints
 
 | Role / endpoint | Address |
