@@ -1,8 +1,8 @@
 # ORINA ATP2 Runtime Docs
 
-Last verified by Codex audit: 2026-06-07
+Last verified by Codex audit: 2026-06-27
 
-This documentation set is aligned with the current runtime code as of 2026-06-07.
+This documentation set is aligned with the current runtime code and protocol address sheet as of 2026-06-27.
 
 It separates user-facing guides, runtime verification runbooks, and current-code specs. Older planning notes and stale Make/Figma-era docs should not be treated as source of truth unless they are explicitly linked here.
 
@@ -11,6 +11,8 @@ It separates user-facing guides, runtime verification runbooks, and current-code
 - [System User Guide](./system-user-guide.md)
 - [Runtime FAQ](./system-faq.md)
 - [Testnet Runtime Guide](./testnet-runtime-guide.md)
+- [Protocol Security Status](./protocol-security-status-2026-06-27.md)
+- [Mainnet Production Checklist](./mainnet-production-checklist.md)
 - [Port 9222 Runtime Verification](./port-9222-runtime-verification.md)
 - [Repository Security](../SECURITY.md)
 - [Type Safety Baseline](./type-safety-baseline.md)
@@ -44,7 +46,8 @@ It separates user-facing guides, runtime verification runbooks, and current-code
 - Start with the [System User Guide](./system-user-guide.md) for end-user workflows.
 - Read the [Runtime FAQ](./system-faq.md) for support and troubleshooting.
 - Read [Port 9222 Runtime Verification](./port-9222-runtime-verification.md) before running Chrome CDP smoke tests.
-- Read [Testnet Runtime Guide](./testnet-runtime-guide.md) before enabling faucet env or testnet rankings.
+- Read [Testnet Runtime Guide](./testnet-runtime-guide.md) before enabling faucet env, testnet rankings, or Base Sepolia runtime metadata.
+- Read [Protocol Security Status](./protocol-security-status-2026-06-27.md) and [Mainnet Production Checklist](./mainnet-production-checklist.md) before making production-readiness claims.
 - Read `01` and `02` before changing the shell, routes, access mode, wallet identity, or local storage.
 - Read `03`, `04`, `07`, and `08` before changing product surfaces.
 - Read `05` before changing Supabase, settings, API keys, AI, M2M, or Edge Function integration.

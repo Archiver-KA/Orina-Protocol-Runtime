@@ -1,6 +1,6 @@
 # Orina Protocol - Runtime
 
-Last verified by Codex audit: 2026-05-14
+Last verified by Codex audit: 2026-06-27
 
 Orina Protocol - Runtime is the standalone runtime repository for the Orina marketplace application. It keeps the production-facing frontend, Supabase runtime surfaces, release gates, and current-code documentation without the old workspace-specific agent metadata and local archive material.
 
@@ -38,6 +38,9 @@ Current runtime and release references live under `docs/`.
 
 - [Docs Hub](./docs/README.md)
 - [Security](./SECURITY.md)
+- [Protocol Security Status](./docs/protocol-security-status-2026-06-27.md)
+- [Mainnet Production Checklist](./docs/mainnet-production-checklist.md)
+- [Testnet Runtime Guide](./docs/testnet-runtime-guide.md)
 - [Type Safety Baseline](./docs/type-safety-baseline.md)
 - [Lint Governance](./docs/lint-governance.md)
 - [Release Provenance Plan](./docs/release-provenance.md)

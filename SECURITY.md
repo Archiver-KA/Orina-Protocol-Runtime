@@ -1,6 +1,6 @@
 # Security
 
-Last verified by Codex audit: 2026-05-14
+Last verified by Codex audit: 2026-06-27
 
 ## Reporting
 
@@ -9,6 +9,18 @@ This repository does not currently publish a dedicated public vulnerability inta
 ## Supported Source
 
 The current supported source is the runtime repository on `main` plus the release gate in `.github/workflows/protocol-release-gate.yml`.
+
+## Protocol Contract Status
+
+The runtime app currently targets the ATP v3.5 testnet contract stack. The public-safe contract assurance summary is in [Protocol Security Status](./docs/protocol-security-status-2026-06-27.md), and the production gate is in [Mainnet Production Checklist](./docs/mainnet-production-checklist.md).
+
+Current summary:
+
+- Foundry full suite passes at 110/110 after dispute-settlement hardening.
+- Slither has no High/Medium impact findings after current triage.
+- Echidna, Medusa, and deep invariants pass for the current ATP harnesses.
+- Mythril runtime-bytecode findings for core contracts are source-triaged with no confirmed exploitable issue.
+- Certora currently passes for the initial `FeeManager` scope; broader formal coverage and human review remain required before production claims.
 
 ## Runtime Security Assumptions
 

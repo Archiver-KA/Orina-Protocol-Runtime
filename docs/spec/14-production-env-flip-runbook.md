@@ -8,7 +8,7 @@ This file is updated for the June 4, 2026 ATP v3.5 beta runtime. The March 29, 2
 
 This runbook starts after contracts are already deployed and wired.
 
-Use `foundry/CUTOVER_CHECKLIST.md` for the on-chain transaction checklist. Use this document for the app/backend/runtime flip.
+Use `foundry/CUTOVER_CHECKLIST.md` for the on-chain transaction checklist. Use this document for the app/backend/runtime flip. For production or mainnet readiness, also use `docs/mainnet-production-checklist.md` and the current protocol status in `docs/protocol-security-status-2026-06-27.md`.
 
 ## Current beta address set
 

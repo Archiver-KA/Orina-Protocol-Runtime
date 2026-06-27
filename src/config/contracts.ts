@@ -1,7 +1,7 @@
 ﻿/**
  * Orina ATP Protocol v3.5 beta - Contract Configuration
  * =====================================================
- * BSC Testnet beta is the write-enabled runtime; Base Sepolia metadata was verified on 2026-06-26.
+ * BSC Testnet beta is the write-enabled runtime; Base Sepolia metadata was verified on 2026-06-27.
  * Fee split no-burn + transferable NFT branch + ORI fee-token option.
  * Namespace: orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604
  */
@@ -43,12 +43,12 @@ export const CONTRACTS = {
 // Backward compatibility alias
 export const MARKETPLACE = CONTRACTS.MARKETPLACE_ATP;
 
-// â”€â”€ Supported Payment Tokens (BSC Testnet) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Báº¥t ká»³ ERC20 nÃ o Ä‘á»u Ä‘Æ°á»£c â€” whitelist UI Ä‘á»ƒ UX tá»‘t hÆ¡n
-// BNB native KHÃ”NG há»— trá»£ trá»±c tiáº¿p â†’ dÃ¹ng WBNB
+// Supported Payment Tokens (BSC Testnet)
+// The contract path can accept ERC20 tokens, but production needs an explicit allowlist policy.
+// The VITE_TESTNET_* overrides are mock faucet-token values and must stay testnet-only.
 export const PAYMENT_TOKENS = {
-  USDT: parseRuntimeAddress(runtimeConfig.testnetUsdtAddress, '0x337610d27c682e347c9cd60bd4b3b107c9d34ddd'), // BSC Testnet USDT.t
-  USDC: parseRuntimeAddress(runtimeConfig.testnetUsdcAddress, '0x64544969ed7ebf5f083679233325356ebe738930'), // BSC Testnet USDC.t
+  USDT: parseRuntimeAddress(runtimeConfig.testnetUsdtAddress, '0x337610d27c682e347c9cd60bd4b3b107c9d34ddd'), // BSC Testnet runtime USDT fallback
+  USDC: parseRuntimeAddress(runtimeConfig.testnetUsdcAddress, '0x64544969ed7ebf5f083679233325356ebe738930'), // BSC Testnet runtime USDC fallback
   WBNB: '0xae13d989dac2f0debff460ac112a837c89baa7cd' as `0x${string}`, // Wrapped BNB testnet
   ORI:  '0x093969c2bb194e7424534918eca5119fa72a61d6' as `0x${string}`, // ORI token
 } as const;

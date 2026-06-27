@@ -63,7 +63,7 @@ Base Sepolia is a separately deployed ATP v3.5 testnet stack on chain `84532`, d
 | `USDT.t` | `0x11E6c8f2806b32dAC427E7Df07F67602647eF87A` |
 | `USDC.t` | `0xD6E84789741Ea2DE727961cCB383454E4A845035` |
 
-`MarketplaceATP.VERSION` is `3.4`; `FeeManager.VERSION` and `PaymentGateway.VERSION` are `3.5`, matching the BSC Testnet beta. The deployed Base stack still requires its governance-role handoff before it is suitable as a mainnet template.
+`MarketplaceATP.VERSION` is `3.4`; `FeeManager.VERSION` and `PaymentGateway.VERSION` are `3.5`, matching the BSC Testnet beta. Base Sepolia currently uses timelock `0x989b893118237f710b7Efc8820147B61c68DcaEE` as the Marketplace governance actor. The remaining shared hardening item is M2M `DelegationManager.DEFAULT_ADMIN_ROLE`, which is still held by deployment/admin EOA `0x282Be18838D7079C215F49749a9606d77e00888b` on both testnets.
 
 ### Governance and fee endpoints
 
@@ -279,3 +279,13 @@ The June 4, 2026 Foundry and on-chain beta gate passed:
 - On-chain AI/M2M flow smoke: pass.
 
 Use [14-production-env-flip-runbook.md](./14-production-env-flip-runbook.md) for the exact frontend/backend cutover procedure and app build checks.
+
+### 2026-06-27 Security Baseline Addendum
+
+The latest contract assurance baseline supersedes the earlier local beta test count for production-readiness discussion:
+
+- Current full Foundry suite passes at 110/110 after dispute-settlement hardening.
+- Slither has no High/Medium impact findings after current triage.
+- Echidna, Medusa, and deep invariants pass for the current ATP harnesses.
+- Mythril runtime-bytecode findings for `FeeManager`, `PaymentGateway`, and `MarketplaceATP` are source-triaged with no confirmed exploitable issue.
+- Certora remote proof passes for the initial `FeeManager` scope; broader formal coverage and human review remain required before production claims.

@@ -1,5 +1,20 @@
 # Repository Audit Report
 
+## ATP Protocol Security Status Update
+
+Update date: 2026-06-27
+
+This runtime repository now mirrors the current public-safe ATP contract status:
+
+- Foundry full suite passes at 110/110 after dispute-settlement hardening.
+- Slither has no High/Medium impact findings after current triage.
+- Echidna, Medusa, and deep invariants pass for the current ATP harnesses.
+- Mythril runtime-bytecode analysis completed for `FeeManager`, `PaymentGateway`, and `MarketplaceATP`; no exploitable issue is confirmed after source triage.
+- Certora remote proof passes for the initial `FeeManager` fee-cap scope.
+- BSC Testnet and Base Sepolia address sheets are reconciled, with on-chain bytecode and M2M Marketplace wiring spot-checked on 2026-06-27.
+
+Remaining production limits: broader formal coverage, Halmos harness/tooling resolution, 4naly3er final triage, human review, M2M governance handoff, production token allowlist, ORI quote/oracle policy, monitoring, and incident readiness.
+
 Audit date: 2026-05-12
 Branch: `codex/audit-2026-05-12`
 
