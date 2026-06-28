@@ -18,13 +18,15 @@
 Repository evidence defines production frontend deployment as GitHub-driven Cloudflare Worker Builds:
 
 1. Source changes land on GitHub branch `main`.
-2. GitHub Actions workflow `Protocol Release Gate` verifies the candidate but does not deploy.
+2. GitHub Actions workflow `Protocol Release Gate` verifies the frontend candidate but does not deploy.
 3. Cloudflare Worker Builds reads GitHub `main`.
 4. Cloudflare builds with `npm run build`.
 5. Cloudflare serves `dist` through Worker `apporinaio`.
 6. Custom hostname `https://app.orina.io` points to that Worker.
 
 Do not use local `wrangler deploy` except for separately approved emergency recovery.
+
+The live Supabase SECURITY DEFINER audit in `Protocol Release Gate` is an advisory drift monitor for frontend pushes. It must not block the frontend GitHub-to-Cloudflare path. Backend production deployment keeps the same audit as a blocking gate inside `.github/workflows/supabase-production-deploy.yml`.
 
 ## Backend Standard Path
 
