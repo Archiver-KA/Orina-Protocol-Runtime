@@ -1,4 +1,11 @@
-import { ACTIVE_CHAIN_ID, BASE_SEPOLIA_CONTRACTS, CONTRACTS, EXPLORER_URLS, RPC_URLS } from '@/config/contracts';
+import {
+  ACTIVE_CHAIN_ID,
+  ARBITRUM_SEPOLIA_CONTRACTS,
+  BASE_SEPOLIA_CONTRACTS,
+  CONTRACTS,
+  EXPLORER_URLS,
+  RPC_URLS,
+} from '@/config/contracts';
 
 const CHAIN_LABELS: Record<number, string> = {
   1: 'Ethereum Mainnet',
@@ -61,7 +68,7 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     shortLabel: 'Arbitrum Sepolia',
     icon: 'arbitrum',
     status: 'coming',
-    contracts: null,
+    contracts: ARBITRUM_SEPOLIA_CONTRACTS,
     rpcUrl: RPC_URLS[421614],
     explorerUrl: EXPLORER_URLS[421614],
     aliases: ['arbitrum sepolia', 'arb sepolia', 'arbitrum testnet'],

@@ -72,7 +72,7 @@ Keep these env keys separate from `CONTRACTS` core protocol addresses. The fauce
 
 ## Current Operated Testnets
 
-The canonical contract address source is the Foundry address sheet. The runtime app currently treats BSC Testnet as the write-enabled beta network. Base Sepolia is documented/readiness metadata with deployed contracts; Arbitrum Sepolia is opened as a network/deployment path and stays non-write-enabled until chain `421614` broadcast artifacts and bytecode checks exist.
+The canonical contract address source is the Foundry address sheet. The runtime app currently treats BSC Testnet as the write-enabled beta network. Base Sepolia is documented/readiness metadata with deployed contracts; Arbitrum Sepolia has deployed contracts and stays non-write-enabled until the pending timelock governance call wires Marketplace M2M delegation.
 
 ### BSC Testnet Core
 
@@ -108,24 +108,24 @@ BSC runtime payment-token fallbacks are `USDT=0x337610d27c682E347C9cD60BD4b3b107
 
 Base Sepolia starter-kit assets are `ORI=0xd87493F4C02AAD2c67Ce12aa534d188Bf44FCCAB`, `USDT.t=0x11E6c8f2806b32DaC427E7dF07F67602647Ef87a`, `USDC.t=0xd6e84789741ea2DE727961CCB383454e4A845035`, and `OrinaTestTokenFaucet=0xbBd53C18F4d9fb98aA6c4837Ea0E8F221E1B5F0F`.
 
-### Arbitrum Sepolia Deployment Path
+### Arbitrum Sepolia Core
 
-| Field | Value |
+| Contract | Address |
 | --- | --- |
-| Network | Arbitrum Sepolia |
-| Chain id | `421614` |
-| RPC URL | `https://sepolia-rollup.arbitrum.io/rpc` |
-| Explorer | `https://sepolia.arbiscan.io` |
-| Namespace | `orina-atp-v3.5-arbitrum-sepolia-20260628` |
-| Runtime status | Network metadata only; no canonical ATP contract addresses yet. |
+| `MarketplaceATP` | `0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14` |
+| `PaymentGateway` | `0x1A880Ae46993282dd77C2dDCc5e36498eB616C92` |
+| `FeeManager` | `0x51aB383A43d79f4127B7E7dCBcd892164FA2838F` |
+| `OrinaRWA` | `0x0a9efc1fb95be24743b1452ac4c974E5E925A453` |
+| `RWAReceiptNFT` | `0x82d2f4e131d1EB34F9B6Ebc8CC37bdD1cca84e95` |
+| `DisputeManager` | `0x952aE0562De695c63c1386458DB537193Ce293b4` |
+| `AutoTimeManager` | `0xa12273AD5b73c5F57139e84aa89Db52FE7Af05de` |
+| `DelegationManager` | `0x52440e44ec34a64e19b92243262fe47819d65539` |
+| `AIWalletFactoryV2` | `0x7D6b498eDc3F469ED020116e8892EbB361753bCB` |
+| `TimelockController` | `0x5C842728C357B9b18eb8A9A7a840499936132e67` |
 
-Do not copy BSC Testnet or Base Sepolia addresses into Arbitrum Sepolia config.
-Fill Arbitrum contract metadata only from chain `421614` Foundry broadcast artifacts
-and on-chain bytecode checks.
+Arbitrum Sepolia starter-kit assets are `ORI=0xD87493f4C02aad2c67Ce12aa534d188Bf44FCcAB`, `USDT.t=0x11E6c8f2806b32dAC427E7Df07F67602647eF87A`, `USDC.t=0xD6E84789741Ea2DE727961cCB383454E4A845035`, and `OrinaTestTokenFaucet=0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F`.
 
-On 2026-06-27, both networks were spot-checked for deployed bytecode on `MarketplaceATP`, `PaymentGateway`, and `DelegationManager`. `MarketplaceATP.delegationManager()` returned the listed DelegationManager on both networks, and each DelegationManager grants `CONSUMER_ROLE` to its Marketplace.
-
-Operational note: M2M `DelegationManager.DEFAULT_ADMIN_ROLE` remains with deployment/admin EOA `0x282Be18838D7079C215F49749a9606d77e00888b` on both testnets. Production requires handoff to timelock/governance.
+On 2026-06-28, BSC Testnet, Base Sepolia, and Arbitrum Sepolia were spot-checked for deployed bytecode on `MarketplaceATP`, `PaymentGateway`, and `DelegationManager`. BSC Testnet and Base Sepolia `MarketplaceATP.delegationManager()` returned the listed DelegationManager. Arbitrum Sepolia `DelegationManager` grants `CONSUMER_ROLE` to its Marketplace and has timelock admin, but `MarketplaceATP.delegationManager()` remains `0x0000000000000000000000000000000000000000` until timelock executes `setDelegationManager(address)` with calldata `0x1a8d0de200000000000000000000000052440e44ec34a64e19b92243262fe47819d65539`.
 
 ## Mainnet Boundary
 

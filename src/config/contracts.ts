@@ -2,7 +2,8 @@
  * Orina ATP Protocol v3.5 beta - Contract Configuration
  * =====================================================
  * BSC Testnet beta is the write-enabled runtime; Base Sepolia metadata was verified on 2026-06-27.
- * Arbitrum Sepolia is opened as a testnet deployment path but has no canonical contracts yet.
+ * Arbitrum Sepolia contracts were broadcast and bytecode-checked on 2026-06-28;
+ * it remains non-write-enabled until the pending Marketplace M2M governance call is executed.
  * Fee split no-burn + transferable NFT branch + ORI fee-token option.
  * Namespace: orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604
  */
@@ -67,6 +68,25 @@ export const BASE_SEPOLIA_CONTRACTS = {
   UNIT_REGISTRY:     '0x5a709d6f4F0a084315C64272FFc158Dc61F0De38' as `0x${string}`,
   SHIPPING_REGISTRY: '0x50fD56DcA706471B7f0Ab59051006aA2712c2DF2' as `0x${string}`,
   TIMELOCK:    '0x989b893118237f710b7Efc8820147B61c68DcaEE' as `0x${string}`,
+  GNOSIS_SAFE: '0x554c4F489846e293bA251fb8B863FE1241306138' as `0x${string}`,
+  FEE_VAULT:      '0x130fF04D269f0E9C0eaa984C167bd746bB68F82a' as `0x${string}`,
+  DAO_VAULT:      '0x8069c3e6E6156707746885d9328a35C874B835CF' as `0x${string}`,
+  REFERRAL_VAULT: '0x3FB0B92FcC489A53eb0F172e5D919346e2DeF3c2' as `0x${string}`,
+} as const;
+
+// Arbitrum Sepolia ATP v3.5 deployment. The app intentionally keeps this network
+// non-write-enabled until the timelock executes MarketplaceATP.setDelegationManager.
+export const ARBITRUM_SEPOLIA_CONTRACTS = {
+  MARKETPLACE_ATP: '0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14' as `0x${string}`,
+  ORINA_RWA:       '0x0a9efc1fb95be24743b1452ac4c974E5E925A453' as `0x${string}`,
+  RECEIPT_NFT:     '0x82d2f4e131d1EB34F9B6Ebc8CC37bdD1cca84e95' as `0x${string}`,
+  PAYMENT_GATEWAY: '0x1A880Ae46993282dd77C2dDCc5e36498eB616C92' as `0x${string}`,
+  FEE_MANAGER:       '0x51aB383A43d79f4127B7E7dCBcd892164FA2838F' as `0x${string}`,
+  AUTOTIME_MANAGER:  '0xa12273AD5b73c5F57139e84aa89Db52FE7Af05de' as `0x${string}`,
+  DISPUTE_MANAGER:   '0x952aE0562De695c63c1386458DB537193Ce293b4' as `0x${string}`,
+  UNIT_REGISTRY:     '0x5a709d6f4F0a084315C64272FFc158Dc61F0De38' as `0x${string}`,
+  SHIPPING_REGISTRY: '0x50fD56DcA706471B7f0Ab59051006aA2712c2DF2' as `0x${string}`,
+  TIMELOCK:    '0x5C842728C357B9b18eb8A9A7a840499936132e67' as `0x${string}`,
   GNOSIS_SAFE: '0x554c4F489846e293bA251fb8B863FE1241306138' as `0x${string}`,
   FEE_VAULT:      '0x130fF04D269f0E9C0eaa984C167bd746bB68F82a' as `0x${string}`,
   DAO_VAULT:      '0x8069c3e6E6156707746885d9328a35C874B835CF' as `0x${string}`,
