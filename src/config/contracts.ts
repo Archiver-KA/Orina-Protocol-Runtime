@@ -2,6 +2,7 @@
  * Orina ATP Protocol v3.5 beta - Contract Configuration
  * =====================================================
  * BSC Testnet beta is the write-enabled runtime; Base Sepolia metadata was verified on 2026-06-27.
+ * Arbitrum Sepolia is opened as a testnet deployment path but has no canonical contracts yet.
  * Fee split no-burn + transferable NFT branch + ORI fee-token option.
  * Namespace: orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604
  */
@@ -92,6 +93,7 @@ export const CHAIN_CONFIG = {
   PRIMARY_CHAIN_ID: 56,      // BSC Mainnet
   TESTNET_CHAIN_ID: 97,      // BSC Testnet
   BASE_SEPOLIA_CHAIN_ID: 84532,
+  ARBITRUM_SEPOLIA_CHAIN_ID: 421614,
   DEV_CHAIN_ID: 11155111,    // Sepolia
 } as const;
 
@@ -99,6 +101,7 @@ export const SUPPORTED_CHAINS = [
   CHAIN_CONFIG.PRIMARY_CHAIN_ID,
   CHAIN_CONFIG.TESTNET_CHAIN_ID,
   CHAIN_CONFIG.BASE_SEPOLIA_CHAIN_ID,
+  CHAIN_CONFIG.ARBITRUM_SEPOLIA_CHAIN_ID,
   CHAIN_CONFIG.DEV_CHAIN_ID,
 ] as const;
 
@@ -191,6 +194,7 @@ export const RPC_URLS = {
   [56]: 'https://bsc-dataseed.binance.org/',
   [97]: 'https://data-seed-prebsc-1-s1.bnbchain.org:8545/',
   [84532]: 'https://sepolia.base.org',
+  [421614]: 'https://sepolia-rollup.arbitrum.io/rpc',
   [11155111]: runtimeConfig.sepoliaRpcUrl || 'https://eth-sepolia.g.alchemy.com/v2/demo',
 } as const;
 
@@ -199,5 +203,6 @@ export const EXPLORER_URLS = {
   [56]: 'https://bscscan.com',
   [97]: 'https://testnet.bscscan.com',
   [84532]: 'https://sepolia.basescan.org',
+  [421614]: 'https://sepolia.arbiscan.io',
   [11155111]: 'https://sepolia.etherscan.io',
 } as const;

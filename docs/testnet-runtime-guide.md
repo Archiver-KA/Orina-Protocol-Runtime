@@ -1,8 +1,8 @@
 # Testnet Runtime Guide
 
-Last aligned with runtime code and protocol deployment docs on 2026-06-27.
+Last aligned with runtime code and protocol deployment docs on 2026-06-28.
 
-This guide defines the BSC Testnet starter flow and records the currently operated ATP testnet addresses. It exists to keep testnet faucet behavior, mock token names, rankings, Base Sepolia metadata, and mainnet boundaries explicit.
+This guide defines the BSC Testnet starter flow and records the currently operated ATP testnet addresses. It exists to keep testnet faucet behavior, mock token names, rankings, Base Sepolia metadata, Arbitrum Sepolia deployment readiness, and mainnet boundaries explicit.
 
 ## Scope
 
@@ -72,7 +72,7 @@ Keep these env keys separate from `CONTRACTS` core protocol addresses. The fauce
 
 ## Current Operated Testnets
 
-The canonical contract address source is the Foundry address sheet. The runtime app currently treats BSC Testnet as the write-enabled beta network and Base Sepolia as documented/readiness metadata until runtime and governance owners enable write paths.
+The canonical contract address source is the Foundry address sheet. The runtime app currently treats BSC Testnet as the write-enabled beta network. Base Sepolia is documented/readiness metadata with deployed contracts; Arbitrum Sepolia is opened as a network/deployment path and stays non-write-enabled until chain `421614` broadcast artifacts and bytecode checks exist.
 
 ### BSC Testnet Core
 
@@ -107,6 +107,21 @@ BSC runtime payment-token fallbacks are `USDT=0x337610d27c682E347C9cD60BD4b3b107
 | `TimelockController` | `0x989b893118237f710b7Efc8820147B61c68DcaEE` |
 
 Base Sepolia starter-kit assets are `ORI=0xd87493F4C02AAD2c67Ce12aa534d188Bf44FCCAB`, `USDT.t=0x11E6c8f2806b32DaC427E7dF07F67602647Ef87a`, `USDC.t=0xd6e84789741ea2DE727961CCB383454e4A845035`, and `OrinaTestTokenFaucet=0xbBd53C18F4d9fb98aA6c4837Ea0E8F221E1B5F0F`.
+
+### Arbitrum Sepolia Deployment Path
+
+| Field | Value |
+| --- | --- |
+| Network | Arbitrum Sepolia |
+| Chain id | `421614` |
+| RPC URL | `https://sepolia-rollup.arbitrum.io/rpc` |
+| Explorer | `https://sepolia.arbiscan.io` |
+| Namespace | `orina-atp-v3.5-arbitrum-sepolia-20260628` |
+| Runtime status | Network metadata only; no canonical ATP contract addresses yet. |
+
+Do not copy BSC Testnet or Base Sepolia addresses into Arbitrum Sepolia config.
+Fill Arbitrum contract metadata only from chain `421614` Foundry broadcast artifacts
+and on-chain bytecode checks.
 
 On 2026-06-27, both networks were spot-checked for deployed bytecode on `MarketplaceATP`, `PaymentGateway`, and `DelegationManager`. `MarketplaceATP.delegationManager()` returned the listed DelegationManager on both networks, and each DelegationManager grants `CONSUMER_ROLE` to its Marketplace.
 

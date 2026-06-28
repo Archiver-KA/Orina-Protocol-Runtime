@@ -5,6 +5,8 @@ const CHAIN_LABELS: Record<number, string> = {
   56: 'BNB Smart Chain',
   97: 'BNB Smart Chain Testnet',
   137: 'Polygon',
+  42161: 'Arbitrum One',
+  421614: 'Arbitrum Sepolia',
   8453: 'Base',
   84532: 'Base Sepolia',
   43114: 'Avalanche',
@@ -12,7 +14,7 @@ const CHAIN_LABELS: Record<number, string> = {
 };
 
 export type ProtocolNetworkStatus = 'live' | 'coming';
-export type ProtocolNetworkIcon = 'avalanche' | 'bnb' | 'base' | 'polygon' | 'solana' | 'ethereum' | 'generic';
+export type ProtocolNetworkIcon = 'avalanche' | 'bnb' | 'base' | 'polygon' | 'solana' | 'ethereum' | 'arbitrum' | 'generic';
 
 export interface ProtocolNetworkOption {
   chainId?: number | null;
@@ -51,6 +53,18 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     rpcUrl: RPC_URLS[84532],
     explorerUrl: EXPLORER_URLS[84532],
     aliases: ['base sepolia', 'base testnet'],
+  },
+  {
+    chainId: 421614,
+    key: 'arbitrum-sepolia',
+    label: 'Arbitrum Sepolia',
+    shortLabel: 'Arbitrum Sepolia',
+    icon: 'arbitrum',
+    status: 'coming',
+    contracts: null,
+    rpcUrl: RPC_URLS[421614],
+    explorerUrl: EXPLORER_URLS[421614],
+    aliases: ['arbitrum sepolia', 'arb sepolia', 'arbitrum testnet'],
   },
   {
     chainId: 43114,

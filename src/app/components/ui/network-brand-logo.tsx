@@ -6,6 +6,7 @@ const NETWORK_LOGO_SOURCES: Record<ProtocolNetworkIcon, string> = {
   avalanche: '/network-logos/avalanche.png',
   bnb: '/network-logos/bnb.png',
   base: '/network-logos/base.png',
+  arbitrum: '',
   polygon: '/network-logos/polygon.png',
   solana: '/network-logos/solana.png',
   ethereum: '/network-logos/ethereum.png',

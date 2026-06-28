@@ -1,6 +1,6 @@
 # Orina Protocol Runtime User Guide
 
-Last aligned with runtime code and deployment metadata on 2026-06-26.
+Last aligned with runtime code and deployment metadata on 2026-06-28.
 
 This guide describes the current `Orina Protocol - Runtime` application, not the older documentation site snapshot. The live beta protocol surface is ATP v3.5 on BNB Chain Testnet, backed by a React/Vite client, Wagmi/Viem wallet flows, Supabase REST/Edge Functions, and local wallet-scoped runtime caches.
 
@@ -19,6 +19,8 @@ This guide describes the current `Orina Protocol - Runtime` application, not the
 Other networks can appear in the UI as coming-soon options, but protocol writes are enabled only for the configured live network.
 
 Base Sepolia contract deployment metadata is also included in the runtime configuration: chain id `84532`, `MarketplaceATP` `0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14`, `FeeManager` `0x51aB383A43d79f4127B7E7dCBcd892164FA2838F`, and `PaymentGateway` `0x1A880Ae46993282dd77C2dDCc5e36498eB616C92`. It remains non-write-enabled while governance handoff and Base-specific runtime smoke coverage are completed.
+
+Arbitrum Sepolia is also available as a coming-soon network target: chain id `421614`, RPC `https://sepolia-rollup.arbitrum.io/rpc`, explorer `https://sepolia.arbiscan.io`, namespace `orina-atp-v3.5-arbitrum-sepolia-20260628`. It has no canonical ATP contract addresses yet and must remain non-write-enabled until Foundry broadcast artifacts and bytecode checks are recorded.
 
 ## Local Startup
 
