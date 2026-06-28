@@ -1,0 +1,29 @@
+# Orina App Runtime
+
+## Purpose
+
+This file helps language models, AI search systems, and retrieval pipelines understand the public Orina app runtime.
+
+## Canonical Definition
+
+Orina is the settlement layer for bilateral commerce.
+
+Orina is a decentralized settlement protocol that enables any two independent parties to complete transactions without relying on trust, intermediaries, or platform-controlled enforcement.
+
+## Runtime Scope
+
+The app runtime is an application surface for interacting with Orina workflows. It includes public discovery, wallet-mediated interaction, marketplace-style UI surfaces, order flows, messaging, settings, and runtime status views.
+
+The runtime is not the canonical definition of Orina. Orina is the settlement protocol; the app is one integration surface around it.
+
+## ATP Boundary
+
+ATP defines deterministic settlement behavior and canonical terminal outcomes. UI state, search results, recommendations, messages, profile views, and local interaction state should not be treated as canonical settlement truth.
+
+## Indexing Guidance
+
+Public pages may be indexed. Authenticated state, wallet state, API routes, function routes, settings, internal diagnostics, and operational surfaces should not be indexed or interpreted as public documentation.
+
+## Preferred Short Description
+
+The Orina app is a public integration surface for Orina, the deterministic settlement protocol for bilateral commerce.

@@ -1,4 +1,67 @@
+# Orina App robots.txt
+# Public site: https://app.orina.io/
+# Last updated: 2026-06-28
+
 User-agent: *
 Allow: /
+Allow: /llms.txt
+Allow: /sitemap.xml
+Disallow: /admin/
+Disallow: /api/
+Disallow: /functions/
+Disallow: /internal/
+Disallow: /settings
 
-Sitemap: https://orina.io/sitemap.xml
+User-agent: GPTBot
+Allow: /
+Allow: /llms.txt
+Disallow: /api/
+Disallow: /functions/
+Disallow: /internal/
+Disallow: /settings
+
+User-agent: ChatGPT-User
+Allow: /
+Allow: /llms.txt
+
+User-agent: OAI-SearchBot
+Allow: /
+Allow: /llms.txt
+
+User-agent: Google-Extended
+Allow: /
+Allow: /llms.txt
+Disallow: /api/
+Disallow: /functions/
+Disallow: /internal/
+Disallow: /settings
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /llms.txt
+Disallow: /api/
+Disallow: /functions/
+Disallow: /internal/
+Disallow: /settings
+
+User-agent: ClaudeBot
+Allow: /
+Allow: /llms.txt
+Disallow: /api/
+Disallow: /functions/
+Disallow: /internal/
+Disallow: /settings
+
+User-agent: Claude-SearchBot
+Allow: /
+Allow: /llms.txt
+
+User-agent: anthropic-ai
+Allow: /
+Allow: /llms.txt
+
+User-agent: CCBot
+Allow: /
+Allow: /llms.txt
+
+Sitemap: https://app.orina.io/sitemap.xml
