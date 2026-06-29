@@ -6,12 +6,15 @@ import {
   decodeEventLog,
   http,
 } from 'viem';
-import { bscTestnet } from 'viem/chains';
+import {
+  resolveRpcUrl,
+  resolveV35TestnetNetwork,
+} from './lib/v35-testnet-seed-networks.mjs';
 
-const CHAIN_ID = 97;
-const MARKETPLACE = '0x18E1C8ab257FAf16Ec8257A9715d07661194150B';
-const ASSET_CONTRACT = '0x3a591AB1aB3A281f999AAD1644b020CbEC463C47';
-const DEFAULT_RPC_URL = 'https://data-seed-prebsc-1-s1.bnbchain.org:8545/';
+let ACTIVE_NETWORK = resolveV35TestnetNetwork('bnb-testnet');
+let CHAIN_ID = ACTIVE_NETWORK.chainId;
+let MARKETPLACE = ACTIVE_NETWORK.marketplace.toLowerCase();
+let ASSET_CONTRACT = ACTIVE_NETWORK.assetContract.toLowerCase();
 
 const MARKETPLACE_ABI = [
   {
@@ -109,6 +112,10 @@ function statusFromOrder(order) {
 
 async function syncReport({ reportPath, env, client }) {
   const report = JSON.parse(await fs.readFile(reportPath, 'utf8'));
+  ACTIVE_NETWORK = resolveV35TestnetNetwork(report.network || report.chainId || 'bnb-testnet');
+  CHAIN_ID = ACTIVE_NETWORK.chainId;
+  MARKETPLACE = ACTIVE_NETWORK.marketplace.toLowerCase();
+  ASSET_CONTRACT = ACTIVE_NETWORK.assetContract.toLowerCase();
   const orderId = BigInt(report.orderId);
   const order = await client.readContract({ address: MARKETPLACE, abi: MARKETPLACE_ABI, functionName: 'orders', args: [orderId] });
   const [symbol, decimals, catalogRows] = await Promise.all([
@@ -218,12 +225,16 @@ async function main() {
   const env = parseEnv(await fs.readFile('.env', 'utf8'));
   const key = env.SUPABASE_SERVICE_ROLE_KEY || env.ATP2_SUPABASE_SERVICE_ROLE_KEY;
   if (!env.VITE_SUPABASE_URL || !key) throw new Error('Supabase URL/service role env is missing');
-  const client = createPublicClient({
-    chain: bscTestnet,
-    transport: http(process.env.BSC_TESTNET_RPC_URL || process.env.RPC_URL || DEFAULT_RPC_URL),
-  });
   const results = [];
-  for (const reportPath of reportPaths) results.push(await syncReport({ reportPath, env, client }));
+  for (const reportPath of reportPaths) {
+    const report = JSON.parse(await fs.readFile(reportPath, 'utf8'));
+    const network = resolveV35TestnetNetwork(report.network || report.chainId || 'bnb-testnet');
+    const client = createPublicClient({
+      chain: network.viemChain,
+      transport: http(resolveRpcUrl(network, {})),
+    });
+    results.push(await syncReport({ reportPath, env, client }));
+  }
   console.log(JSON.stringify({ ok: true, results }, null, 2));
 }
 

@@ -10,26 +10,25 @@ import {
   maxUint256,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { bscTestnet } from 'viem/chains';
+import {
+  resolveRpcUrl,
+  resolveV35TestnetNetwork,
+} from './lib/v35-testnet-seed-networks.mjs';
 
 const CAMPAIGN_ROOT = 'C:/ORINA/ATPProtocol2/ATP2/data/bsc-testnet-100-wallet-campaign';
 const WALLETS_PATH = path.join(CAMPAIGN_ROOT, 'secrets/generated/20260418T114746Z/wallets.json');
-const MINT_LEDGER_PATH = path.join(CAMPAIGN_ROOT, 'mint-executions/v3_5_beta_seed_assets_001/ledger.json');
-const EXECUTION_DIR = path.join(CAMPAIGN_ROOT, 'protocol-order-smoke/v3_5_beta_ai_auto_seller_confirm');
-const RUNS_DIR = path.join(EXECUTION_DIR, 'runs');
 
-const CHAIN_ID = 97;
-const DEFAULT_RPC_URL = 'https://data-seed-prebsc-1-s1.bnbchain.org:8545/';
-const MARKETPLACE = '0x18E1C8ab257FAf16Ec8257A9715d07661194150B';
-const PAYMENT_GATEWAY = '0x082d75D8cA96C6e97B6b451Ad4857454A53D5C15';
-const PAYMENT_TOKENS = {
-  wbnb: '0xae13d989dac2f0debff460ac112a837c89baa7cd',
-  usdt: '0x8800279B4a5528628ef069698169C58B89377809',
-  usdc: '0xbdcA834A71F5BFF1420eb5D1B0491d58a33141E5',
-};
-const TESTNET_TOKEN_FAUCET = '0x6527262782C140e0A4724bef06431786556AfDE0';
+let ACTIVE_NETWORK = resolveV35TestnetNetwork('bnb-testnet');
+let MINT_LEDGER_PATH = path.join(CAMPAIGN_ROOT, `mint-executions/${ACTIVE_NETWORK.executionSegment}/ledger.json`);
+let EXECUTION_DIR = path.join(CAMPAIGN_ROOT, `protocol-order-smoke/${ACTIVE_NETWORK.executionSegment}_ai_auto_seller_confirm`);
+let RUNS_DIR = path.join(EXECUTION_DIR, 'runs');
+let CHAIN_ID = ACTIVE_NETWORK.chainId;
+let MARKETPLACE = ACTIVE_NETWORK.marketplace;
+let PAYMENT_GATEWAY = ACTIVE_NETWORK.paymentGateway;
+let PAYMENT_TOKENS = ACTIVE_NETWORK.tokens;
+let TESTNET_TOKEN_FAUCET = ACTIVE_NETWORK.faucet;
 
-const ORDER_DOMAIN = {
+let ORDER_DOMAIN = {
   name: 'MarketplaceATP',
   version: '3.4',
   chainId: CHAIN_ID,
@@ -141,24 +140,47 @@ function parseArgs(argv) {
   const options = {
     sellerProfile: 'P001',
     buyerProfile: 'P038',
+    network: 'bnb-testnet',
     payment: 'usdt',
     priceWei: 1n,
     amount: 1n,
     proposedEstDeliverySeconds: 86_400n,
     sellerEstDeliverySeconds: 86_400n,
-    rpcUrl: process.env.BSC_TESTNET_RPC_URL || process.env.RPC_URL || DEFAULT_RPC_URL,
+    rpcUrl: '',
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === '--seller-profile') options.sellerProfile = String(argv[++index] || '').toUpperCase();
+    if (arg === '--network') options.network = String(argv[++index] || '').trim();
+    else if (arg === '--seller-profile') options.sellerProfile = String(argv[++index] || '').toUpperCase();
     else if (arg === '--buyer-profile') options.buyerProfile = String(argv[++index] || '').toUpperCase();
     else if (arg === '--payment') options.payment = String(argv[++index] || '').toLowerCase();
     else if (arg === '--price-wei') options.priceWei = BigInt(argv[++index] || '1');
     else if (arg === '--rpc-url') options.rpcUrl = String(argv[++index] || '').trim();
     else throw new Error(`Unknown argument: ${arg}`);
   }
-  if (!PAYMENT_TOKENS[options.payment]) throw new Error(`Unsupported payment token alias: ${options.payment}`);
   return options;
+}
+
+function activateNetwork(options) {
+  ACTIVE_NETWORK = resolveV35TestnetNetwork(options.network);
+  MINT_LEDGER_PATH = path.join(CAMPAIGN_ROOT, `mint-executions/${ACTIVE_NETWORK.executionSegment}/ledger.json`);
+  EXECUTION_DIR = path.join(CAMPAIGN_ROOT, `protocol-order-smoke/${ACTIVE_NETWORK.executionSegment}_ai_auto_seller_confirm`);
+  RUNS_DIR = path.join(EXECUTION_DIR, 'runs');
+  CHAIN_ID = ACTIVE_NETWORK.chainId;
+  MARKETPLACE = normalizeAddress(ACTIVE_NETWORK.marketplace);
+  PAYMENT_GATEWAY = normalizeAddress(ACTIVE_NETWORK.paymentGateway);
+  PAYMENT_TOKENS = Object.fromEntries(
+    Object.entries(ACTIVE_NETWORK.tokens || {}).map(([key, value]) => [key, normalizeAddress(value)]),
+  );
+  TESTNET_TOKEN_FAUCET = normalizeAddress(ACTIVE_NETWORK.faucet);
+  ORDER_DOMAIN = {
+    name: 'MarketplaceATP',
+    version: '3.4',
+    chainId: CHAIN_ID,
+    verifyingContract: MARKETPLACE,
+  };
+  options.rpcUrl = options.rpcUrl || resolveRpcUrl(ACTIVE_NETWORK, options);
+  if (!PAYMENT_TOKENS[options.payment]) throw new Error(`Unsupported payment token alias for ${ACTIVE_NETWORK.key}: ${options.payment}`);
 }
 
 function readEnvText(text) {
@@ -218,7 +240,7 @@ async function signOrder(account, message) {
 }
 
 function createWalletClientFor(account, rpcUrl) {
-  return createWalletClient({ account, chain: bscTestnet, transport: http(rpcUrl) });
+  return createWalletClient({ account, chain: ACTIVE_NETWORK.viemChain, transport: http(rpcUrl) });
 }
 
 async function writeContractAndWait({ publicClient, walletClient, address, abi, functionName, args, value, gas }) {
@@ -311,6 +333,15 @@ async function readOrderWithFinalityRetry(publicClient, orderId) {
   return order;
 }
 
+async function readOrderWithSellerConfirmedRetry(publicClient, orderId) {
+  let order = await publicClient.readContract({ address: MARKETPLACE, abi: MARKETPLACE_ABI, functionName: 'orders', args: [orderId] });
+  for (let attempt = 0; attempt < 6 && !Boolean(order[20]); attempt += 1) {
+    await sleep(1500);
+    order = await publicClient.readContract({ address: MARKETPLACE, abi: MARKETPLACE_ABI, functionName: 'orders', args: [orderId] });
+  }
+  return order;
+}
+
 async function callSellerConfirmExecutor({ env, orderId, estDeliverySeconds, dryRun }) {
   const url = `${env.VITE_SUPABASE_URL.replace(/\/+$/, '')}/functions/v1/orina-ai-m2m-v2/seller-confirm/run`;
   const response = await fetch(url, {
@@ -322,6 +353,7 @@ async function callSellerConfirmExecutor({ env, orderId, estDeliverySeconds, dry
     },
     body: JSON.stringify({
       orderIds: [orderId.toString()],
+      chainId: CHAIN_ID,
       estDeliverySeconds: estDeliverySeconds.toString(),
       dryRun,
       confirmations: 1,
@@ -331,8 +363,26 @@ async function callSellerConfirmExecutor({ env, orderId, estDeliverySeconds, dry
   return { status: response.status, ok: response.ok, json };
 }
 
+async function callSellerConfirmDryRunWithRetry({ env, orderId, estDeliverySeconds }) {
+  let last = null;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    last = await callSellerConfirmExecutor({
+      env,
+      orderId,
+      estDeliverySeconds,
+      dryRun: true,
+    });
+    if (last.ok && last.json?.eligible === 1) return last;
+    const reason = last.json?.results?.[0]?.reason || '';
+    if (reason !== 'empty_order') return last;
+    await sleep(1500);
+  }
+  return last;
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  activateNetwork(options);
   const env = await loadEnv();
   const runId = createRunId();
   const wallets = JSON.parse(await fs.readFile(WALLETS_PATH, 'utf8')).map(toWallet);
@@ -345,7 +395,7 @@ async function main() {
   const asset = selectSellerAsset(mintLedger, seller.id);
   const paymentToken = PAYMENT_TOKENS[options.payment];
 
-  const publicClient = createPublicClient({ chain: bscTestnet, transport: http(options.rpcUrl) });
+  const publicClient = createPublicClient({ chain: ACTIVE_NETWORK.viemChain, transport: http(options.rpcUrl) });
   const buyerClient = createWalletClientFor(buyer.account, options.rpcUrl);
   const setupTxs = [];
   const orderTxs = {};
@@ -398,11 +448,10 @@ async function main() {
   const orderId = extractOrderProposed(createResult.receipt) || predictedOrderId;
   orderTxs.createOrder = createResult.txHash;
 
-  const dryRun = await callSellerConfirmExecutor({
+  const dryRun = await callSellerConfirmDryRunWithRetry({
     env,
     orderId,
     estDeliverySeconds: options.sellerEstDeliverySeconds,
-    dryRun: true,
   });
   if (!dryRun.ok || dryRun.json?.eligible !== 1) {
     throw new Error(`Seller confirm executor dry-run failed: ${JSON.stringify(dryRun.json)}`);
@@ -419,7 +468,7 @@ async function main() {
   }
   orderTxs.sellerConfirmFor = confirmRun.json.results?.[0]?.txHash;
 
-  const sellerConfirmedOrder = await publicClient.readContract({ address: MARKETPLACE, abi: MARKETPLACE_ABI, functionName: 'orders', args: [orderId] });
+  const sellerConfirmedOrder = await readOrderWithSellerConfirmedRetry(publicClient, orderId);
   if (!sellerConfirmedOrder[20]) {
     throw new Error('Order was not marked sellerConfirmed after executor run');
   }
@@ -462,6 +511,8 @@ async function main() {
   const report = {
     ok: true,
     runId,
+    network: ACTIVE_NETWORK.key,
+    chainId: CHAIN_ID,
     orderId: orderId.toString(),
     sellerProfile: seller.id,
     buyerProfile: buyer.id,

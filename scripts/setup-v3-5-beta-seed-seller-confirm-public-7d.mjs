@@ -10,21 +10,21 @@ import {
   zeroHash,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { bscTestnet } from 'viem/chains';
+import {
+  resolveRpcUrl,
+  resolveV35TestnetNetwork,
+} from './lib/v35-testnet-seed-networks.mjs';
 
 const CAMPAIGN_ROOT = 'C:/ORINA/ATPProtocol2/ATP2/data/bsc-testnet-100-wallet-campaign';
 const WALLETS_PATH = path.join(CAMPAIGN_ROOT, 'secrets/generated/20260418T114746Z/wallets.json');
 
-const CHAIN_ID = 97;
-const DEFAULT_RPC_URL = 'https://data-seed-prebsc-1-s1.bnbchain.org:8545/';
-const MARKETPLACE = '0x18E1C8ab257FAf16Ec8257A9715d07661194150B';
-const PAYMENT_GATEWAY = '0x082d75D8cA96C6e97B6b451Ad4857454A53D5C15';
-const PAYMENT_TOKENS = {
-  usdt: '0x8800279B4a5528628ef069698169C58B89377809',
-  usdc: '0xbdcA834A71F5BFF1420eb5D1B0491d58a33141E5',
-};
-const DELEGATION_MANAGER = '0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13';
-const AI_WALLET_FACTORY_V2 = '0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441';
+let ACTIVE_NETWORK = resolveV35TestnetNetwork('bnb-testnet');
+let CHAIN_ID = ACTIVE_NETWORK.chainId;
+let MARKETPLACE = ACTIVE_NETWORK.marketplace;
+let PAYMENT_GATEWAY = ACTIVE_NETWORK.paymentGateway;
+let PAYMENT_TOKENS = ACTIVE_NETWORK.tokens;
+let DELEGATION_MANAGER = ACTIVE_NETWORK.delegationManager;
+let AI_WALLET_FACTORY_V2 = ACTIVE_NETWORK.aiWalletFactoryV2;
 const ACTION_SELLER_CONFIRM = 1n << 3n;
 const EXPIRY_DAYS = 7;
 const EXPIRY_SECONDS = BigInt(EXPIRY_DAYS * 24 * 60 * 60);
@@ -57,14 +57,16 @@ function parseArgs(argv) {
     limit: 100,
     profileFrom: 1,
     profileTo: 100,
+    network: 'bnb-testnet',
     payment: 'usdt',
     dryRun: false,
     delayMs: 350,
-    rpcUrl: process.env.BSC_TESTNET_RPC_URL || process.env.RPC_URL || DEFAULT_RPC_URL,
+    rpcUrl: '',
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === '--limit') options.limit = Math.max(1, Number.parseInt(argv[++index] || '1', 10) || 1);
+    if (arg === '--network') options.network = String(argv[++index] || '').trim();
+    else if (arg === '--limit') options.limit = Math.max(1, Number.parseInt(argv[++index] || '1', 10) || 1);
     else if (arg === '--profile-from') options.profileFrom = Math.max(1, Number.parseInt(argv[++index] || '1', 10) || 1);
     else if (arg === '--profile-to') options.profileTo = Math.min(100, Number.parseInt(argv[++index] || '100', 10) || 100);
     else if (arg === '--payment') options.payment = String(argv[++index] || '').trim().toLowerCase();
@@ -74,8 +76,19 @@ function parseArgs(argv) {
     else throw new Error(`Unknown argument: ${arg}`);
   }
   if (options.profileFrom > options.profileTo) throw new Error('--profile-from must be <= --profile-to');
-  if (!PAYMENT_TOKENS[options.payment]) throw new Error(`Unsupported payment token: ${options.payment}`);
   return options;
+}
+
+function activateNetwork(options) {
+  ACTIVE_NETWORK = resolveV35TestnetNetwork(options.network);
+  CHAIN_ID = ACTIVE_NETWORK.chainId;
+  MARKETPLACE = ACTIVE_NETWORK.marketplace;
+  PAYMENT_GATEWAY = ACTIVE_NETWORK.paymentGateway;
+  PAYMENT_TOKENS = ACTIVE_NETWORK.tokens;
+  DELEGATION_MANAGER = ACTIVE_NETWORK.delegationManager;
+  AI_WALLET_FACTORY_V2 = ACTIVE_NETWORK.aiWalletFactoryV2;
+  options.rpcUrl = options.rpcUrl || resolveRpcUrl(ACTIVE_NETWORK, options);
+  if (!PAYMENT_TOKENS[options.payment]) throw new Error(`Unsupported payment token for ${ACTIVE_NETWORK.key}: ${options.payment}`);
 }
 
 function readEnvText(text) {
@@ -111,7 +124,7 @@ function executionPaths(options) {
   const cohort = `${formatProfileId(options.profileFrom).toLowerCase()}_${formatProfileId(options.profileTo).toLowerCase()}`;
   const executionDir = path.join(
     CAMPAIGN_ROOT,
-    `ai-wallet-setup/v3_5_beta_dual_token_${options.payment}_t_${cohort}_seller_confirm_7d_public`,
+    `ai-wallet-setup/${ACTIVE_NETWORK.executionSegment}_dual_token_${options.payment}_t_${cohort}_seller_confirm_7d_public`,
   );
   return {
     ledgerPath: path.join(executionDir, 'ledger.json'),
@@ -350,6 +363,7 @@ async function getActiveSession(publicClient, rootAddress) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  activateNetwork(options);
   const env = await loadEnv();
   const runId = createRunId();
   const paymentToken = PAYMENT_TOKENS[options.payment];
@@ -374,7 +388,7 @@ async function main() {
   }
 
   const publicClient = createPublicClient({
-    chain: bscTestnet,
+    chain: ACTIVE_NETWORK.viemChain,
     transport: http(options.rpcUrl),
   });
 
@@ -402,11 +416,11 @@ async function main() {
 
     try {
       const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
-      const walletClient = createWalletClient({
-        account: wallet.account,
-        chain: bscTestnet,
-        transport: http(options.rpcUrl),
-      });
+        const walletClient = createWalletClient({
+          account: wallet.account,
+          chain: ACTIVE_NETWORK.viemChain,
+          transport: http(options.rpcUrl),
+        });
 
       const active = await getActiveSession(publicClient, wallet.account.address);
       if (active && isDesiredSellerConfirmSession(active.session, nowSeconds, paymentToken)) {
