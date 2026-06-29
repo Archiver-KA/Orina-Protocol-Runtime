@@ -1,8 +1,8 @@
 import { Hono } from 'npm:hono';
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { createPublicClient, createWalletClient, http, zeroAddress } from 'npm:viem';
+import { createPublicClient, createWalletClient, http, type Chain, zeroAddress } from 'npm:viem';
 import { privateKeyToAccount } from 'npm:viem/accounts';
-import { bscTestnet } from 'npm:viem/chains';
+import { arbitrumSepolia, baseSepolia, bscTestnet } from 'npm:viem/chains';
 import * as kv from './kv_store.tsx';
 import {
   assertAuthenticatedWalletMatch,
@@ -32,21 +32,47 @@ const DELEGATE_INVITE_ID_MAX_ATTEMPTS = 8;
 const DELEGATE_ENCRYPTION_SECRET_ENV = 'ATP2_M2M_DELEGATE_ENCRYPTION_KEY';
 const SELLER_CONFIRM_ACTION_BIT = 1n << 3n;
 const DEFAULT_CHAIN_ID = 97;
-const DEFAULT_RPC_URL =
-  Deno.env.get('BSC_TESTNET_RPC')
-  || Deno.env.get('BSC_TESTNET_RPC_URL')
-  || Deno.env.get('RPC_URL')
-  || 'https://data-seed-prebsc-1-s1.bnbchain.org:8545/';
-const DEFAULT_MARKETPLACE =
-  Deno.env.get('MARKETPLACE_ATP_ADDRESS')
-  || Deno.env.get('MARKETPLACE_ATP')
-  || Deno.env.get('VITE_MARKETPLACE_ATP')
-  || '0x18E1C8ab257FAf16Ec8257A9715d07661194150B';
-const DEFAULT_DELEGATION_MANAGER =
-  Deno.env.get('M2M_DELEGATION_MANAGER')
-  || Deno.env.get('VITE_M2M_DELEGATION_MANAGER')
-  || '0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13';
 const DEFAULT_MAX_SELLER_CONFIRM_BATCH = 20;
+
+type SellerConfirmNetwork = {
+  chainId: number;
+  chain: Chain;
+  rpcUrl: string;
+  marketplace: string;
+  delegationManager: string;
+};
+
+function firstEnv(...names: string[]): string {
+  for (const name of names) {
+    const value = String(Deno.env.get(name) || '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+const SELLER_CONFIRM_NETWORKS: Record<number, SellerConfirmNetwork> = {
+  97: {
+    chainId: 97,
+    chain: bscTestnet,
+    rpcUrl: firstEnv('BSC_TESTNET_RPC', 'BSC_TESTNET_RPC_URL', 'RPC_URL') || 'https://data-seed-prebsc-1-s1.bnbchain.org:8545/',
+    marketplace: firstEnv('BSC_TESTNET_MARKETPLACE_ATP_ADDRESS', 'MARKETPLACE_ATP_ADDRESS', 'MARKETPLACE_ATP', 'VITE_MARKETPLACE_ATP') || '0x18E1C8ab257FAf16Ec8257A9715d07661194150B',
+    delegationManager: firstEnv('BSC_TESTNET_M2M_DELEGATION_MANAGER', 'M2M_DELEGATION_MANAGER', 'VITE_M2M_DELEGATION_MANAGER') || '0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13',
+  },
+  84532: {
+    chainId: 84532,
+    chain: baseSepolia,
+    rpcUrl: firstEnv('BASE_SEPOLIA_RPC', 'BASE_SEPOLIA_RPC_URL') || 'https://sepolia.base.org',
+    marketplace: firstEnv('BASE_SEPOLIA_MARKETPLACE_ATP_ADDRESS') || '0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14',
+    delegationManager: firstEnv('BASE_SEPOLIA_M2M_DELEGATION_MANAGER') || '0xFC0038B7CC628966f8a7f14414c9386c2d6cB288',
+  },
+  421614: {
+    chainId: 421614,
+    chain: arbitrumSepolia,
+    rpcUrl: firstEnv('ARBITRUM_SEPOLIA_RPC', 'ARBITRUM_SEPOLIA_RPC_URL') || 'https://sepolia-rollup.arbitrum.io/rpc',
+    marketplace: firstEnv('ARBITRUM_SEPOLIA_MARKETPLACE_ATP_ADDRESS') || '0x5863f25A8250EBe20Bd1E3d04FD796081Fc3D72E',
+    delegationManager: firstEnv('ARBITRUM_SEPOLIA_M2M_DELEGATION_MANAGER') || '0x56D454f55D5d05b060777F70e653BbBEb1167D2e',
+  },
+};
 
 const MARKETPLACE_SELLER_CONFIRM_ABI = [{
   type: 'function',
@@ -271,15 +297,19 @@ function hexToBytes(hex: string): Uint8Array {
   return bytes;
 }
 
+function bytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
 async function openManagedDelegateBackup(record: ManagedDelegateSecretRecord): Promise<`0x${string}`> {
   if (!record || record.version !== 1) {
     throw new Error('Unsupported managed delegate secret version');
   }
   const key = await getDelegateEncryptionKey();
   const plaintext = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: hexToBytes(record.ivHex) },
+    { name: 'AES-GCM', iv: bytesToArrayBuffer(hexToBytes(record.ivHex)) },
     key,
-    hexToBytes(record.ciphertextHex),
+    bytesToArrayBuffer(hexToBytes(record.ciphertextHex)),
   );
   const privateKey = new TextDecoder().decode(plaintext).trim();
   if (!/^0x[a-f0-9]{64}$/i.test(privateKey)) {
@@ -332,7 +362,7 @@ function stringifyBigInt(value: unknown): unknown {
   return value;
 }
 
-async function candidateSellerConfirmOrderIds(limit: number): Promise<bigint[]> {
+async function candidateSellerConfirmOrderIds(limit: number, network = SELLER_CONFIRM_NETWORKS[DEFAULT_CHAIN_ID]): Promise<bigint[]> {
   const supabaseUrl = String(Deno.env.get('SUPABASE_URL') || '').trim();
   const serviceRoleKey = String(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '').trim();
   if (!supabaseUrl || !serviceRoleKey) return [];
@@ -341,8 +371,8 @@ async function candidateSellerConfirmOrderIds(limit: number): Promise<bigint[]> 
   const { data, error } = await supabase
     .from('protocol_orders')
     .select('order_uid')
-    .eq('chain_id', DEFAULT_CHAIN_ID)
-    .eq('marketplace_contract', normalizeWalletAddress(DEFAULT_MARKETPLACE))
+    .eq('chain_id', network.chainId)
+    .eq('marketplace_contract', normalizeWalletAddress(network.marketplace))
     .in('status', ['pending_seller_confirm', 'pending_confirm'])
     .order('updated_at', { ascending: true })
     .limit(limit);
@@ -946,14 +976,23 @@ aiM2MWallet.post('/seller-confirm/run', async (c) => {
     );
     const dryRun = body.dryRun === true;
     const confirmations = Math.max(0, Math.min(3, Math.trunc(Number(body.confirmations ?? 1)) || 0));
+    const requestedChainId = Math.trunc(Number(body.chainId || DEFAULT_CHAIN_ID));
+    const network = SELLER_CONFIRM_NETWORKS[requestedChainId];
+    if (!network) {
+      return c.json({
+        error: 'Unsupported seller-confirm executor chain',
+        chainId: requestedChainId,
+        supportedChainIds: Object.keys(SELLER_CONFIRM_NETWORKS).map(Number),
+      }, 400);
+    }
     let orderIds = parseOrderIds(body.orderIds, limit);
     if (orderIds.length === 0) {
-      orderIds = await candidateSellerConfirmOrderIds(limit);
+      orderIds = await candidateSellerConfirmOrderIds(limit, network);
     }
 
     const publicClient = createPublicClient({
-      chain: bscTestnet,
-      transport: http(DEFAULT_RPC_URL),
+      chain: network.chain,
+      transport: http(network.rpcUrl),
     });
     const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
     const results: Array<Record<string, unknown>> = [];
@@ -961,7 +1000,7 @@ aiM2MWallet.post('/seller-confirm/run', async (c) => {
     for (const orderId of orderIds) {
       try {
         const order = await publicClient.readContract({
-          address: DEFAULT_MARKETPLACE as `0x${string}`,
+          address: network.marketplace as `0x${string}`,
           abi: MARKETPLACE_SELLER_CONFIRM_ABI,
           functionName: 'orders',
           args: [orderId],
@@ -970,6 +1009,7 @@ aiM2MWallet.post('/seller-confirm/run', async (c) => {
         const buyer = normalizeWalletAddress(order[0]);
         const seller = normalizeWalletAddress(order[1]);
         const assetId = BigInt(order[5] || 0n);
+        const paymentToken = normalizeWalletAddress(order[4]);
         const grossPrice = BigInt(order[7] || 0n);
         const proposedDeliverySeconds = BigInt(order[11] || 0n);
         const state = Number(order[13]);
@@ -980,6 +1020,7 @@ aiM2MWallet.post('/seller-confirm/run', async (c) => {
           results.push({ orderId: orderId.toString(), status: 'skipped', reason: 'empty_order' });
           continue;
         }
+        const sellerAddress = seller as `0x${string}`;
         if (finalized || sellerConfirmed || state !== 0) {
           results.push({ orderId: orderId.toString(), status: 'skipped', reason: 'not_pending_seller_confirm', state, finalized, sellerConfirmed });
           continue;
@@ -1002,10 +1043,10 @@ aiM2MWallet.post('/seller-confirm/run', async (c) => {
         }
 
         const hasActive = await publicClient.readContract({
-          address: DEFAULT_DELEGATION_MANAGER as `0x${string}`,
+          address: network.delegationManager as `0x${string}`,
           abi: MANAGER_READ_ABI,
           functionName: 'hasActiveCycle',
-          args: [seller],
+          args: [sellerAddress],
         });
         if (!hasActive) {
           results.push({ orderId: orderId.toString(), status: 'skipped', reason: 'seller_has_no_active_m2m_cycle', seller });
@@ -1013,22 +1054,23 @@ aiM2MWallet.post('/seller-confirm/run', async (c) => {
         }
 
         const sessionNonce = await publicClient.readContract({
-          address: DEFAULT_DELEGATION_MANAGER as `0x${string}`,
+          address: network.delegationManager as `0x${string}`,
           abi: MANAGER_READ_ABI,
           functionName: 'activeSessionNonce',
-          args: [seller],
+          args: [sellerAddress],
         }) as bigint;
         const session = await publicClient.readContract({
-          address: DEFAULT_DELEGATION_MANAGER as `0x${string}`,
+          address: network.delegationManager as `0x${string}`,
           abi: MANAGER_READ_ABI,
           functionName: 'getSession',
-          args: [seller, sessionNonce],
+          args: [sellerAddress, sessionNonce],
         }) as Record<string, unknown>;
 
         const actionMask = BigInt(session.actionMask as bigint | string | number || 0n);
         const validUntil = BigInt(session.validUntil as bigint | string | number || 0n);
         const maxDeliverySeconds = BigInt(session.maxDeliverySeconds as bigint | string | number || 0n);
         const minGrossPrice = BigInt(session.minGrossPrice as bigint | string | number || 0n);
+        const allowedToken = normalizeWalletAddress(String(session.paymentToken || ''));
         const counterpartyAllowlistHash = String(session.counterpartyAllowlistHash || '').toLowerCase();
         const deliverySeconds = BigInt(body.estDeliverySeconds || proposedDeliverySeconds || 86_400);
 
@@ -1036,6 +1078,7 @@ aiM2MWallet.post('/seller-confirm/run', async (c) => {
           session.exists !== true
           || Number(session.status) !== 1
           || normalizeWalletAddress(String(session.delegate || '')) !== normalizeWalletAddress(delegate.delegateAddress)
+          || allowedToken !== paymentToken
           || (actionMask & SELLER_CONFIRM_ACTION_BIT) !== SELLER_CONFIRM_ACTION_BIT
           || validUntil <= nowSeconds
           || counterpartyAllowlistHash !== '0x0000000000000000000000000000000000000000000000000000000000000000'
@@ -1050,6 +1093,8 @@ aiM2MWallet.post('/seller-confirm/run', async (c) => {
             sessionNonce: sessionNonce.toString(),
             session: {
               delegate: session.delegate,
+              paymentToken: session.paymentToken,
+              orderPaymentToken: paymentToken,
               status: session.status,
               actionMask: actionMask.toString(),
               validUntil: validUntil.toString(),
@@ -1068,6 +1113,7 @@ aiM2MWallet.post('/seller-confirm/run', async (c) => {
             seller,
             buyer,
             assetId: assetId.toString(),
+            chainId: network.chainId,
             grossPrice: grossPrice.toString(),
             sessionNonce: sessionNonce.toString(),
             delegateAddress: delegate.delegateAddress,
@@ -1088,22 +1134,22 @@ aiM2MWallet.post('/seller-confirm/run', async (c) => {
 
         const walletClient = createWalletClient({
           account,
-          chain: bscTestnet,
-          transport: http(DEFAULT_RPC_URL),
+          chain: network.chain,
+          transport: http(network.rpcUrl),
         });
         await publicClient.simulateContract({
           account,
-          address: DEFAULT_MARKETPLACE as `0x${string}`,
+          address: network.marketplace as `0x${string}`,
           abi: MARKETPLACE_SELLER_CONFIRM_ABI,
           functionName: 'sellerConfirmFor',
-          args: [orderId, seller, deliverySeconds, sessionNonce],
+          args: [orderId, sellerAddress, deliverySeconds, sessionNonce],
         });
         const txHash = await walletClient.writeContract({
-          address: DEFAULT_MARKETPLACE as `0x${string}`,
+          address: network.marketplace as `0x${string}`,
           abi: MARKETPLACE_SELLER_CONFIRM_ABI,
           functionName: 'sellerConfirmFor',
           gas: 350000n,
-          args: [orderId, seller, deliverySeconds, sessionNonce],
+          args: [orderId, sellerAddress, deliverySeconds, sessionNonce],
         });
         const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, confirmations });
 
@@ -1112,6 +1158,7 @@ aiM2MWallet.post('/seller-confirm/run', async (c) => {
           status: 'confirmed',
           seller,
           buyer,
+          chainId: network.chainId,
           txHash,
           blockNumber: receipt.blockNumber.toString(),
           gasUsed: receipt.gasUsed.toString(),
