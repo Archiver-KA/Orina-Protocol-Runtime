@@ -63,7 +63,7 @@ Base Sepolia is a separately deployed ATP v3.5 testnet stack on chain `84532`, d
 | `USDT.t` | `0x11E6c8f2806b32dAC427E7Df07F67602647eF87A` |
 | `USDC.t` | `0xD6E84789741Ea2DE727961cCB383454E4A845035` |
 
-`MarketplaceATP.VERSION` is `3.4`; `FeeManager.VERSION` and `PaymentGateway.VERSION` are `3.5`, matching the BSC Testnet beta. Base Sepolia currently uses timelock `0x989b893118237f710b7Efc8820147B61c68DcaEE` as the Marketplace governance actor. The remaining shared hardening item is M2M `DelegationManager.DEFAULT_ADMIN_ROLE`, which is still held by deployment/admin EOA `0x282Be18838D7079C215F49749a9606d77e00888b` on the verified testnets.
+`MarketplaceATP.VERSION` is `3.4`; `FeeManager.VERSION` and `PaymentGateway.VERSION` are `3.5`, matching the BSC Testnet beta. Base Sepolia currently uses timelock `0x989b893118237f710b7Efc8820147B61c68DcaEE` as the Marketplace governance actor. Its M2M `DelegationManager.DEFAULT_ADMIN_ROLE` remains a Base testnet hardening item because deployment/admin EOA `0x282Be18838D7079C215F49749a9606d77e00888b` still holds it on that deployment; the June 29, 2026 Arbitrum Sepolia redeploy moves DelegationManager admin under its Arbitrum testnet timelock.
 
 ## Arbitrum Sepolia Deployment
 
@@ -82,18 +82,20 @@ Arbitrum Sepolia is a separately deployed ATP v3.5 testnet stack on chain `42161
 | `AIWalletFactoryV2` | `0x143519194A9Df4678b602BEE329C1A96381d1CBD` |
 | `TimelockController` | `0x66Bf76Fdf268976080f119278982B082f417FbAD` |
 
-On June 29, 2026, `MarketplaceATP.delegationManager()` returned `0x56D454f55D5d05b060777F70e653BbBEb1167D2e` on Arbitrum Sepolia.
+On June 29, 2026, `MarketplaceATP.delegationManager()` returned `0x56D454f55D5d05b060777F70e653BbBEb1167D2e` on Arbitrum Sepolia. The runtime verification gate also checks `MarketplaceATP.VERSION == 3.4`, `FeeManager.VERSION == 3.5`, `PaymentGateway.VERSION == 3.5`, starter-kit token metadata, timelock delay, and Arbitrum-specific M2M roles.
 
 ### Governance and fee endpoints
 
-| Role / endpoint | Address |
-| --- | --- |
-| Governance safe | `0x554c4F489846e293bA251fb8B863FE1241306138` |
-| Arbiter multisig | `0x1528378116b3D025761aB81AFF5F315c1905340A` |
-| Emergency multisig | `0x404118A64Fa63409aC355E98d321a16eD0D5D21F` |
-| Fee vault | `0x130fF04D269f0E9C0eaa984C167bd746bB68F82a` |
-| DAO vault | `0x8069c3e6E6156707746885d9328a35C874B835CF` |
-| Referral vault | `0x3FB0B92FcC489A53eb0F172e5D919346e2DeF3c2` |
+| Role / endpoint | Address | Notes |
+| --- | --- | --- |
+| BSC/Base governance safe | `0x554c4F489846e293bA251fb8B863FE1241306138` | Not the Arbitrum Sepolia signer. |
+| Arbitrum Sepolia testnet timelock | `0x66Bf76Fdf268976080f119278982B082f417FbAD` | Owns Marketplace governance and DelegationManager admin for this testnet address set. |
+| Arbitrum Sepolia testnet operator EOA | `0x282Be18838D7079C215F49749a9606d77e00888b` | Timelock admin, proposer, executor, and canceller with zero delay for testnet only. |
+| Arbiter multisig | `0x1528378116b3D025761aB81AFF5F315c1905340A` | Runtime dispute arbiter endpoint. |
+| Emergency multisig | `0x404118A64Fa63409aC355E98d321a16eD0D5D21F` | Runtime emergency endpoint. |
+| Fee vault | `0x130fF04D269f0E9C0eaa984C167bd746bB68F82a` | Fee settlement vault. |
+| DAO vault | `0x8069c3e6E6156707746885d9328a35C874B835CF` | DAO fee vault. |
+| Referral vault | `0x3FB0B92FcC489A53eb0F172e5D919346e2DeF3c2` | Referral fee vault. |
 
 No protocol burn address is used by the v3.5 beta fee model.
 

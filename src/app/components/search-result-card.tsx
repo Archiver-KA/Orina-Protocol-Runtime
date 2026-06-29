@@ -28,6 +28,11 @@ const NETWORK_LOGO_PATHS: Record<string, string> = {
   'ethereum-testnet': '/network-logos/ethereum.png',
   polygon: '/network-logos/polygon.png',
   base: '/network-logos/base.png',
+  arbitrum: '/network-logos/arbitrum.png',
+  arb: '/network-logos/arbitrum.png',
+  'arbitrum-one': '/network-logos/arbitrum.png',
+  'arbitrum-sepolia': '/network-logos/arbitrum.png',
+  'arbitrum-testnet': '/network-logos/arbitrum.png',
   avalanche: '/network-logos/avalanche.png',
   solana: '/network-logos/solana.png',
 };

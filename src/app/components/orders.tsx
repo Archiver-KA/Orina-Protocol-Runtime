@@ -83,7 +83,7 @@ const NETWORK_OPTIONS = [
   { value: 'all', label: 'All Networks' },
   { value: 'eth', label: 'Ethereum Mainnet', icon: <NetworkBrandLogo icon="ethereum" label="Ethereum" className="h-4 w-4" />, tag: 'EVM' },
   { value: 'poly', label: 'Polygon', icon: <NetworkBrandLogo icon="polygon" label="Polygon" className="h-4 w-4" /> },
-  { value: 'arb', label: 'Arbitrum One', icon: <NetworkBrandLogo icon="generic" label="Arbitrum One" className="h-4 w-4" /> },
+  { value: 'arb', label: 'Arbitrum One', icon: <NetworkBrandLogo icon="arbitrum" label="Arbitrum One" className="h-4 w-4" /> },
   { value: 'arbitrum-sepolia', label: 'Arbitrum Sepolia', icon: <NetworkBrandLogo icon="arbitrum" label="Arbitrum Sepolia" className="h-4 w-4" /> },
   { value: 'sol', label: 'Solana', icon: <NetworkBrandLogo icon="solana" label="Solana" className="h-4 w-4" /> },
   { value: 'bnb', label: 'BNB Chain', icon: <NetworkBrandLogo icon="bnb" label="BNB Chain" className="h-4 w-4" />, tag: 'EVM' },

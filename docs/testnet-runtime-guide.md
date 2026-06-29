@@ -165,3 +165,5 @@ Run these checks before opening beta traffic:
 5. Confirm UI labels show `USDT.t` and `USDC.t`.
 6. Confirm production/mainnet env has starter kit disabled.
 7. Run `npm run verify:testnet-networks` before changing a network from blocked/coming to live.
+
+The verification script is the shared operations gate for BSC Testnet, Base Sepolia, and Arbitrum Sepolia. It fails if declared bytecode, runtime versions, `MarketplaceATP.delegationManager()`, starter-kit token metadata, or network-specific governance expectations drift from the recorded address set.
