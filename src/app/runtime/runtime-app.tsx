@@ -20,7 +20,7 @@ import { useCommandPalette } from '@/hooks/useCommandPalette';
 import { getConversations as getChatConversations } from '@/utils/messagesClient';
 import { buildNotificationSourceId } from '@/utils/notifications';
 import { shortenUserDisplayName } from '@/utils/profileUtils';
-import { TESTNET_STARTER_KIT } from '@/config/testnetFaucet';
+import { isTestnetStarterKitAvailable } from '@/config/testnetFaucet';
 import { TestnetStarterKitModal } from '@/app/components/testnet-starter-kit-modal';
 import type { RuntimeAppProps } from '@/app/runtime/runtime-app-types';
 import type { MintingSidebarTelemetry } from '@/app/components/minting-right-sidebar';
@@ -393,7 +393,7 @@ function RuntimeAppContent({
   const hasNativeShellRightRail = !isGuest && SHELL_RIGHT_RAIL_PAGES.has(activePage);
   const aiUsesEmbeddedRightRail = showAISidebar && AI_EMBEDDED_RAIL_PAGES.has(activePage);
   const shouldShowTestnetStarterKit =
-    TESTNET_STARTER_KIT.enabled && chainId === TESTNET_STARTER_KIT.chainId;
+    isTestnetStarterKitAvailable(chainId);
   const mainGridColumns =
     hasNativeShellRightRail || aiUsesEmbeddedRightRail || LEGACY_GRID_RAIL_PAGES.has(activePage)
       ? '1fr var(--t-shell-right-rail-w)'

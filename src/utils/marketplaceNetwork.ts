@@ -134,6 +134,19 @@ const CHAIN_INFOS = {
     color: '#28A0F0',
     chainId: 42161,
   }),
+  'arbitrum-sepolia': buildChainInfo({
+    blockchain: 'Arbitrum',
+    network: 'testnet',
+    filterValue: 'arbitrum-sepolia',
+    label: 'Arbitrum Sepolia',
+    fullName: 'Arbitrum Sepolia',
+    currency: 'ETH',
+    explorer: 'sepolia.arbiscan.io',
+    blockTime: '~0.26s',
+    consensus: 'Optimistic',
+    color: '#28A0F0',
+    chainId: 421614,
+  }),
   base: buildChainInfo({
     blockchain: 'Base',
     network: 'mainnet',
@@ -147,6 +160,19 @@ const CHAIN_INFOS = {
     color: '#0052FF',
     chainId: 8453,
   }),
+  'base-sepolia': buildChainInfo({
+    blockchain: 'Base',
+    network: 'testnet',
+    filterValue: 'base-sepolia',
+    label: 'Base Sepolia',
+    fullName: 'Base Sepolia',
+    currency: 'ETH',
+    explorer: 'sepolia.basescan.org',
+    blockTime: '~2s',
+    consensus: 'Optimistic',
+    color: '#0052FF',
+    chainId: 84532,
+  }),
 } as const;
 
 const CHAIN_INFO_BY_CHAIN_ID: Record<number, MarketplaceChainInfo> = {
@@ -155,7 +181,9 @@ const CHAIN_INFO_BY_CHAIN_ID: Record<number, MarketplaceChainInfo> = {
   97: CHAIN_INFOS['bnb-testnet'],
   137: CHAIN_INFOS.polygon,
   8453: CHAIN_INFOS.base,
+  84532: CHAIN_INFOS['base-sepolia'],
   42161: CHAIN_INFOS.arbitrum,
+  421614: CHAIN_INFOS['arbitrum-sepolia'],
   11155111: CHAIN_INFOS['ethereum-testnet'],
 };
 
@@ -174,8 +202,12 @@ function getChainInfoFromProtocolValue(value?: string | number | null): Marketpl
       return CHAIN_INFOS.polygon;
     case 'arbitrum':
       return CHAIN_INFOS.arbitrum;
+    case 'arbitrum-sepolia':
+      return CHAIN_INFOS['arbitrum-sepolia'];
     case 'base':
       return CHAIN_INFOS.base;
+    case 'base-sepolia':
+      return CHAIN_INFOS['base-sepolia'];
     default:
       return undefined;
   }
@@ -228,12 +260,24 @@ function getChainInfoFromText(
     return CHAIN_INFOS.polygon;
   }
 
+  if (
+    normalizedBlockchain === 'arbitrum-sepolia' ||
+    normalizedBlockchain === 'arb-sepolia' ||
+    normalizedBlockchain === 'arbitrum-testnet'
+  ) {
+    return CHAIN_INFOS['arbitrum-sepolia'];
+  }
+
   if (normalizedBlockchain === 'arbitrum' || normalizedBlockchain === 'arbitrum-one') {
-    return CHAIN_INFOS.arbitrum;
+    return normalizedNetwork === 'testnet' ? CHAIN_INFOS['arbitrum-sepolia'] : CHAIN_INFOS.arbitrum;
+  }
+
+  if (normalizedBlockchain === 'base-sepolia' || normalizedBlockchain === 'base-testnet') {
+    return CHAIN_INFOS['base-sepolia'];
   }
 
   if (normalizedBlockchain === 'base') {
-    return CHAIN_INFOS.base;
+    return normalizedNetwork === 'testnet' ? CHAIN_INFOS['base-sepolia'] : CHAIN_INFOS.base;
   }
 
   if (!normalizedBlockchain && normalizedNetwork === 'testnet') {

@@ -1,26 +1,24 @@
 # Orina Protocol Runtime User Guide
 
-Last aligned with runtime code and deployment metadata on 2026-06-28.
+Last aligned with runtime code and deployment metadata on 2026-06-29.
 
-This guide describes the current `Orina Protocol - Runtime` application, not the older documentation site snapshot. The live beta protocol surface is ATP v3.5 on BNB Chain Testnet, backed by a React/Vite client, Wagmi/Viem wallet flows, Supabase REST/Edge Functions, and local wallet-scoped runtime caches.
+This guide describes the current `Orina Protocol - Runtime` application, not the older documentation site snapshot. The live beta protocol surface is ATP v3.5 on operated testnets, backed by a React/Vite client, Wagmi/Viem wallet flows, Supabase REST/Edge Functions, and local wallet-scoped runtime caches.
 
 ## Current Runtime Baseline
 
 - Frontend: React, TypeScript, Vite, Tailwind, Wagmi, Viem.
 - Wallet connector: browser injected EIP-1193 wallets, with MetaMask as the primary tested wallet.
-- Live protocol network: BNB Chain Testnet, chain id `97`.
-- Protocol namespace: `orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604`.
-- Primary marketplace contract: `MarketplaceATP` at `0x18E1C8ab257FAf16Ec8257A9715d07661194150B`.
-- Asset contract: `OrinaRWA` at `0x3a591AB1aB3A281f999AAD1644b020CbEC463C47`.
-- Receipt contract: `RWAReceiptNFT` at `0x16A35bdD00dCfb9010504FbD1b2B97e26bB315ca`.
-- Supported payment token list in the client: testnet `USDT`, `USDC`, `WBNB`, and `ORI`.
+- Live protocol networks: BNB Chain Testnet `97`, Base Sepolia `84532`, and Arbitrum Sepolia `421614`.
+- Default protocol namespace: `orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604`.
+- Network-specific marketplace, asset, receipt, payment, and M2M addresses are selected from `src/config/contracts.ts` through the protocol network router.
+- Supported payment token list in the client: chain-scoped testnet `USDT.t`, `USDC.t`, optional wrapped native where configured, and `ORI`.
 - Protocol fee model: no burn; USDT/USDC fee token total is 2% (`1%` platform + `1%` DAO), ORI fee token total is 1% (`0.5%` platform + `0.5%` DAO).
 
-Other networks can appear in the UI as coming-soon options, but protocol writes are enabled only for the configured live network.
+Other networks can appear in the UI as coming-soon or governance-blocked options, but protocol writes are enabled only for networks marked `live`.
 
-Base Sepolia contract deployment metadata is also included in the runtime configuration: chain id `84532`, `MarketplaceATP` `0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14`, `FeeManager` `0x51aB383A43d79f4127B7E7dCBcd892164FA2838F`, and `PaymentGateway` `0x1A880Ae46993282dd77C2dDCc5e36498eB616C92`. It remains non-write-enabled while governance handoff and Base-specific runtime smoke coverage are completed.
+Base Sepolia contract deployment metadata is included in the runtime configuration: chain id `84532`, `MarketplaceATP` `0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14`, `FeeManager` `0x51aB383A43d79f4127B7E7dCBcd892164FA2838F`, and `PaymentGateway` `0x1A880Ae46993282dd77C2dDCc5e36498eB616C92`. Base Sepolia is write-enabled after the 2026-06-28 bytecode and Marketplace M2M delegation checks.
 
-Arbitrum Sepolia is also available as a coming-soon network target: chain id `421614`, RPC `https://sepolia-rollup.arbitrum.io/rpc`, explorer `https://sepolia.arbiscan.io`, namespace `orina-atp-v3.5-arbitrum-sepolia-20260628`. Contracts are deployed and bytecode-checked, but it must remain non-write-enabled until the timelock wires `MarketplaceATP.setDelegationManager(address)`.
+Arbitrum Sepolia is available as a live testnet target: chain id `421614`, RPC `https://sepolia-rollup.arbitrum.io/rpc`, explorer `https://sepolia.arbiscan.io`, namespace `orina-atp-v3.5-arbitrum-sepolia-eoa-testnet-20260629`. Contracts are deployed, bytecode-checked, and M2M-linked. Governance for this testnet uses deployer EOA through a zero-delay timelock because multisig signing is unavailable on Arbitrum Sepolia; mainnet must redeploy with the production multisig/Safe and replace the address set.
 
 ## Local Startup
 
@@ -78,7 +76,7 @@ The connected runtime shell uses the left sidebar and top navigation:
 - `Agent Setting`: API keys, AI assistant, AI M2M wallet, and seller automation settings.
 - `Settings`: profile, delivery addresses, theme, wallet-scoped preferences.
 
-When connected on BSC Testnet, the top navigation can expose `Testnet Starter Kit`. That modal guides tBNB gas setup, testnet-only `USDT.t` / `USDC.t` claims, and QA rankings.
+When connected on an operated testnet, the top navigation can expose `Testnet Starter Kit`. That modal guides native gas setup, testnet-only `USDT.t` / `USDC.t` claims, and QA rankings.
 
 The top search bar navigates to `/search` and can search assets, profiles, collections, and taxonomy categories.
 
@@ -86,11 +84,11 @@ The top search bar navigates to `/search` and can search assets, profiles, colle
 
 1. Install and unlock MetaMask or another injected wallet.
 2. Connect wallet from the top-right wallet button.
-3. Switch to BNB Chain Testnet, chain id `97`.
-4. Keep testnet BNB available for gas.
-5. Use one of the configured ERC-20 payment tokens for protocol purchases. Native BNB is used for gas; WBNB is the payment-token form.
+3. Switch to a live runtime testnet: BNB Chain Testnet `97` or Base Sepolia `84532`.
+4. Keep the selected network's native test gas available.
+5. Use one of the configured ERC-20 payment tokens for protocol purchases. Native gas pays transaction fees; payment tokens are ERC-20 assets.
 
-For beta testing, use the Testnet Starter Kit modal only on BSC Testnet. `USDT.t` and `USDC.t` are faucet-minted mock tokens and must not be treated as mainnet stablecoins.
+For beta testing, use the Testnet Starter Kit modal only on operated testnets. `USDT.t` and `USDC.t` are faucet-minted mock tokens and must not be treated as mainnet stablecoins.
 
 If the app asks for a wallet security check, sign the requested message. That creates the wallet-auth session used for owner-scoped Supabase writes and sensitive settings.
 
@@ -152,7 +150,7 @@ Search uses the same marketplace catalog and seller directory. Recent searches a
 
 Use this path for RWA purchase actions:
 
-1. Connect wallet and switch to BNB Chain Testnet.
+1. Connect wallet and switch to a live runtime testnet.
 2. Open `Marketplace` or `Search`.
 3. Open an asset detail route.
 4. Review seller profile, price, unit, quantity, payment token, and configurable attributes.

@@ -1082,7 +1082,7 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
     () => getMarketplaceAssetChainInfo({
       chainId: chainId ?? selectedNetwork.chainId ?? undefined,
       blockchain: selectedNetworkKey || blockchain,
-      network: chainId === 97 || selectedNetworkKey === 'bnb-testnet' ? 'testnet' : 'mainnet',
+      network: selectedNetworkKey.includes('testnet') || selectedNetworkKey.includes('sepolia') ? 'testnet' : 'mainnet',
     }),
     [blockchain, chainId, selectedNetwork.chainId, selectedNetworkKey],
   );
@@ -1111,7 +1111,7 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
       networkKey: selectedNetworkKey,
       networkLabel: selectedNetwork.label,
       nativeTokenSymbol: mintNativeSymbol,
-      isTestnet: chainId === 97,
+      isTestnet: previewChainInfo.network === 'testnet',
       walletAddress: address ?? null,
       isWalletConnected: Boolean(isConnected && address),
       assetType,
@@ -1140,6 +1140,7 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
     isConnected,
     mintNativeSymbol,
     onSidebarTelemetryChange,
+    previewChainInfo.network,
     resolvedExpiryDays,
     resolvedUnitId,
     selectedNetwork.label,
@@ -1843,7 +1844,7 @@ export function Minting({ onSidebarTelemetryChange }: MintingProps = {}) {
                         value: network.key,
                         label: network.label,
                         icon: <NetworkBrandLogo icon={network.icon} label={network.shortLabel} className="h-4 w-4" />,
-                        tag: network.status === 'live' ? 'Live' : 'Coming',
+                        tag: network.status === 'live' ? 'Live' : network.status === 'blocked' ? 'Pending' : 'Coming',
                       }))}
                       className="w-full"
                       triggerClassName={mintingSelectTriggerClass}

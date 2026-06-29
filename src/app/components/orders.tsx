@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { formatAddress } from '@/utils/format';
 import { MARKETPLACE_ABI } from '@/config/abis';
-import { EXPLORER_URLS, PAYMENT_TOKENS } from '@/config/contracts';
+import { EXPLORER_URLS } from '@/config/contracts';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
 import { DurationPicker } from '@/app/components/duration-picker';
 import { ConfirmDeliveryModal } from '@/app/components/confirm-delivery-modal';
@@ -84,8 +84,11 @@ const NETWORK_OPTIONS = [
   { value: 'eth', label: 'Ethereum Mainnet', icon: <NetworkBrandLogo icon="ethereum" label="Ethereum" className="h-4 w-4" />, tag: 'EVM' },
   { value: 'poly', label: 'Polygon', icon: <NetworkBrandLogo icon="polygon" label="Polygon" className="h-4 w-4" /> },
   { value: 'arb', label: 'Arbitrum One', icon: <NetworkBrandLogo icon="generic" label="Arbitrum One" className="h-4 w-4" /> },
+  { value: 'arbitrum-sepolia', label: 'Arbitrum Sepolia', icon: <NetworkBrandLogo icon="arbitrum" label="Arbitrum Sepolia" className="h-4 w-4" /> },
   { value: 'sol', label: 'Solana', icon: <NetworkBrandLogo icon="solana" label="Solana" className="h-4 w-4" /> },
   { value: 'bnb', label: 'BNB Chain', icon: <NetworkBrandLogo icon="bnb" label="BNB Chain" className="h-4 w-4" />, tag: 'EVM' },
+  { value: 'bnb-testnet', label: 'BNB Testnet', icon: <NetworkBrandLogo icon="bnb" label="BNB Testnet" className="h-4 w-4" />, tag: 'EVM' },
+  { value: 'base-sepolia', label: 'Base Sepolia', icon: <NetworkBrandLogo icon="base" label="Base Sepolia" className="h-4 w-4" />, tag: 'EVM' },
 ];
 
 type OrderActionNoticeTone = 'success' | 'warning' | 'danger';
@@ -217,7 +220,13 @@ export function Orders({
   const protocolChain = useProtocolChain();
   const activeExplorerUrl = EXPLORER_URLS[chainId ?? 97] ?? 'https://testnet.bscscan.com';
   const activeExplorerLabel =
-    chainId === 56 || chainId === 97 ? 'View on BscScan' : 'View on Explorer';
+    chainId === 56 || chainId === 97
+      ? 'View on BscScan'
+      : chainId === 84532
+        ? 'View on BaseScan'
+        : chainId === 421614
+          ? 'View on Arbiscan'
+          : 'View on Explorer';
   const { orders: canonicalOrders, isLoading: ordersLoading, refresh: refreshOrders } = useUserOrders(address);
   const sellerConfirmTx = useSellerConfirm();
   const payOrderTx = usePayOrder();

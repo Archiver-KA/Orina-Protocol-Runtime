@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import {
   TESTNET_STARTER_KIT,
   TESTNET_TOKEN_FAUCET_ABI,
+  getTestnetStarterKit,
   isTestnetStarterKitConfigured,
 } from '@/config/testnetFaucet';
 import { ERC20_ABI } from '@/config/abis';
@@ -39,7 +40,7 @@ interface TestnetStarterKitModalProps {
 
 const STARTER_TABS: Array<{ id: StarterTab; label: string; Icon: typeof Info }> = [
   { id: 'guide', label: 'Guide', Icon: Info },
-  { id: 'tbnb', label: 'Claim tBNB', Icon: Fuel },
+  { id: 'tbnb', label: 'Get Gas', Icon: Fuel },
   { id: 'usdt', label: 'Claim USDT.t', Icon: Coins },
   { id: 'usdc', label: 'Claim USDC.t', Icon: Coins },
   { id: 'rankings', label: 'Rankings', Icon: Trophy },
@@ -99,22 +100,31 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
   const [lastClaimSymbol, setLastClaimSymbol] = useState<ClaimSymbol | null>(null);
   const handledReceiptHashRef = useRef<string | null>(null);
 
-  const isOnTestnet = chainId === TESTNET_STARTER_KIT.chainId;
-  const faucetConfigured = isTestnetStarterKitConfigured();
-  const faucetAddress = TESTNET_STARTER_KIT.faucetAddress ?? undefined;
-  const usdtAddress = TESTNET_STARTER_KIT.tokens.USDT.address ?? undefined;
-  const usdcAddress = TESTNET_STARTER_KIT.tokens.USDC.address ?? undefined;
-  const canReadFaucet = TESTNET_STARTER_KIT.enabled && isOnTestnet && Boolean(faucetAddress);
-  const canReadWallet = TESTNET_STARTER_KIT.enabled && isOnTestnet && Boolean(address);
+  const activeKit = getTestnetStarterKit(chainId) ?? TESTNET_STARTER_KIT;
+  const starterTabs = useMemo(
+    () => STARTER_TABS.map((tab) => (
+      tab.id === 'tbnb'
+        ? { ...tab, label: `Get ${activeKit.nativeTokenLabel}` }
+        : tab
+    )),
+    [activeKit.nativeTokenLabel],
+  );
+  const isOnTestnet = chainId === activeKit.chainId;
+  const faucetConfigured = isTestnetStarterKitConfigured(activeKit);
+  const faucetAddress = activeKit.faucetAddress ?? undefined;
+  const usdtAddress = activeKit.tokens.USDT.address ?? undefined;
+  const usdcAddress = activeKit.tokens.USDC.address ?? undefined;
+  const canReadFaucet = activeKit.enabled && isOnTestnet && Boolean(faucetAddress);
+  const canReadWallet = activeKit.enabled && isOnTestnet && Boolean(address);
 
   const nativeBalance = useBalance({
     address,
-    chainId: TESTNET_STARTER_KIT.chainId,
+    chainId: activeKit.chainId,
     query: { enabled: canReadWallet },
   });
 
   const usdtBalance = useReadContract({
-    chainId: TESTNET_STARTER_KIT.chainId,
+    chainId: activeKit.chainId,
     address: usdtAddress,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
@@ -123,7 +133,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
   });
 
   const usdcBalance = useReadContract({
-    chainId: TESTNET_STARTER_KIT.chainId,
+    chainId: activeKit.chainId,
     address: usdcAddress,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
@@ -132,7 +142,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
   });
 
   const usdtClaimAmount = useReadContract({
-    chainId: TESTNET_STARTER_KIT.chainId,
+    chainId: activeKit.chainId,
     address: faucetAddress,
     abi: TESTNET_TOKEN_FAUCET_ABI,
     functionName: 'usdtClaimAmount',
@@ -140,7 +150,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
   });
 
   const usdcClaimAmount = useReadContract({
-    chainId: TESTNET_STARTER_KIT.chainId,
+    chainId: activeKit.chainId,
     address: faucetAddress,
     abi: TESTNET_TOKEN_FAUCET_ABI,
     functionName: 'usdcClaimAmount',
@@ -148,7 +158,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
   });
 
   const claimCooldown = useReadContract({
-    chainId: TESTNET_STARTER_KIT.chainId,
+    chainId: activeKit.chainId,
     address: faucetAddress,
     abi: TESTNET_TOKEN_FAUCET_ABI,
     functionName: 'claimCooldown',
@@ -156,7 +166,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
   });
 
   const usdtNextClaimAt = useReadContract({
-    chainId: TESTNET_STARTER_KIT.chainId,
+    chainId: activeKit.chainId,
     address: faucetAddress,
     abi: TESTNET_TOKEN_FAUCET_ABI,
     functionName: 'nextClaimAt',
@@ -165,7 +175,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
   });
 
   const usdcNextClaimAt = useReadContract({
-    chainId: TESTNET_STARTER_KIT.chainId,
+    chainId: activeKit.chainId,
     address: faucetAddress,
     abi: TESTNET_TOKEN_FAUCET_ABI,
     functionName: 'nextClaimAt',
@@ -180,7 +190,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
     error: claimError,
   } = useWriteContract();
   const claimReceipt = useWaitForTransactionReceipt({
-    chainId: TESTNET_STARTER_KIT.chainId,
+    chainId: activeKit.chainId,
     hash: claimHash,
   });
 
@@ -242,7 +252,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
       return;
     }
     if (!isOnTestnet) {
-      toast.error('Switch to BSC Testnet');
+      toast.error(`Switch to ${activeKit.shortLabel}`);
       return;
     }
     if (!faucetConfigured || !faucetAddress) {
@@ -253,7 +263,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
     setLastClaimSymbol(symbol);
     const functionName = symbol === 'USDT' ? 'claimUSDT' : 'claimUSDC';
     const hash = await writeContractAsync({
-      chainId: TESTNET_STARTER_KIT.chainId,
+      chainId: activeKit.chainId,
       address: faucetAddress,
       abi: TESTNET_TOKEN_FAUCET_ABI,
       functionName,
@@ -266,14 +276,14 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
 
   const tokenPanels = {
     USDT: {
-      label: TESTNET_STARTER_KIT.tokens.USDT.label,
+      label: activeKit.tokens.USDT.label,
       balance: usdtBalance.data as bigint | undefined,
       claimAmount: usdtClaimAmount.data as bigint | undefined,
       nextClaimAt: usdtNextClaimAt.data as bigint | undefined,
       configured: Boolean(faucetConfigured && usdtAddress),
     },
     USDC: {
-      label: TESTNET_STARTER_KIT.tokens.USDC.label,
+      label: activeKit.tokens.USDC.label,
       balance: usdcBalance.data as bigint | undefined,
       claimAmount: usdcClaimAmount.data as bigint | undefined,
       nextClaimAt: usdcNextClaimAt.data as bigint | undefined,
@@ -320,7 +330,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
 
           {!isOnTestnet && (
             <div className="mt-4 rounded-[8px] border border-rose-400/25 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
-              Claims are hard-blocked outside BSC Testnet.
+              Claims are hard-blocked outside {activeKit.shortLabel}.
             </div>
           )}
 
@@ -343,7 +353,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
         <div className="rounded-[8px] border border-ui-border-subtle bg-[var(--t-surface-2)] p-5">
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ui-muted">Boundary</p>
           <ul className="mt-3 space-y-3 text-sm leading-6 text-ui-secondary">
-            <li>Only BSC Testnet can claim.</li>
+            <li>Only {activeKit.shortLabel} can claim.</li>
             <li>Production must remove mock token allowlists.</li>
             <li>Mainnet ORI fee quotes require oracle pricing.</li>
           </ul>
@@ -358,7 +368,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
       <StudioModalPanel className="relative z-10 h-[680px] max-h-[calc(100vh-2rem)] max-w-[960px] rounded-[18px]">
         <StudioModalHeader className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2CC295]">BSC Testnet only</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2CC295]">{activeKit.shortLabel} only</p>
             <h2 className="mt-2 text-2xl font-semibold text-ui-primary">Testnet Starter Kit</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-ui-secondary">
               Claim gas and test payment tokens for ATP beta flows. Testnet rankings track QA activity only.
@@ -369,7 +379,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
 
         <div className="border-b border-ui-border-subtle px-6 py-3">
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {STARTER_TABS.map(({ id, label, Icon }) => {
+            {starterTabs.map(({ id, label, Icon }) => {
               const active = activeTab === id;
               return (
                 <button
@@ -400,8 +410,8 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
                   <div>
                     <h3 className="text-lg font-semibold text-ui-primary">Beta setup sequence</h3>
                     <ol className="mt-4 space-y-3 text-sm leading-6 text-ui-secondary">
-                      <li>1. Connect wallet and switch to BSC Testnet.</li>
-                      <li>2. Claim tBNB for gas from a configured external faucet.</li>
+                      <li>1. Connect wallet and switch to {activeKit.shortLabel}.</li>
+                      <li>2. Claim {activeKit.nativeTokenLabel} for gas from a configured external faucet.</li>
                       <li>3. Claim USDT.t or USDC.t for ATP payment tests.</li>
                       <li>4. Run marketplace buy, sell, dispute, NFT, and M2M flows.</li>
                     </ol>
@@ -418,7 +428,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-ui-secondary">Chain</span>
                     <span className={isOnTestnet ? 'text-[#2CC295]' : 'text-[var(--t-warning-orange-title)]'}>
-                      {isOnTestnet ? 'BSC Testnet' : 'Not testnet'}
+                      {isOnTestnet ? activeKit.shortLabel : 'Not selected testnet'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
@@ -438,29 +448,29 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ui-muted">Gas token</p>
-                    <h3 className="mt-2 text-xl font-semibold text-ui-primary">tBNB</h3>
+                    <h3 className="mt-2 text-xl font-semibold text-ui-primary">{activeKit.nativeTokenLabel}</h3>
                     <p className="mt-2 text-sm leading-6 text-ui-secondary">
-                      tBNB pays gas for BSC Testnet transactions. Orina does not mint native gas token.
+                      {activeKit.nativeTokenLabel} pays gas for {activeKit.shortLabel} transactions. Orina does not mint native gas token.
                     </p>
                   </div>
                   <Fuel size={28} className="shrink-0 text-[#2CC295]" />
                 </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                  <MetricCard label="Wallet balance" value={`${nativeBalance.data?.formatted ?? '...'} tBNB`} />
-                  <MetricCard label="Chain" value={isOnTestnet ? 'BSC Testnet' : 'Switch required'} />
+                  <MetricCard label="Wallet balance" value={`${nativeBalance.data?.formatted ?? '...'} ${activeKit.nativeTokenLabel}`} />
+                  <MetricCard label="Chain" value={isOnTestnet ? activeKit.shortLabel : 'Switch required'} />
                 </div>
                 <div className="mt-5">
                   <StudioActionButton
                     type="button"
                     variant="primary"
                     leftIcon={<ExternalLink size={16} />}
-                    disabled={!TESTNET_STARTER_KIT.tbnbFaucetUrl}
+                    disabled={!activeKit.gasFaucetUrl}
                     onClick={() => {
-                      if (!TESTNET_STARTER_KIT.tbnbFaucetUrl) return;
-                      window.open(TESTNET_STARTER_KIT.tbnbFaucetUrl, '_blank', 'noopener,noreferrer');
+                      if (!activeKit.gasFaucetUrl) return;
+                      window.open(activeKit.gasFaucetUrl, '_blank', 'noopener,noreferrer');
                     }}
                   >
-                    Open tBNB faucet
+                    Open {activeKit.nativeTokenLabel} faucet
                   </StudioActionButton>
                 </div>
               </div>
@@ -516,7 +526,7 @@ export function TestnetStarterKitModal({ onClose }: TestnetStarterKitModalProps)
               <Wallet size={14} />
               Testnet only. USDT.t and USDC.t are mock tokens.
             </span>
-            <span>Chain id {TESTNET_STARTER_KIT.chainId}</span>
+            <span>Chain id {activeKit.chainId}</span>
           </div>
         </div>
       </StudioModalPanel>

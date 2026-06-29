@@ -2,15 +2,15 @@
 
 ## Goal
 
-Flip frontend, backend, and audit tooling to an ATP runtime deployment on **BSC Testnet chain 97**.
+Flip frontend, backend, and audit tooling to an operated ATP runtime deployment. The default beta network remains **BSC Testnet chain 97**, with additional networks gated through the runtime network registry.
 
-This file is updated for the June 4, 2026 ATP v3.5 beta runtime. The March 29, 2026 v3.4.1 runtime is historical and must not be used for new beta traffic.
+This file is updated for the June 29, 2026 ATP v3.5 multi-testnet runtime. The March 29, 2026 v3.4.1 runtime is historical and must not be used for new beta traffic.
 
 This runbook starts after contracts are already deployed and wired.
 
 Use `foundry/CUTOVER_CHECKLIST.md` for the on-chain transaction checklist. Use this document for the app/backend/runtime flip. For production or mainnet readiness, also use `docs/mainnet-production-checklist.md` and the current protocol status in `docs/protocol-security-status-2026-06-27.md`.
 
-## Current beta address set
+## Current default beta address set
 
 | Key | Address |
 | --- | --- |
@@ -43,7 +43,7 @@ These files must agree before traffic is flipped:
 
 ### 1.1 Contracts
 
-Confirm `src/config/contracts.ts` matches the current beta addresses above and keeps `ACTIVE_CHAIN_ID` on `97`.
+Confirm `src/config/contracts.ts` matches the current beta addresses above for BSC Testnet and contains explicit address maps for every additional operated network. `ACTIVE_CHAIN_ID` remains the default BSC Testnet chain id `97`; write access for other chains is controlled by `src/utils/protocolNetwork.ts`.
 
 ### 1.2 Signing domain
 
@@ -71,16 +71,20 @@ These files should not be signing the legacy order payload anymore.
 
 ### 1.4 Runtime env
 
-The root `.env` must keep:
+The root `.env` must keep the BSC legacy aliases while any additional live networks use chain-specific keys:
 
 - `VITE_M2M_DELEGATION_MANAGER=0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13`
 - `VITE_M2M_AI_WALLET_FACTORY_V2=0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441`
+- `VITE_BSC_TESTNET_M2M_DELEGATION_MANAGER=0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13`
+- `VITE_BSC_TESTNET_M2M_AI_WALLET_FACTORY_V2=0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441`
+- `VITE_BASE_SEPOLIA_M2M_DELEGATION_MANAGER=0xFC0038B7CC628966f8a7f14414c9386c2d6cB288`
+- `VITE_BASE_SEPOLIA_M2M_AI_WALLET_FACTORY_V2=0x0E5E106A7F81233Fe07115Aeb3777e847adB09cB`
 
 Supabase values remain unchanged unless the backend project itself is also being rotated.
 
 ### 1.5 Testnet starter kit env
 
-The Testnet Starter Kit is BSC Testnet-only onboarding infrastructure. It is not part of the core ATP address set.
+The Testnet Starter Kit is operated-testnet onboarding infrastructure. It is not part of the core ATP address set. Legacy `VITE_TESTNET_*` keys are still read as BSC Testnet aliases; new networks must use per-network keys.
 
 For testnet beta builds only:
 
@@ -89,13 +93,25 @@ For testnet beta builds only:
 - `VITE_TESTNET_TOKEN_FAUCET_ADDRESS=0x6527262782C140e0A4724bef06431786556AfDE0`
 - `VITE_TESTNET_USDT_T_ADDRESS=0x8800279B4a5528628ef069698169C58B89377809`
 - `VITE_TESTNET_USDC_T_ADDRESS=0xbdcA834A71F5BFF1420eb5D1B0491d58a33141E5`
+- `VITE_BSC_TESTNET_GAS_FAUCET_URL=<external tBNB faucet URL>`
+- `VITE_BSC_TESTNET_TOKEN_FAUCET_ADDRESS=0x6527262782C140e0A4724bef06431786556AfDE0`
+- `VITE_BSC_TESTNET_USDT_T_ADDRESS=0x8800279B4a5528628ef069698169C58B89377809`
+- `VITE_BSC_TESTNET_USDC_T_ADDRESS=0xbdcA834A71F5BFF1420eb5D1B0491d58a33141E5`
+- `VITE_BASE_SEPOLIA_GAS_FAUCET_URL=<external Base Sepolia ETH faucet URL>`
+- `VITE_BASE_SEPOLIA_TOKEN_FAUCET_ADDRESS=0xbBd53C18F4d9fb98aA6c4837Ea0E8F221E1B5F0F`
+- `VITE_BASE_SEPOLIA_USDT_T_ADDRESS=0x11E6c8f2806b32DaC427E7dF07F67602647Ef87a`
+- `VITE_BASE_SEPOLIA_USDC_T_ADDRESS=0xd6e84789741ea2DE727961CCB383454e4A845035`
+- `VITE_ARBITRUM_SEPOLIA_GAS_FAUCET_URL=<external Arbitrum Sepolia ETH faucet URL>`
+- `VITE_ARBITRUM_SEPOLIA_TOKEN_FAUCET_ADDRESS=0xFA37557E4F6D066f6CF4B69BA865837d007c8D1e`
+- `VITE_ARBITRUM_SEPOLIA_USDT_T_ADDRESS=0x279c62C97c6967d0E0F45f9D2460d38E3929c090`
+- `VITE_ARBITRUM_SEPOLIA_USDC_T_ADDRESS=0x233Fb28c8166807b01DcBE2743bb85cF7cdC8b41`
 
-These addresses are BSC Testnet-only mock token infrastructure from `foundry/broadcast/DeployTestnetTokenFaucet.s.sol/97/run-latest.json`.
+Arbitrum Sepolia is live for testnet writes after the June 29, 2026 timelock M2M linkage. Its governance is EOA-controlled with zero delay for testnet only because the current multisig flow cannot sign on Arbitrum Sepolia; mainnet must redeploy with the production multisig/Safe and a non-zero timelock delay.
 
 For mainnet or production-mainnet previews:
 
 - `VITE_ENABLE_TESTNET_STARTER_KIT=false`
-- remove all `VITE_TESTNET_*` faucet addresses
+- remove all `VITE_TESTNET_*`, `VITE_BSC_TESTNET_*`, `VITE_BASE_SEPOLIA_*`, and `VITE_ARBITRUM_SEPOLIA_*` faucet addresses
 - verify mock `USDT.t` / `USDC.t` are not allowlisted payment tokens
 - verify no faucet contract is deployed or referenced by production app config
 

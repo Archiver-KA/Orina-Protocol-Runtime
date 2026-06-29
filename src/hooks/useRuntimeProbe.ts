@@ -13,7 +13,6 @@
 import { useReadContracts, useChainId } from 'wagmi';
 import { useMemo } from 'react';
 import {
-  PAYMENT_TOKENS,
   UNIT_IDS,
   PROTOCOL,
 } from '@/config/contracts';
@@ -173,7 +172,12 @@ export async function probeSupabaseTables(): Promise<SupabaseTableProbeResult[]>
 
 export function useRuntimeProbe() {
   const walletChainId = useChainId();
-  const { chainId: protocolChainId, contracts: protocolContracts, networkLabel } = useProtocolDataNetwork();
+  const {
+    chainId: protocolChainId,
+    contracts: protocolContracts,
+    networkLabel,
+    paymentTokens,
+  } = useProtocolDataNetwork();
 
   // â”€â”€ Build multicall contracts array â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const calls = useMemo(() => {
@@ -205,12 +209,12 @@ export function useRuntimeProbe() {
     { chainId: protocolChainId, address: protocolContracts.RECEIPT_NFT, abi: RECEIPT_NFT_ABI, functionName: 'VERSION' },
 
     // --- FeeManager config ---
-    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getPlatformFeeBpsForToken', args: [PAYMENT_TOKENS.USDT] },
-    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getDaoFeeBpsForToken', args: [PAYMENT_TOKENS.USDT] },
-    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getTotalFeeBpsForToken', args: [PAYMENT_TOKENS.USDT] },
-    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getPlatformFeeBpsForToken', args: [PAYMENT_TOKENS.ORI] },
-    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getDaoFeeBpsForToken', args: [PAYMENT_TOKENS.ORI] },
-    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getTotalFeeBpsForToken', args: [PAYMENT_TOKENS.ORI] },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getPlatformFeeBpsForToken', args: [paymentTokens.USDT] },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getDaoFeeBpsForToken', args: [paymentTokens.USDT] },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getTotalFeeBpsForToken', args: [paymentTokens.USDT] },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getPlatformFeeBpsForToken', args: [paymentTokens.ORI] },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getDaoFeeBpsForToken', args: [paymentTokens.ORI] },
+    { chainId: protocolChainId, address: protocolContracts.FEE_MANAGER, abi: FEE_MANAGER_ABI, functionName: 'getTotalFeeBpsForToken', args: [paymentTokens.ORI] },
 
     // --- UnitRegistry seeds (IDs 0â€“8) ---
     // 15â€“23: getUnit(0..8)
@@ -222,7 +226,7 @@ export function useRuntimeProbe() {
       args: [BigInt(id)],
     })),
     ] as const;
-  }, [protocolChainId, protocolContracts]);
+  }, [paymentTokens.ORI, paymentTokens.USDT, protocolChainId, protocolContracts]);
 
   const { data, isLoading } = useReadContracts({
     contracts: calls as Parameters<typeof useReadContracts>[0]['contracts'],

@@ -6,23 +6,22 @@ import { getWalletErrorMessage } from '@/utils/walletErrors';
 
 export function useProtocolChain() {
   const {
-    liveNetwork,
-    liveChainId,
-    liveContracts,
     selectedNetwork,
+    selectedChainId,
+    selectedContracts,
     walletChainId,
-    status,
+    selectionStatus,
     isConnected,
-    isOnLiveNetwork,
+    isOnSelectedNetwork,
     isSwitching,
-    switchWalletToLiveNetwork,
+    switchWalletToSelectedNetwork,
   } = useProtocolNetworkRouter();
 
   const currentChainId = isConnected ? (walletChainId ?? undefined) : undefined;
   const currentChainLabel = isConnected ? formatChainLabel(currentChainId) : 'Wallet not connected';
-  const targetChainId = liveChainId ?? undefined;
-  const targetChainLabel = liveNetwork.label;
-  const isOnProtocolChain = status === 'ready' && isOnLiveNetwork;
+  const targetChainId = selectedChainId ?? undefined;
+  const targetChainLabel = selectedNetwork.label;
+  const isOnProtocolChain = selectionStatus === 'ready' && isOnSelectedNetwork;
 
   const ensureProtocolChainAsync = useCallback(async (actionLabel: string) => {
     if (!isConnected) {
@@ -30,7 +29,12 @@ export function useProtocolChain() {
       return false;
     }
 
-    if (!liveNetwork.chainId || liveNetwork.status !== 'live' || !liveContracts) {
+    if (selectedNetwork.status === 'blocked') {
+      toast.error(`${targetChainLabel} is not enabled for protocol actions yet. ${selectedNetwork.statusReason ?? ''}`.trim());
+      return false;
+    }
+
+    if (!selectedNetwork.chainId || selectedNetwork.status !== 'live' || !selectedContracts) {
       toast.error(`${targetChainLabel} is not enabled for protocol actions yet.`);
       return false;
     }
@@ -40,7 +44,7 @@ export function useProtocolChain() {
     }
 
     try {
-      const switched = await switchWalletToLiveNetwork();
+      const switched = await switchWalletToSelectedNetwork();
       if (!switched) {
         return false;
       }
@@ -59,9 +63,9 @@ export function useProtocolChain() {
     currentChainId,
     currentChainLabel,
     isConnected,
-    liveContracts,
-    liveNetwork,
-    switchWalletToLiveNetwork,
+    selectedContracts,
+    selectedNetwork,
+    switchWalletToSelectedNetwork,
     targetChainId,
     targetChainLabel,
   ]);
@@ -74,9 +78,9 @@ export function useProtocolChain() {
     targetChainLabel,
     isOnProtocolChain,
     isSwitching,
-    status,
+    status: selectionStatus,
     selectedNetwork,
-    liveNetwork,
+    liveNetwork: selectedNetwork,
     ensureProtocolChainAsync,
   };
 }

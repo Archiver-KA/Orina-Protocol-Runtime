@@ -1,6 +1,12 @@
-import { CONTRACTS, PAYMENT_TOKENS } from '@/config/contracts';
+import {
+  ARBITRUM_SEPOLIA_CONTRACTS,
+  BASE_SEPOLIA_CONTRACTS,
+  CONTRACTS,
+  PAYMENT_TOKENS,
+  getPaymentTokens,
+  type PaymentTokenMap,
+} from '@/config/contracts';
 import type { AIM2MAction } from '@/app/types/ai-m2m-wallet';
-import { LIVE_PROTOCOL_CONTRACTS } from '@/utils/protocolNetwork';
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
 const DEFAULT_M2M_DELEGATION_MANAGER = '0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13';
@@ -15,6 +21,48 @@ export const M2M_CONTRACTS = {
   DELEGATION_MANAGER: parseOptionalAddress(env.VITE_M2M_DELEGATION_MANAGER || DEFAULT_M2M_DELEGATION_MANAGER),
   AI_WALLET_FACTORY_V2: parseOptionalAddress(env.VITE_M2M_AI_WALLET_FACTORY_V2 || DEFAULT_M2M_AI_WALLET_FACTORY_V2),
 } as const;
+
+export const M2M_CONTRACTS_BY_CHAIN_ID = {
+  97: {
+    DELEGATION_MANAGER: parseOptionalAddress(
+      env.VITE_BSC_TESTNET_M2M_DELEGATION_MANAGER
+        || env.VITE_M2M_DELEGATION_MANAGER
+        || CONTRACTS.DELEGATION_MANAGER,
+    ),
+    AI_WALLET_FACTORY_V2: parseOptionalAddress(
+      env.VITE_BSC_TESTNET_M2M_AI_WALLET_FACTORY_V2
+        || env.VITE_M2M_AI_WALLET_FACTORY_V2
+        || CONTRACTS.AI_WALLET_FACTORY_V2,
+    ),
+  },
+  84532: {
+    DELEGATION_MANAGER: parseOptionalAddress(
+      env.VITE_BASE_SEPOLIA_M2M_DELEGATION_MANAGER || BASE_SEPOLIA_CONTRACTS.DELEGATION_MANAGER,
+    ),
+    AI_WALLET_FACTORY_V2: parseOptionalAddress(
+      env.VITE_BASE_SEPOLIA_M2M_AI_WALLET_FACTORY_V2 || BASE_SEPOLIA_CONTRACTS.AI_WALLET_FACTORY_V2,
+    ),
+  },
+  421614: {
+    DELEGATION_MANAGER: parseOptionalAddress(
+      env.VITE_ARBITRUM_SEPOLIA_M2M_DELEGATION_MANAGER || ARBITRUM_SEPOLIA_CONTRACTS.DELEGATION_MANAGER,
+    ),
+    AI_WALLET_FACTORY_V2: parseOptionalAddress(
+      env.VITE_ARBITRUM_SEPOLIA_M2M_AI_WALLET_FACTORY_V2 || ARBITRUM_SEPOLIA_CONTRACTS.AI_WALLET_FACTORY_V2,
+    ),
+  },
+} as const;
+
+export function getM2MContracts(chainId?: number | null) {
+  return (
+    (chainId ? M2M_CONTRACTS_BY_CHAIN_ID[chainId as keyof typeof M2M_CONTRACTS_BY_CHAIN_ID] : undefined)
+    ?? M2M_CONTRACTS_BY_CHAIN_ID[97]
+  );
+}
+
+export function getM2MDefaultPaymentToken(chainId?: number | null, tokens: PaymentTokenMap = getPaymentTokens(chainId)) {
+  return tokens.USDT;
+}
 
 export const M2M_FEATURES = {
   SESSION_MODEL: 'delegated_session_v1',
@@ -42,8 +90,8 @@ export const M2M_PROTOCOL_GUARDRAILS = [
 ] as const;
 
 export const M2M_REQUIRED_CORE_CONTRACTS = {
-  MARKETPLACE_ATP: LIVE_PROTOCOL_CONTRACTS.MARKETPLACE_ATP,
-  PAYMENT_GATEWAY: LIVE_PROTOCOL_CONTRACTS.PAYMENT_GATEWAY,
+  MARKETPLACE_ATP: CONTRACTS.MARKETPLACE_ATP,
+  PAYMENT_GATEWAY: CONTRACTS.PAYMENT_GATEWAY,
 } as const;
 
 export const M2M_DEFAULT_PAYMENT_TOKEN = PAYMENT_TOKENS.USDT;

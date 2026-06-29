@@ -15,6 +15,7 @@
     "smoke:messaging:rls": "node supabase/audit/smoke_messaging_rls_direct.cjs",
     "smoke:protected-mint:protocol": "node scripts/attach-metamask-smoke.mjs --match-url localhost:5173 --goto http://localhost:5173/ --ensure-chain 97 --smoke-protected-mint --wallet-request-timeout-ms 45000 --smoke-timeout-ms 45000 --timeout-ms 8000",
     "verify:protocol-runtime-surface": "node scripts/check-protocol-runtime-surface.mjs",
+    "verify:testnet-networks": "node scripts/check-testnet-runtime-networks.mjs",
     "verify:protocol-release": "npm run verify:viewer-release && npm run smoke:connected:protocol",
     "verify:viewer-release": "node scripts/check-effective-viewer-surfaces.mjs && npm run verify:protocol-runtime-surface && vitest run src/utils/appRoutes.test.ts src/utils/favoritesUtils.test.ts src/utils/orderSemantics.test.ts src/utils/runtimeOrders.test.ts src/utils/walletAuthSession.test.ts && npm run build",
     "verify:repo-tooling": "node scripts/verify-repo-tooling.mjs",

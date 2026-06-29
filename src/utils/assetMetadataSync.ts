@@ -76,8 +76,8 @@ function mapChainId(blockchain?: string, network?: string): number | null {
   if (b === 'bsc') return n === 'testnet' ? 97 : 56;
   if (b === 'ethereum') return n === 'testnet' ? 11155111 : 1;
   if (b === 'polygon') return 137;
-  if (b === 'arbitrum') return 42161;
-  if (b === 'base') return 8453;
+  if (b === 'arbitrum' || b === 'arbitrum-sepolia') return n === 'testnet' || b.includes('sepolia') ? 421614 : 42161;
+  if (b === 'base' || b === 'base-sepolia') return n === 'testnet' || b.includes('sepolia') ? 84532 : 8453;
   return null;
 }
 
@@ -93,7 +93,7 @@ function propertiesToAttributes(
 }
 
 function inferNetworkFromChainId(chainId: number | null | undefined): 'mainnet' | 'testnet' | null {
-  if (chainId === 97 || chainId === 11155111) return 'testnet';
+  if (chainId === 97 || chainId === 11155111 || chainId === 84532 || chainId === 421614) return 'testnet';
   if (chainId === 56 || chainId === 1 || chainId === 137 || chainId === 42161 || chainId === 8453) return 'mainnet';
   return null;
 }

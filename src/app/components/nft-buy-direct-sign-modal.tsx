@@ -13,7 +13,7 @@ import { useAccessMode } from '@/hooks/useAccessMode';
 import { useProtocolChain } from '@/hooks/useProtocolChain';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
-import { PAYMENT_TOKENS, type PaymentTokenSymbol } from '@/config/contracts';
+import { resolvePaymentTokenForCurrency } from '@/config/contracts';
 import { ERC20_ABI } from '@/config/abis';
 import { parseOnchainBigIntLike } from '@/utils/onchainNormalization';
 import { getWalletErrorMessage } from '@/utils/walletErrors';
@@ -41,30 +41,6 @@ function parseAssetPriceToBaseUnits(price: string, decimals: number): bigint | n
   }
 }
 
-function resolveProtocolPaymentToken(currency: MarketplaceAsset['currency']): {
-  symbol: PaymentTokenSymbol;
-  address: `0x${string}`;
-} {
-  if (currency === 'USDC') {
-    return {
-      symbol: 'USDC',
-      address: PAYMENT_TOKENS.USDC,
-    };
-  }
-
-  if (currency === 'USDT') {
-    return {
-      symbol: 'USDT',
-      address: PAYMENT_TOKENS.USDT,
-    };
-  }
-
-  return {
-    symbol: 'WBNB',
-    address: PAYMENT_TOKENS.WBNB,
-  };
-}
-
 export function NftBuyDirectSignModal({
   asset,
   transparentBackdrop = false,
@@ -85,7 +61,10 @@ export function NftBuyDirectSignModal({
   } | null>(null);
 
   const sellerAddress = isValidEvmAddress(asset.seller.address) ? asset.seller.address : null;
-  const paymentToken = useMemo(() => resolveProtocolPaymentToken(asset.currency), [asset.currency]);
+  const paymentToken = useMemo(
+    () => resolvePaymentTokenForCurrency(asset.currency, chainId),
+    [asset.currency, chainId],
+  );
   const paymentTokenDecimalsRead = useReadContract({
     chainId: chainId ?? undefined,
     address: paymentToken.address,

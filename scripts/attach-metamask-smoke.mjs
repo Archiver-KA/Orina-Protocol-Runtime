@@ -16,6 +16,30 @@ const CHAIN_PRESETS = {
     rpcUrls: ['https://data-seed-prebsc-1-s1.bnbchain.org:8545/'],
     blockExplorerUrls: ['https://testnet.bscscan.com'],
   },
+  '84532': {
+    chainId: 84532,
+    hexChainId: '0x14a34',
+    chainName: 'Base Sepolia',
+    nativeCurrency: {
+      name: 'Sepolia Ether',
+      symbol: 'ETH',
+      decimals: 18,
+    },
+    rpcUrls: ['https://sepolia.base.org'],
+    blockExplorerUrls: ['https://sepolia.basescan.org'],
+  },
+  '421614': {
+    chainId: 421614,
+    hexChainId: '0x66eee',
+    chainName: 'Arbitrum Sepolia',
+    nativeCurrency: {
+      name: 'Sepolia Ether',
+      symbol: 'ETH',
+      decimals: 18,
+    },
+    rpcUrls: ['https://sepolia-rollup.arbitrum.io/rpc'],
+    blockExplorerUrls: ['https://sepolia.arbiscan.io'],
+  },
 };
 
 const CONNECTED_SMOKE_PAGES = [
@@ -151,6 +175,12 @@ function parseChainOption(value) {
   if (!normalized) return null;
   if (normalized === 'bnb-testnet' || normalized === 'bsc-testnet' || normalized === 'mainnet-v3') {
     return 97;
+  }
+  if (normalized === 'base-sepolia' || normalized === 'base-testnet') {
+    return 84532;
+  }
+  if (normalized === 'arbitrum-sepolia' || normalized === 'arb-sepolia' || normalized === 'arbitrum-testnet') {
+    return 421614;
   }
 
   const parsed = Number(normalized);

@@ -2,6 +2,26 @@ import { runtimeConfig, runtimeFlags } from '/utils/runtimeConfig';
 import { CHAIN_CONFIG } from '@/config/contracts';
 
 type Address = `0x${string}`;
+type TestnetStarterKitToken = {
+  label: string;
+  address: Address | null;
+  decimals: number;
+};
+
+export type TestnetStarterKitConfig = {
+  enabled: boolean;
+  chainId: number;
+  networkKey: string;
+  networkLabel: string;
+  shortLabel: string;
+  nativeTokenLabel: string;
+  gasFaucetUrl: string;
+  faucetAddress: Address | null;
+  tokens: {
+    USDT: TestnetStarterKitToken;
+    USDC: TestnetStarterKitToken;
+  };
+};
 
 function normalizeAddress(value: string): Address | null {
   const trimmed = String(value || '').trim();
@@ -63,7 +83,109 @@ export const TESTNET_TOKEN_FAUCET_ABI = [
   },
 ] as const;
 
-export const TESTNET_STARTER_KIT = {
+const BASE_SEPOLIA_FAUCET = '0xbBd53C18F4d9fb98aA6c4837Ea0E8F221E1B5F0F';
+const BASE_SEPOLIA_USDT_T = '0x11E6c8f2806b32DaC427E7dF07F67602647Ef87a';
+const BASE_SEPOLIA_USDC_T = '0xd6e84789741ea2DE727961CCB383454e4A845035';
+const ARBITRUM_SEPOLIA_FAUCET = '0xFA37557E4F6D066f6CF4B69BA865837d007c8D1e';
+const ARBITRUM_SEPOLIA_USDT_T = '0x279c62C97c6967d0E0F45f9D2460d38E3929c090';
+const ARBITRUM_SEPOLIA_USDC_T = '0x233Fb28c8166807b01DcBE2743bb85cF7cdC8b41';
+
+export const TESTNET_STARTER_KITS: Record<number, TestnetStarterKitConfig> = {
+  [CHAIN_CONFIG.TESTNET_CHAIN_ID]: {
+    enabled: runtimeFlags.enableTestnetStarterKit,
+    chainId: CHAIN_CONFIG.TESTNET_CHAIN_ID,
+    networkKey: 'bnb-testnet',
+    networkLabel: 'BNB Chain Testnet',
+    shortLabel: 'BNB Testnet',
+    nativeTokenLabel: 'tBNB',
+    gasFaucetUrl: runtimeConfig.bscTestnetGasFaucetUrl,
+    faucetAddress: normalizeAddress(runtimeConfig.bscTestnetTokenFaucetAddress),
+    tokens: {
+      USDT: {
+        label: 'USDT.t',
+        address: normalizeAddress(runtimeConfig.bscTestnetUsdtAddress),
+        decimals: 6,
+      },
+      USDC: {
+        label: 'USDC.t',
+        address: normalizeAddress(runtimeConfig.bscTestnetUsdcAddress),
+        decimals: 6,
+      },
+    },
+  },
+  [CHAIN_CONFIG.BASE_SEPOLIA_CHAIN_ID]: {
+    enabled: runtimeFlags.enableTestnetStarterKit,
+    chainId: CHAIN_CONFIG.BASE_SEPOLIA_CHAIN_ID,
+    networkKey: 'base-sepolia',
+    networkLabel: 'Base Sepolia',
+    shortLabel: 'Base Sepolia',
+    nativeTokenLabel: 'ETH',
+    gasFaucetUrl: runtimeConfig.baseSepoliaGasFaucetUrl,
+    faucetAddress: normalizeAddress(runtimeConfig.baseSepoliaTokenFaucetAddress || BASE_SEPOLIA_FAUCET),
+    tokens: {
+      USDT: {
+        label: 'USDT.t',
+        address: normalizeAddress(runtimeConfig.baseSepoliaUsdtAddress || BASE_SEPOLIA_USDT_T),
+        decimals: 6,
+      },
+      USDC: {
+        label: 'USDC.t',
+        address: normalizeAddress(runtimeConfig.baseSepoliaUsdcAddress || BASE_SEPOLIA_USDC_T),
+        decimals: 6,
+      },
+    },
+  },
+  [CHAIN_CONFIG.ARBITRUM_SEPOLIA_CHAIN_ID]: {
+    enabled: runtimeFlags.enableTestnetStarterKit,
+    chainId: CHAIN_CONFIG.ARBITRUM_SEPOLIA_CHAIN_ID,
+    networkKey: 'arbitrum-sepolia',
+    networkLabel: 'Arbitrum Sepolia',
+    shortLabel: 'Arbitrum Sepolia',
+    nativeTokenLabel: 'ETH',
+    gasFaucetUrl: runtimeConfig.arbitrumSepoliaGasFaucetUrl,
+    faucetAddress: normalizeAddress(runtimeConfig.arbitrumSepoliaTokenFaucetAddress || ARBITRUM_SEPOLIA_FAUCET),
+    tokens: {
+      USDT: {
+        label: 'USDT.t',
+        address: normalizeAddress(runtimeConfig.arbitrumSepoliaUsdtAddress || ARBITRUM_SEPOLIA_USDT_T),
+        decimals: 6,
+      },
+      USDC: {
+        label: 'USDC.t',
+        address: normalizeAddress(runtimeConfig.arbitrumSepoliaUsdcAddress || ARBITRUM_SEPOLIA_USDC_T),
+        decimals: 6,
+      },
+    },
+  },
+} as const;
+
+// Backward-compatible BSC alias.
+export const TESTNET_STARTER_KIT = TESTNET_STARTER_KITS[CHAIN_CONFIG.TESTNET_CHAIN_ID];
+
+export function getTestnetStarterKit(chainId?: number | null): TestnetStarterKitConfig | null {
+  if (!chainId) return null;
+  return TESTNET_STARTER_KITS[chainId] ?? null;
+}
+
+export function isTestnetStarterKitAvailable(chainId?: number | null) {
+  const kit = getTestnetStarterKit(chainId);
+  return Boolean(kit?.enabled);
+}
+
+export function isTestnetStarterKitConfigured(
+  chainIdOrKit?: number | null | TestnetStarterKitConfig,
+) {
+  const kit = typeof chainIdOrKit === 'object'
+    ? chainIdOrKit
+    : getTestnetStarterKit(chainIdOrKit) ?? TESTNET_STARTER_KIT;
+  return Boolean(
+    kit?.faucetAddress
+      && kit.tokens.USDT.address
+      && kit.tokens.USDC.address,
+  );
+}
+
+export const LEGACY_BSC_TESTNET_STARTER_KIT = {
   enabled: runtimeFlags.enableTestnetStarterKit,
   chainId: CHAIN_CONFIG.TESTNET_CHAIN_ID,
   faucetAddress: normalizeAddress(runtimeConfig.testnetTokenFaucetAddress),
@@ -81,11 +203,3 @@ export const TESTNET_STARTER_KIT = {
     },
   },
 } as const;
-
-export function isTestnetStarterKitConfigured() {
-  return Boolean(
-    TESTNET_STARTER_KIT.faucetAddress
-      && TESTNET_STARTER_KIT.tokens.USDT.address
-      && TESTNET_STARTER_KIT.tokens.USDC.address,
-  );
-}

@@ -4,7 +4,12 @@
  * protocol_runtime_orders (000005) server table.
  * See spec: 15-local-api-audit-and-server-migration-plan.md
  */
-import { OrderState, PAYMENT_TOKENS, PROTOCOL } from "@/config/contracts";
+import {
+  OrderState,
+  PROTOCOL,
+  getPaymentTokenSymbolByAddress,
+  getPaymentTokens,
+} from "@/config/contracts";
 import { deriveOrderProgress } from "@/utils/orderLifecycle";
 import { hasOrderPaymentCommitted, isOrderCompleted, resolveOrderSemantics } from "@/utils/orderSemantics";
 import type { OrderShippingAddressSnapshot, OrderUiRecord } from "@/types/order";
@@ -330,6 +335,7 @@ function resolvePaymentTokenSnapshot(
   paymentToken?: `0x${string}` | null,
   symbolHint?: string | null,
   decimalsHint?: number | null,
+  chainId?: number | null,
 ): Required<PaymentTokenSnapshot> {
   if (symbolHint && typeof decimalsHint === "number") {
     return {
@@ -338,14 +344,12 @@ function resolvePaymentTokenSnapshot(
     };
   }
 
-  const normalized = normalizePaymentTokenAddress(paymentToken);
-  for (const [symbol, address] of Object.entries(PAYMENT_TOKENS)) {
-    if (address.toLowerCase() === normalized) {
-      return {
-        symbol,
-        decimals: PAYMENT_TOKEN_DECIMALS_BY_SYMBOL[symbol] ?? DEFAULT_TOKEN_DECIMALS,
-      };
-    }
+  const symbol = getPaymentTokenSymbolByAddress(paymentToken, chainId);
+  if (symbol) {
+    return {
+      symbol,
+      decimals: PAYMENT_TOKEN_DECIMALS_BY_SYMBOL[symbol] ?? DEFAULT_TOKEN_DECIMALS,
+    };
   }
 
   return {
@@ -681,9 +685,15 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow, scope?: RuntimeOrder
     unitName,
     unitLabel,
     network:
-      resolvedScope.chainId === 56 || resolvedScope.chainId === 97
-        ? "bnb"
-        : `chain-${resolvedScope.chainId}`,
+      resolvedScope.chainId === 97
+        ? "bnb-testnet"
+        : resolvedScope.chainId === 56
+          ? "bnb"
+          : resolvedScope.chainId === 84532
+            ? "base-sepolia"
+            : resolvedScope.chainId === 421614
+              ? "arbitrum-sepolia"
+              : `chain-${resolvedScope.chainId}`,
     assetImage: metadata.assetImage || persisted?.assetImage || DEFAULT_ASSET_IMAGE,
     amount: amount > 0n ? amount : 1n,
     grossPrice,
@@ -895,17 +905,20 @@ export function createRuntimeOrderFromRwaIntent(params: {
     paymentToken,
     params.paymentTokenSymbol,
     params.paymentTokenDecimals,
+    resolvedScope.chainId,
   );
   const feeToken = params.feeToken ?? paymentToken;
   const feeTokenSnapshot = resolvePaymentTokenSnapshot(
     feeToken,
     params.feeTokenSymbol,
     params.feeTokenDecimals,
+    resolvedScope.chainId,
   );
-  const feeTokenIsOri = feeToken.toLowerCase() === PAYMENT_TOKENS.ORI.toLowerCase();
+  const paymentTokens = getPaymentTokens(resolvedScope.chainId);
+  const feeTokenIsOri = feeToken.toLowerCase() === paymentTokens.ORI.toLowerCase();
   const feeTokenIsStable =
-    feeToken.toLowerCase() === PAYMENT_TOKENS.USDT.toLowerCase() ||
-    feeToken.toLowerCase() === PAYMENT_TOKENS.USDC.toLowerCase();
+    feeToken.toLowerCase() === paymentTokens.USDT.toLowerCase() ||
+    feeToken.toLowerCase() === paymentTokens.USDC.toLowerCase();
   const platformFeeBpsSnapshot = feeTokenIsOri
     ? BigInt(PROTOCOL.ORI_PLATFORM_FEE_BPS)
     : feeTokenIsStable
@@ -938,9 +951,15 @@ export function createRuntimeOrderFromRwaIntent(params: {
     unitName: params.asset.unitName,
     unitLabel: params.asset.unitLabel ?? params.asset.unitName,
     network:
-      resolvedScope.chainId === 56 || resolvedScope.chainId === 97
-        ? "bnb"
-        : `chain-${resolvedScope.chainId}`,
+      resolvedScope.chainId === 97
+        ? "bnb-testnet"
+        : resolvedScope.chainId === 56
+          ? "bnb"
+          : resolvedScope.chainId === 84532
+            ? "base-sepolia"
+            : resolvedScope.chainId === 421614
+              ? "arbitrum-sepolia"
+              : `chain-${resolvedScope.chainId}`,
     assetImage: params.asset.imageUrl ?? params.asset.image ?? "",
     amount: quantity,
     grossPrice: params.grossPrice,

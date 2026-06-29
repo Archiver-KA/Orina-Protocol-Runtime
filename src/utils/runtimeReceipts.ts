@@ -174,6 +174,8 @@ function formatReceiptPurchaseDate(blockTime?: string | null, updatedAtMs?: numb
 function resolveReceiptNetworkLabel(chainId: number, fallback?: string): string {
   if (fallback && fallback.trim()) return fallback.trim();
   if (chainId === 97) return 'BSC Testnet';
+  if (chainId === 84532) return 'Base Sepolia';
+  if (chainId === 421614) return 'Arbitrum Sepolia';
   if (chainId === 56) return 'BSC';
   if (chainId === 1) return 'Ethereum';
   return `Chain ${chainId}`;

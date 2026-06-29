@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document records the current ATP v3.5 beta deployment that went live on **BSC Testnet (chain 97)** on **June 4, 2026**.
+This document records the current ATP v3.5 beta deployments. BSC Testnet (chain `97`) went live on June 4, 2026. Base Sepolia (chain `84532`) is write-enabled after the June 28, 2026 bytecode and Marketplace M2M delegation checks. Arbitrum Sepolia (chain `421614`) is write-enabled after the June 29, 2026 EOA-governed testnet redeploy and timelock M2M linkage.
 
 It describes ATP as implemented by this repo, not a generic RWA, DeFi, vault, or AMM architecture. Address tables below are the current beta source of truth for the Foundry runtime and app/backend cutover work.
 
@@ -40,7 +40,7 @@ ATP here means:
 
 ## Base Sepolia Deployment
 
-Base Sepolia is a separately deployed ATP v3.5 testnet stack on chain `84532`, deployed on June 26, 2026 under namespace `orina-atp-v3.5-base-sepolia-20260626`. The runtime app remains write-enabled only for BSC Testnet; this Base address set is available for integration and verification work.
+Base Sepolia is a separately deployed ATP v3.5 testnet stack on chain `84532`, deployed on June 26, 2026 under namespace `orina-atp-v3.5-base-sepolia-20260626`. The runtime app treats this Base address set as write-enabled after the June 28, 2026 verification pass.
 
 | Contract | Address |
 | --- | --- |
@@ -63,7 +63,26 @@ Base Sepolia is a separately deployed ATP v3.5 testnet stack on chain `84532`, d
 | `USDT.t` | `0x11E6c8f2806b32dAC427E7Df07F67602647eF87A` |
 | `USDC.t` | `0xD6E84789741Ea2DE727961cCB383454E4A845035` |
 
-`MarketplaceATP.VERSION` is `3.4`; `FeeManager.VERSION` and `PaymentGateway.VERSION` are `3.5`, matching the BSC Testnet beta. Base Sepolia currently uses timelock `0x989b893118237f710b7Efc8820147B61c68DcaEE` as the Marketplace governance actor. The remaining shared hardening item is M2M `DelegationManager.DEFAULT_ADMIN_ROLE`, which is still held by deployment/admin EOA `0x282Be18838D7079C215F49749a9606d77e00888b` on both testnets.
+`MarketplaceATP.VERSION` is `3.4`; `FeeManager.VERSION` and `PaymentGateway.VERSION` are `3.5`, matching the BSC Testnet beta. Base Sepolia currently uses timelock `0x989b893118237f710b7Efc8820147B61c68DcaEE` as the Marketplace governance actor. The remaining shared hardening item is M2M `DelegationManager.DEFAULT_ADMIN_ROLE`, which is still held by deployment/admin EOA `0x282Be18838D7079C215F49749a9606d77e00888b` on the verified testnets.
+
+## Arbitrum Sepolia Deployment
+
+Arbitrum Sepolia is a separately deployed ATP v3.5 testnet stack on chain `421614`, deployed under namespace `orina-atp-v3.5-arbitrum-sepolia-eoa-testnet-20260629`. It uses deployer EOA `0x282Be18838D7079C215F49749a9606d77e00888b` as the timelock proposer, executor, canceller, and admin with zero delay because the current multisig flow cannot sign on Arbitrum Sepolia. This is testnet-only; mainnet must redeploy with a production multisig/Safe, non-zero timelock delay, and a new address set.
+
+| Contract | Address |
+| --- | --- |
+| `MarketplaceATP` | `0x5863f25A8250EBe20Bd1E3d04FD796081Fc3D72E` |
+| `PaymentGateway` | `0x39F539903b75A0bF0FEF16a443904C8c9DF787EE` |
+| `FeeManager` | `0x0c4AccB88E2Cc530FEFBAb31Ca77371a2a68Ba20` |
+| `OrinaRWA` | `0x0244Ad5ca0BC9Cd8555352Cd53Dc51Fd8eD2f011` |
+| `RWAReceiptNFT` | `0x6A695E8356b6F80664E31402038CbBdBCfffa816` |
+| `DisputeManager` | `0xEE36B67BE61A37672D4ae041A89aEd12B333753E` |
+| `AutoTimeManager` | `0x75ac6efE7483c03B971Fb8E635dEE8ed8D527c61` |
+| `DelegationManager` | `0x56D454f55D5d05b060777F70e653BbBEb1167D2e` |
+| `AIWalletFactoryV2` | `0x143519194A9Df4678b602BEE329C1A96381d1CBD` |
+| `TimelockController` | `0x66Bf76Fdf268976080f119278982B082f417FbAD` |
+
+On June 29, 2026, `MarketplaceATP.delegationManager()` returned `0x56D454f55D5d05b060777F70e653BbBEb1167D2e` on Arbitrum Sepolia.
 
 ### Governance and fee endpoints
 
@@ -236,7 +255,7 @@ The current v3.5 beta runtime additionally:
 - Clients must treat `protocol_assets`, `protocol_orders`, and `protocol_order_events` as read-only projection tables.
 - Frontend signing must stay aligned with the live EIP-712 domain and payload shape.
 - Broadcast artifacts and runtime config must point to the same deployment set.
-- New traffic must only target the live `MarketplaceATP`.
+- New traffic must only target a network marked `live` in `src/utils/protocolNetwork.ts`.
 - Old addresses must not remain in `.env`, `foundry/.env`, or audit scripts after cutover.
 
 ## Off-chain integration touchpoints
@@ -279,6 +298,12 @@ The June 4, 2026 Foundry and on-chain beta gate passed:
 - On-chain AI/M2M flow smoke: pass.
 
 Use [14-production-env-flip-runbook.md](./14-production-env-flip-runbook.md) for the exact frontend/backend cutover procedure and app build checks.
+
+For multi-testnet runtime verification, run:
+
+```bash
+npm run verify:testnet-networks
+```
 
 ### 2026-06-27 Security Baseline Addendum
 

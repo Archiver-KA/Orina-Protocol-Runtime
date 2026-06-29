@@ -2,9 +2,9 @@ import { useMemo } from 'react';
 import { encodeAbiParameters, encodeFunctionData, keccak256, type Address, type Hex } from 'viem';
 import { useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import { AssetType } from '@/config/contracts';
-import { M2M_CONTRACTS, M2M_FEATURES } from '@/config/m2m';
+import { M2M_CONTRACTS, getM2MContracts } from '@/config/m2m';
 import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
-import { LIVE_PROTOCOL_CHAIN_ID, LIVE_PROTOCOL_CONTRACTS } from '@/utils/protocolNetwork';
+import { LIVE_PROTOCOL_CHAIN_ID, LIVE_PROTOCOL_CONTRACTS, getProtocolContracts } from '@/utils/protocolNetwork';
 import {
   MARKETPLACE_ABI,
   AI_WALLET_FACTORY_V2_ABI,
@@ -41,6 +41,17 @@ const LIVE_M2M_REFETCH_MS = 4000;
 const DEFAULT_LIVE_PROTOCOL_CHAIN_ID = LIVE_PROTOCOL_CHAIN_ID;
 const DEFAULT_LIVE_MARKETPLACE_ADDRESS = LIVE_PROTOCOL_CONTRACTS.MARKETPLACE_ATP;
 const DEFAULT_LIVE_PAYMENT_GATEWAY_ADDRESS = LIVE_PROTOCOL_CONTRACTS.PAYMENT_GATEWAY;
+
+function resolvePreparedM2MScope(chainId?: number | null) {
+  const contracts = chainId ? getProtocolContracts(chainId) : LIVE_PROTOCOL_CONTRACTS;
+  const m2mContracts = chainId ? getM2MContracts(chainId) : M2M_CONTRACTS;
+
+  return {
+    marketplaceAddress: (contracts?.MARKETPLACE_ATP ?? DEFAULT_LIVE_MARKETPLACE_ADDRESS) as Address,
+    paymentGatewayAddress: (contracts?.PAYMENT_GATEWAY ?? DEFAULT_LIVE_PAYMENT_GATEWAY_ADDRESS) as Address,
+    aiWalletFactoryAddress: m2mContracts.AI_WALLET_FACTORY_V2 ?? undefined,
+  };
+}
 
 function assertAddressField(name: string, value: Address | undefined): asserts value is Address {
   if (!value) throw new Error(`AI wallet deploy field is missing: ${name}`);
@@ -101,22 +112,24 @@ function buildDeployWalletConfigTuple(
 }
 
 function useLiveM2MScope() {
-  const { chainId, marketplaceAddress, paymentGatewayAddress } = useProtocolDataNetwork();
+  const { chainId, marketplaceAddress, paymentGatewayAddress, m2mContracts } = useProtocolDataNetwork();
 
   return {
     chainId: chainId ?? DEFAULT_LIVE_PROTOCOL_CHAIN_ID,
     marketplaceAddress: marketplaceAddress ?? DEFAULT_LIVE_MARKETPLACE_ADDRESS,
     paymentGatewayAddress: paymentGatewayAddress ?? DEFAULT_LIVE_PAYMENT_GATEWAY_ADDRESS,
+    m2mContracts,
   };
 }
 
 export function useM2MOnchainReady() {
-  return M2M_FEATURES.ONCHAIN_READY;
+  const { m2mContracts } = useLiveM2MScope();
+  return Boolean(m2mContracts.DELEGATION_MANAGER && m2mContracts.AI_WALLET_FACTORY_V2);
 }
 
 export function useM2MReadiness() {
-  const { chainId, marketplaceAddress, paymentGatewayAddress } = useLiveM2MScope();
-  const foundationReady = M2M_FEATURES.ONCHAIN_READY;
+  const { chainId, marketplaceAddress, paymentGatewayAddress, m2mContracts } = useLiveM2MScope();
+  const foundationReady = Boolean(m2mContracts.DELEGATION_MANAGER && m2mContracts.AI_WALLET_FACTORY_V2);
   const marketplaceSupport = useReadContract({
     chainId,
     address: marketplaceAddress,
@@ -150,74 +163,74 @@ export function useM2MReadiness() {
 }
 
 export function useDelegationRootEpoch(root: Address | undefined) {
-  const { chainId } = useLiveM2MScope();
+  const { chainId, m2mContracts } = useLiveM2MScope();
   return useReadContract({
     chainId,
-    address: M2M_CONTRACTS.DELEGATION_MANAGER ?? undefined,
+    address: m2mContracts.DELEGATION_MANAGER ?? undefined,
     abi: DELEGATION_MANAGER_ABI,
     functionName: 'rootEpoch',
     args: root ? [root] : undefined,
-    query: { enabled: Boolean(M2M_CONTRACTS.DELEGATION_MANAGER && root) },
+    query: { enabled: Boolean(m2mContracts.DELEGATION_MANAGER && root) },
   });
 }
 
 export function useDelegationNextSessionNonce(root: Address | undefined) {
-  const { chainId } = useLiveM2MScope();
+  const { chainId, m2mContracts } = useLiveM2MScope();
   return useReadContract({
     chainId,
-    address: M2M_CONTRACTS.DELEGATION_MANAGER ?? undefined,
+    address: m2mContracts.DELEGATION_MANAGER ?? undefined,
     abi: DELEGATION_MANAGER_ABI,
     functionName: 'nextSessionNonce',
     args: root ? [root] : undefined,
-    query: { enabled: Boolean(M2M_CONTRACTS.DELEGATION_MANAGER && root), refetchInterval: LIVE_M2M_REFETCH_MS, refetchOnWindowFocus: true, staleTime: 0 },
+    query: { enabled: Boolean(m2mContracts.DELEGATION_MANAGER && root), refetchInterval: LIVE_M2M_REFETCH_MS, refetchOnWindowFocus: true, staleTime: 0 },
   });
 }
 
 export function useDelegationHasActiveCycle(root: Address | undefined) {
-  const { chainId } = useLiveM2MScope();
+  const { chainId, m2mContracts } = useLiveM2MScope();
   return useReadContract({
     chainId,
-    address: M2M_CONTRACTS.DELEGATION_MANAGER ?? undefined,
+    address: m2mContracts.DELEGATION_MANAGER ?? undefined,
     abi: DELEGATION_MANAGER_ABI,
     functionName: 'hasActiveCycle',
     args: root ? [root] : undefined,
-    query: { enabled: Boolean(M2M_CONTRACTS.DELEGATION_MANAGER && root), refetchInterval: LIVE_M2M_REFETCH_MS, refetchOnWindowFocus: true, staleTime: 0 },
+    query: { enabled: Boolean(m2mContracts.DELEGATION_MANAGER && root), refetchInterval: LIVE_M2M_REFETCH_MS, refetchOnWindowFocus: true, staleTime: 0 },
   });
 }
 
 export function useDelegationActiveSessionNonce(root: Address | undefined) {
-  const { chainId } = useLiveM2MScope();
+  const { chainId, m2mContracts } = useLiveM2MScope();
   return useReadContract({
     chainId,
-    address: M2M_CONTRACTS.DELEGATION_MANAGER ?? undefined,
+    address: m2mContracts.DELEGATION_MANAGER ?? undefined,
     abi: DELEGATION_MANAGER_ABI,
     functionName: 'activeSessionNonce',
     args: root ? [root] : undefined,
-    query: { enabled: Boolean(M2M_CONTRACTS.DELEGATION_MANAGER && root), refetchInterval: LIVE_M2M_REFETCH_MS, refetchOnWindowFocus: true, staleTime: 0 },
+    query: { enabled: Boolean(m2mContracts.DELEGATION_MANAGER && root), refetchInterval: LIVE_M2M_REFETCH_MS, refetchOnWindowFocus: true, staleTime: 0 },
   });
 }
 
 export function useDelegationSession(root: Address | undefined, sessionNonce: bigint | undefined) {
-  const { chainId } = useLiveM2MScope();
+  const { chainId, m2mContracts } = useLiveM2MScope();
   return useReadContract({
     chainId,
-    address: M2M_CONTRACTS.DELEGATION_MANAGER ?? undefined,
+    address: m2mContracts.DELEGATION_MANAGER ?? undefined,
     abi: DELEGATION_MANAGER_ABI,
     functionName: 'getSession',
     args: root !== undefined && sessionNonce !== undefined ? [root, sessionNonce] : undefined,
-    query: { enabled: Boolean(M2M_CONTRACTS.DELEGATION_MANAGER && root !== undefined && sessionNonce !== undefined), refetchInterval: LIVE_M2M_REFETCH_MS, refetchOnWindowFocus: true, staleTime: 0 },
+    query: { enabled: Boolean(m2mContracts.DELEGATION_MANAGER && root !== undefined && sessionNonce !== undefined), refetchInterval: LIVE_M2M_REFETCH_MS, refetchOnWindowFocus: true, staleTime: 0 },
   });
 }
 
 export function useDelegationSessionStatus(root: Address | undefined, sessionNonce: bigint | undefined) {
-  const { chainId } = useLiveM2MScope();
+  const { chainId, m2mContracts } = useLiveM2MScope();
   return useReadContract({
     chainId,
-    address: M2M_CONTRACTS.DELEGATION_MANAGER ?? undefined,
+    address: m2mContracts.DELEGATION_MANAGER ?? undefined,
     abi: DELEGATION_MANAGER_ABI,
     functionName: 'sessionStatus',
     args: root !== undefined && sessionNonce !== undefined ? [root, sessionNonce] : undefined,
-    query: { enabled: Boolean(M2M_CONTRACTS.DELEGATION_MANAGER && root !== undefined && sessionNonce !== undefined), refetchInterval: LIVE_M2M_REFETCH_MS, refetchOnWindowFocus: true, staleTime: 0 },
+    query: { enabled: Boolean(m2mContracts.DELEGATION_MANAGER && root !== undefined && sessionNonce !== undefined), refetchInterval: LIVE_M2M_REFETCH_MS, refetchOnWindowFocus: true, staleTime: 0 },
   });
 }
 
@@ -278,16 +291,16 @@ export function usePredictAIM2MWallet(params: {
   root?: Address;
   sessionNonce?: bigint;
 }) {
-  const { chainId } = useLiveM2MScope();
+  const { chainId, m2mContracts } = useLiveM2MScope();
   const { root, sessionNonce } = params;
   return useReadContract({
     chainId,
-    address: M2M_CONTRACTS.AI_WALLET_FACTORY_V2 ?? undefined,
+    address: m2mContracts.AI_WALLET_FACTORY_V2 ?? undefined,
     abi: AI_WALLET_FACTORY_V2_ABI,
     functionName: 'predictWallet',
     args: root && sessionNonce !== undefined ? [root, sessionNonce] : undefined,
     query: {
-      enabled: Boolean(M2M_CONTRACTS.AI_WALLET_FACTORY_V2 && root && sessionNonce !== undefined),
+      enabled: Boolean(m2mContracts.AI_WALLET_FACTORY_V2 && root && sessionNonce !== undefined),
       refetchInterval: LIVE_M2M_REFETCH_MS,
       refetchOnWindowFocus: true,
       staleTime: 0,
@@ -296,26 +309,26 @@ export function usePredictAIM2MWallet(params: {
 }
 
 export function usePredictNextAIM2MWallet(root: Address | undefined) {
-  const { chainId } = useLiveM2MScope();
+  const { chainId, m2mContracts } = useLiveM2MScope();
   return useReadContract({
     chainId,
-    address: M2M_CONTRACTS.AI_WALLET_FACTORY_V2 ?? undefined,
+    address: m2mContracts.AI_WALLET_FACTORY_V2 ?? undefined,
     abi: AI_WALLET_FACTORY_V2_ABI,
     functionName: 'predictNextWallet',
     args: root ? [root] : undefined,
-    query: { enabled: Boolean(M2M_CONTRACTS.AI_WALLET_FACTORY_V2 && root) },
+    query: { enabled: Boolean(m2mContracts.AI_WALLET_FACTORY_V2 && root) },
   });
 }
 
 export function useAIM2MWalletOfSession(root: Address | undefined, sessionNonce: bigint | undefined) {
-  const { chainId } = useLiveM2MScope();
+  const { chainId, m2mContracts } = useLiveM2MScope();
   return useReadContract({
     chainId,
-    address: M2M_CONTRACTS.AI_WALLET_FACTORY_V2 ?? undefined,
+    address: m2mContracts.AI_WALLET_FACTORY_V2 ?? undefined,
     abi: AI_WALLET_FACTORY_V2_ABI,
     functionName: 'walletOfSession',
     args: root !== undefined && sessionNonce !== undefined ? [root, sessionNonce] : undefined,
-    query: { enabled: Boolean(M2M_CONTRACTS.AI_WALLET_FACTORY_V2 && root !== undefined && sessionNonce !== undefined), refetchInterval: LIVE_M2M_REFETCH_MS, refetchOnWindowFocus: true, staleTime: 0 },
+    query: { enabled: Boolean(m2mContracts.AI_WALLET_FACTORY_V2 && root !== undefined && sessionNonce !== undefined), refetchInterval: LIVE_M2M_REFETCH_MS, refetchOnWindowFocus: true, staleTime: 0 },
   });
 }
 
@@ -530,14 +543,14 @@ export function useEscrowAmount(orderId: bigint | undefined) {
 }
 
 export function useDeployAIM2MWallet() {
-  const { chainId, marketplaceAddress, paymentGatewayAddress } = useLiveM2MScope();
+  const { chainId, marketplaceAddress, paymentGatewayAddress, m2mContracts } = useLiveM2MScope();
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId });
 
   const DEPLOY_AI_WALLET_GAS_LIMIT = 700000n;
 
   const deployWallet = async (input: DeployAIM2MWalletInput) => {
-    if (!M2M_CONTRACTS.AI_WALLET_FACTORY_V2) throw new Error('AI wallet factory address is not configured');
+    if (!m2mContracts.AI_WALLET_FACTORY_V2) throw new Error('AI wallet factory address is not configured');
     const resolvedMarketplaceAddress = marketplaceAddress ?? DEFAULT_LIVE_MARKETPLACE_ADDRESS;
     const resolvedPaymentGatewayAddress = paymentGatewayAddress ?? DEFAULT_LIVE_PAYMENT_GATEWAY_ADDRESS;
     if (!resolvedMarketplaceAddress || !resolvedPaymentGatewayAddress) {
@@ -545,7 +558,7 @@ export function useDeployAIM2MWallet() {
     }
     return writeContractAsync({
       chainId,
-      address: M2M_CONTRACTS.AI_WALLET_FACTORY_V2,
+      address: m2mContracts.AI_WALLET_FACTORY_V2,
       abi: AI_WALLET_FACTORY_V2_ABI,
       functionName: 'deployWallet',
       gas: DEPLOY_AI_WALLET_GAS_LIMIT,
@@ -595,14 +608,15 @@ export function useCloseExpiredAIM2MWallet(walletAddress: Address | undefined) {
   return { closeExpiredWallet, hash, isPending, isConfirming, isConfirmed, error, reset };
 }
 
-export function prepareDeployAIM2MWalletTx(input: DeployAIM2MWalletInput): PreparedContractCall {
-  if (!M2M_CONTRACTS.AI_WALLET_FACTORY_V2) throw new Error('AI wallet factory address is not configured');
+export function prepareDeployAIM2MWalletTx(input: DeployAIM2MWalletInput, chainId?: number | null): PreparedContractCall {
+  const { marketplaceAddress, paymentGatewayAddress, aiWalletFactoryAddress } = resolvePreparedM2MScope(chainId);
+  if (!aiWalletFactoryAddress) throw new Error('AI wallet factory address is not configured');
   return {
-    to: M2M_CONTRACTS.AI_WALLET_FACTORY_V2,
+    to: aiWalletFactoryAddress,
     data: encodeFunctionData({
       abi: AI_WALLET_FACTORY_V2_ABI,
       functionName: 'deployWallet',
-      args: [buildDeployWalletConfigTuple(input, DEFAULT_LIVE_MARKETPLACE_ADDRESS, DEFAULT_LIVE_PAYMENT_GATEWAY_ADDRESS)],
+      args: [buildDeployWalletConfigTuple(input, marketplaceAddress, paymentGatewayAddress)],
     }),
     value: 0n,
   };
@@ -637,6 +651,7 @@ export function prepareDelegatedCreateOrderCallData(args: {
 }
 
 export function prepareDelegatedCreateOrderTx(args: {
+  chainId?: number | null;
   walletAddress: Address;
   rootBuyer: Address;
   seller: Address;
@@ -648,26 +663,29 @@ export function prepareDelegatedCreateOrderTx(args: {
   proposedEstDeliverySeconds: bigint;
   sessionNonce: bigint;
 }): PreparedContractCall {
+  const { marketplaceAddress } = resolvePreparedM2MScope(args.chainId);
   const innerData = prepareDelegatedCreateOrderCallData(args);
   return {
     to: args.walletAddress,
     data: encodeFunctionData({
       abi: AI_WALLET_V2_ABI,
       functionName: 'callWithExactApproval',
-      args: [DEFAULT_LIVE_MARKETPLACE_ADDRESS, innerData, args.grossPriceProposed],
+      args: [marketplaceAddress, innerData, args.grossPriceProposed],
     }),
     value: 0n,
   };
 }
 
 export function prepareDelegatedPayOrderTx(args: {
+  chainId?: number | null;
   orderId: bigint;
   rootBuyer: Address;
   payerVault: Address;
   sessionNonce: bigint;
 }): PreparedContractCall {
+  const { marketplaceAddress } = resolvePreparedM2MScope(args.chainId);
   return {
-    to: DEFAULT_LIVE_MARKETPLACE_ADDRESS,
+    to: marketplaceAddress,
     data: encodeFunctionData({
       abi: MARKETPLACE_M2M_ABI,
       functionName: 'payOrderFor',
@@ -678,6 +696,7 @@ export function prepareDelegatedPayOrderTx(args: {
 }
 
 export function prepareDelegatedMintAssetTx(args: {
+  chainId?: number | null;
   rootSeller: Address;
   unitId: bigint;
   totalAmount: bigint;
@@ -685,8 +704,9 @@ export function prepareDelegatedMintAssetTx(args: {
   assetType?: AssetType;
   sessionNonce: bigint;
 }): PreparedContractCall {
+  const { marketplaceAddress } = resolvePreparedM2MScope(args.chainId);
   return {
-    to: DEFAULT_LIVE_MARKETPLACE_ADDRESS,
+    to: marketplaceAddress,
     data: encodeFunctionData({
       abi: MARKETPLACE_M2M_ABI,
       functionName: 'mintAssetFor',
@@ -704,13 +724,15 @@ export function prepareDelegatedMintAssetTx(args: {
 }
 
 export function prepareDelegatedSellerConfirmTx(args: {
+  chainId?: number | null;
   orderId: bigint;
   rootSeller: Address;
   estDeliverySeconds: bigint;
   sessionNonce: bigint;
 }): PreparedContractCall {
+  const { marketplaceAddress } = resolvePreparedM2MScope(args.chainId);
   return {
-    to: DEFAULT_LIVE_MARKETPLACE_ADDRESS,
+    to: marketplaceAddress,
     data: encodeFunctionData({
       abi: MARKETPLACE_M2M_ABI,
       functionName: 'sellerConfirmFor',

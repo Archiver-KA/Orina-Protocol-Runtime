@@ -21,7 +21,7 @@ import { useAccessMode } from '@/hooks/useAccessMode';
 import { useProtocolChain } from '@/hooks/useProtocolChain';
 import { useCreateOrder } from '@/hooks/useOrders';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
-import { PAYMENT_TOKENS, PROTOCOL, type PaymentTokenSymbol } from '@/config/contracts';
+import { PROTOCOL, resolvePaymentTokenForCurrency, type PaymentTokenSymbol } from '@/config/contracts';
 import { ERC20_ABI, MARKETPLACE_ABI } from '@/config/abis';
 import { createRuntimeOrderFromRwaIntent } from '@/utils/runtimeOrders';
 import { upsertRuntimeOrder } from '@/utils/runtimeOrders';
@@ -170,30 +170,6 @@ function formatDateShort(date: Date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function resolveProtocolPaymentToken(currency: MarketplaceAsset['currency']): {
-  symbol: PaymentTokenSymbol;
-  address: `0x${string}`;
-} {
-  if (currency === 'USDC') {
-    return {
-      symbol: 'USDC',
-      address: PAYMENT_TOKENS.USDC,
-    };
-  }
-
-  if (currency === 'USDT') {
-    return {
-      symbol: 'USDT',
-      address: PAYMENT_TOKENS.USDT,
-    };
-  }
-
-  return {
-    symbol: 'WBNB',
-    address: PAYMENT_TOKENS.WBNB,
-  };
-}
-
 function formatTokenAmountDisplay(amount: bigint | undefined, decimals: number | null) {
   if (amount === undefined || decimals === null) return '...';
   const formatted = formatUnits(amount, decimals);
@@ -249,7 +225,7 @@ export function RwaBuyOrderSignModal({
   onClose,
 }: RwaBuyOrderSignModalProps) {
   const { address } = useAccount();
-  const { assetAddress, chainId, marketplaceAddress, paymentGatewayAddress } = useProtocolDataNetwork();
+  const { assetAddress, chainId, marketplaceAddress, paymentGatewayAddress, paymentTokens } = useProtocolDataNetwork();
   const publicClient = usePublicClient({ chainId: chainId ?? undefined });
   const access = useAccessMode();
   const protocolChain = useProtocolChain();
@@ -262,7 +238,10 @@ export function RwaBuyOrderSignModal({
     hash: approvalHash,
     chainId: chainId ?? undefined,
   });
-  const paymentToken = useMemo(() => resolveProtocolPaymentToken(asset.currency), [asset.currency]);
+  const paymentToken = useMemo(
+    () => resolvePaymentTokenForCurrency(asset.currency, chainId),
+    [asset.currency, chainId],
+  );
   const paymentTokenDecimalsRead = useReadContract({
     chainId: chainId ?? undefined,
     address: paymentToken.address,
@@ -306,11 +285,11 @@ export function RwaBuyOrderSignModal({
     if (supportsOriFeeToken && feeTokenMode === 'ori') {
       return {
         symbol: 'ORI' as PaymentTokenSymbol,
-        address: PAYMENT_TOKENS.ORI,
+        address: paymentTokens.ORI,
       };
     }
     return paymentToken;
-  }, [feeTokenMode, paymentToken, supportsOriFeeToken]);
+  }, [feeTokenMode, paymentToken, paymentTokens.ORI, supportsOriFeeToken]);
   const usesSeparateFeeToken = feeToken.address.toLowerCase() !== paymentToken.address.toLowerCase();
   const feeTokenDecimalsRead = useReadContract({
     chainId: chainId ?? undefined,

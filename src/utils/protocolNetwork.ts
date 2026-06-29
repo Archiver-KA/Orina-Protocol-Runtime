@@ -20,7 +20,7 @@ const CHAIN_LABELS: Record<number, string> = {
   11155111: 'Ethereum Sepolia',
 };
 
-export type ProtocolNetworkStatus = 'live' | 'coming';
+export type ProtocolNetworkStatus = 'live' | 'blocked' | 'coming';
 export type ProtocolNetworkIcon = 'avalanche' | 'bnb' | 'base' | 'polygon' | 'solana' | 'ethereum' | 'arbitrum' | 'generic';
 
 export interface ProtocolNetworkOption {
@@ -30,6 +30,7 @@ export interface ProtocolNetworkOption {
   shortLabel: string;
   icon: ProtocolNetworkIcon;
   status: ProtocolNetworkStatus;
+  statusReason?: string;
   contracts?: typeof CONTRACTS | null;
   rpcUrl?: string | null;
   explorerUrl?: string | null;
@@ -55,7 +56,7 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     label: 'Base Sepolia',
     shortLabel: 'Base Sepolia',
     icon: 'base',
-    status: 'coming',
+    status: 'live',
     contracts: BASE_SEPOLIA_CONTRACTS,
     rpcUrl: RPC_URLS[84532],
     explorerUrl: EXPLORER_URLS[84532],
@@ -67,7 +68,7 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     label: 'Arbitrum Sepolia',
     shortLabel: 'Arbitrum Sepolia',
     icon: 'arbitrum',
-    status: 'coming',
+    status: 'live',
     contracts: ARBITRUM_SEPOLIA_CONTRACTS,
     rpcUrl: RPC_URLS[421614],
     explorerUrl: EXPLORER_URLS[421614],

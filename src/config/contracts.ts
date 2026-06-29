@@ -2,8 +2,7 @@
  * Orina ATP Protocol v3.5 beta - Contract Configuration
  * =====================================================
  * BSC Testnet beta is the write-enabled runtime; Base Sepolia metadata was verified on 2026-06-27.
- * Arbitrum Sepolia contracts were broadcast and bytecode-checked on 2026-06-28;
- * it remains non-write-enabled until the pending Marketplace M2M governance call is executed.
+ * Arbitrum Sepolia contracts were rebroadcast, bytecode-checked, and M2M-linked on 2026-06-29.
  * Fee split no-burn + transferable NFT branch + ORI fee-token option.
  * Namespace: orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604
  */
@@ -14,6 +13,14 @@ function parseRuntimeAddress(value: string, fallback: `0x${string}`): `0x${strin
   const trimmed = String(value || '').trim();
   return /^0x[a-fA-F0-9]{40}$/.test(trimmed) ? (trimmed as `0x${string}`) : fallback;
 }
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as `0x${string}`;
+const BASE_SEPOLIA_ORI = '0xd87493F4C02AAD2c67Ce12aa534d188Bf44FCCAB' as `0x${string}`;
+const BASE_SEPOLIA_USDT_T = '0x11E6c8f2806b32DaC427E7dF07F67602647Ef87a' as `0x${string}`;
+const BASE_SEPOLIA_USDC_T = '0xd6e84789741ea2DE727961CCB383454e4A845035' as `0x${string}`;
+const ARBITRUM_SEPOLIA_ORI = '0x5e41f1155AB4E614037C9C481BB8c1d398915cd0' as `0x${string}`;
+const ARBITRUM_SEPOLIA_USDT_T = '0x279c62C97c6967d0E0F45f9D2460d38E3929c090' as `0x${string}`;
+const ARBITRUM_SEPOLIA_USDC_T = '0x233Fb28c8166807b01DcBE2743bb85cF7cdC8b41' as `0x${string}`;
 
 // Contract Addresses (v3.5 beta no-burn fee split - BSC Testnet)
 export const CONTRACTS = {
@@ -27,6 +34,8 @@ export const CONTRACTS = {
   FEE_MANAGER:       '0xD32fc966835D8eb7D26A12BEcCa86c749A60eFb3' as `0x${string}`,
   AUTOTIME_MANAGER:  '0x5639792243617841800df8F1450B86223c3d86f4' as `0x${string}`,
   DISPUTE_MANAGER:   '0xCD27B85e7EA6FB1FDC484ae9083286DdCC14DC21' as `0x${string}`,
+  DELEGATION_MANAGER: '0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13' as `0x${string}`,
+  AI_WALLET_FACTORY_V2: '0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441' as `0x${string}`,
 
   // Registries
   UNIT_REGISTRY:     '0x4ea45450064CD5B7c88EcAaE6a145652FEDd5df0' as `0x${string}`,
@@ -45,18 +54,8 @@ export const CONTRACTS = {
 // Backward compatibility alias
 export const MARKETPLACE = CONTRACTS.MARKETPLACE_ATP;
 
-// Supported Payment Tokens (BSC Testnet)
-// The contract path can accept ERC20 tokens, but production needs an explicit allowlist policy.
-// The VITE_TESTNET_* overrides are mock faucet-token values and must stay testnet-only.
-export const PAYMENT_TOKENS = {
-  USDT: parseRuntimeAddress(runtimeConfig.testnetUsdtAddress, '0x337610d27c682e347c9cd60bd4b3b107c9d34ddd'), // BSC Testnet runtime USDT fallback
-  USDC: parseRuntimeAddress(runtimeConfig.testnetUsdcAddress, '0x64544969ed7ebf5f083679233325356ebe738930'), // BSC Testnet runtime USDC fallback
-  WBNB: '0xae13d989dac2f0debff460ac112a837c89baa7cd' as `0x${string}`, // Wrapped BNB testnet
-  ORI:  '0x093969c2bb194e7424534918eca5119fa72a61d6' as `0x${string}`, // ORI token
-} as const;
-
-// Base Sepolia ATP v3.5 deployment. The app intentionally keeps this network
-// non-write-enabled until its runtime configuration and governance handoff are complete.
+// Base Sepolia ATP v3.5 deployment. Base is write-ready after the
+// 2026-06-28 bytecode and Marketplace M2M delegation checks.
 export const BASE_SEPOLIA_CONTRACTS = {
   MARKETPLACE_ATP: '0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14' as `0x${string}`,
   ORINA_RWA:       '0x0a9efc1fb95be24743b1452ac4c974E5E925A453' as `0x${string}`,
@@ -65,6 +64,8 @@ export const BASE_SEPOLIA_CONTRACTS = {
   FEE_MANAGER:       '0x51aB383A43d79f4127B7E7dCBcd892164FA2838F' as `0x${string}`,
   AUTOTIME_MANAGER:  '0xa12273AD5b73c5F57139e84aa89Db52FE7Af05de' as `0x${string}`,
   DISPUTE_MANAGER:   '0x952aE0562De695c63c1386458DB537193Ce293b4' as `0x${string}`,
+  DELEGATION_MANAGER: '0xFC0038B7CC628966f8a7f14414c9386c2d6cB288' as `0x${string}`,
+  AI_WALLET_FACTORY_V2: '0x0E5E106A7F81233Fe07115Aeb3777e847adB09cB' as `0x${string}`,
   UNIT_REGISTRY:     '0x5a709d6f4F0a084315C64272FFc158Dc61F0De38' as `0x${string}`,
   SHIPPING_REGISTRY: '0x50fD56DcA706471B7f0Ab59051006aA2712c2DF2' as `0x${string}`,
   TIMELOCK:    '0x989b893118237f710b7Efc8820147B61c68DcaEE' as `0x${string}`,
@@ -74,26 +75,108 @@ export const BASE_SEPOLIA_CONTRACTS = {
   REFERRAL_VAULT: '0x3FB0B92FcC489A53eb0F172e5D919346e2DeF3c2' as `0x${string}`,
 } as const;
 
-// Arbitrum Sepolia ATP v3.5 deployment. The app intentionally keeps this network
-// non-write-enabled until the timelock executes MarketplaceATP.setDelegationManager.
+// Arbitrum Sepolia ATP v3.5 deployment. This testnet is EOA-governed through a
+// zero-delay timelock because multisig signing is unavailable on Arbitrum Sepolia.
+// Mainnet must redeploy with a production multisig/Safe and replace this address set.
 export const ARBITRUM_SEPOLIA_CONTRACTS = {
-  MARKETPLACE_ATP: '0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14' as `0x${string}`,
-  ORINA_RWA:       '0x0a9efc1fb95be24743b1452ac4c974E5E925A453' as `0x${string}`,
-  RECEIPT_NFT:     '0x82d2f4e131d1EB34F9B6Ebc8CC37bdD1cca84e95' as `0x${string}`,
-  PAYMENT_GATEWAY: '0x1A880Ae46993282dd77C2dDCc5e36498eB616C92' as `0x${string}`,
-  FEE_MANAGER:       '0x51aB383A43d79f4127B7E7dCBcd892164FA2838F' as `0x${string}`,
-  AUTOTIME_MANAGER:  '0xa12273AD5b73c5F57139e84aa89Db52FE7Af05de' as `0x${string}`,
-  DISPUTE_MANAGER:   '0x952aE0562De695c63c1386458DB537193Ce293b4' as `0x${string}`,
-  UNIT_REGISTRY:     '0x5a709d6f4F0a084315C64272FFc158Dc61F0De38' as `0x${string}`,
-  SHIPPING_REGISTRY: '0x50fD56DcA706471B7f0Ab59051006aA2712c2DF2' as `0x${string}`,
-  TIMELOCK:    '0x5C842728C357B9b18eb8A9A7a840499936132e67' as `0x${string}`,
-  GNOSIS_SAFE: '0x554c4F489846e293bA251fb8B863FE1241306138' as `0x${string}`,
+  MARKETPLACE_ATP: '0x5863f25A8250EBe20Bd1E3d04FD796081Fc3D72E' as `0x${string}`,
+  ORINA_RWA:       '0x0244Ad5ca0BC9Cd8555352Cd53Dc51Fd8eD2f011' as `0x${string}`,
+  RECEIPT_NFT:     '0x6A695E8356b6F80664E31402038CbBdBCfffa816' as `0x${string}`,
+  PAYMENT_GATEWAY: '0x39F539903b75A0bF0FEF16a443904C8c9DF787EE' as `0x${string}`,
+  FEE_MANAGER:       '0x0c4AccB88E2Cc530FEFBAb31Ca77371a2a68Ba20' as `0x${string}`,
+  AUTOTIME_MANAGER:  '0x75ac6efE7483c03B971Fb8E635dEE8ed8D527c61' as `0x${string}`,
+  DISPUTE_MANAGER:   '0xEE36B67BE61A37672D4ae041A89aEd12B333753E' as `0x${string}`,
+  DELEGATION_MANAGER: '0x56D454f55D5d05b060777F70e653BbBEb1167D2e' as `0x${string}`,
+  AI_WALLET_FACTORY_V2: '0x143519194A9Df4678b602BEE329C1A96381d1CBD' as `0x${string}`,
+  UNIT_REGISTRY:     '0x37D917202211492523659e83010300A444D62C91' as `0x${string}`,
+  SHIPPING_REGISTRY: '0x63f85795fAc0F76831a3eB14Dc7729A4052fe7F7' as `0x${string}`,
+  TIMELOCK:    '0x66Bf76Fdf268976080f119278982B082f417FbAD' as `0x${string}`,
+  GNOSIS_SAFE: '0x282Be18838D7079C215F49749a9606d77e00888b' as `0x${string}`,
   FEE_VAULT:      '0x130fF04D269f0E9C0eaa984C167bd746bB68F82a' as `0x${string}`,
   DAO_VAULT:      '0x8069c3e6E6156707746885d9328a35C874B835CF' as `0x${string}`,
   REFERRAL_VAULT: '0x3FB0B92FcC489A53eb0F172e5D919346e2DeF3c2' as `0x${string}`,
 } as const;
 
+// Supported payment tokens. The contract path can accept ERC20 tokens, but
+// production needs an explicit allowlist policy. Testnet mock tokens stay
+// chain-scoped so adding a new network does not mutate BSC behavior.
+export const PAYMENT_TOKENS = {
+  USDT: parseRuntimeAddress(runtimeConfig.bscTestnetUsdtAddress, '0x337610d27c682e347c9cd60bd4b3b107c9d34ddd'),
+  USDC: parseRuntimeAddress(runtimeConfig.bscTestnetUsdcAddress, '0x64544969ed7ebf5f083679233325356ebe738930'),
+  WBNB: '0xae13d989dac2f0debff460ac112a837c89baa7cd' as `0x${string}`,
+  ORI:  '0x093969c2bb194e7424534918eca5119fa72a61d6' as `0x${string}`,
+} as const;
+
+export const BASE_SEPOLIA_PAYMENT_TOKENS = {
+  USDT: parseRuntimeAddress(runtimeConfig.baseSepoliaUsdtAddress, BASE_SEPOLIA_USDT_T),
+  USDC: parseRuntimeAddress(runtimeConfig.baseSepoliaUsdcAddress, BASE_SEPOLIA_USDC_T),
+  WBNB: ZERO_ADDRESS,
+  ORI: parseRuntimeAddress('', BASE_SEPOLIA_ORI),
+} as const;
+
+export const ARBITRUM_SEPOLIA_PAYMENT_TOKENS = {
+  USDT: parseRuntimeAddress(runtimeConfig.arbitrumSepoliaUsdtAddress, ARBITRUM_SEPOLIA_USDT_T),
+  USDC: parseRuntimeAddress(runtimeConfig.arbitrumSepoliaUsdcAddress, ARBITRUM_SEPOLIA_USDC_T),
+  WBNB: ZERO_ADDRESS,
+  ORI: parseRuntimeAddress('', ARBITRUM_SEPOLIA_ORI),
+} as const;
+
+export const PAYMENT_TOKENS_BY_CHAIN_ID = {
+  97: PAYMENT_TOKENS,
+  84532: BASE_SEPOLIA_PAYMENT_TOKENS,
+  421614: ARBITRUM_SEPOLIA_PAYMENT_TOKENS,
+} as const;
+
 export type PaymentTokenSymbol = keyof typeof PAYMENT_TOKENS;
+export type PaymentTokenMap = Record<PaymentTokenSymbol, `0x${string}`>;
+
+export function getPaymentTokens(chainId?: number | null): PaymentTokenMap {
+  return (
+    (chainId ? PAYMENT_TOKENS_BY_CHAIN_ID[chainId as keyof typeof PAYMENT_TOKENS_BY_CHAIN_ID] : undefined)
+    ?? PAYMENT_TOKENS
+  );
+}
+
+export function getPaymentTokenSymbolByAddress(
+  address?: string | null,
+  chainId?: number | null,
+): PaymentTokenSymbol | null {
+  const normalized = String(address || '').toLowerCase();
+  if (!normalized) return null;
+
+  const chainTokens = getPaymentTokens(chainId);
+  const chainMatch = Object.entries(chainTokens).find(
+    ([, tokenAddress]) => tokenAddress !== ZERO_ADDRESS && tokenAddress.toLowerCase() === normalized,
+  );
+  if (chainMatch) return chainMatch[0] as PaymentTokenSymbol;
+
+  for (const tokenMap of Object.values(PAYMENT_TOKENS_BY_CHAIN_ID)) {
+    const match = Object.entries(tokenMap).find(
+      ([, tokenAddress]) => tokenAddress !== ZERO_ADDRESS && tokenAddress.toLowerCase() === normalized,
+    );
+    if (match) return match[0] as PaymentTokenSymbol;
+  }
+
+  return null;
+}
+
+export function resolvePaymentTokenForCurrency(
+  currency: string,
+  chainId?: number | null,
+): { symbol: PaymentTokenSymbol; address: `0x${string}` } {
+  const tokens = getPaymentTokens(chainId);
+  const normalized = String(currency || '').trim().toUpperCase();
+
+  if (normalized === 'USDC') return { symbol: 'USDC', address: tokens.USDC };
+  if (normalized === 'USDT') return { symbol: 'USDT', address: tokens.USDT };
+  if (normalized === 'ORI') return { symbol: 'ORI', address: tokens.ORI };
+  if ((normalized === 'WBNB' || normalized === 'BNB') && tokens.WBNB !== ZERO_ADDRESS) {
+    return { symbol: 'WBNB', address: tokens.WBNB };
+  }
+
+  return { symbol: 'USDC', address: tokens.USDC };
+}
+
 
 // â”€â”€ Standard Unit IDs (seeded on deploy) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const UNIT_IDS = {

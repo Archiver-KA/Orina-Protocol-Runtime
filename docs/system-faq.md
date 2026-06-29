@@ -1,16 +1,16 @@
 # Orina Protocol Runtime FAQ
 
-Last aligned with runtime code on 2026-06-04.
+Last aligned with runtime code on 2026-06-29.
 
 ## General
 
 ### What is Orina Protocol Runtime?
 
-It is the current production-facing runtime app for Orina Protocol. It includes the React frontend, wallet flows, BNB Chain Testnet ATP v3.5 beta contracts, Supabase runtime surfaces, Edge Functions, release checks, and current-code documentation.
+It is the current production-facing runtime app for Orina Protocol. It includes the React frontend, wallet flows, operated ATP v3.5 beta testnet contracts, Supabase runtime surfaces, Edge Functions, release checks, and current-code documentation.
 
 ### Which network is live right now?
 
-The live write-enabled runtime network is BNB Chain Testnet, chain id `97`. Other networks can appear as coming-soon options, but protocol writes should target the configured live BNB Testnet deployment.
+The live write-enabled runtime networks are BNB Chain Testnet `97`, Base Sepolia `84532`, and Arbitrum Sepolia `421614`. Arbitrum Sepolia uses EOA-controlled zero-delay timelock governance for testnet only; mainnet must be redeployed with the production multisig/Safe.
 
 ### What does ATP mean in this repo?
 
@@ -36,12 +36,11 @@ The runtime is configured for injected EIP-1193 wallets. MetaMask is the primary
 
 ### What chain should MetaMask use?
 
-Use BNB Chain Testnet:
+Use the selected live testnet. Current write-enabled choices:
 
-- Chain id: `97`
-- Hex chain id: `0x61`
-- Gas token: testnet BNB
-- Explorer: `https://testnet.bscscan.com`
+- BNB Chain Testnet: chain id `97`, hex `0x61`, gas token `tBNB`, explorer `https://testnet.bscscan.com`
+- Base Sepolia: chain id `84532`, hex `0x14a34`, gas token `ETH`, explorer `https://sepolia.basescan.org`
+- Arbitrum Sepolia: chain id `421614`, hex `0x66eee`, gas token `ETH`, explorer `https://sepolia.arbiscan.io`
 
 ### Why does a transaction ask for WBNB/USDT/USDC/ORI instead of native BNB?
 

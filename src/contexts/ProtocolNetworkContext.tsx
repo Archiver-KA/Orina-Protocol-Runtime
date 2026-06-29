@@ -16,6 +16,7 @@ type ProtocolNetworkRouterStatus =
   | 'ready'
   | 'wallet_not_connected'
   | 'wallet_mismatch'
+  | 'blocked'
   | 'coming_soon'
   | 'unsupported';
 
@@ -43,6 +44,7 @@ interface ProtocolNetworkContextValue {
   selectNetwork: (key: string) => Promise<boolean>;
   selectNetworkByChainId: (chainId?: number | null) => Promise<boolean>;
   syncNetworkFromValue: (value?: string | number | null) => Promise<boolean>;
+  switchWalletToSelectedNetwork: () => Promise<boolean>;
   switchWalletToLiveNetwork: () => Promise<boolean>;
 }
 
@@ -160,8 +162,16 @@ export function ProtocolNetworkProvider({ children }: { children: ReactNode }) {
     return switchWalletChain(liveNetwork.chainId);
   }, [isConnected, liveContracts, liveNetwork, switchWalletChain]);
 
+  const switchWalletToSelectedNetwork = useCallback(async () => {
+    if (!isConnected || !selectedNetwork.chainId || selectedNetwork.status !== 'live' || !selectedNetwork.contracts) {
+      return false;
+    }
+    return switchWalletChain(selectedNetwork.chainId);
+  }, [isConnected, selectedNetwork, switchWalletChain]);
+
   const selectionStatus = useMemo<ProtocolNetworkRouterStatus>(() => {
     if (!isConnected) return 'wallet_not_connected';
+    if (selectedNetwork.status === 'blocked') return 'blocked';
     if (!selectedNetwork.chainId || selectedNetwork.status !== 'live' || !selectedNetwork.contracts) {
       return 'coming_soon';
     }
@@ -170,32 +180,29 @@ export function ProtocolNetworkProvider({ children }: { children: ReactNode }) {
     return 'ready';
   }, [isConnected, selectedNetwork, walletNetwork]);
 
-  const status = useMemo<ProtocolNetworkRouterStatus>(() => {
-    if (!isConnected) return 'wallet_not_connected';
-    if (!liveNetwork.chainId || liveNetwork.status !== 'live' || !liveContracts) return 'coming_soon';
-    if (!walletNetwork) return 'unsupported';
-    if (walletNetwork.chainId !== liveNetwork.chainId) return 'wallet_mismatch';
-    return 'ready';
-  }, [isConnected, liveContracts, liveNetwork, walletNetwork]);
+  const status = selectionStatus;
 
   const value = useMemo<ProtocolNetworkContextValue>(() => {
     const selectedChainId = selectedNetwork.chainId ?? null;
     const liveChainId = liveNetwork.chainId ?? null;
     const walletChainId = isConnected ? (chainId ?? null) : null;
+    const selectedContracts = selectedNetwork.status === 'live'
+      ? (selectedNetwork.contracts ?? null)
+      : null;
 
     return {
       availableNetworks: PROTOCOL_NETWORK_OPTIONS,
       selectedNetwork,
       selectedNetworkKey: selectedNetwork.key,
       selectedChainId,
-      selectedContracts: selectedNetwork.contracts ?? null,
+      selectedContracts,
       liveNetwork,
       liveNetworkKey: liveNetwork.key,
       liveChainId,
       liveContracts,
       walletChainId,
       walletNetwork,
-      resolvedContracts: liveContracts,
+      resolvedContracts: selectedContracts,
       isConnected,
       isSwitching: isPending,
       isOnSelectedNetwork: Boolean(isConnected && selectedChainId && walletChainId === selectedChainId),
@@ -205,6 +212,7 @@ export function ProtocolNetworkProvider({ children }: { children: ReactNode }) {
       selectNetwork,
       selectNetworkByChainId,
       syncNetworkFromValue,
+      switchWalletToSelectedNetwork,
       switchWalletToLiveNetwork,
     };
   }, [
@@ -218,6 +226,7 @@ export function ProtocolNetworkProvider({ children }: { children: ReactNode }) {
     selectedNetwork,
     selectionStatus,
     status,
+    switchWalletToSelectedNetwork,
     switchWalletToLiveNetwork,
     syncNetworkFromValue,
     walletNetwork,

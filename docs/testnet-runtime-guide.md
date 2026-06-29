@@ -1,25 +1,27 @@
 # Testnet Runtime Guide
 
-Last aligned with runtime code and protocol deployment docs on 2026-06-28.
+Last aligned with runtime code and protocol deployment docs on 2026-06-29.
 
-This guide defines the BSC Testnet starter flow and records the currently operated ATP testnet addresses. It exists to keep testnet faucet behavior, mock token names, rankings, Base Sepolia metadata, Arbitrum Sepolia deployment readiness, and mainnet boundaries explicit.
+This guide defines the operated ATP testnet starter flow and records the currently operated ATP testnet addresses. It exists to keep testnet faucet behavior, mock token names, rankings, Base Sepolia activation, Arbitrum Sepolia EOA-governed testnet status, and mainnet boundaries explicit.
 
 ## Scope
 
 The Testnet Starter Kit modal is enabled only when:
 
 - `VITE_ENABLE_TESTNET_STARTER_KIT=true`
-- the connected wallet is on BSC Testnet, chain id `97`
+- the connected wallet is on a configured operated testnet: BSC Testnet `97`, Base Sepolia `84532`, or Arbitrum Sepolia `421614`
 - runtime config is still targeting the testnet deployment namespace
 
 The modal is not a core ATP contract surface. It is testnet onboarding infrastructure.
+
+Protocol writes are currently enabled for BSC Testnet, Base Sepolia, and Arbitrum Sepolia. Arbitrum Sepolia is testnet-only EOA-governed through a zero-delay timelock because the current multisig flow cannot sign on Arbitrum Sepolia.
 
 ## Modal Tabs
 
 | Tab | Purpose |
 | --- | --- |
 | Guide | Shows the beta setup sequence and network/faucet status. |
-| Claim tBNB | Links to an external tBNB faucet for gas. Orina does not mint native gas token. |
+| Get Gas | Links to an external native gas faucet for the selected testnet. Orina does not mint native gas token. |
 | Claim USDT.t | Claims mock USDT testnet token from the Orina testnet faucet when configured. |
 | Claim USDC.t | Claims mock USDC testnet token from the Orina testnet faucet when configured. |
 | Rankings | Shows testnet QA activity for the connected wallet. This is not a reward promise. |
@@ -31,17 +33,17 @@ Use `.t` suffix for faucet-minted testnet stablecoins:
 - `USDT.t`
 - `USDC.t`
 
-These tokens are mock ERC20 assets for BSC Testnet. They are not USDT, USDC, cash, stablecoin claims, redemption rights, or mainnet assets.
+These tokens are mock ERC20 assets for operated testnets. They are not USDT, USDC, cash, stablecoin claims, redemption rights, or mainnet assets.
 
-## Current BSC Testnet Starter Kit
+## Current Starter Kit Deployments
 
-Starter-kit broadcast completed on chain id `97` on 2026-06-07.
+Starter-kit broadcast completed on BSC Testnet chain id `97` on 2026-06-07. Base Sepolia and Arbitrum Sepolia starter-kit assets are deterministic testnet deployments recorded below.
 
-| Contract | Address |
-| --- | --- |
-| `OrinaTestTokenFaucet` | `0x6527262782C140e0A4724bef06431786556AfDE0` |
-| `USDT.t` | `0x8800279B4a5528628ef069698169C58B89377809` |
-| `USDC.t` | `0xbdcA834A71F5BFF1420eb5D1B0491d58a33141E5` |
+| Network | Chain id | Native gas | `OrinaTestTokenFaucet` | `USDT.t` | `USDC.t` |
+| --- | ---: | --- | --- | --- | --- |
+| BSC Testnet | `97` | `tBNB` | `0x6527262782C140e0A4724bef06431786556AfDE0` | `0x8800279B4a5528628ef069698169C58B89377809` | `0xbdcA834A71F5BFF1420eb5D1B0491d58a33141E5` |
+| Base Sepolia | `84532` | `ETH` | `0xbBd53C18F4d9fb98aA6c4837Ea0E8F221E1B5F0F` | `0x11E6c8f2806b32DaC427E7dF07F67602647Ef87a` | `0xd6e84789741ea2DE727961CCB383454e4A845035` |
+| Arbitrum Sepolia | `421614` | `ETH` | `0xFA37557E4F6D066f6CF4B69BA865837d007c8D1e` | `0x279c62C97c6967d0E0F45f9D2460d38E3929c090` | `0x233Fb28c8166807b01DcBE2743bb85cF7cdC8b41` |
 
 Current claim config:
 
@@ -58,7 +60,7 @@ forge script script/DeployTestnetTokenFaucet.s.sol:DeployTestnetTokenFaucet --rp
 forge script script/DeployTestnetTokenFaucet.s.sol:DeployTestnetTokenFaucet --rpc-url bsc_testnet --broadcast --legacy --slow -vvvv
 ```
 
-After broadcast, paste only the emitted Runtime values into the Runtime env:
+After broadcast, paste only the emitted Runtime values into the Runtime env. Legacy `VITE_TESTNET_*` keys are still read as BSC aliases, but new networks must use per-network keys:
 
 ```env
 VITE_ENABLE_TESTNET_STARTER_KIT=true
@@ -66,13 +68,25 @@ VITE_TESTNET_TBNB_FAUCET_URL=
 VITE_TESTNET_TOKEN_FAUCET_ADDRESS=0x6527262782C140e0A4724bef06431786556AfDE0
 VITE_TESTNET_USDT_T_ADDRESS=0x8800279B4a5528628ef069698169C58B89377809
 VITE_TESTNET_USDC_T_ADDRESS=0xbdcA834A71F5BFF1420eb5D1B0491d58a33141E5
+VITE_BSC_TESTNET_GAS_FAUCET_URL=
+VITE_BSC_TESTNET_TOKEN_FAUCET_ADDRESS=0x6527262782C140e0A4724bef06431786556AfDE0
+VITE_BSC_TESTNET_USDT_T_ADDRESS=0x8800279B4a5528628ef069698169C58B89377809
+VITE_BSC_TESTNET_USDC_T_ADDRESS=0xbdcA834A71F5BFF1420eb5D1B0491d58a33141E5
+VITE_BASE_SEPOLIA_GAS_FAUCET_URL=
+VITE_BASE_SEPOLIA_TOKEN_FAUCET_ADDRESS=0xbBd53C18F4d9fb98aA6c4837Ea0E8F221E1B5F0F
+VITE_BASE_SEPOLIA_USDT_T_ADDRESS=0x11E6c8f2806b32DaC427E7dF07F67602647Ef87a
+VITE_BASE_SEPOLIA_USDC_T_ADDRESS=0xd6e84789741ea2DE727961CCB383454e4A845035
+VITE_ARBITRUM_SEPOLIA_GAS_FAUCET_URL=
+VITE_ARBITRUM_SEPOLIA_TOKEN_FAUCET_ADDRESS=0xFA37557E4F6D066f6CF4B69BA865837d007c8D1e
+VITE_ARBITRUM_SEPOLIA_USDT_T_ADDRESS=0x279c62C97c6967d0E0F45f9D2460d38E3929c090
+VITE_ARBITRUM_SEPOLIA_USDC_T_ADDRESS=0x233Fb28c8166807b01DcBE2743bb85cF7cdC8b41
 ```
 
 Keep these env keys separate from `CONTRACTS` core protocol addresses. The faucet can be deployed, rotated, or disabled without changing the ATP core address set.
 
 ## Current Operated Testnets
 
-The canonical contract address source is the Foundry address sheet. The runtime app currently treats BSC Testnet as the write-enabled beta network. Base Sepolia is documented/readiness metadata with deployed contracts; Arbitrum Sepolia has deployed contracts and stays non-write-enabled until the pending timelock governance call wires Marketplace M2M delegation.
+The canonical contract address source is the Foundry address sheet. The runtime app currently treats BSC Testnet, Base Sepolia, and Arbitrum Sepolia as write-enabled beta networks.
 
 ### BSC Testnet Core
 
@@ -112,20 +126,20 @@ Base Sepolia starter-kit assets are `ORI=0xd87493F4C02AAD2c67Ce12aa534d188Bf44FC
 
 | Contract | Address |
 | --- | --- |
-| `MarketplaceATP` | `0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14` |
-| `PaymentGateway` | `0x1A880Ae46993282dd77C2dDCc5e36498eB616C92` |
-| `FeeManager` | `0x51aB383A43d79f4127B7E7dCBcd892164FA2838F` |
-| `OrinaRWA` | `0x0a9efc1fb95be24743b1452ac4c974E5E925A453` |
-| `RWAReceiptNFT` | `0x82d2f4e131d1EB34F9B6Ebc8CC37bdD1cca84e95` |
-| `DisputeManager` | `0x952aE0562De695c63c1386458DB537193Ce293b4` |
-| `AutoTimeManager` | `0xa12273AD5b73c5F57139e84aa89Db52FE7Af05de` |
-| `DelegationManager` | `0x52440e44ec34a64e19b92243262fe47819d65539` |
-| `AIWalletFactoryV2` | `0x7D6b498eDc3F469ED020116e8892EbB361753bCB` |
-| `TimelockController` | `0x5C842728C357B9b18eb8A9A7a840499936132e67` |
+| `MarketplaceATP` | `0x5863f25A8250EBe20Bd1E3d04FD796081Fc3D72E` |
+| `PaymentGateway` | `0x39F539903b75A0bF0FEF16a443904C8c9DF787EE` |
+| `FeeManager` | `0x0c4AccB88E2Cc530FEFBAb31Ca77371a2a68Ba20` |
+| `OrinaRWA` | `0x0244Ad5ca0BC9Cd8555352Cd53Dc51Fd8eD2f011` |
+| `RWAReceiptNFT` | `0x6A695E8356b6F80664E31402038CbBdBCfffa816` |
+| `DisputeManager` | `0xEE36B67BE61A37672D4ae041A89aEd12B333753E` |
+| `AutoTimeManager` | `0x75ac6efE7483c03B971Fb8E635dEE8ed8D527c61` |
+| `DelegationManager` | `0x56D454f55D5d05b060777F70e653BbBEb1167D2e` |
+| `AIWalletFactoryV2` | `0x143519194A9Df4678b602BEE329C1A96381d1CBD` |
+| `TimelockController` | `0x66Bf76Fdf268976080f119278982B082f417FbAD` |
 
-Arbitrum Sepolia starter-kit assets are `ORI=0xD87493f4C02aad2c67Ce12aa534d188Bf44FCcAB`, `USDT.t=0x11E6c8f2806b32dAC427E7Df07F67602647eF87A`, `USDC.t=0xD6E84789741Ea2DE727961cCB383454E4A845035`, and `OrinaTestTokenFaucet=0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F`.
+Arbitrum Sepolia starter-kit assets are `ORI=0x5e41f1155AB4E614037C9C481BB8c1d398915cd0`, `USDT.t=0x279c62C97c6967d0E0F45f9D2460d38E3929c090`, `USDC.t=0x233Fb28c8166807b01DcBE2743bb85cF7cdC8b41`, and `OrinaTestTokenFaucet=0xFA37557E4F6D066f6CF4B69BA865837d007c8D1e`.
 
-On 2026-06-28, BSC Testnet, Base Sepolia, and Arbitrum Sepolia were spot-checked for deployed bytecode on `MarketplaceATP`, `PaymentGateway`, and `DelegationManager`. BSC Testnet and Base Sepolia `MarketplaceATP.delegationManager()` returned the listed DelegationManager. Arbitrum Sepolia `DelegationManager` grants `CONSUMER_ROLE` to its Marketplace and has timelock admin, but `MarketplaceATP.delegationManager()` remains `0x0000000000000000000000000000000000000000` until timelock executes `setDelegationManager(address)` with calldata `0x1a8d0de200000000000000000000000052440e44ec34a64e19b92243262fe47819d65539`.
+On 2026-06-29, on-chain checks confirmed Arbitrum Sepolia bytecode, `MarketplaceATP.delegationManager() == 0x56D454f55D5d05b060777F70e653BbBEb1167D2e`, `DelegationManager` grants `CONSUMER_ROLE` to its Marketplace, and the deployer EOA does not retain Marketplace or DelegationManager admin. The Arbitrum Sepolia timelock itself is intentionally controlled by deployer EOA `0x282Be18838D7079C215F49749a9606d77e00888b` with zero delay for testnet operations only.
 
 ## Mainnet Boundary
 
@@ -137,15 +151,17 @@ Before any mainnet deployment:
 - Do not deploy `OrinaTestStablecoin` or `OrinaTestTokenFaucet` to mainnet.
 - Do not describe testnet rankings as rewards, eligibility, allocation, or financial entitlement.
 - Replace beta ORI/payment-token parity assumptions with the production oracle quote layer.
+- Redeploy Arbitrum with the production multisig/Safe and non-zero timelock delay; do not reuse the Arbitrum Sepolia EOA-governed address set for mainnet.
 - Complete the production checklist in `docs/mainnet-production-checklist.md`.
 
 ## Operator Checks
 
 Run these checks before opening beta traffic:
 
-1. Confirm wallet is on chain id `97`.
+1. Confirm wallet is on a configured operated testnet chain id.
 2. Confirm faucet address is non-zero and has mint role on both mock tokens.
 3. Confirm token decimals are `6`.
 4. Confirm claim amount and cooldown are acceptable.
 5. Confirm UI labels show `USDT.t` and `USDC.t`.
 6. Confirm production/mainnet env has starter kit disabled.
+7. Run `npm run verify:testnet-networks` before changing a network from blocked/coming to live.

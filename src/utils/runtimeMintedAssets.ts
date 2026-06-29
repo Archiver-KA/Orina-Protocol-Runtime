@@ -227,7 +227,11 @@ function buildGenericDetails(
     blockchain:
       resolvedScope.chainId === 56 || resolvedScope.chainId === 97
         ? "BSC"
-        : `Chain ${resolvedScope.chainId}`,
+        : resolvedScope.chainId === 84532
+          ? "Base Sepolia"
+          : resolvedScope.chainId === 421614
+            ? "Arbitrum Sepolia"
+            : `Chain ${resolvedScope.chainId}`,
     currentPrice: fallback?.currentPrice ?? "0",
     currentPriceUsd: fallback?.currentPriceUsd ?? "0",
     image,

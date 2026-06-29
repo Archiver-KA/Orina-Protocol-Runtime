@@ -219,7 +219,7 @@ export function MintingRightSidebar({ telemetry = null }: MintingRightSidebarPro
                     value: network.key,
                     label: network.shortLabel,
                     icon: <NetworkBrandLogo icon={network.icon} label={network.shortLabel} className="h-4 w-4" />,
-                    tag: network.status === 'live' ? 'Live' : 'Coming',
+                    tag: network.status === 'live' ? 'Live' : network.status === 'blocked' ? 'Pending' : 'Coming',
                   }))}
                   className="w-full"
                   triggerClassName="!h-[40px] !w-full !justify-between !rounded-xl !border !border-ui-border-subtle !bg-ui-input !px-4 !text-[11px] !font-medium !uppercase !tracking-tight !text-ui-secondary hover:!bg-ui-input-focus"

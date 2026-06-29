@@ -20,12 +20,11 @@ import type {
 } from '@/app/types/ai-m2m-wallet';
 import { AIM2MWalletClient } from '@/utils/aiM2MWalletClient';
 import { ERC20_ABI } from '@/config/abis';
-import { CONTRACTS, PAYMENT_TOKENS } from '@/config/contracts';
+import type { PaymentTokenMap } from '@/config/contracts';
 import {
   M2M_ACTION_DESCRIPTIONS,
-  M2M_CONTRACTS,
-  M2M_DEFAULT_PAYMENT_TOKEN,
   M2M_PROTOCOL_GUARDRAILS,
+  getM2MDefaultPaymentToken,
 } from '@/config/m2m';
 import {
   useAIM2MWalletLifecycleState,
@@ -40,6 +39,7 @@ import {
   useRevokeAIM2MWallet,
 } from '@/hooks/useAIM2M';
 import { useAccessMode } from '@/hooks/useAccessMode';
+import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { dispatchBridgeSecurityCheckRequest } from '@/utils/supabaseAuthClaimBridge';
 
@@ -113,8 +113,8 @@ function buildActionMask(actions: AIM2MAction[]): bigint {
   return mask;
 }
 
-function getPaymentTokenSymbol(address: string | null | undefined): string | null {
-  const entry = Object.entries(PAYMENT_TOKENS).find(([, token]) => sameAddress(token, address));
+function getPaymentTokenSymbol(address: string | null | undefined, paymentTokens: PaymentTokenMap): string | null {
+  const entry = Object.entries(paymentTokens).find(([, token]) => sameAddress(token, address));
   return entry?.[0] ?? null;
 }
 
@@ -174,6 +174,11 @@ function buildSteps(configured: boolean, walletReady: boolean, cycleCanRestart: 
 }
 
 export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWalletSettingsProps) {
+  const { chainId, paymentTokens, m2mContracts } = useProtocolDataNetwork();
+  const defaultPaymentToken = useMemo(
+    () => getM2MDefaultPaymentToken(chainId, paymentTokens),
+    [chainId, paymentTokens],
+  );
   const cachedConfigResponse = AIM2MWalletClient.peekConfig(walletAddress);
   const [config, setConfig] = useState<AIM2MWalletConfig | null>(cachedConfigResponse?.config ?? null);
   const [overview, setOverview] = useState<AIM2MWalletOverview | null>(cachedConfigResponse?.overview ?? null);
@@ -188,7 +193,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
   const [statusMessage, setStatusMessage] = useState('');
   const [enabled, setEnabled] = useState(cachedConfigResponse?.config.enabled ?? false);
   const [selectedDelegateId, setSelectedDelegateId] = useState<string | null>(cachedConfigResponse?.config.selectedDelegateId ?? null);
-  const [paymentToken, setPaymentToken] = useState<string>(cachedConfigResponse?.config.paymentToken || M2M_DEFAULT_PAYMENT_TOKEN);
+  const [paymentToken, setPaymentToken] = useState<string>(cachedConfigResponse?.config.paymentToken || defaultPaymentToken);
   const [allowedActions, setAllowedActions] = useState<AIM2MAction[]>(cachedConfigResponse?.config.allowedActions.length ? cachedConfigResponse.config.allowedActions : ['buy']);
   const [maxPerOrder, setMaxPerOrder] = useState(cachedConfigResponse?.config.maxPerOrder ?? '');
   const [maxTotal, setMaxTotal] = useState(cachedConfigResponse?.config.maxTotal ?? '');
@@ -206,6 +211,12 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
   const requiresFundingVault = normalizedActions.includes('buy');
   const actionMask = useMemo(() => buildActionMask(normalizedActions), [normalizedActions]);
   const paymentTokenAddress = isAddressLike(paymentToken) ? paymentToken : undefined;
+  useEffect(() => {
+    const tokenExistsOnNetwork = Object.values(paymentTokens).some((tokenAddress) => sameAddress(tokenAddress, paymentToken));
+    if (!tokenExistsOnNetwork) {
+      setPaymentToken(defaultPaymentToken);
+    }
+  }, [defaultPaymentToken, paymentToken, paymentTokens]);
   const onchainRootAddress = !loading ? (walletAddress as Address | undefined) : undefined;
   const storedDelegate = useMemo(
     () => delegates.find((item) => item.id === selectedDelegateId) || null,
@@ -235,12 +246,14 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
   const runtimeWalletAddress = deployedWalletAddress ?? predictedWalletAddress;
   const walletState = useAIM2MWalletLifecycleState(deployedWalletAddress ?? undefined);
   const tokenDecimalsRead = useReadContract({
+    chainId: chainId ?? undefined,
     address: paymentTokenAddress,
     abi: ERC20_ABI,
     functionName: 'decimals',
     query: { enabled: Boolean(!loading && paymentTokenAddress) },
   });
   const tokenBalanceRead = useReadContract({
+    chainId: chainId ?? undefined,
     address: paymentTokenAddress,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
@@ -375,13 +388,13 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
       items.push({
         id: 'funded',
         label: 'Vault funded',
-        detail: `${tokenBalanceFormatted || '0'} ${getPaymentTokenSymbol(paymentToken) || 'token'} detected on the runtime wallet.`,
+        detail: `${tokenBalanceFormatted || '0'} ${getPaymentTokenSymbol(paymentToken, paymentTokens) || 'token'} detected on the runtime wallet.`,
         timestamp: null,
         status: 'success',
       });
     }
     return items;
-  }, [selectedDelegate, enabled, policyLocked, config, flowSessionNonce, sessionStatus, flowSession, deployedWalletAddress, tokenBalanceRaw, tokenBalanceFormatted, paymentToken]);
+  }, [selectedDelegate, enabled, policyLocked, config, flowSessionNonce, sessionStatus, flowSession, deployedWalletAddress, tokenBalanceRaw, tokenBalanceFormatted, paymentToken, paymentTokens]);
 
   const hydrateForm = (nextConfig: AIM2MWalletConfig, nextOverview: AIM2MWalletOverview, nextDelegates: AIM2MDelegateRecord[], nextPendingInvites: AIM2MDelegateInvite[]) => {
     setConfig(nextConfig);
@@ -390,7 +403,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
     setPendingInvites(nextPendingInvites);
     setEnabled(nextConfig.enabled);
     setSelectedDelegateId(nextConfig.selectedDelegateId);
-    setPaymentToken(nextConfig.paymentToken || M2M_DEFAULT_PAYMENT_TOKEN);
+    setPaymentToken(nextConfig.paymentToken || defaultPaymentToken);
     setAllowedActions(nextConfig.allowedActions.length ? nextConfig.allowedActions : ['buy']);
     setMaxPerOrder(nextConfig.maxPerOrder || '');
     setMaxTotal(nextConfig.maxTotal || '');
@@ -498,7 +511,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
       delegates,
       pendingInvites,
       paymentToken,
-      paymentTokenSymbol: getPaymentTokenSymbol(paymentToken),
+      paymentTokenSymbol: getPaymentTokenSymbol(paymentToken, paymentTokens),
       allowedActions: normalizedActions,
       maxPerOrder,
       maxTotal,
@@ -723,8 +736,8 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
       {!m2mOnchainReady ? (
         <StudioNoticePanel variant="warning" title="AI wallet setup is not available in this environment yet">
           <div className="space-y-1">
-            <p>Setup contract: {M2M_CONTRACTS.DELEGATION_MANAGER ?? 'not configured'}</p>
-            <p>Wallet factory: {M2M_CONTRACTS.AI_WALLET_FACTORY_V2 ?? 'not configured'}</p>
+            <p>Setup contract: {m2mContracts.DELEGATION_MANAGER ?? 'not configured'}</p>
+            <p>Wallet factory: {m2mContracts.AI_WALLET_FACTORY_V2 ?? 'not configured'}</p>
           </div>
         </StudioNoticePanel>
       ) : null}
@@ -803,7 +816,9 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
                 <label className="block text-xs font-semibold text-ui-muted uppercase mb-2">Payment Token</label>
                 <CustomDropdown
                   variant="compact"
-                  options={Object.entries(PAYMENT_TOKENS).map(([symbol, address]) => ({ value: address, label: `${symbol} · ${address}` }))}
+                  options={Object.entries(paymentTokens)
+                    .filter(([, address]) => address !== '0x0000000000000000000000000000000000000000')
+                    .map(([symbol, address]) => ({ value: address, label: `${symbol} · ${address}` }))}
                   defaultValue={paymentToken}
                   onChange={(val) => setPaymentToken(val)}
                   triggerClassName={policyLocked ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}
@@ -882,7 +897,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
             <div className="rounded-lg bg-[var(--t-surface-5)] px-4 py-4 text-sm text-ui-muted space-y-2">
               <p>Wallet: {cycleWalletAddress || 'n/a'}</p>
               <p>Status: {runtimeStatusLabel}</p>
-              <p>Unused balance: {tokenBalanceFormatted || '0'} {getPaymentTokenSymbol(paymentToken) || ''}</p>
+              <p>Unused balance: {tokenBalanceFormatted || '0'} {getPaymentTokenSymbol(paymentToken, paymentTokens) || ''}</p>
               <p>Ends: {walletExpiry === NO_EXPIRY_UINT64 ? 'No expiry' : walletExpiry !== undefined ? new Date(Number(walletExpiry) * 1000).toLocaleString() : 'n/a'}</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -903,7 +918,7 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
             </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="rounded-lg border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4"><div className="text-xs font-semibold uppercase tracking-widest text-ui-muted mb-2">Send Funds To</div><div className="flex items-start gap-1"><div className="min-w-0 flex-1 break-all text-sm text-ui-primary">{runtimeWalletAddress || 'Finish setup to see the wallet address'}</div><CopyAddressButton address={runtimeWalletAddress} className="-mr-1 -mt-1" /></div></div>
-                <div className="rounded-lg border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4"><div className="text-xs font-semibold uppercase tracking-widest text-ui-muted mb-2">Current Balance</div><div className="text-lg font-semibold text-ui-primary">{tokenBalanceFormatted || '0'} {getPaymentTokenSymbol(paymentToken) || ''}</div></div>
+                <div className="rounded-lg border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4"><div className="text-xs font-semibold uppercase tracking-widest text-ui-muted mb-2">Current Balance</div><div className="text-lg font-semibold text-ui-primary">{tokenBalanceFormatted || '0'} {getPaymentTokenSymbol(paymentToken, paymentTokens) || ''}</div></div>
                 <div className="rounded-lg border border-ui-border-subtle bg-[var(--t-surface-5)] px-4 py-4"><div className="text-xs font-semibold uppercase tracking-widest text-ui-muted mb-2">Status</div><div className="text-sm text-ui-primary">{runtimeStatusLabel}</div></div>
             </div>
           </div>

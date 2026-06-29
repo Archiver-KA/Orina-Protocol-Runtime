@@ -779,6 +779,8 @@ function getMarketplaceAssetBlockchainValue(asset: MarketplaceAsset) {
   if (blockchain === 'ethereum-mainnet') return 'ethereum';
   if (blockchain === 'polygon-network') return 'polygon';
   if (blockchain === 'arbitrum-one') return 'arbitrum';
+  if (blockchain === 'arbitrum-sepolia' || blockchain === 'arb-sepolia') return 'arbitrum-sepolia';
+  if (blockchain === 'base-sepolia') return 'base-sepolia';
 
   if (
     blockchain === 'bsc' ||
@@ -789,6 +791,9 @@ function getMarketplaceAssetBlockchainValue(asset: MarketplaceAsset) {
   ) {
     return network === 'testnet' ? 'bnb-testnet' : 'bsc';
   }
+
+  if (blockchain === 'arbitrum') return network === 'testnet' ? 'arbitrum-sepolia' : 'arbitrum';
+  if (blockchain === 'base') return network === 'testnet' ? 'base-sepolia' : 'base';
 
   return blockchain;
 }
@@ -808,6 +813,8 @@ function getMarketplaceCatalogBlockchainOption(
       return { value: 'polygon', label: 'Polygon' };
     case 'base':
       return { value: 'base', label: 'Base' };
+    case 'base-sepolia':
+      return { value: 'base-sepolia', label: 'Base Sepolia' };
     case 'avalanche':
       return { value: 'avalanche', label: 'Avalanche' };
     case 'solana':
@@ -815,6 +822,9 @@ function getMarketplaceCatalogBlockchainOption(
     case 'arbitrum':
     case 'arbitrum-one':
       return { value: 'arbitrum', label: 'Arbitrum' };
+    case 'arbitrum-sepolia':
+    case 'arb-sepolia':
+      return { value: 'arbitrum-sepolia', label: 'Arbitrum Sepolia' };
     case 'bsc':
       return { value: 'bsc', label: 'BSC' };
     default:
@@ -832,7 +842,9 @@ const MARKETPLACE_BLOCKCHAIN_CHAIN_IDS: Record<string, number> = {
   'ethereum-testnet': 11155111,
   polygon: 137,
   arbitrum: 42161,
+  'arbitrum-sepolia': 421614,
   base: 8453,
+  'base-sepolia': 84532,
   avalanche: 43114,
 };
 

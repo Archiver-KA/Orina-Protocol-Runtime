@@ -101,7 +101,9 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
               ? `Switched to ${targetNetwork.shortLabel}`
               : `Selected ${targetNetwork.shortLabel}`
           )
-          : `${targetNetwork.shortLabel} is coming soon`,
+          : targetNetwork.status === 'blocked'
+            ? `${targetNetwork.shortLabel} is pending governance`
+            : `${targetNetwork.shortLabel} is coming soon`,
       );
       if (targetNetwork.status === 'live') {
         setIsOpen(false);
@@ -110,7 +112,11 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
     }
 
     if (targetNetwork.status !== 'live') {
-      setStatusMessage(`${targetNetwork.shortLabel} is coming soon`);
+      setStatusMessage(
+        targetNetwork.status === 'blocked'
+          ? (targetNetwork.statusReason ?? `${targetNetwork.shortLabel} is pending governance`)
+          : `${targetNetwork.shortLabel} is coming soon`,
+      );
       return;
     }
 
@@ -139,7 +145,13 @@ export function NetworkSwitcher({ sidebarCollapsed = false }: NetworkSwitcherPro
               {PROTOCOL_NETWORK_OPTIONS.map((network) => {
                 const isSelected = network.key === activeNetwork.key;
                 const isLive = network.status === 'live';
-                const badgeLabel = isSelected ? 'Selected' : isLive ? 'Live' : 'Coming';
+                const badgeLabel = isSelected
+                  ? 'Selected'
+                  : isLive
+                    ? 'Live'
+                    : network.status === 'blocked'
+                      ? 'Pending'
+                      : 'Coming';
 
                 return (
                   <button
