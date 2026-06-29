@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import { encodeAbiParameters, encodeFunctionData, keccak256, type Address, type Hex } from 'viem';
-import { useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
+import { usePublicClient, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import { AssetType } from '@/config/contracts';
 import { M2M_CONTRACTS, getM2MContracts } from '@/config/m2m';
 import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
 import { LIVE_PROTOCOL_CHAIN_ID, LIVE_PROTOCOL_CONTRACTS, getProtocolContracts } from '@/utils/protocolNetwork';
+import { resolveBufferedEip1559FeeOverrides } from '@/utils/transactionFeeOverrides';
 import {
   MARKETPLACE_ABI,
   AI_WALLET_FACTORY_V2_ABI,
@@ -544,6 +545,7 @@ export function useEscrowAmount(orderId: bigint | undefined) {
 
 export function useDeployAIM2MWallet() {
   const { chainId, marketplaceAddress, paymentGatewayAddress, m2mContracts } = useLiveM2MScope();
+  const publicClient = usePublicClient({ chainId });
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId });
 
@@ -556,6 +558,7 @@ export function useDeployAIM2MWallet() {
     if (!resolvedMarketplaceAddress || !resolvedPaymentGatewayAddress) {
       throw new Error('AI wallet core contract addresses are not configured');
     }
+    const feeOverrides = await resolveBufferedEip1559FeeOverrides(publicClient);
     return writeContractAsync({
       chainId,
       address: m2mContracts.AI_WALLET_FACTORY_V2,
@@ -563,6 +566,7 @@ export function useDeployAIM2MWallet() {
       functionName: 'deployWallet',
       gas: DEPLOY_AI_WALLET_GAS_LIMIT,
       value: 0n,
+      ...feeOverrides,
       args: [buildDeployWalletConfigTuple(input, resolvedMarketplaceAddress, resolvedPaymentGatewayAddress)],
     });
   };
@@ -572,16 +576,19 @@ export function useDeployAIM2MWallet() {
 
 export function useRevokeAIM2MWallet(walletAddress: Address | undefined) {
   const { chainId } = useLiveM2MScope();
+  const publicClient = usePublicClient({ chainId });
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId });
 
   const revokeWallet = async () => {
     if (!walletAddress) throw new Error('Wallet address is required');
+    const feeOverrides = await resolveBufferedEip1559FeeOverrides(publicClient);
     return writeContractAsync({
       chainId,
       address: walletAddress,
       abi: AI_WALLET_V2_ABI,
       functionName: 'revokeAndSweep',
+      ...feeOverrides,
       args: [],
     });
   };
@@ -591,16 +598,19 @@ export function useRevokeAIM2MWallet(walletAddress: Address | undefined) {
 
 export function useCloseExpiredAIM2MWallet(walletAddress: Address | undefined) {
   const { chainId } = useLiveM2MScope();
+  const publicClient = usePublicClient({ chainId });
   const { data: hash, writeContractAsync, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash, chainId });
 
   const closeExpiredWallet = async () => {
     if (!walletAddress) throw new Error('Wallet address is required');
+    const feeOverrides = await resolveBufferedEip1559FeeOverrides(publicClient);
     return writeContractAsync({
       chainId,
       address: walletAddress,
       abi: AI_WALLET_V2_ABI,
       functionName: 'closeExpiredAndSweep',
+      ...feeOverrides,
       args: [],
     });
   };

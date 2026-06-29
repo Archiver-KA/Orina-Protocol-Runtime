@@ -14,6 +14,9 @@ import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indic
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
 import { InlineAIRightRail } from '@/app/components/ui/inline-ai-right-rail';
 import { CopyAddressButton } from '@/app/components/ui/copy-address-button';
+import { NetworkBrandLogo } from '@/app/components/ui/network-brand-logo';
+import { useProtocolDataNetwork } from '@/hooks/useProtocolDataNetwork';
+import { resolveProtocolNetwork } from '@/utils/protocolNetwork';
 import type {
   AIM2MActivityItem,
   AIM2MWalletRuntimeSnapshot,
@@ -167,6 +170,7 @@ export function AgentSettings({
   onCloseAISidebar = () => undefined,
 }: AgentSettingsProps) {
   const { address } = useEffectiveViewer();
+  const { chainId } = useProtocolDataNetwork();
   const [m2mSnapshot, setM2MSnapshot] = useState<AIM2MWalletRuntimeSnapshot | null>(null);
   const [isM2MSectionMounted, setIsM2MSectionMounted] = useState(false);
 
@@ -206,6 +210,11 @@ export function AgentSettings({
   const visibleActivity = useMemo(
     () => (m2mSnapshot?.activity || []).slice(0, 4),
     [m2mSnapshot],
+  );
+
+  const aiWalletNetwork = useMemo(
+    () => resolveProtocolNetwork(m2mSnapshot?.chainId ?? chainId),
+    [chainId, m2mSnapshot?.chainId],
   );
 
   const sidebarCardClass = 'min-w-0 overflow-hidden p-4 bg-[var(--t-surface-5)] rounded-xl';
@@ -315,6 +324,26 @@ export function AgentSettings({
               <p className="text-xs text-ui-muted mt-1">
                 See wallet status, balance, permissions, and recent activity.
               </p>
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-[var(--t-border-subtle)] bg-[var(--t-surface-3)] px-3 py-2">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <NetworkBrandLogo
+                    icon={aiWalletNetwork.icon}
+                    label={aiWalletNetwork.shortLabel}
+                    className="h-7 w-7 shrink-0 rounded-full"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-[9px] font-semibold uppercase tracking-widest text-ui-muted">
+                      Network
+                    </div>
+                    <div className="truncate text-xs font-semibold text-ui-primary">
+                      {m2mSnapshot?.networkLabel || aiWalletNetwork.shortLabel}
+                    </div>
+                  </div>
+                </div>
+                <span className="shrink-0 rounded-full bg-[var(--t-surface-6)] px-2 py-0.5 text-[10px] font-semibold text-ui-secondary">
+                  #{aiWalletNetwork.chainId ?? 'n/a'}
+                </span>
+              </div>
             </div>
 
             <div className="min-h-0 flex-grow overflow-x-hidden overflow-y-auto p-5 space-y-6 custom-scrollbar">

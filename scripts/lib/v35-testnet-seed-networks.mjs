@@ -108,3 +108,39 @@ export function buildNetworkAssetUid(network, sourceAssetUid) {
 export function explorerTxUrl(network, txHash) {
   return txHash ? `${network.explorerBaseUrl}/tx/${txHash}` : '';
 }
+
+const EIP1559_BASE_FEE_BUFFER_MULTIPLIER = 3n;
+
+export function buildBufferedEip1559FeeOverrides({
+  baseFeePerGas,
+  estimatedMaxFeePerGas,
+  estimatedMaxPriorityFeePerGas,
+} = {}) {
+  const latestBaseFee = baseFeePerGas ?? 0n;
+  if (latestBaseFee <= 0n) return {};
+
+  const estimatedMaxFee = estimatedMaxFeePerGas ?? 0n;
+  const bufferedMaxFee = latestBaseFee * EIP1559_BASE_FEE_BUFFER_MULTIPLIER;
+  return {
+    maxFeePerGas: estimatedMaxFee > bufferedMaxFee ? estimatedMaxFee : bufferedMaxFee,
+    maxPriorityFeePerGas: estimatedMaxPriorityFeePerGas ?? 0n,
+  };
+}
+
+export async function resolveBufferedEip1559FeeOverrides(publicClient) {
+  if (!publicClient) return {};
+
+  try {
+    const [block, estimatedFees] = await Promise.all([
+      publicClient.getBlock({ blockTag: 'latest' }),
+      publicClient.estimateFeesPerGas?.().catch(() => ({})) ?? Promise.resolve({}),
+    ]);
+    return buildBufferedEip1559FeeOverrides({
+      baseFeePerGas: block.baseFeePerGas,
+      estimatedMaxFeePerGas: estimatedFees.maxFeePerGas,
+      estimatedMaxPriorityFeePerGas: estimatedFees.maxPriorityFeePerGas,
+    });
+  } catch {
+    return {};
+  }
+}

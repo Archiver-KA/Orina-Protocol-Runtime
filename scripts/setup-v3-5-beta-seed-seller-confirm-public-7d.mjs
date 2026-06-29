@@ -7,10 +7,12 @@ import {
   createWalletClient,
   http,
   parseAbi,
+  zeroAddress,
   zeroHash,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
+  resolveBufferedEip1559FeeOverrides,
   resolveRpcUrl,
   resolveV35TestnetNetwork,
 } from './lib/v35-testnet-seed-networks.mjs';
@@ -361,6 +363,32 @@ async function getActiveSession(publicClient, rootAddress) {
   return { nonce, session, aiWalletAddress, status };
 }
 
+function isNonZeroAddress(value) {
+  return typeof value === 'string' && value.toLowerCase() !== zeroAddress.toLowerCase();
+}
+
+async function readWalletOfSession(publicClient, rootAddress, sessionNonce) {
+  return publicClient.readContract({
+    address: AI_WALLET_FACTORY_V2,
+    abi: FACTORY_ABI,
+    functionName: 'walletOfSession',
+    args: [rootAddress, sessionNonce],
+  });
+}
+
+async function waitForMaterializedWallet(publicClient, rootAddress, sessionNonce) {
+  let lastWallet = zeroAddress;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    lastWallet = await readWalletOfSession(publicClient, rootAddress, sessionNonce);
+    if (isNonZeroAddress(lastWallet)) {
+      const code = await publicClient.getCode({ address: lastWallet }).catch(() => undefined);
+      if (code && code !== '0x') return lastWallet;
+    }
+    await sleep(1000);
+  }
+  throw new Error(`AI wallet deployment did not materialize for session ${sessionNonce.toString()}; last walletOfSession=${lastWallet}`);
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   activateNetwork(options);
@@ -455,6 +483,7 @@ async function main() {
           abi: AI_WALLET_ABI,
           functionName: revokeFn,
           gas: 220000n,
+          ...(await resolveBufferedEip1559FeeOverrides(publicClient)),
         });
         await publicClient.waitForTransactionReceipt({ hash: revokeTxHash, confirmations: 1 });
         item.previousSessionNonce = active.nonce.toString();
@@ -526,6 +555,7 @@ async function main() {
         const fundTxHash = await walletClient.sendTransaction({
           to: normalizedDelegate.delegateAddress,
           value: DELEGATE_FUND_AMOUNT_WEI,
+          ...(await resolveBufferedEip1559FeeOverrides(publicClient)),
         });
         await publicClient.waitForTransactionReceipt({ hash: fundTxHash, confirmations: 1 });
         item.delegateFundTxHash = fundTxHash;
@@ -577,14 +607,10 @@ async function main() {
         functionName: 'deployWallet',
         gas: 700000n,
         args: deployArgs,
+        ...(await resolveBufferedEip1559FeeOverrides(publicClient)),
       });
       const receipt = await publicClient.waitForTransactionReceipt({ hash: deployTxHash, confirmations: 1 });
-      const deployedWallet = await publicClient.readContract({
-        address: AI_WALLET_FACTORY_V2,
-        abi: FACTORY_ABI,
-        functionName: 'walletOfSession',
-        args: [wallet.account.address, nextSessionNonce],
-      });
+      const deployedWallet = await waitForMaterializedWallet(publicClient, wallet.account.address, nextSessionNonce);
 
       item.status = 'active';
       item.delegateId = normalizedDelegate.id;

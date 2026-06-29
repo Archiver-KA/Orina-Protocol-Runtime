@@ -11,6 +11,7 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
+  resolveBufferedEip1559FeeOverrides,
   resolveRpcUrl,
   resolveV35TestnetNetwork,
 } from './lib/v35-testnet-seed-networks.mjs';
@@ -259,6 +260,7 @@ async function writeContractAndWait({ publicClient, walletClient, address, abi, 
     args,
     ...(value ? { value } : {}),
     ...(gas ? { gas } : {}),
+    ...(await resolveBufferedEip1559FeeOverrides(publicClient)),
   });
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, confirmations: 1 });
   return { txHash, receipt };

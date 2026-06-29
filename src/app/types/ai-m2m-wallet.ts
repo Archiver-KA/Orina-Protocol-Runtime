@@ -102,6 +102,9 @@ export interface AIM2MActivityItem {
 
 export interface AIM2MWalletRuntimeSnapshot {
   rootWalletAddress: string;
+  chainId: number | null;
+  networkKey: string;
+  networkLabel: string;
   enabled: boolean;
   rootFallbackEnabled: boolean;
   hasGeneratedDelegate: boolean;

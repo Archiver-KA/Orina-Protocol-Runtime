@@ -13,6 +13,7 @@ import {
   CAMPAIGN_ROOT,
   buildNetworkAssetUid,
   explorerTxUrl,
+  resolveBufferedEip1559FeeOverrides,
   resolveRpcUrl,
   resolveV35TestnetNetwork,
 } from './lib/v35-testnet-seed-networks.mjs';
@@ -653,7 +654,10 @@ async function main() {
           account,
           item,
         });
-        const txHash = await walletClient.writeContract(request);
+        const txHash = await walletClient.writeContract({
+          ...request,
+          ...(await resolveBufferedEip1559FeeOverrides(publicClient)),
+        });
         const receipt = await publicClient.waitForTransactionReceipt({
           hash: txHash,
           confirmations: options.confirmations,

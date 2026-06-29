@@ -174,7 +174,7 @@ function buildSteps(configured: boolean, walletReady: boolean, cycleCanRestart: 
 }
 
 export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWalletSettingsProps) {
-  const { chainId, paymentTokens, m2mContracts } = useProtocolDataNetwork();
+  const { chainId, networkKey, networkLabel, paymentTokens, m2mContracts } = useProtocolDataNetwork();
   const defaultPaymentToken = useMemo(
     () => getM2MDefaultPaymentToken(chainId, paymentTokens),
     [chainId, paymentTokens],
@@ -504,6 +504,9 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
     if (!onSnapshotChange || loading) return;
     onSnapshotChange({
       rootWalletAddress: walletAddress,
+      chainId,
+      networkKey,
+      networkLabel,
       enabled,
       rootFallbackEnabled: overview?.rootFallbackEnabled ?? true,
       hasGeneratedDelegate,
@@ -534,6 +537,9 @@ export function AIM2MWalletSettings({ walletAddress, onSnapshotChange }: AIM2MWa
     onSnapshotChange,
     loading,
     walletAddress,
+    chainId,
+    networkKey,
+    networkLabel,
     enabled,
     overview,
     hasGeneratedDelegate,
