@@ -14,6 +14,7 @@ import { ProfileSearchCard } from './profile-search-card';
 import { CollectionCard } from './collection-card';
 import { EmptyStateCard } from '@/app/components/ui/empty-state-card';
 import { CustomDropdown } from '@/app/components/custom-dropdown';
+import { NetworkBrandLogo } from '@/app/components/ui/network-brand-logo';
 import { ProgressiveMarketplaceMapSurface } from '@/app/components/marketplace/progressive-marketplace-map-surface';
 import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indicator';
 import { StudioPillGroup, StudioPillButton } from '@/app/components/ui/studio-pill-group';
@@ -41,7 +42,7 @@ import {
   getMarketplaceCatalogCategories,
   type MarketplaceCatalogPageCursor,
 } from '@/utils/marketplaceCatalog';
-import { PROTOCOL_NETWORK_OPTIONS } from '@/utils/protocolNetwork';
+import { PROTOCOL_NETWORK_OPTIONS, type ProtocolNetworkIcon } from '@/utils/protocolNetwork';
 import {
   MARKETPLACE_BETA_CATEGORY_OPTIONS,
   MARKETPLACE_STATIC_CATEGORY_VALUES,
@@ -449,6 +450,7 @@ interface MarketplaceProps {
 type MarketplaceBlockchainDropdownOption = {
   value: string;
   label: string;
+  icon?: ReactNode;
 };
 
 type MarketplaceCategoryDropdownOption = MarketplaceCategoryOption;
@@ -469,10 +471,35 @@ type MarketplaceCategoryPanelGroup = {
   options: MarketplaceCategoryPanelOption[];
 };
 
+function resolveMarketplaceBlockchainIcon(value: string): ProtocolNetworkIcon {
+  const normalized = value.trim().toLowerCase();
+  const protocolNetwork = PROTOCOL_NETWORK_OPTIONS.find((network) => network.key === normalized);
+  if (protocolNetwork) return protocolNetwork.icon;
+  if (normalized === 'all') return 'generic';
+  if (normalized.includes('bnb') || normalized === 'bsc') return 'bnb';
+  if (normalized.includes('base')) return 'base';
+  if (normalized.includes('arbitrum') || normalized.includes('arb')) return 'arbitrum';
+  if (normalized.includes('polygon')) return 'polygon';
+  if (normalized.includes('ethereum') || normalized.includes('sepolia')) return 'ethereum';
+  if (normalized.includes('solana')) return 'solana';
+  return 'generic';
+}
+
+function buildMarketplaceBlockchainIcon(value: string, label: string) {
+  return (
+    <NetworkBrandLogo
+      icon={resolveMarketplaceBlockchainIcon(value)}
+      label={label}
+      className="h-5 w-5 rounded-full"
+    />
+  );
+}
+
 const MARKETPLACE_PROTOCOL_BLOCKCHAIN_OPTIONS: MarketplaceBlockchainDropdownOption[] =
   PROTOCOL_NETWORK_OPTIONS.map((network) => ({
     value: network.key,
     label: network.shortLabel,
+    icon: buildMarketplaceBlockchainIcon(network.key, network.shortLabel),
   }));
 
 function getCategoryPanelLabel(
@@ -1058,11 +1085,14 @@ export function Marketplace({
       const option = getMarketplaceCatalogBlockchainOption(blockchain);
       if (!option || protocolValues.has(option.value)) return;
       protocolValues.add(option.value);
-      mergedOptions.push(option);
+      mergedOptions.push({
+        ...option,
+        icon: buildMarketplaceBlockchainIcon(option.value, option.label),
+      });
     });
 
     return [
-      { value: 'all', label: 'All Blockchains' },
+      { value: 'all', label: 'All Blockchains', icon: buildMarketplaceBlockchainIcon('all', 'All Blockchains') },
       ...mergedOptions,
     ];
   }, [blockchains]);

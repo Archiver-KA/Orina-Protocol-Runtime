@@ -150,7 +150,7 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
                   <span className="studio-portal-chip h-7 px-3 inline-flex items-center bg-[rgba(255,255,255,0.04)] rounded-full border border-[rgba(255,255,255,0.08)] text-[9px] font-semibold text-zinc-400 uppercase tracking-widest">
                     Order #{order.orderId.toString().slice(-6)}
                   </span>
-                  <span className="h-7 px-3 inline-flex items-center bg-orange-500/15 rounded-full border border-orange-500/30 text-[9px] font-semibold text-orange-400 uppercase tracking-widest">
+                  <span className="h-7 px-3 inline-flex items-center rounded-full border border-[var(--t-gold-soft-border)] bg-[var(--t-gold-pill-bg)] text-[9px] font-semibold uppercase tracking-widest text-[var(--t-gold-pill-text)]">
                     Dispute
                   </span>
                   <StudioModalCloseButton onClick={onCancel} disabled={isSubmitting} />
@@ -186,7 +186,7 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
                     {hasOrderShippingDetails(shippingDetails) ? (
                       <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
                         <h4 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Shipping Snapshot</h4>
-                        {shippingDetails.methodLabel ? <p className="text-xs font-semibold text-orange-300">{shippingDetails.methodLabel}</p> : null}
+                        {shippingDetails.methodLabel ? <p className="text-xs font-semibold text-[var(--t-gold-title)]">{shippingDetails.methodLabel}</p> : null}
                         {shippingDetails.recipientName ? <p className="text-xs text-white">{shippingDetails.recipientName}</p> : null}
                         {shippingDetails.address ? <p className="text-[11px] text-zinc-400 leading-relaxed">{shippingDetails.address}</p> : null}
                         {shippingDetails.phone ? <p className="text-[10px] text-zinc-500">{shippingDetails.phone}</p> : null}
@@ -201,7 +201,7 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
                     {/* Dispute Reasons */}
                     <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-4">
                       <h4 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">
-                        Select Reason(s) <span className="text-orange-400">*</span>
+                        Select Reason(s) <span className="text-[var(--t-gold-title)]">*</span>
                       </h4>
                       <div className="grid grid-cols-1 gap-2.5">
                         {DISPUTE_REASONS.map((reason) => (
@@ -213,7 +213,7 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
                               flex items-center gap-3 rounded-full border px-4 py-3 transition-all text-left
                               ${
                                 selectedReasons.includes(reason.id)
-                                  ? 'bg-orange-500/10 border-orange-500/40 text-white'
+                                  ? 'border-[var(--t-gold-soft-border)] bg-[var(--t-gold-soft-bg)] text-white'
                                   : 'studio-portal-subsurface bg-black/40 border-[rgba(255,255,255,0.08)] text-zinc-400 hover:border-zinc-600'
                               }
                             `}
@@ -221,7 +221,7 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
                             <div
                               className={`
                                 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors
-                                ${selectedReasons.includes(reason.id) ? 'bg-orange-500 border-orange-500' : 'border-zinc-600'}
+                                ${selectedReasons.includes(reason.id) ? 'border-[var(--t-gold-solid)] bg-[var(--t-gold-solid)]' : 'border-zinc-600'}
                               `}
                             >
                               {selectedReasons.includes(reason.id) && (
@@ -237,14 +237,14 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
                     {/* Description */}
                     <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5 space-y-3">
                       <label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">
-                        Detailed Description <span className="text-orange-400">*</span>
+                        Detailed Description <span className="text-[var(--t-gold-title)]">*</span>
                       </label>
                       <textarea
                         value={comment}
                         onChange={(e) => setComment(e.target.value)}
                         placeholder="Please provide detailed information about the issue..."
                         maxLength={1000}
-                        className="studio-portal-input w-full h-32 px-4 py-3 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-xl text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 resize-none"
+                        className="studio-portal-input w-full h-32 px-4 py-3 bg-black/40 border border-[rgba(255,255,255,0.08)] rounded-xl text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-[var(--t-gold-soft-border)] focus:border-[var(--t-gold-solid)] resize-none"
                       />
                       <div className="flex items-center justify-between">
                         <p className="text-[9px] text-zinc-600">Be specific and include relevant details</p>
@@ -280,25 +280,25 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
                     {/* Dispute Process */}
                     <div className="studio-portal-surface bg-[rgba(24,24,27,0.4)] rounded-[24px] p-5">
                       <div className="flex items-start gap-2 mb-3">
-                        <AlertTriangle className="text-yellow-500 shrink-0 mt-0.5" size={16} />
-                        <p className="text-[10px] font-semibold text-yellow-500 uppercase tracking-widest">Dispute Process</p>
+                        <AlertTriangle className="shrink-0 mt-0.5 text-[var(--t-gold-title)]" size={16} />
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--t-gold-title)]">Dispute Process</p>
                       </div>
                       <ul className="text-xs text-zinc-400 space-y-1.5 leading-relaxed">
                         <li className="flex items-start gap-2">
-                          <span className="text-yellow-500 shrink-0">•</span>
+                          <span className="shrink-0 text-[var(--t-gold-title)]">•</span>
                           <span>Arbiter reviews evidence from both parties within 14 days.</span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <span className="text-yellow-500 shrink-0">•</span>
+                          <span className="shrink-0 text-[var(--t-gold-title)]">•</span>
                           <span>Funds remain in escrow during dispute resolution on {protocolChain.targetChainLabel}.</span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <span className="text-yellow-500 shrink-0">•</span>
+                          <span className="shrink-0 text-[var(--t-gold-title)]">•</span>
                           <span>False information may reduce your dispute outcome.</span>
                         </li>
                       </ul>
                       {isSubmitting ? (
-                        <p className="mt-3 text-[11px] text-orange-400 leading-relaxed">
+                        <p className="mt-3 text-[11px] leading-relaxed text-[var(--t-gold-title)]">
                           Waiting for wallet confirmation...
                         </p>
                       ) : null}
@@ -322,7 +322,7 @@ export function OpenDisputeModal({ order, onConfirm, onCancel }: OpenDisputeModa
                         disabled={selectedReasons.length === 0 || !comment.trim() || isSubmitting}
                         variant="primary"
                         size="lg"
-                        className="flex-1 bg-orange-500 text-base text-black shadow-lg shadow-orange-500/20 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-orange-500"
+                        className="flex-1 bg-[var(--t-gold-solid)] text-base text-black shadow-lg shadow-[rgba(255,193,7,0.22)] hover:bg-[var(--t-gold-solid-hover)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[var(--t-gold-solid)]"
                       >
                         {primaryLabel}
                       </StudioActionButton>

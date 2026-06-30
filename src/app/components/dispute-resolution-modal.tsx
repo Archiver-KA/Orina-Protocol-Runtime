@@ -511,13 +511,13 @@ export function DisputeResolutionModal({
                   </span>
                 </div>
                 <div className="space-y-4">
-                  <div className="mb-4 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
+                  <div className="mb-4 rounded-2xl border border-[var(--t-gold-soft-border)] bg-[var(--t-gold-soft-bg)] p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 text-sm font-semibold text-ui-primary">
-                        <Bot size={16} className="text-amber-300" />
+                        <Bot size={16} className="text-[var(--t-gold-title)]" />
                         <span>ORINA Arbitration AI</span>
                       </div>
-                      <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1 text-[9px] font-semibold uppercase tracking-widest text-amber-300">
+                      <span className="rounded-full border border-[var(--t-gold-soft-border)] bg-[var(--t-gold-pill-bg)] px-3 py-1 text-[9px] font-semibold uppercase tracking-widest text-[var(--t-gold-pill-text)]">
                         Advisory
                       </span>
                     </div>
@@ -580,8 +580,8 @@ export function DisputeResolutionModal({
 
                     {hasVisibleAiReview ? (
                       <div className="flex justify-start">
-                        <div className="max-w-[92%] space-y-3 rounded-[24px] border border-amber-400/20 bg-amber-400/5 px-4 py-4">
-                          <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-amber-300">
+                        <div className="max-w-[92%] space-y-3 rounded-[24px] border border-[var(--t-gold-soft-border)] bg-[var(--t-gold-soft-bg)] px-4 py-4">
+                          <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-[var(--t-gold-title)]">
                             <Bot size={13} />
                             <span>ORINA Arbitration AI</span>
                             <span>•</span>
@@ -608,7 +608,7 @@ export function DisputeResolutionModal({
                           ) : null}
 
                           {aiSuggestion ? (
-                            <div className="space-y-3 rounded-2xl border border-amber-400/20 bg-black/15 p-4">
+                            <div className="space-y-3 rounded-2xl border border-[var(--t-gold-soft-border)] bg-[rgba(255,255,255,0.32)] p-4 dark:bg-black/15">
                               <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div>
                                   <div className="text-sm font-semibold text-ui-primary">{formatSuggestionHeadline(aiSuggestion)}</div>
@@ -616,7 +616,7 @@ export function DisputeResolutionModal({
                                     Buyer {aiSuggestion.buyerScore ?? 0}% vs Seller {aiSuggestion.sellerScore ?? 0}%
                                   </div>
                                 </div>
-                                <span className="rounded-full bg-black/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-amber-300">
+                                <span className="rounded-full bg-[var(--t-gold-pill-bg)] px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--t-gold-pill-text)]">
                                   {Math.round(aiSuggestion.confidence * 100)}% confidence
                                 </span>
                               </div>
@@ -642,7 +642,7 @@ export function DisputeResolutionModal({
                                 disabled={isBusy}
                                 variant="primary"
                                 size="md"
-                                className="w-full bg-amber-400 text-sm text-black hover:bg-amber-300 disabled:opacity-50"
+                                className="w-full bg-[var(--t-gold-solid)] text-sm text-black hover:bg-[var(--t-gold-solid-hover)] disabled:opacity-50"
                               >
                                 Use Suggestion In Proposal Form
                               </StudioActionButton>
@@ -766,7 +766,7 @@ export function DisputeResolutionModal({
                           onClick={() => setProposalType(value)}
                           className={`h-10 rounded-full border px-4 text-xs font-semibold transition-colors ${
                             proposalType === value
-                              ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300'
+                              ? 'border border-[var(--t-gold-soft-border)] bg-[var(--t-gold-soft-bg)] text-[var(--t-gold-title)]'
                               : 'border-ui-border-subtle bg-[var(--t-surface-2)] text-ui-secondary hover:bg-[var(--t-surface-10)] hover:text-ui-primary'
                           }`}
                         >
@@ -787,7 +787,7 @@ export function DisputeResolutionModal({
                       disabled={!currentUser || isBusy}
                       variant="primary"
                       size="md"
-                      className="w-full bg-amber-400 text-sm text-black hover:bg-amber-300 disabled:opacity-50"
+                      className="w-full bg-[var(--t-gold-solid)] text-sm text-black hover:bg-[var(--t-gold-solid-hover)] disabled:opacity-50"
                     >
                       {signAgreement.isPending ? 'Open Wallet...' : 'Submit Proposal'}
                     </StudioActionButton>
@@ -803,7 +803,7 @@ export function DisputeResolutionModal({
                       Launch an advisory review from here. The AI response is posted into the conversation card above.
                     </p>
                   </div>
-                  <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1 text-[9px] font-semibold uppercase tracking-widest text-amber-300">
+                  <span className="rounded-full border border-[var(--t-gold-soft-border)] bg-[var(--t-gold-pill-bg)] px-3 py-1 text-[9px] font-semibold uppercase tracking-widest text-[var(--t-gold-pill-text)]">
                     Advisory
                   </span>
                 </div>
@@ -852,7 +852,7 @@ export function DisputeResolutionModal({
                     disabled={!currentUser || isAnalyzing}
                     variant="primary"
                     size="icon"
-                    className="h-11 w-11 bg-amber-400 text-black hover:bg-amber-300 disabled:opacity-40"
+                    className="h-11 w-11 bg-[var(--t-gold-solid)] text-black hover:bg-[var(--t-gold-solid-hover)] disabled:opacity-40"
                     title="Run Arbitration AI"
                   >
                     {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
@@ -932,7 +932,7 @@ export function DisputeResolutionModal({
                                 disabled={isBusy && activeProposalId === proposal.id}
                                 variant="primary"
                                 size="md"
-                                className="bg-amber-400 text-sm text-black hover:bg-amber-300 disabled:opacity-50"
+                                className="bg-[var(--t-gold-solid)] text-sm text-black hover:bg-[var(--t-gold-solid-hover)] disabled:opacity-50"
                               >
                                 {activeProposalId === proposal.id ? 'Open Wallet...' : 'Arbiter Resolve'}
                               </StudioActionButton>
@@ -952,7 +952,7 @@ export function DisputeResolutionModal({
                     <p className="text-[10px] uppercase tracking-widest text-ui-muted">Remaining</p>
                     <p className="text-sm font-semibold text-ui-primary">{disputeDeadline > 0n ? formatRemaining(disputeDeadline) : 'Syncing...'}</p>
                   </div>
-                  <Clock size={16} className="text-amber-400" />
+                  <Clock size={16} className="text-[var(--t-gold-title)]" />
                 </div>
                 <div className="text-[11px] leading-relaxed text-ui-secondary">
                   {isPhase2
@@ -995,7 +995,7 @@ export function DisputeResolutionModal({
                 {hasOrderShippingDetails(shippingDetails) ? (
                   <div className="space-y-2 border-t border-ui-border-subtle pt-3">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">Shipping Snapshot</p>
-                    {shippingDetails.methodLabel ? <p className="text-xs font-semibold text-amber-300">{shippingDetails.methodLabel}</p> : null}
+                    {shippingDetails.methodLabel ? <p className="text-xs font-semibold text-[var(--t-gold-title)]">{shippingDetails.methodLabel}</p> : null}
                     {shippingDetails.recipientName ? <p className="text-xs text-ui-primary">{shippingDetails.recipientName}</p> : null}
                     {shippingDetails.address ? <p className="text-[11px] leading-relaxed text-ui-secondary">{shippingDetails.address}</p> : null}
                     {shippingDetails.phone ? <p className="text-[10px] text-ui-muted">{shippingDetails.phone}</p> : null}
@@ -1031,7 +1031,7 @@ export function DisputeResolutionModal({
 
               <div className={`${sectionShellClass} p-5`}>
                 <div className="flex items-start gap-2">
-                  <AlertTriangle size={16} className="text-amber-400 mt-0.5 shrink-0" />
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[var(--t-gold-title)]" />
                   <p className="text-xs leading-relaxed text-ui-secondary">
                     If no agreement closes the case before the deadline, protocol auto-splits 50/50 after dispute fee.
                   </p>
