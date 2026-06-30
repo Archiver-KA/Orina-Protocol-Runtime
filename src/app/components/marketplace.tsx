@@ -20,6 +20,7 @@ import { StudioLoadingIndicator } from '@/app/components/ui/studio-loading-indic
 import { StudioPillGroup, StudioPillButton } from '@/app/components/ui/studio-pill-group';
 import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 import { loadFavorites, toggleFavorite } from '@/utils/favoritesUtils';
+import { applyMarketplaceAssetListLikeDelta, applyMarketplaceAssetLikeDelta } from '@/utils/marketplaceAssetLikes';
 import { useRequireWalletAction } from '@/hooks/useRequireWalletAction';
 import {
   fetchMarketplaceProfilePageFromSupabase,
@@ -1690,19 +1691,25 @@ export function Marketplace({
     [contentMode, displayedAssets, taxonomyVersion, viewMode]
   );
 
-  const handleLike = useCallback(async (assetId: string) => {
+  const handleLike = useCallback((assetId: string) => {
     if (!address) {
       if (!requireWalletAction({ capability: 'favorite_write', actionLabel: 'use favorites', fallbackPage: 'marketplace' })) return;
       return;
     }
-    const isFav = await toggleFavorite(address, assetId);
+    const isFav = !likedAssets.has(assetId);
+    const delta = isFav ? 1 : -1;
     setLikedAssets(prev => {
       const next = new Set(prev);
       if (isFav) next.add(assetId);
       else next.delete(assetId);
       return next;
     });
-  }, [address, requireWalletAction]);
+    setMarketplaceAssets((currentAssets) => applyMarketplaceAssetListLikeDelta(currentAssets, assetId, delta));
+    setSelectedAsset((currentAsset) => (
+      currentAsset ? applyMarketplaceAssetLikeDelta(currentAsset, assetId, delta) : currentAsset
+    ));
+    void toggleFavorite(address, assetId);
+  }, [address, likedAssets, requireWalletAction]);
 
   const handleCollectionLike = useCallback((collectionId: string) => {
     if (!address) {

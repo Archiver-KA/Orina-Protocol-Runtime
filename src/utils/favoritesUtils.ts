@@ -28,7 +28,7 @@ import {
 import { ensureRemoteProfileIdForWallet, getCachedRemoteProfileId } from '@/utils/profileUtils';
 
 const LEGACY_FAVORITES_KEY = 'studio_favorites';
-const FAVORITES_SYNC_EVENT = 'orina:favorites-changed';
+export const FAVORITES_SYNC_EVENT = 'orina:favorites-changed';
 const FAVORITES_MIGRATION_BACKUP_SUFFIX = '_backup_legacy_ids';
 
 const favoritesHydrateInFlight = new Set<string>();

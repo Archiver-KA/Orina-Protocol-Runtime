@@ -102,6 +102,8 @@ import {
 } from '@/utils/profileOverview';
 import { loadRatings, formatTimeAgo } from '@/utils/reputationUtils';
 import { REPUTATION_SYNC_EVENT, hydrateReputationFromSupabase } from '@/utils/profileReputationSync';
+import { loadFavorites, toggleFavorite, FAVORITES_SYNC_EVENT } from '@/utils/favoritesUtils';
+import { applyMarketplaceAssetListLikeDelta } from '@/utils/marketplaceAssetLikes';
 import {
   getCategoryDisplayLabel,
   getTaxonomyCategoryOptions,
@@ -265,6 +267,7 @@ export function EnhancedProfile({
   const { updateAvatar, updateBanner, updateUserData, userData } = useUser();
   const { address: connectedAddress } = useEffectiveViewer();
   const [marketplaceAssets, setMarketplaceAssets] = useState<MarketplaceAsset[]>(() => loadMarketplaceCatalogSync());
+  const [likedAssets, setLikedAssets] = useState<Set<string>>(new Set());
   const [taxonomyVersion, setTaxonomyVersion] = useState(0);
   const [runtimeMintedRecords, setRuntimeMintedRecords] = useState<RuntimeMintedAssetRecord[]>([]);
   const runtimeAssetScope = useMemo(() => ({
@@ -307,6 +310,26 @@ export function EnhancedProfile({
       window.removeEventListener(TAXONOMY_SYNC_EVENT, syncTaxonomy as EventListener);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const syncLikedAssets = () => {
+      if (!connectedAddress) {
+        setLikedAssets(new Set());
+        return;
+      }
+
+      const favorites = loadFavorites(connectedAddress);
+      setLikedAssets(new Set(favorites.map((favorite) => favorite.assetId)));
+    };
+
+    syncLikedAssets();
+    window.addEventListener(FAVORITES_SYNC_EVENT, syncLikedAssets as EventListener);
+    return () => {
+      window.removeEventListener(FAVORITES_SYNC_EVENT, syncLikedAssets as EventListener);
+    };
+  }, [connectedAddress]);
 
   // ✅ SIMPLIFIED: Load profile on mount - address-based only
   useEffect(() => {
@@ -694,6 +717,24 @@ export function EnhancedProfile({
     } else {
       toast.error('Navigation function not available');
     }
+  };
+
+  const handleProfileAssetLike = (assetId: string) => {
+    if (!connectedAddress) {
+      toast.error('Connect your wallet to use favorites');
+      return;
+    }
+
+    const isFav = !likedAssets.has(assetId);
+    const delta = isFav ? 1 : -1;
+    setLikedAssets((prev) => {
+      const next = new Set(prev);
+      if (isFav) next.add(assetId);
+      else next.delete(assetId);
+      return next;
+    });
+    setMarketplaceAssets((currentAssets) => applyMarketplaceAssetListLikeDelta(currentAssets, assetId, delta));
+    void toggleFavorite(connectedAddress, assetId);
   };
 
   const handleReviewAssetNavigation = (rating: Rating) => {
@@ -1278,7 +1319,7 @@ export function EnhancedProfile({
         </div>
 
         {/* Tab Content */}
-        <div className="mx-auto w-full max-w-6xl px-4 py-6 pb-16 sm:px-8 sm:py-10 sm:pb-20">
+        <div className="w-full px-4 py-6 pb-16 sm:px-8 sm:py-10 sm:pb-20">
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-8">
@@ -1428,7 +1469,9 @@ export function EnhancedProfile({
                             key={asset.id}
                             asset={asset}
                             viewMode="grid"
+                            onLike={handleProfileAssetLike}
                             onClick={handleCardClick}
+                            isLiked={likedAssets.has(asset.id)}
                           />
                         ))}
                   </div>

@@ -51,6 +51,7 @@ import {
   loadMarketplaceCatalogSync,
   MARKETPLACE_CATALOG_SYNC_EVENT,
 } from '@/utils/marketplaceCatalog';
+import { applyMarketplaceAssetListLikeDelta, applyMarketplaceAssetLikeDelta } from '@/utils/marketplaceAssetLikes';
 import {
   MARKETPLACE_BETA_CATEGORY_OPTIONS,
   mergeMarketplaceCategoryOptions,
@@ -612,18 +613,24 @@ export function SearchPage({
     };
   }, [isMobileFiltersOpen]);
 
-  const handleLike = async (assetId: string) => {
+  const handleLike = (assetId: string) => {
     if (!address) {
       toast.error('Please connect wallet to use favorites');
       return;
     }
-    const isFav = await toggleFavorite(address, assetId);
+    const isFav = !likedAssets.has(assetId);
+    const delta = isFav ? 1 : -1;
     setLikedAssets(prev => {
       const next = new Set(prev);
       if (isFav) next.add(assetId);
       else next.delete(assetId);
       return next;
     });
+    setMarketplaceAssets((currentAssets) => applyMarketplaceAssetListLikeDelta(currentAssets, assetId, delta));
+    setSelectedAsset((currentAsset) => (
+      currentAsset ? applyMarketplaceAssetLikeDelta(currentAsset, assetId, delta) : currentAsset
+    ));
+    void toggleFavorite(address, assetId);
   };
 
   const handleCollectionLike = (collectionId: string) => {

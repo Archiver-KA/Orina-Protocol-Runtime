@@ -4,8 +4,38 @@
  * Pattern: raw fetch() with graceful fallback (matches ipfs-upload.tsx style)
  */
 
-const NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
-const NIM_MODEL = "nvidia/nemotron-3-super-120b-a12b";
+const DEFAULT_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
+const DEFAULT_NIM_CHAT_MODEL = "nvidia/nemotron-3-super-120b-a12b";
+const DEFAULT_NIM_EMBEDDING_MODEL = "nvidia/nv-embedqa-e5-v5";
+const DEFAULT_NIM_VISION_MODEL = "meta/llama-3.2-11b-vision-instruct";
+
+function readNIMEnv(...names: string[]): string | null {
+  for (const name of names) {
+    const value = Deno.env.get(name)?.trim();
+    if (value) return value;
+  }
+  return null;
+}
+
+function getNIMApiKey(): string | null {
+  return readNIMEnv("NVIDIA_API_KEY", "NIM_API_KEY", "NEMO_API_KEY");
+}
+
+function getNIMBaseUrl(): string {
+  return readNIMEnv("NVIDIA_BASE_URL", "NIM_BASE_URL", "NEMO_BASE_URL") || DEFAULT_NIM_BASE_URL;
+}
+
+function getNIMChatModel(): string {
+  return readNIMEnv("NVIDIA_CHAT_MODEL", "NIM_CHAT_MODEL", "NEMO_CHAT_MODEL") || DEFAULT_NIM_CHAT_MODEL;
+}
+
+function getNIMEmbeddingModel(): string {
+  return readNIMEnv("NVIDIA_EMBEDDING_MODEL", "NIM_EMBEDDING_MODEL") || DEFAULT_NIM_EMBEDDING_MODEL;
+}
+
+function getNIMVisionModel(): string {
+  return readNIMEnv("NVIDIA_VISION_MODEL", "NIM_VISION_MODEL") || DEFAULT_NIM_VISION_MODEL;
+}
 
 // Transient HTTP status codes that warrant a retry
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
@@ -88,17 +118,17 @@ export async function callNvidiaNIM(
   userMessage: string,
   options: NIMOptions = {},
 ): Promise<NIMResult> {
-  const apiKey = Deno.env.get("NVIDIA_API_KEY");
+  const apiKey = getNIMApiKey();
   if (!apiKey) {
-    return { success: false, error: "NVIDIA_API_KEY not configured" };
+    return { success: false, error: "NVIDIA_API_KEY/NIM_API_KEY not configured" };
   }
 
   const {
     maxTokens = 4096,
     temperature = 0.7,
     topP = 0.95,
-    timeoutMs = 40000,
-    reasoningEffort = "low",
+    timeoutMs = 50000,
+    reasoningEffort = "none",
     enableDenoising = true, // Enable by default for consistency
     denoisingSigma = 1.0, // Gaussian filter sigma - lower = more denoising
     noiseReduction = 0.3, // Noise reduction strength (0.0-1.0)
@@ -148,7 +178,7 @@ export async function callNvidiaNIM(
       : 0;
 
     const body: Record<string, unknown> = {
-      model: NIM_MODEL,
+      model: getNIMChatModel(),
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
@@ -159,10 +189,10 @@ export async function callNvidiaNIM(
     };
 
     if (enableThinking) {
-      body.extra_body = {
-        chat_template_kwargs: { enable_thinking: true },
-        reasoning_budget: reasoningBudget,
-      };
+      // NVIDIA's OpenAI SDK accepts `extra_body`, then merges it into the request.
+      // Raw fetch must send these provider-specific fields at top level.
+      body.chat_template_kwargs = { enable_thinking: true };
+      body.reasoning_budget = reasoningBudget;
     }
 
     console.log('🧠 NIM Request with denoising:', {
@@ -184,7 +214,7 @@ export async function callNvidiaNIM(
     };
 
     const response = await retryableNIMFetch(
-      `${NIM_BASE_URL}/chat/completions`,
+      `${getNIMBaseUrl()}/chat/completions`,
       fetchInit,
       controller.signal,
     );
@@ -269,8 +299,6 @@ export function parseJSONFromLLM<T = unknown>(content: string): T | null {
 // Embedding API
 // ============================================================================
 
-const NIM_EMBEDDING_MODEL = "nvidia/nv-embedqa-e5-v5";
-
 interface EmbeddingSuccess {
   success: true;
   embedding: number[];
@@ -291,9 +319,9 @@ export async function callNvidiaNIMEmbedding(
   text: string,
   options: { timeoutMs?: number } = {},
 ): Promise<EmbeddingResult> {
-  const apiKey = Deno.env.get("NVIDIA_API_KEY");
+  const apiKey = getNIMApiKey();
   if (!apiKey) {
-    return { success: false, error: "NVIDIA_API_KEY not configured" };
+    return { success: false, error: "NVIDIA_API_KEY/NIM_API_KEY not configured" };
   }
 
   const { timeoutMs = 15000 } = options;
@@ -301,14 +329,14 @@ export async function callNvidiaNIMEmbedding(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(`${NIM_BASE_URL}/embeddings`, {
+    const response = await fetch(`${getNIMBaseUrl()}/embeddings`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: NIM_EMBEDDING_MODEL,
+        model: getNIMEmbeddingModel(),
         input: [text],
         input_type: "query",
         encoding_format: "float",
@@ -343,8 +371,6 @@ export async function callNvidiaNIMEmbedding(
 // Vision API
 // ============================================================================
 
-const NIM_VISION_MODEL = "meta/llama-3.2-11b-vision-instruct";
-
 /**
  * Call NVIDIA NIM Vision model to analyze images.
  * Fetches image URLs and converts to base64 data URLs. Never throws.
@@ -355,9 +381,9 @@ export async function callNvidiaNIMVision(
   imageUrls: string[],
   options: NIMOptions = {},
 ): Promise<NIMResult> {
-  const apiKey = Deno.env.get("NVIDIA_API_KEY");
+  const apiKey = getNIMApiKey();
   if (!apiKey) {
-    return { success: false, error: "NVIDIA_API_KEY not configured" };
+    return { success: false, error: "NVIDIA_API_KEY/NIM_API_KEY not configured" };
   }
 
   const {
@@ -419,7 +445,7 @@ export async function callNvidiaNIMVision(
     }
 
     const body = {
-      model: NIM_VISION_MODEL,
+      model: getNIMVisionModel(),
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: contentBlocks },
@@ -436,7 +462,7 @@ export async function callNvidiaNIMVision(
       imagesCount: imageUrls.length
     });
 
-    const response = await fetch(`${NIM_BASE_URL}/chat/completions`, {
+    const response = await fetch(`${getNIMBaseUrl()}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
