@@ -233,7 +233,9 @@ function buildGenericDetails(
             ? "Arbitrum Sepolia"
             : resolvedScope.chainId === 11155111
               ? "Ethereum Sepolia"
-              : `Chain ${resolvedScope.chainId}`,
+              : resolvedScope.chainId === 11155420
+                ? "Optimism Sepolia"
+                : `Chain ${resolvedScope.chainId}`,
     currentPrice: fallback?.currentPrice ?? "0",
     currentPriceUsd: fallback?.currentPriceUsd ?? "0",
     image,

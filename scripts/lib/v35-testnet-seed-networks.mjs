@@ -1,4 +1,4 @@
-import { arbitrumSepolia, baseSepolia, bscTestnet, sepolia } from 'viem/chains';
+import { arbitrumSepolia, baseSepolia, bscTestnet, optimismSepolia, sepolia } from 'viem/chains';
 
 export const CAMPAIGN_ROOT = 'C:/ORINA/ATPProtocol2/ATP2/data/bsc-testnet-100-wallet-campaign';
 
@@ -106,6 +106,32 @@ export const V35_TESTNET_NETWORKS = {
     nativeSymbol: 'ETH',
     catalogUidPrefix: 'ethereum-sepolia-',
     executionSegment: 'v3_5_beta_seed_assets_001_ethereum_sepolia',
+  },
+  'optimism-sepolia': {
+    key: 'optimism-sepolia',
+    aliases: ['op', 'optimism', 'op-sepolia', 'optimism-sepolia', 'optimism-testnet', '11155420'],
+    label: 'Optimism Sepolia',
+    shortLabel: 'Optimism Sepolia',
+    blockchain: 'Optimism',
+    chainId: 11155420,
+    viemChain: optimismSepolia,
+    defaultRpcUrl: 'https://optimism-sepolia-rpc.publicnode.com',
+    rpcEnvVars: ['OPTIMISM_SEPOLIA_RPC_URL', 'OP_SEPOLIA_RPC_URL', 'RPC_URL'],
+    explorerBaseUrl: 'https://sepolia-optimism.etherscan.io',
+    assetContract: '0x0a9efc1fb95be24743b1452ac4c974E5E925A453',
+    marketplace: '0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14',
+    paymentGateway: '0x1A880Ae46993282dd77C2dDCc5e36498eB616C92',
+    delegationManager: '0x52440e44ec34a64e19b92243262fe47819d65539',
+    aiWalletFactoryV2: '0x7D6b498eDc3F469ED020116e8892EbB361753bCB',
+    faucet: '0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F',
+    tokens: {
+      ori: '0xD87493f4C02aad2c67Ce12aa534d188Bf44FCcAB',
+      usdt: '0x11E6c8f2806b32dAC427E7Df07F67602647eF87A',
+      usdc: '0xD6E84789741Ea2DE727961cCB383454E4A845035',
+    },
+    nativeSymbol: 'ETH',
+    catalogUidPrefix: 'optimism-sepolia-',
+    executionSegment: 'v3_5_beta_seed_assets_001_optimism_sepolia',
   },
 };
 

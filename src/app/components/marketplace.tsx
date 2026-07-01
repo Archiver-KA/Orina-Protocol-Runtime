@@ -808,6 +808,9 @@ function getMarketplaceAssetBlockchainValue(asset: MarketplaceAsset) {
   if (blockchain === 'ethereum-sepolia' || blockchain === 'ethereum-testnet' || blockchain === 'eth-sepolia') {
     return 'ethereum-sepolia';
   }
+  if (blockchain === 'optimism-sepolia' || blockchain === 'op-sepolia' || blockchain === 'optimism-testnet') {
+    return 'optimism-sepolia';
+  }
   if (blockchain === 'polygon-network') return 'polygon';
   if (blockchain === 'arbitrum-one') return 'arbitrum';
   if (blockchain === 'arbitrum-sepolia' || blockchain === 'arb-sepolia') return 'arbitrum-sepolia';
@@ -826,6 +829,7 @@ function getMarketplaceAssetBlockchainValue(asset: MarketplaceAsset) {
   if (blockchain === 'arbitrum') return network === 'testnet' ? 'arbitrum-sepolia' : 'arbitrum';
   if (blockchain === 'base') return network === 'testnet' ? 'base-sepolia' : 'base';
   if (blockchain === 'ethereum') return network === 'testnet' ? 'ethereum-sepolia' : 'ethereum';
+  if (blockchain === 'optimism' || blockchain === 'op') return 'optimism-sepolia';
 
   return blockchain;
 }
@@ -844,6 +848,10 @@ function getMarketplaceCatalogBlockchainOption(
     case 'ethereum-testnet':
     case 'eth-sepolia':
       return { value: 'ethereum-sepolia', label: 'Ethereum Sepolia' };
+    case 'optimism-sepolia':
+    case 'optimism-testnet':
+    case 'op-sepolia':
+      return { value: 'optimism-sepolia', label: 'Optimism Sepolia' };
     case 'polygon':
     case 'polygon-network':
       return { value: 'polygon', label: 'Polygon' };
@@ -877,6 +885,9 @@ const MARKETPLACE_BLOCKCHAIN_CHAIN_IDS: Record<string, number> = {
   ethereum: 1,
   'ethereum-testnet': 11155111,
   'ethereum-sepolia': 11155111,
+  'optimism-testnet': 11155420,
+  'optimism-sepolia': 11155420,
+  'op-sepolia': 11155420,
   polygon: 137,
   arbitrum: 42161,
   'arbitrum-sepolia': 421614,

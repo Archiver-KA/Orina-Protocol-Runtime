@@ -695,7 +695,9 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow, scope?: RuntimeOrder
               ? "arbitrum-sepolia"
               : resolvedScope.chainId === 11155111
                 ? "ethereum-sepolia"
-                : `chain-${resolvedScope.chainId}`,
+                : resolvedScope.chainId === 11155420
+                  ? "optimism-sepolia"
+                  : `chain-${resolvedScope.chainId}`,
     assetImage: metadata.assetImage || persisted?.assetImage || DEFAULT_ASSET_IMAGE,
     amount: amount > 0n ? amount : 1n,
     grossPrice,
@@ -963,7 +965,9 @@ export function createRuntimeOrderFromRwaIntent(params: {
               ? "arbitrum-sepolia"
               : resolvedScope.chainId === 11155111
                 ? "ethereum-sepolia"
-                : `chain-${resolvedScope.chainId}`,
+                : resolvedScope.chainId === 11155420
+                  ? "optimism-sepolia"
+                  : `chain-${resolvedScope.chainId}`,
     assetImage: params.asset.imageUrl ?? params.asset.image ?? "",
     amount: quantity,
     grossPrice: params.grossPrice,

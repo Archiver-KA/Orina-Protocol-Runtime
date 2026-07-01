@@ -108,6 +108,19 @@ const CHAIN_INFOS = {
     color: '#627EEA',
     chainId: 11155111,
   }),
+  'optimism-sepolia': buildChainInfo({
+    blockchain: 'Optimism',
+    network: 'testnet',
+    filterValue: 'optimism-sepolia',
+    label: 'Optimism Sepolia',
+    fullName: 'Optimism Sepolia',
+    currency: 'ETH',
+    explorer: 'sepolia-optimism.etherscan.io',
+    blockTime: '~2s',
+    consensus: 'Optimistic',
+    color: '#FF0420',
+    chainId: 11155420,
+  }),
   polygon: buildChainInfo({
     blockchain: 'Polygon',
     network: 'mainnet',
@@ -185,6 +198,7 @@ const CHAIN_INFO_BY_CHAIN_ID: Record<number, MarketplaceChainInfo> = {
   42161: CHAIN_INFOS.arbitrum,
   421614: CHAIN_INFOS['arbitrum-sepolia'],
   11155111: CHAIN_INFOS['ethereum-testnet'],
+  11155420: CHAIN_INFOS['optimism-sepolia'],
 };
 
 const DEFAULT_CHAIN_INFO = CHAIN_INFOS['bnb-testnet'];
@@ -208,6 +222,8 @@ function getChainInfoFromProtocolValue(value?: string | number | null): Marketpl
       return CHAIN_INFOS.base;
     case 'base-sepolia':
       return CHAIN_INFOS['base-sepolia'];
+    case 'optimism-sepolia':
+      return CHAIN_INFOS['optimism-sepolia'];
     default:
       return undefined;
   }
@@ -245,6 +261,14 @@ function getChainInfoFromText(
   }
 
   if (
+    normalizedBlockchain === 'optimism-sepolia' ||
+    normalizedBlockchain === 'op-sepolia' ||
+    normalizedBlockchain === 'optimism-testnet'
+  ) {
+    return CHAIN_INFOS['optimism-sepolia'];
+  }
+
+  if (
     normalizedBlockchain === 'ethereum' ||
     normalizedBlockchain === 'eth' ||
     normalizedBlockchain === 'ethereum-mainnet'
@@ -278,6 +302,10 @@ function getChainInfoFromText(
 
   if (normalizedBlockchain === 'base') {
     return normalizedNetwork === 'testnet' ? CHAIN_INFOS['base-sepolia'] : CHAIN_INFOS.base;
+  }
+
+  if (normalizedBlockchain === 'optimism' || normalizedBlockchain === 'op') {
+    return CHAIN_INFOS['optimism-sepolia'];
   }
 
   if (!normalizedBlockchain && normalizedNetwork === 'testnet') {

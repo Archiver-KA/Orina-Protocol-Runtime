@@ -80,6 +80,10 @@ export const runtimeConfig = {
   ethereumSepoliaUsdtAddress: readString('VITE_ETHEREUM_SEPOLIA_USDT_T_ADDRESS', ''),
   ethereumSepoliaUsdcAddress: readString('VITE_ETHEREUM_SEPOLIA_USDC_T_ADDRESS', ''),
   ethereumSepoliaGasFaucetUrl: readString('VITE_ETHEREUM_SEPOLIA_GAS_FAUCET_URL', ''),
+  optimismSepoliaTokenFaucetAddress: readString('VITE_OPTIMISM_SEPOLIA_TOKEN_FAUCET_ADDRESS', ''),
+  optimismSepoliaUsdtAddress: readString('VITE_OPTIMISM_SEPOLIA_USDT_T_ADDRESS', ''),
+  optimismSepoliaUsdcAddress: readString('VITE_OPTIMISM_SEPOLIA_USDC_T_ADDRESS', ''),
+  optimismSepoliaGasFaucetUrl: readString('VITE_OPTIMISM_SEPOLIA_GAS_FAUCET_URL', ''),
   bscTestnetM2MDelegationManager: readString('VITE_BSC_TESTNET_M2M_DELEGATION_MANAGER', ''),
   bscTestnetM2MAIWalletFactoryV2: readString('VITE_BSC_TESTNET_M2M_AI_WALLET_FACTORY_V2', ''),
   baseSepoliaM2MDelegationManager: readString('VITE_BASE_SEPOLIA_M2M_DELEGATION_MANAGER', ''),
@@ -88,4 +92,6 @@ export const runtimeConfig = {
   arbitrumSepoliaM2MAIWalletFactoryV2: readString('VITE_ARBITRUM_SEPOLIA_M2M_AI_WALLET_FACTORY_V2', ''),
   ethereumSepoliaM2MDelegationManager: readString('VITE_ETHEREUM_SEPOLIA_M2M_DELEGATION_MANAGER', ''),
   ethereumSepoliaM2MAIWalletFactoryV2: readString('VITE_ETHEREUM_SEPOLIA_M2M_AI_WALLET_FACTORY_V2', ''),
+  optimismSepoliaM2MDelegationManager: readString('VITE_OPTIMISM_SEPOLIA_M2M_DELEGATION_MANAGER', ''),
+  optimismSepoliaM2MAIWalletFactoryV2: readString('VITE_OPTIMISM_SEPOLIA_M2M_AI_WALLET_FACTORY_V2', ''),
 } as const;

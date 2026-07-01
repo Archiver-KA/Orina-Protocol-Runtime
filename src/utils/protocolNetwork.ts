@@ -5,6 +5,7 @@ import {
   CONTRACTS,
   ETHEREUM_SEPOLIA_CONTRACTS,
   EXPLORER_URLS,
+  OPTIMISM_SEPOLIA_CONTRACTS,
   RPC_URLS,
 } from '@/config/contracts';
 
@@ -19,6 +20,7 @@ const CHAIN_LABELS: Record<number, string> = {
   84532: 'Base Sepolia',
   43114: 'Avalanche',
   11155111: 'Ethereum Sepolia',
+  11155420: 'Optimism Sepolia',
 };
 
 export type ProtocolNetworkStatus = 'live' | 'blocked' | 'coming';
@@ -86,6 +88,18 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     rpcUrl: RPC_URLS[11155111],
     explorerUrl: EXPLORER_URLS[11155111],
     aliases: ['ethereum sepolia', 'eth sepolia', 'sepolia', 'ethereum testnet'],
+  },
+  {
+    chainId: 11155420,
+    key: 'optimism-sepolia',
+    label: 'Optimism Sepolia',
+    shortLabel: 'Optimism Sepolia',
+    icon: 'generic',
+    status: 'live',
+    contracts: OPTIMISM_SEPOLIA_CONTRACTS,
+    rpcUrl: RPC_URLS[11155420],
+    explorerUrl: EXPLORER_URLS[11155420],
+    aliases: ['optimism sepolia', 'op sepolia', 'optimism testnet'],
   },
   {
     chainId: 43114,

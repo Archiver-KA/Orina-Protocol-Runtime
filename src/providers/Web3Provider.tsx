@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { WagmiProvider, createConfig, http } from 'wagmi';
-import { mainnet, sepolia, bsc, bscTestnet, baseSepolia, arbitrumSepolia } from 'wagmi/chains';
+import { mainnet, sepolia, bsc, bscTestnet, baseSepolia, arbitrumSepolia, optimismSepolia } from 'wagmi/chains';
 import { injected } from 'wagmi/connectors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS } from '@/config/contracts';
@@ -10,13 +10,13 @@ import { RPC_URLS } from '@/config/contracts';
  * ================================================
  * Primary: BSC Mainnet (chainId 56) - per ATP Spec v3.3
  * Secondary: BSC Testnet (chainId 97) - for development
- * Expansion: Base Sepolia (chainId 84532) and Arbitrum Sepolia (chainId 421614)
- * Fallback: Ethereum Sepolia (chainId 11155111) - for testing
+ * Expansion: Base Sepolia (chainId 84532), Arbitrum Sepolia (chainId 421614),
+ * Ethereum Sepolia (chainId 11155111), and Optimism Sepolia (chainId 11155420)
  */
 
 // Create wagmi config with BSC as primary chain
 const config = createConfig({
-  chains: [bsc, bscTestnet, baseSepolia, arbitrumSepolia, sepolia, mainnet],
+  chains: [bsc, bscTestnet, baseSepolia, arbitrumSepolia, sepolia, optimismSepolia, mainnet],
   connectors: [
     injected({ shimDisconnect: true }), // Keep a generic fallback for other EIP-1193 browser wallets.
   ],
@@ -26,6 +26,7 @@ const config = createConfig({
     [baseSepolia.id]: http(RPC_URLS[84532]),
     [arbitrumSepolia.id]: http(RPC_URLS[421614]),
     [sepolia.id]: http(RPC_URLS[11155111]),
+    [optimismSepolia.id]: http(RPC_URLS[11155420]),
     [mainnet.id]: http(),
   },
 });

@@ -10,7 +10,7 @@ It is the current production-facing runtime app for Orina Protocol. It includes 
 
 ### Which network is live right now?
 
-The live write-enabled runtime networks are BNB Chain Testnet `97`, Base Sepolia `84532`, Arbitrum Sepolia `421614`, and Ethereum Sepolia `11155111`. Arbitrum Sepolia and Ethereum Sepolia use EOA-controlled zero-delay timelock governance for testnet only; mainnet must be redeployed with the production multisig/Safe and a non-zero timelock delay.
+The live write-enabled runtime networks are BNB Chain Testnet `97`, Base Sepolia `84532`, Arbitrum Sepolia `421614`, Ethereum Sepolia `11155111`, and Optimism Sepolia `11155420`. Arbitrum Sepolia, Ethereum Sepolia, and Optimism Sepolia use EOA-controlled zero-delay timelock governance for testnet only; mainnet must be redeployed with the production multisig/Safe and a non-zero timelock delay.
 
 ### What does ATP mean in this repo?
 
@@ -42,6 +42,7 @@ Use the selected live testnet. Current write-enabled choices:
 - Base Sepolia: chain id `84532`, hex `0x14a34`, gas token `ETH`, explorer `https://sepolia.basescan.org`
 - Arbitrum Sepolia: chain id `421614`, hex `0x66eee`, gas token `ETH`, explorer `https://sepolia.arbiscan.io`
 - Ethereum Sepolia: chain id `11155111`, hex `0xaa36a7`, gas token `ETH`, explorer `https://sepolia.etherscan.io`
+- Optimism Sepolia: chain id `11155420`, hex `0xaa37dc`, gas token `ETH`, explorer `https://sepolia-optimism.etherscan.io`
 
 ### Why does a transaction ask for WBNB/USDT/USDC/ORI instead of native BNB?
 

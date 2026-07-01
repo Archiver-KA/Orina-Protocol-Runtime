@@ -163,6 +163,47 @@ const NETWORKS = [
       note: 'Ethereum Sepolia is EOA-operated through a zero-delay timelock for testnet only.',
     },
   },
+  {
+    key: 'optimism-sepolia',
+    label: 'Optimism Sepolia',
+    chainId: 11155420,
+    status: 'live',
+    rpcUrl: process.env.OPTIMISM_SEPOLIA_RPC_URL || 'https://optimism-sepolia-rpc.publicnode.com',
+    marketplace: '0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14',
+    paymentGateway: '0x1A880Ae46993282dd77C2dDCc5e36498eB616C92',
+    feeManager: '0x51aB383A43d79f4127B7E7dCBcd892164FA2838F',
+    delegationManager: '0x52440e44ec34a64e19b92243262fe47819d65539',
+    aiWalletFactoryV2: '0x7D6b498eDc3F469ED020116e8892EbB361753bCB',
+    timelock: '0x5C842728C357B9b18eb8A9A7a840499936132e67',
+    faucet: '0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F',
+    expectedVersions: EXPECTED_RUNTIME_VERSIONS,
+    tokens: [
+      {
+        key: 'ORI',
+        address: '0xD87493f4C02aad2c67Ce12aa534d188Bf44FCcAB',
+        symbol: 'ORI',
+        decimals: 18,
+      },
+      {
+        key: 'USDT.t',
+        address: '0x11E6c8f2806b32dAC427E7Df07F67602647eF87A',
+        symbol: 'USDT.t',
+        decimals: 6,
+      },
+      {
+        key: 'USDC.t',
+        address: '0xD6E84789741Ea2DE727961cCB383454E4A845035',
+        symbol: 'USDC.t',
+        decimals: 6,
+      },
+    ],
+    expectedGovernance: {
+      operator: '0x282Be18838D7079C215F49749a9606d77e00888b',
+      timelockMinDelaySeconds: '0',
+      openExecutor: false,
+      note: 'Optimism Sepolia is EOA-operated through a zero-delay timelock for testnet only.',
+    },
+  },
 ];
 
 const VERSION_ABI = parseAbi(['function VERSION() view returns (string)']);

@@ -52,6 +52,18 @@ const CHAIN_PRESETS = {
     rpcUrls: ['https://ethereum-sepolia-rpc.publicnode.com'],
     blockExplorerUrls: ['https://sepolia.etherscan.io'],
   },
+  '11155420': {
+    chainId: 11155420,
+    hexChainId: '0xaa37dc',
+    chainName: 'Optimism Sepolia',
+    nativeCurrency: {
+      name: 'Sepolia Ether',
+      symbol: 'ETH',
+      decimals: 18,
+    },
+    rpcUrls: ['https://optimism-sepolia-rpc.publicnode.com'],
+    blockExplorerUrls: ['https://sepolia-optimism.etherscan.io'],
+  },
 };
 
 const CONNECTED_SMOKE_PAGES = [
@@ -196,6 +208,9 @@ function parseChainOption(value) {
   }
   if (normalized === 'ethereum-sepolia' || normalized === 'ethereum-testnet' || normalized === 'eth-sepolia' || normalized === 'sepolia') {
     return 11155111;
+  }
+  if (normalized === 'optimism-sepolia' || normalized === 'optimism-testnet' || normalized === 'op-sepolia') {
+    return 11155420;
   }
 
   const parsed = Number(normalized);

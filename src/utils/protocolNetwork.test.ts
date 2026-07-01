@@ -4,6 +4,7 @@ import {
   BASE_SEPOLIA_CONTRACTS,
   CONTRACTS,
   ETHEREUM_SEPOLIA_CONTRACTS,
+  OPTIMISM_SEPOLIA_CONTRACTS,
   getPaymentTokenSymbolByAddress,
   getPaymentTokens,
   resolvePaymentTokenForCurrency,
@@ -22,7 +23,7 @@ import {
 } from '@/utils/protocolNetwork';
 
 describe('protocol network registry', () => {
-  it('marks BSC Testnet, Base Sepolia, Arbitrum Sepolia, and Ethereum Sepolia as write-enabled', () => {
+  it('marks BSC Testnet, Base Sepolia, Arbitrum Sepolia, Ethereum Sepolia, and Optimism Sepolia as write-enabled', () => {
     expect(getProtocolNetworkOption(97)).toMatchObject({
       key: 'bnb-testnet',
       status: 'live',
@@ -50,16 +51,25 @@ describe('protocol network registry', () => {
     });
     expect(getProtocolContracts(11155111)).toBe(ETHEREUM_SEPOLIA_CONTRACTS);
     expect(isProtocolNetworkWriteEnabled(11155111)).toBe(true);
+
+    expect(getProtocolNetworkOption(11155420)).toMatchObject({
+      key: 'optimism-sepolia',
+      status: 'live',
+    });
+    expect(getProtocolContracts(11155420)).toBe(OPTIMISM_SEPOLIA_CONTRACTS);
+    expect(isProtocolNetworkWriteEnabled(11155420)).toBe(true);
   });
 
   it('resolves aliases and restores live persisted networks', () => {
     expect(findProtocolNetworkOptionByValue('arb sepolia')?.key).toBe('arbitrum-sepolia');
     expect(findProtocolNetworkOptionByValue('base testnet')?.key).toBe('base-sepolia');
     expect(findProtocolNetworkOptionByValue('eth sepolia')?.key).toBe('ethereum-sepolia');
+    expect(findProtocolNetworkOptionByValue('op sepolia')?.key).toBe('optimism-sepolia');
 
     expect(resolveStoredProtocolNetworkKey('base-sepolia')).toBe('base-sepolia');
     expect(resolveStoredProtocolNetworkKey('arbitrum-sepolia')).toBe('arbitrum-sepolia');
     expect(resolveStoredProtocolNetworkKey('ethereum-sepolia')).toBe('ethereum-sepolia');
+    expect(resolveStoredProtocolNetworkKey('optimism-sepolia')).toBe('optimism-sepolia');
   });
 });
 
@@ -112,6 +122,18 @@ describe('chain-scoped payment tokens and M2M contracts', () => {
       AI_WALLET_FACTORY_V2: ETHEREUM_SEPOLIA_CONTRACTS.AI_WALLET_FACTORY_V2,
     });
   });
+
+  it('uses Optimism Sepolia token and M2M addresses without mutating other networks', () => {
+    const optimismTokens = getPaymentTokens(11155420);
+
+    expect(optimismTokens.USDT).toBe('0x11E6c8f2806b32dAC427E7Df07F67602647eF87A');
+    expect(optimismTokens.USDC).toBe('0xD6E84789741Ea2DE727961cCB383454E4A845035');
+    expect(getPaymentTokenSymbolByAddress(optimismTokens.USDT, 11155420)).toBe('USDT');
+    expect(getM2MContracts(11155420)).toEqual({
+      DELEGATION_MANAGER: OPTIMISM_SEPOLIA_CONTRACTS.DELEGATION_MANAGER,
+      AI_WALLET_FACTORY_V2: OPTIMISM_SEPOLIA_CONTRACTS.AI_WALLET_FACTORY_V2,
+    });
+  });
 });
 
 describe('testnet starter kit registry', () => {
@@ -142,6 +164,14 @@ describe('testnet starter kit registry', () => {
       faucetAddress: '0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F',
     });
     expect(isTestnetStarterKitConfigured(ethereumKit)).toBe(true);
+
+    const optimismKit = getTestnetStarterKit(11155420);
+    expect(optimismKit).toMatchObject({
+      networkKey: 'optimism-sepolia',
+      nativeTokenLabel: 'ETH',
+      faucetAddress: '0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F',
+    });
+    expect(isTestnetStarterKitConfigured(optimismKit)).toBe(true);
 
     expect(getTestnetStarterKit(8453)).toBeNull();
   });

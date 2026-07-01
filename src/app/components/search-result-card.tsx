@@ -33,6 +33,9 @@ const NETWORK_LOGO_PATHS: Record<string, string> = {
   'arbitrum-one': '/network-logos/arbitrum.png',
   'arbitrum-sepolia': '/network-logos/arbitrum.png',
   'arbitrum-testnet': '/network-logos/arbitrum.png',
+  optimism: '/network-logos/ethereum.png',
+  'optimism-sepolia': '/network-logos/ethereum.png',
+  'op-sepolia': '/network-logos/ethereum.png',
   avalanche: '/network-logos/avalanche.png',
   solana: '/network-logos/solana.png',
 };

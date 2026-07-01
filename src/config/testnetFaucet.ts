@@ -92,6 +92,9 @@ const ARBITRUM_SEPOLIA_USDC_T = '0x233Fb28c8166807b01DcBE2743bb85cF7cdC8b41';
 const ETHEREUM_SEPOLIA_FAUCET = '0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F';
 const ETHEREUM_SEPOLIA_USDT_T = '0x11E6c8f2806b32dAC427E7Df07F67602647eF87A';
 const ETHEREUM_SEPOLIA_USDC_T = '0xD6E84789741Ea2DE727961cCB383454E4A845035';
+const OPTIMISM_SEPOLIA_FAUCET = '0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F';
+const OPTIMISM_SEPOLIA_USDT_T = '0x11E6c8f2806b32dAC427E7Df07F67602647eF87A';
+const OPTIMISM_SEPOLIA_USDC_T = '0xD6E84789741Ea2DE727961cCB383454E4A845035';
 
 export const TESTNET_STARTER_KITS: Record<number, TestnetStarterKitConfig> = {
   [CHAIN_CONFIG.TESTNET_CHAIN_ID]: {
@@ -178,6 +181,28 @@ export const TESTNET_STARTER_KITS: Record<number, TestnetStarterKitConfig> = {
       USDC: {
         label: 'USDC.t',
         address: normalizeAddress(runtimeConfig.ethereumSepoliaUsdcAddress || ETHEREUM_SEPOLIA_USDC_T),
+        decimals: 6,
+      },
+    },
+  },
+  [CHAIN_CONFIG.OPTIMISM_SEPOLIA_CHAIN_ID]: {
+    enabled: runtimeFlags.enableTestnetStarterKit,
+    chainId: CHAIN_CONFIG.OPTIMISM_SEPOLIA_CHAIN_ID,
+    networkKey: 'optimism-sepolia',
+    networkLabel: 'Optimism Sepolia',
+    shortLabel: 'Optimism Sepolia',
+    nativeTokenLabel: 'ETH',
+    gasFaucetUrl: runtimeConfig.optimismSepoliaGasFaucetUrl,
+    faucetAddress: normalizeAddress(runtimeConfig.optimismSepoliaTokenFaucetAddress || OPTIMISM_SEPOLIA_FAUCET),
+    tokens: {
+      USDT: {
+        label: 'USDT.t',
+        address: normalizeAddress(runtimeConfig.optimismSepoliaUsdtAddress || OPTIMISM_SEPOLIA_USDT_T),
+        decimals: 6,
+      },
+      USDC: {
+        label: 'USDC.t',
+        address: normalizeAddress(runtimeConfig.optimismSepoliaUsdcAddress || OPTIMISM_SEPOLIA_USDC_T),
         decimals: 6,
       },
     },

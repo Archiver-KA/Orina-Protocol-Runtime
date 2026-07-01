@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document records the current ATP v3.5 beta deployments. BSC Testnet (chain `97`) went live on June 4, 2026. Base Sepolia (chain `84532`) is write-enabled after the June 28, 2026 bytecode and Marketplace M2M delegation checks. Arbitrum Sepolia (chain `421614`) is write-enabled after the June 29, 2026 EOA-governed testnet redeploy and timelock M2M linkage. Ethereum Sepolia (chain `11155111`) is write-enabled after the July 1, 2026 EOA-governed testnet deployment and timelock M2M linkage.
+This document records the current ATP v3.5 beta deployments. BSC Testnet (chain `97`) went live on June 4, 2026. Base Sepolia (chain `84532`) is write-enabled after the June 28, 2026 bytecode and Marketplace M2M delegation checks. Arbitrum Sepolia (chain `421614`) is write-enabled after the June 29, 2026 EOA-governed testnet redeploy and timelock M2M linkage. Ethereum Sepolia (chain `11155111`) and Optimism Sepolia (chain `11155420`) are write-enabled after the July 1, 2026 EOA-governed testnet deployments and timelock M2M linkage.
 
 It describes ATP as implemented by this repo, not a generic RWA, DeFi, vault, or AMM architecture. Address tables below are the current beta source of truth for the Foundry runtime and app/backend cutover work.
 
@@ -110,15 +110,43 @@ Ethereum Sepolia is a separately deployed ATP v3.5 testnet stack on chain `11155
 
 On July 1, 2026, `MarketplaceATP.delegationManager()` returned `0x52440e44ec34a64e19b92243262fe47819d65539` on Ethereum Sepolia. The runtime verification gate checks `MarketplaceATP.VERSION == 3.4`, `FeeManager.VERSION == 3.5`, `PaymentGateway.VERSION == 3.5`, starter-kit token metadata, timelock delay, and Ethereum Sepolia M2M roles.
 
+## Optimism Sepolia Deployment
+
+Optimism Sepolia is a separately deployed ATP v3.5 testnet stack on chain `11155420`, deployed under namespace `orina-atp-v3.5-optimism-sepolia-eoa-testnet-20260701`. It uses deployer EOA `0x282Be18838D7079C215F49749a9606d77e00888b` as the timelock proposer, executor, canceller, and admin with zero delay, matching the temporary Ethereum Sepolia testnet path. This is testnet-only; Optimism mainnet must redeploy with a production multisig/Safe, non-zero timelock delay, and a new address set.
+
+| Contract | Address |
+| --- | --- |
+| `MarketplaceATP` | `0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14` |
+| `PaymentGateway` | `0x1A880Ae46993282dd77C2dDCc5e36498eB616C92` |
+| `FeeManager` | `0x51aB383A43d79f4127B7E7dCBcd892164FA2838F` |
+| `OrinaRWA` | `0x0a9efc1fb95be24743b1452ac4c974E5E925A453` |
+| `RWAReceiptNFT` | `0x82d2f4e131d1EB34F9B6Ebc8CC37bdD1cca84e95` |
+| `DisputeManager` | `0x952aE0562De695c63c1386458DB537193Ce293b4` |
+| `AutoTimeManager` | `0xa12273AD5b73c5F57139e84aa89Db52FE7Af05de` |
+| `DelegationManager` | `0x52440e44ec34a64e19b92243262fe47819d65539` |
+| `AIWalletFactoryV2` | `0x7D6b498eDc3F469ED020116e8892EbB361753bCB` |
+| `TimelockController` | `0x5C842728C357B9b18eb8A9A7a840499936132e67` |
+
+| Token | Address |
+| --- | --- |
+| `ORI` | `0xD87493f4C02aad2c67Ce12aa534d188Bf44FCcAB` |
+| `USDT.t` | `0x11E6c8f2806b32dAC427E7Df07F67602647eF87A` |
+| `USDC.t` | `0xD6E84789741Ea2DE727961cCB383454E4A845035` |
+| `OrinaTestTokenFaucet` | `0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F` |
+
+On July 1, 2026, `MarketplaceATP.delegationManager()` returned `0x52440e44ec34a64e19b92243262fe47819d65539` on Optimism Sepolia. The runtime verification gate checks `MarketplaceATP.VERSION == 3.4`, `FeeManager.VERSION == 3.5`, `PaymentGateway.VERSION == 3.5`, starter-kit token metadata, timelock delay, and Optimism Sepolia M2M roles.
+
 ### Governance and fee endpoints
 
 | Role / endpoint | Address | Notes |
 | --- | --- | --- |
-| BSC/Base governance safe | `0x554c4F489846e293bA251fb8B863FE1241306138` | Not the Arbitrum or Ethereum Sepolia signer. |
+| BSC/Base governance safe | `0x554c4F489846e293bA251fb8B863FE1241306138` | Not the Arbitrum, Ethereum, or Optimism Sepolia signer. |
 | Arbitrum Sepolia testnet timelock | `0x66Bf76Fdf268976080f119278982B082f417FbAD` | Owns Marketplace governance and DelegationManager admin for this testnet address set. |
 | Arbitrum Sepolia testnet operator EOA | `0x282Be18838D7079C215F49749a9606d77e00888b` | Timelock admin, proposer, executor, and canceller with zero delay for testnet only. |
 | Ethereum Sepolia testnet timelock | `0x5C842728C357B9b18eb8A9A7a840499936132e67` | Owns Marketplace governance and DelegationManager admin for this testnet address set. |
 | Ethereum Sepolia testnet operator EOA | `0x282Be18838D7079C215F49749a9606d77e00888b` | Timelock admin, proposer, executor, and canceller with zero delay for testnet only. |
+| Optimism Sepolia testnet timelock | `0x5C842728C357B9b18eb8A9A7a840499936132e67` | Owns Marketplace governance and DelegationManager admin for this testnet address set. |
+| Optimism Sepolia testnet operator EOA | `0x282Be18838D7079C215F49749a9606d77e00888b` | Timelock admin, proposer, executor, and canceller with zero delay for testnet only. |
 | Arbiter multisig | `0x1528378116b3D025761aB81AFF5F315c1905340A` | Runtime dispute arbiter endpoint. |
 | Emergency multisig | `0x404118A64Fa63409aC355E98d321a16eD0D5D21F` | Runtime emergency endpoint. |
 | Fee vault | `0x130fF04D269f0E9C0eaa984C167bd746bB68F82a` | Fee settlement vault. |
