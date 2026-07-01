@@ -11,7 +11,7 @@ This runtime repository now mirrors the current public-safe ATP contract status:
 - Echidna, Medusa, and deep invariants pass for the current ATP harnesses.
 - Mythril runtime-bytecode analysis completed for `FeeManager`, `PaymentGateway`, and `MarketplaceATP`; no exploitable issue is confirmed after source triage.
 - Certora remote proof passes for the initial `FeeManager` fee-cap scope.
-- BSC Testnet and Base Sepolia address sheets are reconciled, with on-chain bytecode and M2M Marketplace wiring spot-checked on 2026-06-27.
+- BSC Testnet, Base Sepolia, and Arbitrum Sepolia address sheets are reconciled, with on-chain bytecode and M2M Marketplace wiring spot-checked by 2026-06-29.
 
 Remaining production limits: broader formal coverage, Halmos harness/tooling resolution, 4naly3er final triage, human review, M2M governance handoff, production token allowlist, ORI quote/oracle policy, monitoring, and incident readiness.
 
