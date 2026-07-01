@@ -1,20 +1,20 @@
 # Testnet Runtime Guide
 
-Last aligned with runtime code and protocol deployment docs on 2026-06-29.
+Last aligned with runtime code and protocol deployment docs on 2026-07-01.
 
-This guide defines the operated ATP testnet starter flow and records the currently operated ATP testnet addresses. It exists to keep testnet faucet behavior, mock token names, rankings, Base Sepolia activation, Arbitrum Sepolia EOA-governed testnet status, and mainnet boundaries explicit.
+This guide defines the operated ATP testnet starter flow and records the currently operated ATP testnet addresses. It exists to keep testnet faucet behavior, mock token names, rankings, Base Sepolia activation, Arbitrum Sepolia and Ethereum Sepolia EOA-governed testnet status, and mainnet boundaries explicit.
 
 ## Scope
 
 The Testnet Starter Kit modal is enabled only when:
 
 - `VITE_ENABLE_TESTNET_STARTER_KIT=true`
-- the connected wallet is on a configured operated testnet: BSC Testnet `97`, Base Sepolia `84532`, or Arbitrum Sepolia `421614`
+- the connected wallet is on a configured operated testnet: BSC Testnet `97`, Base Sepolia `84532`, Arbitrum Sepolia `421614`, or Ethereum Sepolia `11155111`
 - runtime config is still targeting the testnet deployment namespace
 
 The modal is not a core ATP contract surface. It is testnet onboarding infrastructure.
 
-Protocol writes are currently enabled for BSC Testnet, Base Sepolia, and Arbitrum Sepolia. Arbitrum Sepolia is testnet-only EOA-governed through a zero-delay timelock because the current multisig flow cannot sign on Arbitrum Sepolia.
+Protocol writes are currently enabled for BSC Testnet, Base Sepolia, Arbitrum Sepolia, and Ethereum Sepolia. Arbitrum Sepolia and Ethereum Sepolia are testnet-only EOA-governed through zero-delay timelocks. Mainnet deployments must redeploy with the production multisig/Safe and non-zero timelock delay.
 
 ## Modal Tabs
 
@@ -37,13 +37,14 @@ These tokens are mock ERC20 assets for operated testnets. They are not USDT, USD
 
 ## Current Starter Kit Deployments
 
-Starter-kit broadcast completed on BSC Testnet chain id `97` on 2026-06-07. Base Sepolia and Arbitrum Sepolia starter-kit assets are deterministic testnet deployments recorded below.
+Starter-kit broadcast completed on BSC Testnet chain id `97` on 2026-06-07. Base Sepolia, Arbitrum Sepolia, and Ethereum Sepolia starter-kit assets are deterministic testnet deployments recorded below.
 
 | Network | Chain id | Native gas | `OrinaTestTokenFaucet` | `USDT.t` | `USDC.t` |
 | --- | ---: | --- | --- | --- | --- |
 | BSC Testnet | `97` | `tBNB` | `0x6527262782C140e0A4724bef06431786556AfDE0` | `0x8800279B4a5528628ef069698169C58B89377809` | `0xbdcA834A71F5BFF1420eb5D1B0491d58a33141E5` |
 | Base Sepolia | `84532` | `ETH` | `0xbBd53C18F4d9fb98aA6c4837Ea0E8F221E1B5F0F` | `0x11E6c8f2806b32DaC427E7dF07F67602647Ef87a` | `0xd6e84789741ea2DE727961CCB383454e4A845035` |
 | Arbitrum Sepolia | `421614` | `ETH` | `0xFA37557E4F6D066f6CF4B69BA865837d007c8D1e` | `0x279c62C97c6967d0E0F45f9D2460d38E3929c090` | `0x233Fb28c8166807b01DcBE2743bb85cF7cdC8b41` |
+| Ethereum Sepolia | `11155111` | `ETH` | `0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F` | `0x11E6c8f2806b32dAC427E7Df07F67602647eF87A` | `0xD6E84789741Ea2DE727961cCB383454E4A845035` |
 
 Current claim config:
 
@@ -80,13 +81,17 @@ VITE_ARBITRUM_SEPOLIA_GAS_FAUCET_URL=
 VITE_ARBITRUM_SEPOLIA_TOKEN_FAUCET_ADDRESS=0xFA37557E4F6D066f6CF4B69BA865837d007c8D1e
 VITE_ARBITRUM_SEPOLIA_USDT_T_ADDRESS=0x279c62C97c6967d0E0F45f9D2460d38E3929c090
 VITE_ARBITRUM_SEPOLIA_USDC_T_ADDRESS=0x233Fb28c8166807b01DcBE2743bb85cF7cdC8b41
+VITE_ETHEREUM_SEPOLIA_GAS_FAUCET_URL=
+VITE_ETHEREUM_SEPOLIA_TOKEN_FAUCET_ADDRESS=0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F
+VITE_ETHEREUM_SEPOLIA_USDT_T_ADDRESS=0x11E6c8f2806b32dAC427E7Df07F67602647eF87A
+VITE_ETHEREUM_SEPOLIA_USDC_T_ADDRESS=0xD6E84789741Ea2DE727961cCB383454E4A845035
 ```
 
 Keep these env keys separate from `CONTRACTS` core protocol addresses. The faucet can be deployed, rotated, or disabled without changing the ATP core address set.
 
 ## Current Operated Testnets
 
-The canonical contract address source is the Foundry address sheet. The runtime app currently treats BSC Testnet, Base Sepolia, and Arbitrum Sepolia as write-enabled beta networks.
+The canonical contract address source is the Foundry address sheet. The runtime app currently treats BSC Testnet, Base Sepolia, Arbitrum Sepolia, and Ethereum Sepolia as write-enabled beta networks.
 
 ### BSC Testnet Core
 
@@ -141,6 +146,25 @@ Arbitrum Sepolia starter-kit assets are `ORI=0x5e41f1155AB4E614037C9C481BB8c1d39
 
 On 2026-06-29, on-chain checks confirmed Arbitrum Sepolia bytecode, `MarketplaceATP.delegationManager() == 0x56D454f55D5d05b060777F70e653BbBEb1167D2e`, `DelegationManager` grants `CONSUMER_ROLE` to its Marketplace, and the deployer EOA does not retain Marketplace or DelegationManager admin. The Arbitrum Sepolia timelock itself is intentionally controlled by deployer EOA `0x282Be18838D7079C215F49749a9606d77e00888b` with zero delay for testnet operations only.
 
+### Ethereum Sepolia Core
+
+| Contract | Address |
+| --- | --- |
+| `MarketplaceATP` | `0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14` |
+| `PaymentGateway` | `0x1A880Ae46993282dd77C2dDCc5e36498eB616C92` |
+| `FeeManager` | `0x51aB383A43d79f4127B7E7dCBcd892164FA2838F` |
+| `OrinaRWA` | `0x0a9efc1fb95be24743b1452ac4c974E5E925A453` |
+| `RWAReceiptNFT` | `0x82d2f4e131d1EB34F9B6Ebc8CC37bdD1cca84e95` |
+| `DisputeManager` | `0x952aE0562De695c63c1386458DB537193Ce293b4` |
+| `AutoTimeManager` | `0xa12273AD5b73c5F57139e84aa89Db52FE7Af05de` |
+| `DelegationManager` | `0x52440e44ec34a64e19b92243262fe47819d65539` |
+| `AIWalletFactoryV2` | `0x7D6b498eDc3F469ED020116e8892EbB361753bCB` |
+| `TimelockController` | `0x5C842728C357B9b18eb8A9A7a840499936132e67` |
+
+Ethereum Sepolia starter-kit assets are `ORI=0xD87493f4C02aad2c67Ce12aa534d188Bf44FCcAB`, `USDT.t=0x11E6c8f2806b32dAC427E7Df07F67602647eF87A`, `USDC.t=0xD6E84789741Ea2DE727961cCB383454E4A845035`, and `OrinaTestTokenFaucet=0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F`.
+
+On 2026-07-01, on-chain checks confirmed Ethereum Sepolia bytecode, `MarketplaceATP.delegationManager() == 0x52440e44ec34a64e19b92243262fe47819d65539`, `DelegationManager` grants `CONSUMER_ROLE` to its Marketplace, and the deployer EOA does not retain Marketplace or DelegationManager admin. The Ethereum Sepolia timelock itself is intentionally controlled by deployer EOA `0x282Be18838D7079C215F49749a9606d77e00888b` with zero delay for testnet operations only.
+
 ## Mainnet Boundary
 
 Before any mainnet deployment:
@@ -151,7 +175,7 @@ Before any mainnet deployment:
 - Do not deploy `OrinaTestStablecoin` or `OrinaTestTokenFaucet` to mainnet.
 - Do not describe testnet rankings as rewards, eligibility, allocation, or financial entitlement.
 - Replace beta ORI/payment-token parity assumptions with the production oracle quote layer.
-- Redeploy Arbitrum with the production multisig/Safe and non-zero timelock delay; do not reuse the Arbitrum Sepolia EOA-governed address set for mainnet.
+- Redeploy Arbitrum and Ethereum mainnet targets with the production multisig/Safe and non-zero timelock delay; do not reuse the EOA-governed Sepolia address sets for mainnet.
 - Complete the production checklist in `docs/mainnet-production-checklist.md`.
 
 ## Operator Checks
@@ -166,4 +190,4 @@ Run these checks before opening beta traffic:
 6. Confirm production/mainnet env has starter kit disabled.
 7. Run `npm run verify:testnet-networks` before changing a network from blocked/coming to live.
 
-The verification script is the shared operations gate for BSC Testnet, Base Sepolia, and Arbitrum Sepolia. It fails if declared bytecode, runtime versions, `MarketplaceATP.delegationManager()`, starter-kit token metadata, or network-specific governance expectations drift from the recorded address set.
+The verification script is the shared operations gate for BSC Testnet, Base Sepolia, Arbitrum Sepolia, and Ethereum Sepolia. It fails if declared bytecode, runtime versions, `MarketplaceATP.delegationManager()`, starter-kit token metadata, or network-specific governance expectations drift from the recorded address set.

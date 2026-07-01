@@ -1,6 +1,6 @@
 # Orina Protocol Runtime User Guide
 
-Last aligned with runtime code and deployment metadata on 2026-06-29.
+Last aligned with runtime code and deployment metadata on 2026-07-01.
 
 This guide describes the current `Orina Protocol - Runtime` application, not the older documentation site snapshot. The live beta protocol surface is ATP v3.5 on operated testnets, backed by a React/Vite client, Wagmi/Viem wallet flows, Supabase REST/Edge Functions, and local wallet-scoped runtime caches.
 
@@ -8,7 +8,7 @@ This guide describes the current `Orina Protocol - Runtime` application, not the
 
 - Frontend: React, TypeScript, Vite, Tailwind, Wagmi, Viem.
 - Wallet connector: browser injected EIP-1193 wallets, with MetaMask as the primary tested wallet.
-- Live protocol networks: BNB Chain Testnet `97`, Base Sepolia `84532`, and Arbitrum Sepolia `421614`.
+- Live protocol networks: BNB Chain Testnet `97`, Base Sepolia `84532`, Arbitrum Sepolia `421614`, and Ethereum Sepolia `11155111`.
 - Default protocol namespace: `orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604`.
 - Network-specific marketplace, asset, receipt, payment, and M2M addresses are selected from `src/config/contracts.ts` through the protocol network router.
 - Supported payment token list in the client: chain-scoped testnet `USDT.t`, `USDC.t`, optional wrapped native where configured, and `ORI`.
@@ -19,6 +19,8 @@ Other networks can appear in the UI as coming-soon or governance-blocked options
 Base Sepolia contract deployment metadata is included in the runtime configuration: chain id `84532`, `MarketplaceATP` `0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14`, `FeeManager` `0x51aB383A43d79f4127B7E7dCBcd892164FA2838F`, and `PaymentGateway` `0x1A880Ae46993282dd77C2dDCc5e36498eB616C92`. Base Sepolia is write-enabled after the 2026-06-28 bytecode and Marketplace M2M delegation checks.
 
 Arbitrum Sepolia is available as a live testnet target: chain id `421614`, RPC `https://sepolia-rollup.arbitrum.io/rpc`, explorer `https://sepolia.arbiscan.io`, namespace `orina-atp-v3.5-arbitrum-sepolia-eoa-testnet-20260629`. Contracts are deployed, bytecode-checked, and M2M-linked. Governance for this testnet uses deployer EOA through a zero-delay timelock because multisig signing is unavailable on Arbitrum Sepolia; mainnet must redeploy with the production multisig/Safe and replace the address set.
+
+Ethereum Sepolia is available as a live testnet target: chain id `11155111`, RPC `https://ethereum-sepolia-rpc.publicnode.com`, explorer `https://sepolia.etherscan.io`, namespace `orina-atp-v3.5-ethereum-sepolia-eoa-testnet-20260701`. Contracts are deployed, bytecode-checked, and M2M-linked. Governance for this testnet uses deployer EOA through a zero-delay timelock, matching the temporary Arbitrum Sepolia path; Ethereum mainnet must redeploy with the production multisig/Safe, non-zero timelock delay, and a fresh address set.
 
 ## Local Startup
 
@@ -84,7 +86,7 @@ The top search bar navigates to `/search` and can search assets, profiles, colle
 
 1. Install and unlock MetaMask or another injected wallet.
 2. Connect wallet from the top-right wallet button.
-3. Switch to a live runtime testnet: BNB Chain Testnet `97` or Base Sepolia `84532`.
+3. Switch to a live runtime testnet: BNB Chain Testnet `97`, Base Sepolia `84532`, Arbitrum Sepolia `421614`, or Ethereum Sepolia `11155111`.
 4. Keep the selected network's native test gas available.
 5. Use one of the configured ERC-20 payment tokens for protocol purchases. Native gas pays transaction fees; payment tokens are ERC-20 assets.
 

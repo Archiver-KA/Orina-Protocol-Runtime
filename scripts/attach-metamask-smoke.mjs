@@ -40,6 +40,18 @@ const CHAIN_PRESETS = {
     rpcUrls: ['https://sepolia-rollup.arbitrum.io/rpc'],
     blockExplorerUrls: ['https://sepolia.arbiscan.io'],
   },
+  '11155111': {
+    chainId: 11155111,
+    hexChainId: '0xaa36a7',
+    chainName: 'Ethereum Sepolia',
+    nativeCurrency: {
+      name: 'Sepolia Ether',
+      symbol: 'ETH',
+      decimals: 18,
+    },
+    rpcUrls: ['https://ethereum-sepolia-rpc.publicnode.com'],
+    blockExplorerUrls: ['https://sepolia.etherscan.io'],
+  },
 };
 
 const CONNECTED_SMOKE_PAGES = [
@@ -181,6 +193,9 @@ function parseChainOption(value) {
   }
   if (normalized === 'arbitrum-sepolia' || normalized === 'arb-sepolia' || normalized === 'arbitrum-testnet') {
     return 421614;
+  }
+  if (normalized === 'ethereum-sepolia' || normalized === 'ethereum-testnet' || normalized === 'eth-sepolia' || normalized === 'sepolia') {
+    return 11155111;
   }
 
   const parsed = Number(normalized);

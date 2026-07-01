@@ -82,6 +82,7 @@ import { useEffectiveViewer } from '@/hooks/useEffectiveViewer';
 const NETWORK_OPTIONS = [
   { value: 'all', label: 'All Networks' },
   { value: 'eth', label: 'Ethereum Mainnet', icon: <NetworkBrandLogo icon="ethereum" label="Ethereum" className="h-4 w-4" />, tag: 'EVM' },
+  { value: 'ethereum-sepolia', label: 'Ethereum Sepolia', icon: <NetworkBrandLogo icon="ethereum" label="Ethereum Sepolia" className="h-4 w-4" />, tag: 'EVM' },
   { value: 'poly', label: 'Polygon', icon: <NetworkBrandLogo icon="polygon" label="Polygon" className="h-4 w-4" /> },
   { value: 'arb', label: 'Arbitrum One', icon: <NetworkBrandLogo icon="arbitrum" label="Arbitrum One" className="h-4 w-4" /> },
   { value: 'arbitrum-sepolia', label: 'Arbitrum Sepolia', icon: <NetworkBrandLogo icon="arbitrum" label="Arbitrum Sepolia" className="h-4 w-4" /> },
@@ -226,7 +227,9 @@ export function Orders({
         ? 'View on BaseScan'
         : chainId === 421614
           ? 'View on Arbiscan'
-          : 'View on Explorer';
+          : chainId === 11155111
+            ? 'View on Etherscan'
+            : 'View on Explorer';
   const { orders: canonicalOrders, isLoading: ordersLoading, refresh: refreshOrders } = useUserOrders(address);
   const sellerConfirmTx = useSellerConfirm();
   const payOrderTx = usePayOrder();

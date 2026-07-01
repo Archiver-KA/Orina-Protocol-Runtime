@@ -3,6 +3,7 @@ import {
   ARBITRUM_SEPOLIA_CONTRACTS,
   BASE_SEPOLIA_CONTRACTS,
   CONTRACTS,
+  ETHEREUM_SEPOLIA_CONTRACTS,
   EXPLORER_URLS,
   RPC_URLS,
 } from '@/config/contracts';
@@ -73,6 +74,18 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     rpcUrl: RPC_URLS[421614],
     explorerUrl: EXPLORER_URLS[421614],
     aliases: ['arbitrum sepolia', 'arb sepolia', 'arbitrum testnet'],
+  },
+  {
+    chainId: 11155111,
+    key: 'ethereum-sepolia',
+    label: 'Ethereum Sepolia',
+    shortLabel: 'Ethereum Sepolia',
+    icon: 'ethereum',
+    status: 'live',
+    contracts: ETHEREUM_SEPOLIA_CONTRACTS,
+    rpcUrl: RPC_URLS[11155111],
+    explorerUrl: EXPLORER_URLS[11155111],
+    aliases: ['ethereum sepolia', 'eth sepolia', 'sepolia', 'ethereum testnet'],
   },
   {
     chainId: 43114,

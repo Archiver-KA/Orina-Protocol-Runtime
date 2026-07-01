@@ -805,6 +805,9 @@ function getMarketplaceAssetBlockchainValue(asset: MarketplaceAsset) {
   const network = normalizeMarketplaceBlockchainValue(asset.network);
 
   if (blockchain === 'ethereum-mainnet') return 'ethereum';
+  if (blockchain === 'ethereum-sepolia' || blockchain === 'ethereum-testnet' || blockchain === 'eth-sepolia') {
+    return 'ethereum-sepolia';
+  }
   if (blockchain === 'polygon-network') return 'polygon';
   if (blockchain === 'arbitrum-one') return 'arbitrum';
   if (blockchain === 'arbitrum-sepolia' || blockchain === 'arb-sepolia') return 'arbitrum-sepolia';
@@ -822,6 +825,7 @@ function getMarketplaceAssetBlockchainValue(asset: MarketplaceAsset) {
 
   if (blockchain === 'arbitrum') return network === 'testnet' ? 'arbitrum-sepolia' : 'arbitrum';
   if (blockchain === 'base') return network === 'testnet' ? 'base-sepolia' : 'base';
+  if (blockchain === 'ethereum') return network === 'testnet' ? 'ethereum-sepolia' : 'ethereum';
 
   return blockchain;
 }
@@ -836,6 +840,10 @@ function getMarketplaceCatalogBlockchainOption(
     case 'ethereum':
     case 'ethereum-mainnet':
       return { value: 'ethereum', label: 'Ethereum' };
+    case 'ethereum-sepolia':
+    case 'ethereum-testnet':
+    case 'eth-sepolia':
+      return { value: 'ethereum-sepolia', label: 'Ethereum Sepolia' };
     case 'polygon':
     case 'polygon-network':
       return { value: 'polygon', label: 'Polygon' };
@@ -868,6 +876,7 @@ const MARKETPLACE_BLOCKCHAIN_CHAIN_IDS: Record<string, number> = {
   bsc: 56,
   ethereum: 1,
   'ethereum-testnet': 11155111,
+  'ethereum-sepolia': 11155111,
   polygon: 137,
   arbitrum: 42161,
   'arbitrum-sepolia': 421614,

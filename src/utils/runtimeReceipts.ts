@@ -176,6 +176,7 @@ function resolveReceiptNetworkLabel(chainId: number, fallback?: string): string 
   if (chainId === 97) return 'BSC Testnet';
   if (chainId === 84532) return 'Base Sepolia';
   if (chainId === 421614) return 'Arbitrum Sepolia';
+  if (chainId === 11155111) return 'Ethereum Sepolia';
   if (chainId === 56) return 'BSC';
   if (chainId === 1) return 'Ethereum';
   return `Chain ${chainId}`;

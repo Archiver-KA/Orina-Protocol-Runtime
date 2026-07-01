@@ -3,6 +3,7 @@ import {
   ARBITRUM_SEPOLIA_CONTRACTS,
   BASE_SEPOLIA_CONTRACTS,
   CONTRACTS,
+  ETHEREUM_SEPOLIA_CONTRACTS,
   getPaymentTokenSymbolByAddress,
   getPaymentTokens,
   resolvePaymentTokenForCurrency,
@@ -21,7 +22,7 @@ import {
 } from '@/utils/protocolNetwork';
 
 describe('protocol network registry', () => {
-  it('marks BSC Testnet, Base Sepolia, and Arbitrum Sepolia as write-enabled', () => {
+  it('marks BSC Testnet, Base Sepolia, Arbitrum Sepolia, and Ethereum Sepolia as write-enabled', () => {
     expect(getProtocolNetworkOption(97)).toMatchObject({
       key: 'bnb-testnet',
       status: 'live',
@@ -42,14 +43,23 @@ describe('protocol network registry', () => {
     });
     expect(getProtocolContracts(421614)).toBe(ARBITRUM_SEPOLIA_CONTRACTS);
     expect(isProtocolNetworkWriteEnabled(421614)).toBe(true);
+
+    expect(getProtocolNetworkOption(11155111)).toMatchObject({
+      key: 'ethereum-sepolia',
+      status: 'live',
+    });
+    expect(getProtocolContracts(11155111)).toBe(ETHEREUM_SEPOLIA_CONTRACTS);
+    expect(isProtocolNetworkWriteEnabled(11155111)).toBe(true);
   });
 
   it('resolves aliases and restores live persisted networks', () => {
     expect(findProtocolNetworkOptionByValue('arb sepolia')?.key).toBe('arbitrum-sepolia');
     expect(findProtocolNetworkOptionByValue('base testnet')?.key).toBe('base-sepolia');
+    expect(findProtocolNetworkOptionByValue('eth sepolia')?.key).toBe('ethereum-sepolia');
 
     expect(resolveStoredProtocolNetworkKey('base-sepolia')).toBe('base-sepolia');
     expect(resolveStoredProtocolNetworkKey('arbitrum-sepolia')).toBe('arbitrum-sepolia');
+    expect(resolveStoredProtocolNetworkKey('ethereum-sepolia')).toBe('ethereum-sepolia');
   });
 });
 
@@ -90,6 +100,18 @@ describe('chain-scoped payment tokens and M2M contracts', () => {
       AI_WALLET_FACTORY_V2: ARBITRUM_SEPOLIA_CONTRACTS.AI_WALLET_FACTORY_V2,
     });
   });
+
+  it('uses Ethereum Sepolia token and M2M addresses without mutating other networks', () => {
+    const ethereumTokens = getPaymentTokens(11155111);
+
+    expect(ethereumTokens.USDT).toBe('0x11E6c8f2806b32dAC427E7Df07F67602647eF87A');
+    expect(ethereumTokens.USDC).toBe('0xD6E84789741Ea2DE727961cCB383454E4A845035');
+    expect(getPaymentTokenSymbolByAddress(ethereumTokens.USDT, 11155111)).toBe('USDT');
+    expect(getM2MContracts(11155111)).toEqual({
+      DELEGATION_MANAGER: ETHEREUM_SEPOLIA_CONTRACTS.DELEGATION_MANAGER,
+      AI_WALLET_FACTORY_V2: ETHEREUM_SEPOLIA_CONTRACTS.AI_WALLET_FACTORY_V2,
+    });
+  });
 });
 
 describe('testnet starter kit registry', () => {
@@ -112,6 +134,14 @@ describe('testnet starter kit registry', () => {
       faucetAddress: '0xFA37557E4F6D066f6CF4B69BA865837d007c8D1e',
     });
     expect(isTestnetStarterKitConfigured(arbitrumKit)).toBe(true);
+
+    const ethereumKit = getTestnetStarterKit(11155111);
+    expect(ethereumKit).toMatchObject({
+      networkKey: 'ethereum-sepolia',
+      nativeTokenLabel: 'ETH',
+      faucetAddress: '0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F',
+    });
+    expect(isTestnetStarterKitConfigured(ethereumKit)).toBe(true);
 
     expect(getTestnetStarterKit(8453)).toBeNull();
   });
