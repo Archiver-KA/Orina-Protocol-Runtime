@@ -235,7 +235,9 @@ function buildGenericDetails(
               ? "Ethereum Sepolia"
               : resolvedScope.chainId === 11155420
                 ? "Optimism Sepolia"
-                : `Chain ${resolvedScope.chainId}`,
+                : resolvedScope.chainId === 43113
+                  ? "Avalanche Fuji"
+                  : `Chain ${resolvedScope.chainId}`,
     currentPrice: fallback?.currentPrice ?? "0",
     currentPriceUsd: fallback?.currentPriceUsd ?? "0",
     image,

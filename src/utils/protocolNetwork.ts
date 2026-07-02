@@ -1,6 +1,7 @@
 import {
   ACTIVE_CHAIN_ID,
   ARBITRUM_SEPOLIA_CONTRACTS,
+  AVALANCHE_FUJI_CONTRACTS,
   BASE_SEPOLIA_CONTRACTS,
   CONTRACTS,
   ETHEREUM_SEPOLIA_CONTRACTS,
@@ -19,6 +20,7 @@ const CHAIN_LABELS: Record<number, string> = {
   8453: 'Base',
   84532: 'Base Sepolia',
   43114: 'Avalanche',
+  43113: 'Avalanche Fuji',
   11155111: 'Ethereum Sepolia',
   11155420: 'Optimism Sepolia',
 };
@@ -100,6 +102,18 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     rpcUrl: RPC_URLS[11155420],
     explorerUrl: EXPLORER_URLS[11155420],
     aliases: ['optimism sepolia', 'op sepolia', 'optimism testnet'],
+  },
+  {
+    chainId: 43113,
+    key: 'avalanche-fuji',
+    label: 'Avalanche Fuji',
+    shortLabel: 'Avalanche Fuji',
+    icon: 'avalanche',
+    status: 'live',
+    contracts: AVALANCHE_FUJI_CONTRACTS,
+    rpcUrl: RPC_URLS[43113],
+    explorerUrl: EXPLORER_URLS[43113],
+    aliases: ['avalanche fuji', 'fuji', 'avax fuji', 'avalanche testnet'],
   },
   {
     chainId: 43114,

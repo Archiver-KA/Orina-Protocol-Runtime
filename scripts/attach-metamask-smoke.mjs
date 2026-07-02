@@ -64,6 +64,18 @@ const CHAIN_PRESETS = {
     rpcUrls: ['https://optimism-sepolia-rpc.publicnode.com'],
     blockExplorerUrls: ['https://sepolia-optimism.etherscan.io'],
   },
+  '43113': {
+    chainId: 43113,
+    hexChainId: '0xa869',
+    chainName: 'Avalanche Fuji C-Chain',
+    nativeCurrency: {
+      name: 'Avalanche',
+      symbol: 'AVAX',
+      decimals: 18,
+    },
+    rpcUrls: ['https://api.avax-test.network/ext/bc/C/rpc'],
+    blockExplorerUrls: ['https://testnet.snowscan.xyz'],
+  },
 };
 
 const CONNECTED_SMOKE_PAGES = [
@@ -211,6 +223,9 @@ function parseChainOption(value) {
   }
   if (normalized === 'optimism-sepolia' || normalized === 'optimism-testnet' || normalized === 'op-sepolia') {
     return 11155420;
+  }
+  if (normalized === 'avalanche-fuji' || normalized === 'fuji' || normalized === 'avax-fuji' || normalized === 'avalanche-testnet') {
+    return 43113;
   }
 
   const parsed = Number(normalized);

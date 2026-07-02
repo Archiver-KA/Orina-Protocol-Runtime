@@ -95,6 +95,9 @@ const ETHEREUM_SEPOLIA_USDC_T = '0xD6E84789741Ea2DE727961cCB383454E4A845035';
 const OPTIMISM_SEPOLIA_FAUCET = '0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F';
 const OPTIMISM_SEPOLIA_USDT_T = '0x11E6c8f2806b32dAC427E7Df07F67602647eF87A';
 const OPTIMISM_SEPOLIA_USDC_T = '0xD6E84789741Ea2DE727961cCB383454E4A845035';
+const AVALANCHE_FUJI_FAUCET = '0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F';
+const AVALANCHE_FUJI_USDT_T = '0x11E6c8f2806b32dAC427E7Df07F67602647eF87A';
+const AVALANCHE_FUJI_USDC_T = '0xD6E84789741Ea2DE727961cCB383454E4A845035';
 
 export const TESTNET_STARTER_KITS: Record<number, TestnetStarterKitConfig> = {
   [CHAIN_CONFIG.TESTNET_CHAIN_ID]: {
@@ -203,6 +206,28 @@ export const TESTNET_STARTER_KITS: Record<number, TestnetStarterKitConfig> = {
       USDC: {
         label: 'USDC.t',
         address: normalizeAddress(runtimeConfig.optimismSepoliaUsdcAddress || OPTIMISM_SEPOLIA_USDC_T),
+        decimals: 6,
+      },
+    },
+  },
+  [CHAIN_CONFIG.AVALANCHE_FUJI_CHAIN_ID]: {
+    enabled: runtimeFlags.enableTestnetStarterKit,
+    chainId: CHAIN_CONFIG.AVALANCHE_FUJI_CHAIN_ID,
+    networkKey: 'avalanche-fuji',
+    networkLabel: 'Avalanche Fuji',
+    shortLabel: 'Avalanche Fuji',
+    nativeTokenLabel: 'AVAX',
+    gasFaucetUrl: runtimeConfig.avalancheFujiGasFaucetUrl,
+    faucetAddress: normalizeAddress(runtimeConfig.avalancheFujiTokenFaucetAddress || AVALANCHE_FUJI_FAUCET),
+    tokens: {
+      USDT: {
+        label: 'USDT.t',
+        address: normalizeAddress(runtimeConfig.avalancheFujiUsdtAddress || AVALANCHE_FUJI_USDT_T),
+        decimals: 6,
+      },
+      USDC: {
+        label: 'USDC.t',
+        address: normalizeAddress(runtimeConfig.avalancheFujiUsdcAddress || AVALANCHE_FUJI_USDC_T),
         decimals: 6,
       },
     },

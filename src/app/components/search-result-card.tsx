@@ -37,6 +37,9 @@ const NETWORK_LOGO_PATHS: Record<string, string> = {
   'optimism-sepolia': '/network-logos/ethereum.png',
   'op-sepolia': '/network-logos/ethereum.png',
   avalanche: '/network-logos/avalanche.png',
+  'avalanche-fuji': '/network-logos/avalanche.png',
+  'avalanche-testnet': '/network-logos/avalanche.png',
+  fuji: '/network-logos/avalanche.png',
   solana: '/network-logos/solana.png',
 };
 

@@ -84,6 +84,10 @@ export const runtimeConfig = {
   optimismSepoliaUsdtAddress: readString('VITE_OPTIMISM_SEPOLIA_USDT_T_ADDRESS', ''),
   optimismSepoliaUsdcAddress: readString('VITE_OPTIMISM_SEPOLIA_USDC_T_ADDRESS', ''),
   optimismSepoliaGasFaucetUrl: readString('VITE_OPTIMISM_SEPOLIA_GAS_FAUCET_URL', ''),
+  avalancheFujiTokenFaucetAddress: readString('VITE_AVALANCHE_FUJI_TOKEN_FAUCET_ADDRESS', ''),
+  avalancheFujiUsdtAddress: readString('VITE_AVALANCHE_FUJI_USDT_T_ADDRESS', ''),
+  avalancheFujiUsdcAddress: readString('VITE_AVALANCHE_FUJI_USDC_T_ADDRESS', ''),
+  avalancheFujiGasFaucetUrl: readString('VITE_AVALANCHE_FUJI_GAS_FAUCET_URL', ''),
   bscTestnetM2MDelegationManager: readString('VITE_BSC_TESTNET_M2M_DELEGATION_MANAGER', ''),
   bscTestnetM2MAIWalletFactoryV2: readString('VITE_BSC_TESTNET_M2M_AI_WALLET_FACTORY_V2', ''),
   baseSepoliaM2MDelegationManager: readString('VITE_BASE_SEPOLIA_M2M_DELEGATION_MANAGER', ''),
@@ -94,4 +98,6 @@ export const runtimeConfig = {
   ethereumSepoliaM2MAIWalletFactoryV2: readString('VITE_ETHEREUM_SEPOLIA_M2M_AI_WALLET_FACTORY_V2', ''),
   optimismSepoliaM2MDelegationManager: readString('VITE_OPTIMISM_SEPOLIA_M2M_DELEGATION_MANAGER', ''),
   optimismSepoliaM2MAIWalletFactoryV2: readString('VITE_OPTIMISM_SEPOLIA_M2M_AI_WALLET_FACTORY_V2', ''),
+  avalancheFujiM2MDelegationManager: readString('VITE_AVALANCHE_FUJI_M2M_DELEGATION_MANAGER', ''),
+  avalancheFujiM2MAIWalletFactoryV2: readString('VITE_AVALANCHE_FUJI_M2M_AI_WALLET_FACTORY_V2', ''),
 } as const;

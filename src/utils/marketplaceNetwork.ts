@@ -121,6 +121,19 @@ const CHAIN_INFOS = {
     color: '#FF0420',
     chainId: 11155420,
   }),
+  'avalanche-fuji': buildChainInfo({
+    blockchain: 'Avalanche',
+    network: 'testnet',
+    filterValue: 'avalanche-fuji',
+    label: 'Avalanche Fuji',
+    fullName: 'Avalanche Fuji C-Chain',
+    currency: 'AVAX',
+    explorer: 'testnet.snowscan.xyz',
+    blockTime: '~2s',
+    consensus: 'Avalanche',
+    color: '#E84142',
+    chainId: 43113,
+  }),
   polygon: buildChainInfo({
     blockchain: 'Polygon',
     network: 'mainnet',
@@ -193,6 +206,7 @@ const CHAIN_INFO_BY_CHAIN_ID: Record<number, MarketplaceChainInfo> = {
   56: CHAIN_INFOS.bsc,
   97: CHAIN_INFOS['bnb-testnet'],
   137: CHAIN_INFOS.polygon,
+  43113: CHAIN_INFOS['avalanche-fuji'],
   8453: CHAIN_INFOS.base,
   84532: CHAIN_INFOS['base-sepolia'],
   42161: CHAIN_INFOS.arbitrum,
@@ -224,6 +238,8 @@ function getChainInfoFromProtocolValue(value?: string | number | null): Marketpl
       return CHAIN_INFOS['base-sepolia'];
     case 'optimism-sepolia':
       return CHAIN_INFOS['optimism-sepolia'];
+    case 'avalanche-fuji':
+      return CHAIN_INFOS['avalanche-fuji'];
     default:
       return undefined;
   }
@@ -269,6 +285,15 @@ function getChainInfoFromText(
   }
 
   if (
+    normalizedBlockchain === 'avalanche-fuji' ||
+    normalizedBlockchain === 'avax-fuji' ||
+    normalizedBlockchain === 'fuji' ||
+    normalizedBlockchain === 'avalanche-testnet'
+  ) {
+    return CHAIN_INFOS['avalanche-fuji'];
+  }
+
+  if (
     normalizedBlockchain === 'ethereum' ||
     normalizedBlockchain === 'eth' ||
     normalizedBlockchain === 'ethereum-mainnet'
@@ -306,6 +331,10 @@ function getChainInfoFromText(
 
   if (normalizedBlockchain === 'optimism' || normalizedBlockchain === 'op') {
     return CHAIN_INFOS['optimism-sepolia'];
+  }
+
+  if (normalizedBlockchain === 'avalanche' || normalizedBlockchain === 'avax') {
+    return normalizedNetwork === 'testnet' ? CHAIN_INFOS['avalanche-fuji'] : undefined;
   }
 
   if (!normalizedBlockchain && normalizedNetwork === 'testnet') {

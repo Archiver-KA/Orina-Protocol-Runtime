@@ -811,6 +811,9 @@ function getMarketplaceAssetBlockchainValue(asset: MarketplaceAsset) {
   if (blockchain === 'optimism-sepolia' || blockchain === 'op-sepolia' || blockchain === 'optimism-testnet') {
     return 'optimism-sepolia';
   }
+  if (blockchain === 'avalanche-fuji' || blockchain === 'avax-fuji' || blockchain === 'fuji' || blockchain === 'avalanche-testnet') {
+    return 'avalanche-fuji';
+  }
   if (blockchain === 'polygon-network') return 'polygon';
   if (blockchain === 'arbitrum-one') return 'arbitrum';
   if (blockchain === 'arbitrum-sepolia' || blockchain === 'arb-sepolia') return 'arbitrum-sepolia';
@@ -830,6 +833,7 @@ function getMarketplaceAssetBlockchainValue(asset: MarketplaceAsset) {
   if (blockchain === 'base') return network === 'testnet' ? 'base-sepolia' : 'base';
   if (blockchain === 'ethereum') return network === 'testnet' ? 'ethereum-sepolia' : 'ethereum';
   if (blockchain === 'optimism' || blockchain === 'op') return 'optimism-sepolia';
+  if (blockchain === 'avalanche' || blockchain === 'avax') return network === 'testnet' ? 'avalanche-fuji' : 'avalanche';
 
   return blockchain;
 }
@@ -852,6 +856,11 @@ function getMarketplaceCatalogBlockchainOption(
     case 'optimism-testnet':
     case 'op-sepolia':
       return { value: 'optimism-sepolia', label: 'Optimism Sepolia' };
+    case 'avalanche-fuji':
+    case 'avalanche-testnet':
+    case 'avax-fuji':
+    case 'fuji':
+      return { value: 'avalanche-fuji', label: 'Avalanche Fuji' };
     case 'polygon':
     case 'polygon-network':
       return { value: 'polygon', label: 'Polygon' };
@@ -888,6 +897,10 @@ const MARKETPLACE_BLOCKCHAIN_CHAIN_IDS: Record<string, number> = {
   'optimism-testnet': 11155420,
   'optimism-sepolia': 11155420,
   'op-sepolia': 11155420,
+  'avalanche-fuji': 43113,
+  'avalanche-testnet': 43113,
+  'avax-fuji': 43113,
+  fuji: 43113,
   polygon: 137,
   arbitrum: 42161,
   'arbitrum-sepolia': 421614,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ARBITRUM_SEPOLIA_CONTRACTS,
+  AVALANCHE_FUJI_CONTRACTS,
   BASE_SEPOLIA_CONTRACTS,
   CONTRACTS,
   ETHEREUM_SEPOLIA_CONTRACTS,
@@ -23,7 +24,7 @@ import {
 } from '@/utils/protocolNetwork';
 
 describe('protocol network registry', () => {
-  it('marks BSC Testnet, Base Sepolia, Arbitrum Sepolia, Ethereum Sepolia, and Optimism Sepolia as write-enabled', () => {
+  it('marks BSC Testnet, Base Sepolia, Arbitrum Sepolia, Ethereum Sepolia, Optimism Sepolia, and Avalanche Fuji as write-enabled', () => {
     expect(getProtocolNetworkOption(97)).toMatchObject({
       key: 'bnb-testnet',
       status: 'live',
@@ -58,6 +59,13 @@ describe('protocol network registry', () => {
     });
     expect(getProtocolContracts(11155420)).toBe(OPTIMISM_SEPOLIA_CONTRACTS);
     expect(isProtocolNetworkWriteEnabled(11155420)).toBe(true);
+
+    expect(getProtocolNetworkOption(43113)).toMatchObject({
+      key: 'avalanche-fuji',
+      status: 'live',
+    });
+    expect(getProtocolContracts(43113)).toBe(AVALANCHE_FUJI_CONTRACTS);
+    expect(isProtocolNetworkWriteEnabled(43113)).toBe(true);
   });
 
   it('resolves aliases and restores live persisted networks', () => {
@@ -65,11 +73,13 @@ describe('protocol network registry', () => {
     expect(findProtocolNetworkOptionByValue('base testnet')?.key).toBe('base-sepolia');
     expect(findProtocolNetworkOptionByValue('eth sepolia')?.key).toBe('ethereum-sepolia');
     expect(findProtocolNetworkOptionByValue('op sepolia')?.key).toBe('optimism-sepolia');
+    expect(findProtocolNetworkOptionByValue('fuji')?.key).toBe('avalanche-fuji');
 
     expect(resolveStoredProtocolNetworkKey('base-sepolia')).toBe('base-sepolia');
     expect(resolveStoredProtocolNetworkKey('arbitrum-sepolia')).toBe('arbitrum-sepolia');
     expect(resolveStoredProtocolNetworkKey('ethereum-sepolia')).toBe('ethereum-sepolia');
     expect(resolveStoredProtocolNetworkKey('optimism-sepolia')).toBe('optimism-sepolia');
+    expect(resolveStoredProtocolNetworkKey('avalanche-fuji')).toBe('avalanche-fuji');
   });
 });
 
@@ -134,6 +144,18 @@ describe('chain-scoped payment tokens and M2M contracts', () => {
       AI_WALLET_FACTORY_V2: OPTIMISM_SEPOLIA_CONTRACTS.AI_WALLET_FACTORY_V2,
     });
   });
+
+  it('uses Avalanche Fuji token and M2M addresses without mutating other networks', () => {
+    const fujiTokens = getPaymentTokens(43113);
+
+    expect(fujiTokens.USDT).toBe('0x11E6c8f2806b32dAC427E7Df07F67602647eF87A');
+    expect(fujiTokens.USDC).toBe('0xD6E84789741Ea2DE727961cCB383454E4A845035');
+    expect(getPaymentTokenSymbolByAddress(fujiTokens.USDT, 43113)).toBe('USDT');
+    expect(getM2MContracts(43113)).toEqual({
+      DELEGATION_MANAGER: AVALANCHE_FUJI_CONTRACTS.DELEGATION_MANAGER,
+      AI_WALLET_FACTORY_V2: AVALANCHE_FUJI_CONTRACTS.AI_WALLET_FACTORY_V2,
+    });
+  });
 });
 
 describe('testnet starter kit registry', () => {
@@ -172,6 +194,14 @@ describe('testnet starter kit registry', () => {
       faucetAddress: '0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F',
     });
     expect(isTestnetStarterKitConfigured(optimismKit)).toBe(true);
+
+    const avalancheFujiKit = getTestnetStarterKit(43113);
+    expect(avalancheFujiKit).toMatchObject({
+      networkKey: 'avalanche-fuji',
+      nativeTokenLabel: 'AVAX',
+      faucetAddress: '0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F',
+    });
+    expect(isTestnetStarterKitConfigured(avalancheFujiKit)).toBe(true);
 
     expect(getTestnetStarterKit(8453)).toBeNull();
   });
