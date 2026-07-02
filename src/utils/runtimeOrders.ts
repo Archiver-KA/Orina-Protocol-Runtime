@@ -699,7 +699,9 @@ export function fromProtocolOrderRow(row: ProtocolOrderRow, scope?: RuntimeOrder
                   ? "optimism-sepolia"
                   : resolvedScope.chainId === 43113
                     ? "avalanche-fuji"
-                    : `chain-${resolvedScope.chainId}`,
+                    : resolvedScope.chainId === 4801
+                      ? "worldchain-sepolia"
+                      : `chain-${resolvedScope.chainId}`,
     assetImage: metadata.assetImage || persisted?.assetImage || DEFAULT_ASSET_IMAGE,
     amount: amount > 0n ? amount : 1n,
     grossPrice,
@@ -971,7 +973,9 @@ export function createRuntimeOrderFromRwaIntent(params: {
                   ? "optimism-sepolia"
                   : resolvedScope.chainId === 43113
                     ? "avalanche-fuji"
-                    : `chain-${resolvedScope.chainId}`,
+                    : resolvedScope.chainId === 4801
+                      ? "worldchain-sepolia"
+                      : `chain-${resolvedScope.chainId}`,
     assetImage: params.asset.imageUrl ?? params.asset.image ?? "",
     amount: quantity,
     grossPrice: params.grossPrice,

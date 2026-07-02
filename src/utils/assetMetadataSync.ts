@@ -77,6 +77,7 @@ function mapChainId(blockchain?: string, network?: string): number | null {
   if (b === 'ethereum') return n === 'testnet' ? 11155111 : 1;
   if (b === 'optimism' || b === 'optimism-sepolia' || b === 'op-sepolia') return n === 'testnet' || b.includes('sepolia') ? 11155420 : 10;
   if (b === 'avalanche' || b === 'avax' || b === 'avalanche-fuji' || b === 'avax-fuji' || b === 'fuji') return n === 'testnet' || b.includes('fuji') ? 43113 : 43114;
+  if (b === 'worldchain' || b === 'world-chain' || b === 'world' || b === 'worldchain-sepolia' || b === 'world-chain-sepolia' || b === 'world-sepolia') return n === 'testnet' || b.includes('sepolia') ? 4801 : 480;
   if (b === 'polygon') return 137;
   if (b === 'arbitrum' || b === 'arbitrum-sepolia') return n === 'testnet' || b.includes('sepolia') ? 421614 : 42161;
   if (b === 'base' || b === 'base-sepolia') return n === 'testnet' || b.includes('sepolia') ? 84532 : 8453;
@@ -95,8 +96,8 @@ function propertiesToAttributes(
 }
 
 function inferNetworkFromChainId(chainId: number | null | undefined): 'mainnet' | 'testnet' | null {
-  if (chainId === 97 || chainId === 11155111 || chainId === 11155420 || chainId === 43113 || chainId === 84532 || chainId === 421614) return 'testnet';
-  if (chainId === 56 || chainId === 1 || chainId === 10 || chainId === 137 || chainId === 42161 || chainId === 8453) return 'mainnet';
+  if (chainId === 97 || chainId === 11155111 || chainId === 11155420 || chainId === 43113 || chainId === 4801 || chainId === 84532 || chainId === 421614) return 'testnet';
+  if (chainId === 56 || chainId === 1 || chainId === 10 || chainId === 137 || chainId === 480 || chainId === 42161 || chainId === 8453) return 'mainnet';
   return null;
 }
 

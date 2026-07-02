@@ -134,6 +134,19 @@ const CHAIN_INFOS = {
     color: '#E84142',
     chainId: 43113,
   }),
+  'worldchain-sepolia': buildChainInfo({
+    blockchain: 'World Chain',
+    network: 'testnet',
+    filterValue: 'worldchain-sepolia',
+    label: 'World Chain Sepolia',
+    fullName: 'World Chain Sepolia',
+    currency: 'ETH',
+    explorer: 'worldchain-sepolia.explorer.alchemy.com',
+    blockTime: '~2s',
+    consensus: 'OP Stack',
+    color: '#111111',
+    chainId: 4801,
+  }),
   polygon: buildChainInfo({
     blockchain: 'Polygon',
     network: 'mainnet',
@@ -207,6 +220,7 @@ const CHAIN_INFO_BY_CHAIN_ID: Record<number, MarketplaceChainInfo> = {
   97: CHAIN_INFOS['bnb-testnet'],
   137: CHAIN_INFOS.polygon,
   43113: CHAIN_INFOS['avalanche-fuji'],
+  4801: CHAIN_INFOS['worldchain-sepolia'],
   8453: CHAIN_INFOS.base,
   84532: CHAIN_INFOS['base-sepolia'],
   42161: CHAIN_INFOS.arbitrum,
@@ -240,6 +254,8 @@ function getChainInfoFromProtocolValue(value?: string | number | null): Marketpl
       return CHAIN_INFOS['optimism-sepolia'];
     case 'avalanche-fuji':
       return CHAIN_INFOS['avalanche-fuji'];
+    case 'worldchain-sepolia':
+      return CHAIN_INFOS['worldchain-sepolia'];
     default:
       return undefined;
   }
@@ -294,6 +310,16 @@ function getChainInfoFromText(
   }
 
   if (
+    normalizedBlockchain === 'worldchain-sepolia' ||
+    normalizedBlockchain === 'world-chain-sepolia' ||
+    normalizedBlockchain === 'world-sepolia' ||
+    normalizedBlockchain === 'worldchain-testnet' ||
+    normalizedBlockchain === 'world-testnet'
+  ) {
+    return CHAIN_INFOS['worldchain-sepolia'];
+  }
+
+  if (
     normalizedBlockchain === 'ethereum' ||
     normalizedBlockchain === 'eth' ||
     normalizedBlockchain === 'ethereum-mainnet'
@@ -335,6 +361,10 @@ function getChainInfoFromText(
 
   if (normalizedBlockchain === 'avalanche' || normalizedBlockchain === 'avax') {
     return normalizedNetwork === 'testnet' ? CHAIN_INFOS['avalanche-fuji'] : undefined;
+  }
+
+  if (normalizedBlockchain === 'worldchain' || normalizedBlockchain === 'world-chain' || normalizedBlockchain === 'world') {
+    return normalizedNetwork === 'testnet' ? CHAIN_INFOS['worldchain-sepolia'] : undefined;
   }
 
   if (!normalizedBlockchain && normalizedNetwork === 'testnet') {

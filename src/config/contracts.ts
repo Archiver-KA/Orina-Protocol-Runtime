@@ -6,6 +6,7 @@
  * Ethereum Sepolia contracts were deployed, bytecode-checked, and M2M-linked on 2026-07-01.
  * Optimism Sepolia contracts were deployed, bytecode-checked, and M2M-linked on 2026-07-01.
  * Avalanche Fuji contracts were deployed, bytecode-checked, and M2M-linked on 2026-07-02.
+ * World Chain Sepolia contracts were deployed, bytecode-checked, and M2M-linked on 2026-07-02.
  * Fee split no-burn + transferable NFT branch + ORI fee-token option.
  * Namespace: orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604
  */
@@ -33,6 +34,9 @@ const OPTIMISM_SEPOLIA_USDC_T = '0xD6E84789741Ea2DE727961cCB383454E4A845035' as 
 const AVALANCHE_FUJI_ORI = '0xD87493f4C02aad2c67Ce12aa534d188Bf44FCcAB' as `0x${string}`;
 const AVALANCHE_FUJI_USDT_T = '0x11E6c8f2806b32dAC427E7Df07F67602647eF87A' as `0x${string}`;
 const AVALANCHE_FUJI_USDC_T = '0xD6E84789741Ea2DE727961cCB383454E4A845035' as `0x${string}`;
+const WORLDCHAIN_SEPOLIA_ORI = '0xD87493f4C02aad2c67Ce12aa534d188Bf44FCcAB' as `0x${string}`;
+const WORLDCHAIN_SEPOLIA_USDT_T = '0x11E6c8f2806b32dAC427E7Df07F67602647eF87A' as `0x${string}`;
+const WORLDCHAIN_SEPOLIA_USDC_T = '0xD6E84789741Ea2DE727961cCB383454E4A845035' as `0x${string}`;
 
 // Contract Addresses (v3.5 beta no-burn fee split - BSC Testnet)
 export const CONTRACTS = {
@@ -175,6 +179,30 @@ export const AVALANCHE_FUJI_CONTRACTS = {
   REFERRAL_VAULT: '0x130fF04D269f0E9C0eaa984C167bd746bB68F82a' as `0x${string}`,
 } as const;
 
+// World Chain Sepolia ATP v3.5 deployment. This testnet follows the
+// temporary EOA-governed zero-delay timelock path used for Sepolia rollouts.
+// World Chain mainnet (chainId 480) must redeploy with production multisig/Safe
+// governance and replace this address set. The first World Chain M2M attempt is
+// orphaned because it used the stale Base Sepolia timelock; do not use it.
+export const WORLDCHAIN_SEPOLIA_CONTRACTS = {
+  MARKETPLACE_ATP: '0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14' as `0x${string}`,
+  ORINA_RWA:       '0x0a9efc1fb95be24743b1452ac4c974E5E925A453' as `0x${string}`,
+  RECEIPT_NFT:     '0x82d2f4e131d1EB34F9B6Ebc8CC37bdD1cca84e95' as `0x${string}`,
+  PAYMENT_GATEWAY: '0x1A880Ae46993282dd77C2dDCc5e36498eB616C92' as `0x${string}`,
+  FEE_MANAGER:       '0x51aB383A43d79f4127B7E7dCBcd892164FA2838F' as `0x${string}`,
+  AUTOTIME_MANAGER:  '0xa12273AD5b73c5F57139e84aa89Db52FE7Af05de' as `0x${string}`,
+  DISPUTE_MANAGER:   '0x952aE0562De695c63c1386458DB537193Ce293b4' as `0x${string}`,
+  DELEGATION_MANAGER: '0x5e41f1155AB4E614037C9C481BB8c1d398915cd0' as `0x${string}`,
+  AI_WALLET_FACTORY_V2: '0x279c62C97c6967d0E0F45f9D2460d38E3929c090' as `0x${string}`,
+  UNIT_REGISTRY:     '0x5a709d6f4F0a084315C64272FFc158Dc61F0De38' as `0x${string}`,
+  SHIPPING_REGISTRY: '0x50fD56DcA706471B7f0Ab59051006aA2712c2DF2' as `0x${string}`,
+  TIMELOCK:    '0x5C842728C357B9b18eb8A9A7a840499936132e67' as `0x${string}`,
+  GNOSIS_SAFE: '0x282Be18838D7079C215F49749a9606d77e00888b' as `0x${string}`,
+  FEE_VAULT:      '0x130fF04D269f0E9C0eaa984C167bd746bB68F82a' as `0x${string}`,
+  DAO_VAULT:      '0x8069c3e6E6156707746885d9328a35C874B835CF' as `0x${string}`,
+  REFERRAL_VAULT: '0x130fF04D269f0E9C0eaa984C167bd746bB68F82a' as `0x${string}`,
+} as const;
+
 // Supported payment tokens. The contract path can accept ERC20 tokens, but
 // production needs an explicit allowlist policy. Testnet mock tokens stay
 // chain-scoped so adding a new network does not mutate BSC behavior.
@@ -220,6 +248,13 @@ export const AVALANCHE_FUJI_PAYMENT_TOKENS = {
   ORI: parseRuntimeAddress('', AVALANCHE_FUJI_ORI),
 } as const;
 
+export const WORLDCHAIN_SEPOLIA_PAYMENT_TOKENS = {
+  USDT: parseRuntimeAddress(runtimeConfig.worldchainSepoliaUsdtAddress, WORLDCHAIN_SEPOLIA_USDT_T),
+  USDC: parseRuntimeAddress(runtimeConfig.worldchainSepoliaUsdcAddress, WORLDCHAIN_SEPOLIA_USDC_T),
+  WBNB: ZERO_ADDRESS,
+  ORI: parseRuntimeAddress('', WORLDCHAIN_SEPOLIA_ORI),
+} as const;
+
 export const PAYMENT_TOKENS_BY_CHAIN_ID = {
   97: PAYMENT_TOKENS,
   84532: BASE_SEPOLIA_PAYMENT_TOKENS,
@@ -227,6 +262,7 @@ export const PAYMENT_TOKENS_BY_CHAIN_ID = {
   11155111: ETHEREUM_SEPOLIA_PAYMENT_TOKENS,
   11155420: OPTIMISM_SEPOLIA_PAYMENT_TOKENS,
   43113: AVALANCHE_FUJI_PAYMENT_TOKENS,
+  4801: WORLDCHAIN_SEPOLIA_PAYMENT_TOKENS,
 } as const;
 
 export type PaymentTokenSymbol = keyof typeof PAYMENT_TOKENS;
@@ -302,6 +338,7 @@ export const CHAIN_CONFIG = {
   ETHEREUM_SEPOLIA_CHAIN_ID: 11155111,
   OPTIMISM_SEPOLIA_CHAIN_ID: 11155420,
   AVALANCHE_FUJI_CHAIN_ID: 43113,
+  WORLDCHAIN_SEPOLIA_CHAIN_ID: 4801,
   DEV_CHAIN_ID: 11155111,    // Sepolia alias
 } as const;
 
@@ -313,6 +350,7 @@ export const SUPPORTED_CHAINS = [
   CHAIN_CONFIG.ETHEREUM_SEPOLIA_CHAIN_ID,
   CHAIN_CONFIG.OPTIMISM_SEPOLIA_CHAIN_ID,
   CHAIN_CONFIG.AVALANCHE_FUJI_CHAIN_ID,
+  CHAIN_CONFIG.WORLDCHAIN_SEPOLIA_CHAIN_ID,
 ] as const;
 
 // Current active chain (toggle for dev vs prod)
@@ -408,6 +446,7 @@ export const RPC_URLS = {
   [11155111]: runtimeConfig.sepoliaRpcUrl || 'https://ethereum-sepolia-rpc.publicnode.com',
   [11155420]: 'https://optimism-sepolia-rpc.publicnode.com',
   [43113]: 'https://api.avax-test.network/ext/bc/C/rpc',
+  [4801]: 'https://worldchain-sepolia.g.alchemy.com/public',
 } as const;
 
 // â”€â”€ Block Explorer URLs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -419,4 +458,5 @@ export const EXPLORER_URLS = {
   [11155111]: 'https://sepolia.etherscan.io',
   [11155420]: 'https://sepolia-optimism.etherscan.io',
   [43113]: 'https://testnet.snowscan.xyz',
+  [4801]: 'https://worldchain-sepolia.explorer.alchemy.com',
 } as const;

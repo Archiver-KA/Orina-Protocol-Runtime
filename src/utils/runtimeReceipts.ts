@@ -179,6 +179,7 @@ function resolveReceiptNetworkLabel(chainId: number, fallback?: string): string 
   if (chainId === 11155111) return 'Ethereum Sepolia';
   if (chainId === 11155420) return 'Optimism Sepolia';
   if (chainId === 43113) return 'Avalanche Fuji';
+  if (chainId === 4801) return 'World Chain Sepolia';
   if (chainId === 56) return 'BSC';
   if (chainId === 1) return 'Ethereum';
   return `Chain ${chainId}`;

@@ -237,7 +237,9 @@ function buildGenericDetails(
                 ? "Optimism Sepolia"
                 : resolvedScope.chainId === 43113
                   ? "Avalanche Fuji"
-                  : `Chain ${resolvedScope.chainId}`,
+                  : resolvedScope.chainId === 4801
+                    ? "World Chain Sepolia"
+                    : `Chain ${resolvedScope.chainId}`,
     currentPrice: fallback?.currentPrice ?? "0",
     currentPriceUsd: fallback?.currentPriceUsd ?? "0",
     image,

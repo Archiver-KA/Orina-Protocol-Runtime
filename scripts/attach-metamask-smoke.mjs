@@ -76,6 +76,18 @@ const CHAIN_PRESETS = {
     rpcUrls: ['https://api.avax-test.network/ext/bc/C/rpc'],
     blockExplorerUrls: ['https://testnet.snowscan.xyz'],
   },
+  '4801': {
+    chainId: 4801,
+    hexChainId: '0x12c1',
+    chainName: 'World Chain Sepolia',
+    nativeCurrency: {
+      name: 'Ether',
+      symbol: 'ETH',
+      decimals: 18,
+    },
+    rpcUrls: ['https://worldchain-sepolia.g.alchemy.com/public'],
+    blockExplorerUrls: ['https://worldchain-sepolia.explorer.alchemy.com'],
+  },
 };
 
 const CONNECTED_SMOKE_PAGES = [
@@ -226,6 +238,9 @@ function parseChainOption(value) {
   }
   if (normalized === 'avalanche-fuji' || normalized === 'fuji' || normalized === 'avax-fuji' || normalized === 'avalanche-testnet') {
     return 43113;
+  }
+  if (normalized === 'worldchain-sepolia' || normalized === 'world-chain-sepolia' || normalized === 'world-sepolia' || normalized === 'worldchain-testnet' || normalized === 'world-testnet') {
+    return 4801;
   }
 
   const parsed = Number(normalized);

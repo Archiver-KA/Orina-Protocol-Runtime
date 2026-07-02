@@ -10,6 +10,8 @@ const NETWORK_LOGO_SOURCES: Record<ProtocolNetworkIcon, string> = {
   polygon: '/network-logos/polygon.png',
   solana: '/network-logos/solana.png',
   ethereum: '/network-logos/ethereum.png',
+  optimism: '/network-logos/optimism.svg',
+  worldchain: '/network-logos/worldchain.svg',
   generic: '',
 };
 

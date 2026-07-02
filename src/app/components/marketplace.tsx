@@ -814,6 +814,9 @@ function getMarketplaceAssetBlockchainValue(asset: MarketplaceAsset) {
   if (blockchain === 'avalanche-fuji' || blockchain === 'avax-fuji' || blockchain === 'fuji' || blockchain === 'avalanche-testnet') {
     return 'avalanche-fuji';
   }
+  if (blockchain === 'worldchain-sepolia' || blockchain === 'world-chain-sepolia' || blockchain === 'world-sepolia' || blockchain === 'worldchain-testnet' || blockchain === 'world-testnet') {
+    return 'worldchain-sepolia';
+  }
   if (blockchain === 'polygon-network') return 'polygon';
   if (blockchain === 'arbitrum-one') return 'arbitrum';
   if (blockchain === 'arbitrum-sepolia' || blockchain === 'arb-sepolia') return 'arbitrum-sepolia';
@@ -834,6 +837,7 @@ function getMarketplaceAssetBlockchainValue(asset: MarketplaceAsset) {
   if (blockchain === 'ethereum') return network === 'testnet' ? 'ethereum-sepolia' : 'ethereum';
   if (blockchain === 'optimism' || blockchain === 'op') return 'optimism-sepolia';
   if (blockchain === 'avalanche' || blockchain === 'avax') return network === 'testnet' ? 'avalanche-fuji' : 'avalanche';
+  if (blockchain === 'worldchain' || blockchain === 'world-chain' || blockchain === 'world') return network === 'testnet' ? 'worldchain-sepolia' : 'worldchain';
 
   return blockchain;
 }
@@ -861,6 +865,12 @@ function getMarketplaceCatalogBlockchainOption(
     case 'avax-fuji':
     case 'fuji':
       return { value: 'avalanche-fuji', label: 'Avalanche Fuji' };
+    case 'worldchain-sepolia':
+    case 'world-chain-sepolia':
+    case 'world-sepolia':
+    case 'worldchain-testnet':
+    case 'world-testnet':
+      return { value: 'worldchain-sepolia', label: 'World Chain Sepolia' };
     case 'polygon':
     case 'polygon-network':
       return { value: 'polygon', label: 'Polygon' };
@@ -901,6 +911,11 @@ const MARKETPLACE_BLOCKCHAIN_CHAIN_IDS: Record<string, number> = {
   'avalanche-testnet': 43113,
   'avax-fuji': 43113,
   fuji: 43113,
+  'worldchain-sepolia': 4801,
+  'world-chain-sepolia': 4801,
+  'world-sepolia': 4801,
+  'worldchain-testnet': 4801,
+  'world-testnet': 4801,
   polygon: 137,
   arbitrum: 42161,
   'arbitrum-sepolia': 421614,

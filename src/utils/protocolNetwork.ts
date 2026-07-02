@@ -8,6 +8,7 @@ import {
   EXPLORER_URLS,
   OPTIMISM_SEPOLIA_CONTRACTS,
   RPC_URLS,
+  WORLDCHAIN_SEPOLIA_CONTRACTS,
 } from '@/config/contracts';
 
 const CHAIN_LABELS: Record<number, string> = {
@@ -21,12 +22,13 @@ const CHAIN_LABELS: Record<number, string> = {
   84532: 'Base Sepolia',
   43114: 'Avalanche',
   43113: 'Avalanche Fuji',
+  4801: 'World Chain Sepolia',
   11155111: 'Ethereum Sepolia',
   11155420: 'Optimism Sepolia',
 };
 
 export type ProtocolNetworkStatus = 'live' | 'blocked' | 'coming';
-export type ProtocolNetworkIcon = 'avalanche' | 'bnb' | 'base' | 'polygon' | 'solana' | 'ethereum' | 'arbitrum' | 'generic';
+export type ProtocolNetworkIcon = 'avalanche' | 'bnb' | 'base' | 'polygon' | 'solana' | 'ethereum' | 'arbitrum' | 'optimism' | 'worldchain' | 'generic';
 
 export interface ProtocolNetworkOption {
   chainId?: number | null;
@@ -96,7 +98,7 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     key: 'optimism-sepolia',
     label: 'Optimism Sepolia',
     shortLabel: 'Optimism Sepolia',
-    icon: 'generic',
+    icon: 'optimism',
     status: 'live',
     contracts: OPTIMISM_SEPOLIA_CONTRACTS,
     rpcUrl: RPC_URLS[11155420],
@@ -114,6 +116,18 @@ export const PROTOCOL_NETWORK_OPTIONS: ProtocolNetworkOption[] = [
     rpcUrl: RPC_URLS[43113],
     explorerUrl: EXPLORER_URLS[43113],
     aliases: ['avalanche fuji', 'fuji', 'avax fuji', 'avalanche testnet'],
+  },
+  {
+    chainId: 4801,
+    key: 'worldchain-sepolia',
+    label: 'World Chain Sepolia',
+    shortLabel: 'World Sepolia',
+    icon: 'worldchain',
+    status: 'live',
+    contracts: WORLDCHAIN_SEPOLIA_CONTRACTS,
+    rpcUrl: RPC_URLS[4801],
+    explorerUrl: EXPLORER_URLS[4801],
+    aliases: ['worldchain sepolia', 'world chain sepolia', 'world sepolia', 'worldchain testnet', 'world testnet'],
   },
   {
     chainId: 43114,

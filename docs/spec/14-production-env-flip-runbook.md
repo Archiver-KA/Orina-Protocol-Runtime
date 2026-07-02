@@ -81,6 +81,10 @@ The root `.env` must keep the BSC legacy aliases while any additional live netwo
 - `VITE_BASE_SEPOLIA_M2M_AI_WALLET_FACTORY_V2=0x0E5E106A7F81233Fe07115Aeb3777e847adB09cB`
 - `VITE_AVALANCHE_FUJI_M2M_DELEGATION_MANAGER=0x52440e44ec34a64e19b92243262fe47819d65539`
 - `VITE_AVALANCHE_FUJI_M2M_AI_WALLET_FACTORY_V2=0x7D6b498eDc3F469ED020116e8892EbB361753bCB`
+- `VITE_WORLDCHAIN_SEPOLIA_M2M_DELEGATION_MANAGER=0x5e41f1155AB4E614037C9C481BB8c1d398915cd0`
+- `VITE_WORLDCHAIN_SEPOLIA_M2M_AI_WALLET_FACTORY_V2=0x279c62C97c6967d0E0F45f9D2460d38E3929c090`
+
+Do not use the first World Chain Sepolia M2M pair `0x52440e44ec34a64e19b92243262fe47819d65539` / `0x7D6b498eDc3F469ED020116e8892EbB361753bCB`; it was deployed with the stale Base Sepolia timelock and is orphaned.
 
 Supabase values remain unchanged unless the backend project itself is also being rotated.
 
@@ -119,13 +123,17 @@ For testnet beta builds only:
 - `VITE_AVALANCHE_FUJI_TOKEN_FAUCET_ADDRESS=0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F`
 - `VITE_AVALANCHE_FUJI_USDT_T_ADDRESS=0x11E6c8f2806b32dAC427E7Df07F67602647eF87A`
 - `VITE_AVALANCHE_FUJI_USDC_T_ADDRESS=0xD6E84789741Ea2DE727961cCB383454E4A845035`
+- `VITE_WORLDCHAIN_SEPOLIA_GAS_FAUCET_URL=<external World Chain Sepolia ETH faucet URL>`
+- `VITE_WORLDCHAIN_SEPOLIA_TOKEN_FAUCET_ADDRESS=0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F`
+- `VITE_WORLDCHAIN_SEPOLIA_USDT_T_ADDRESS=0x11E6c8f2806b32dAC427E7Df07F67602647eF87A`
+- `VITE_WORLDCHAIN_SEPOLIA_USDC_T_ADDRESS=0xD6E84789741Ea2DE727961cCB383454E4A845035`
 
-Arbitrum Sepolia is live for testnet writes after the June 29, 2026 timelock M2M linkage. Ethereum Sepolia and Optimism Sepolia are live for testnet writes after the July 1, 2026 timelock M2M linkage. Avalanche Fuji is live for testnet writes after the July 2, 2026 timelock M2M linkage. These deployments use EOA-controlled zero-delay timelock governance for testnet only; mainnet must redeploy with the production multisig/Safe and a non-zero timelock delay.
+Arbitrum Sepolia is live for testnet writes after the June 29, 2026 timelock M2M linkage. Ethereum Sepolia and Optimism Sepolia are live for testnet writes after the July 1, 2026 timelock M2M linkage. Avalanche Fuji and World Chain Sepolia are live for testnet writes after the July 2, 2026 timelock M2M linkage. These deployments use EOA-controlled zero-delay timelock governance for testnet only; mainnet must redeploy with the production multisig/Safe and a non-zero timelock delay. World Chain mainnet chain `480` must use a fresh address set and must not reuse the World Chain Sepolia active or orphaned M2M addresses.
 
 For mainnet or production-mainnet previews:
 
 - `VITE_ENABLE_TESTNET_STARTER_KIT=false`
-- remove all `VITE_TESTNET_*`, `VITE_BSC_TESTNET_*`, `VITE_BASE_SEPOLIA_*`, `VITE_ARBITRUM_SEPOLIA_*`, `VITE_ETHEREUM_SEPOLIA_*`, `VITE_OPTIMISM_SEPOLIA_*`, and `VITE_AVALANCHE_FUJI_*` faucet addresses
+- remove all `VITE_TESTNET_*`, `VITE_BSC_TESTNET_*`, `VITE_BASE_SEPOLIA_*`, `VITE_ARBITRUM_SEPOLIA_*`, `VITE_ETHEREUM_SEPOLIA_*`, `VITE_OPTIMISM_SEPOLIA_*`, `VITE_AVALANCHE_FUJI_*`, and `VITE_WORLDCHAIN_SEPOLIA_*` faucet/M2M testnet addresses
 - verify mock `USDT.t` / `USDC.t` are not allowlisted payment tokens
 - verify no faucet contract is deployed or referenced by production app config
 

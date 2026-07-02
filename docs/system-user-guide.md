@@ -8,7 +8,7 @@ This guide describes the current `Orina Protocol - Runtime` application, not the
 
 - Frontend: React, TypeScript, Vite, Tailwind, Wagmi, Viem.
 - Wallet connector: browser injected EIP-1193 wallets, with MetaMask as the primary tested wallet.
-- Live protocol networks: BNB Chain Testnet `97`, Base Sepolia `84532`, Arbitrum Sepolia `421614`, Ethereum Sepolia `11155111`, Optimism Sepolia `11155420`, and Avalanche Fuji `43113`.
+- Live protocol networks: BNB Chain Testnet `97`, Base Sepolia `84532`, Arbitrum Sepolia `421614`, Ethereum Sepolia `11155111`, Optimism Sepolia `11155420`, Avalanche Fuji `43113`, and World Chain Sepolia `4801`.
 - Default protocol namespace: `orina-atp-v3.5-fee-split-nft-orifee-bsc-testnet-20260604`.
 - Network-specific marketplace, asset, receipt, payment, and M2M addresses are selected from `src/config/contracts.ts` through the protocol network router.
 - Supported payment token list in the client: chain-scoped testnet `USDT.t`, `USDC.t`, optional wrapped native where configured, and `ORI`.
@@ -25,6 +25,8 @@ Ethereum Sepolia is available as a live testnet target: chain id `11155111`, RPC
 Optimism Sepolia is available as a live testnet target: chain id `11155420`, RPC `https://optimism-sepolia-rpc.publicnode.com`, explorer `https://sepolia-optimism.etherscan.io`, namespace `orina-atp-v3.5-optimism-sepolia-eoa-testnet-20260701`. Contracts are deployed, bytecode-checked, and M2M-linked. Governance for this testnet uses deployer EOA through a zero-delay timelock, matching the temporary Ethereum Sepolia path; Optimism mainnet must redeploy with the production multisig/Safe, non-zero timelock delay, and a fresh address set.
 
 Avalanche Fuji is available as a live testnet target: chain id `43113`, RPC `https://api.avax-test.network/ext/bc/C/rpc`, explorer `https://testnet.snowscan.xyz`, namespace `orina-atp-v3.5-avalanche-fuji-eoa-testnet-20260702`. Contracts are deployed, bytecode-checked, and M2M-linked. Governance for this testnet uses deployer EOA through a zero-delay timelock, matching the temporary Ethereum and Optimism Sepolia paths; Avalanche-C mainnet must redeploy with the production multisig/Safe, non-zero timelock delay, and a fresh address set.
+
+World Chain Sepolia is available as a live testnet target: chain id `4801`, RPC `https://worldchain-sepolia.g.alchemy.com/public`, explorer `https://worldchain-sepolia.explorer.alchemy.com`, namespace `orina-atp-v3.5-worldchain-sepolia-eoa-testnet-20260702`. Contracts are deployed, bytecode-checked, and M2M-linked using the active M2M pair `DelegationManager=0x5e41f1155AB4E614037C9C481BB8c1d398915cd0` and `AIWalletFactoryV2=0x279c62C97c6967d0E0F45f9D2460d38E3929c090`. Governance for this testnet uses deployer EOA through a zero-delay timelock; World Chain mainnet chain `480` must redeploy with the production multisig/Safe, non-zero timelock delay, and a fresh address set. The first M2M pair from the World Chain rollout is orphaned and must not be used.
 
 ## Local Startup
 
@@ -90,7 +92,7 @@ The top search bar navigates to `/search` and can search assets, profiles, colle
 
 1. Install and unlock MetaMask or another injected wallet.
 2. Connect wallet from the top-right wallet button.
-3. Switch to a live runtime testnet: BNB Chain Testnet `97`, Base Sepolia `84532`, Arbitrum Sepolia `421614`, Ethereum Sepolia `11155111`, Optimism Sepolia `11155420`, or Avalanche Fuji `43113`.
+3. Switch to a live runtime testnet: BNB Chain Testnet `97`, Base Sepolia `84532`, Arbitrum Sepolia `421614`, Ethereum Sepolia `11155111`, Optimism Sepolia `11155420`, Avalanche Fuji `43113`, or World Chain Sepolia `4801`.
 4. Keep the selected network's native test gas available.
 5. Use one of the configured ERC-20 payment tokens for protocol purchases. Native gas pays transaction fees; payment tokens are ERC-20 assets.
 

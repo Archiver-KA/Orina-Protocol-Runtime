@@ -88,6 +88,10 @@ export const runtimeConfig = {
   avalancheFujiUsdtAddress: readString('VITE_AVALANCHE_FUJI_USDT_T_ADDRESS', ''),
   avalancheFujiUsdcAddress: readString('VITE_AVALANCHE_FUJI_USDC_T_ADDRESS', ''),
   avalancheFujiGasFaucetUrl: readString('VITE_AVALANCHE_FUJI_GAS_FAUCET_URL', ''),
+  worldchainSepoliaTokenFaucetAddress: readString('VITE_WORLDCHAIN_SEPOLIA_TOKEN_FAUCET_ADDRESS', ''),
+  worldchainSepoliaUsdtAddress: readString('VITE_WORLDCHAIN_SEPOLIA_USDT_T_ADDRESS', ''),
+  worldchainSepoliaUsdcAddress: readString('VITE_WORLDCHAIN_SEPOLIA_USDC_T_ADDRESS', ''),
+  worldchainSepoliaGasFaucetUrl: readString('VITE_WORLDCHAIN_SEPOLIA_GAS_FAUCET_URL', ''),
   bscTestnetM2MDelegationManager: readString('VITE_BSC_TESTNET_M2M_DELEGATION_MANAGER', ''),
   bscTestnetM2MAIWalletFactoryV2: readString('VITE_BSC_TESTNET_M2M_AI_WALLET_FACTORY_V2', ''),
   baseSepoliaM2MDelegationManager: readString('VITE_BASE_SEPOLIA_M2M_DELEGATION_MANAGER', ''),
@@ -100,4 +104,6 @@ export const runtimeConfig = {
   optimismSepoliaM2MAIWalletFactoryV2: readString('VITE_OPTIMISM_SEPOLIA_M2M_AI_WALLET_FACTORY_V2', ''),
   avalancheFujiM2MDelegationManager: readString('VITE_AVALANCHE_FUJI_M2M_DELEGATION_MANAGER', ''),
   avalancheFujiM2MAIWalletFactoryV2: readString('VITE_AVALANCHE_FUJI_M2M_AI_WALLET_FACTORY_V2', ''),
+  worldchainSepoliaM2MDelegationManager: readString('VITE_WORLDCHAIN_SEPOLIA_M2M_DELEGATION_MANAGER', ''),
+  worldchainSepoliaM2MAIWalletFactoryV2: readString('VITE_WORLDCHAIN_SEPOLIA_M2M_AI_WALLET_FACTORY_V2', ''),
 } as const;

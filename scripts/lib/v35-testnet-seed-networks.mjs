@@ -1,4 +1,4 @@
-import { arbitrumSepolia, avalancheFuji, baseSepolia, bscTestnet, optimismSepolia, sepolia } from 'viem/chains';
+import { arbitrumSepolia, avalancheFuji, baseSepolia, bscTestnet, optimismSepolia, sepolia, worldchainSepolia } from 'viem/chains';
 
 export const CAMPAIGN_ROOT = 'C:/ORINA/ATPProtocol2/ATP2/data/bsc-testnet-100-wallet-campaign';
 
@@ -158,6 +158,32 @@ export const V35_TESTNET_NETWORKS = {
     nativeSymbol: 'AVAX',
     catalogUidPrefix: 'avalanche-fuji-',
     executionSegment: 'v3_5_beta_seed_assets_001_avalanche_fuji',
+  },
+  'worldchain-sepolia': {
+    key: 'worldchain-sepolia',
+    aliases: ['world', 'worldchain', 'world-chain', 'world-sepolia', 'worldchain-sepolia', 'worldchain-testnet', '4801'],
+    label: 'World Chain Sepolia',
+    shortLabel: 'World Sepolia',
+    blockchain: 'World Chain',
+    chainId: 4801,
+    viemChain: worldchainSepolia,
+    defaultRpcUrl: 'https://worldchain-sepolia.g.alchemy.com/public',
+    rpcEnvVars: ['WORLDCHAIN_SEPOLIA_RPC_URL', 'WORLD_SEPOLIA_RPC_URL', 'RPC_URL'],
+    explorerBaseUrl: 'https://worldchain-sepolia.explorer.alchemy.com',
+    assetContract: '0x0a9efc1fb95be24743b1452ac4c974E5E925A453',
+    marketplace: '0x6d132Ba2327573c4e6f97a2167dCddb8059C4d14',
+    paymentGateway: '0x1A880Ae46993282dd77C2dDCc5e36498eB616C92',
+    delegationManager: '0x5e41f1155AB4E614037C9C481BB8c1d398915cd0',
+    aiWalletFactoryV2: '0x279c62C97c6967d0E0F45f9D2460d38E3929c090',
+    faucet: '0xbbD53C18F4d9fb98AA6c4837ea0E8F221e1b5F0F',
+    tokens: {
+      ori: '0xD87493f4C02aad2c67Ce12aa534d188Bf44FCcAB',
+      usdt: '0x11E6c8f2806b32dAC427E7Df07F67602647eF87A',
+      usdc: '0xD6E84789741Ea2DE727961cCB383454E4A845035',
+    },
+    nativeSymbol: 'ETH',
+    catalogUidPrefix: 'worldchain-sepolia-',
+    executionSegment: 'v3_5_beta_seed_assets_001_worldchain_sepolia',
   },
 };
 
