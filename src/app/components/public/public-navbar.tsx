@@ -42,13 +42,7 @@ export function PublicNavbar({
 
   return (
     <nav
-      className="relative z-20 mx-2.5 mt-2.5 flex h-[var(--t-shell-nav-h)] items-center gap-4 rounded-[var(--t-shell-nav-radius)] px-[var(--t-shell-nav-x)]"
-      style={{
-        background: 'rgba(18, 18, 18, 1)',
-        borderBottom: '0.666667px solid #000000',
-        backdropFilter: 'blur(20px) saturate(140%)',
-        WebkitBackdropFilter: 'blur(20px) saturate(140%)',
-      }}
+      className="relative z-20 mx-2.5 mt-2.5 flex h-[var(--t-shell-nav-h)] shrink-0 items-center gap-4 rounded-[var(--t-shell-nav-radius)] border border-ui-border-subtle bg-ui-nav px-[var(--t-shell-nav-x)] shadow-[0_18px_44px_-34px_rgba(0,0,0,0.5)] backdrop-blur-[20px]"
       data-page={activePage}
     >
       <div className="flex shrink-0 items-center gap-2 sm:gap-4">
@@ -79,10 +73,9 @@ export function PublicNavbar({
                 onFocus={() => warmRuntime(onWarmRuntime)}
                 className={`px-0 py-2 text-[13px] font-medium leading-none transition-colors ${
                   isActive
-                    ? 'text-white'
-                    : 'text-[rgba(226,232,240,0.72)] hover:text-white'
+                    ? 'text-ui-primary'
+                    : 'text-ui-secondary hover:text-ui-primary'
                 }`}
-                style={{ fontFamily: "'Space Grotesk', var(--font-sans)" }}
               >
                 {item.label}
               </button>
@@ -106,8 +99,8 @@ export function PublicNavbar({
                 onFocus={() => warmRuntime(onWarmRuntime)}
                 className={`inline-flex h-[var(--t-shell-icon-button)] w-[var(--t-shell-icon-button)] items-center justify-center rounded-full transition-colors ${
                   isActive
-                    ? 'bg-[var(--t-nav-pill-bg)] text-white'
-                    : 'text-[rgba(226,232,240,0.72)] hover:bg-[var(--t-nav-pill-bg)] hover:text-white'
+                    ? 'bg-[var(--t-nav-pill-bg)] text-ui-primary'
+                    : 'text-ui-secondary hover:bg-[var(--t-nav-pill-bg)] hover:text-ui-primary'
                 }`}
                 aria-label={item.label}
                 title={item.label}
@@ -119,14 +112,10 @@ export function PublicNavbar({
         </div>
       </div>
 
-      <div className="min-w-0 flex-1 sm:max-w-[var(--t-shell-nav-search-max-w)] md:ml-[var(--t-shell-nav-search-offset)]">
+      <div className="min-w-0 flex-1 sm:max-w-[var(--t-shell-nav-search-max-w)] lg:mx-auto">
         <form onSubmit={handleSearchSubmit}>
           <div
-            className="relative h-[var(--t-shell-nav-search-h)] rounded-full"
-            style={{
-              background: 'rgba(18, 18, 18, 0.5)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-            }}
+            className="relative h-[var(--t-shell-nav-search-h)] rounded-full border border-ui-border-subtle bg-ui-input transition-colors focus-within:bg-ui-input-focus focus-within:ring-2 focus-within:ring-[#2CC295]/20"
           >
             <Search
               size={13}
@@ -138,8 +127,7 @@ export function PublicNavbar({
               onChange={(event) => setSearchQuery(event.target.value)}
               onFocus={() => warmRuntime(onWarmRuntime)}
               placeholder="Search..."
-              className="h-full w-full rounded-full border-0 bg-transparent pl-10 pr-4 text-[13px] leading-[17px] font-normal text-ui-secondary outline-none placeholder:text-ui-muted"
-              style={{ fontFamily: "'Space Grotesk', var(--font-sans)" }}
+              className="h-full w-full rounded-full border-0 bg-transparent pl-10 pr-4 text-[13px] font-normal leading-[17px] text-ui-primary outline-none placeholder:text-ui-muted"
             />
           </div>
         </form>
@@ -151,7 +139,7 @@ export function PublicNavbar({
           onClick={onConnectWallet}
           onPointerEnter={() => warmRuntime(onWarmRuntime)}
           onFocus={() => warmRuntime(onWarmRuntime)}
-          className="ui-secondary-button flex items-center justify-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition-all"
+          className="ui-secondary-button flex h-[var(--t-shell-icon-button)] items-center justify-center gap-2 rounded-full px-4 text-xs font-semibold"
         >
           <span>Connect Wallet</span>
         </button>

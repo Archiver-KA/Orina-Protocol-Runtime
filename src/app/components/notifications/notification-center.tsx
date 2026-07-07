@@ -90,10 +90,10 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
         <button
           onClick={handleToggle}
           onMouseEnter={handleMouseEnter}
-          className="group relative flex h-[var(--t-shell-icon-button)] w-[var(--t-shell-icon-button)] items-center justify-center rounded-full bg-[rgba(18,18,18,0.5)] transition-colors hover:bg-[rgba(18,18,18,0.65)]"
+          className="group ui-control-surface relative flex h-[var(--t-shell-icon-button)] w-[var(--t-shell-icon-button)] items-center justify-center rounded-full"
           title="Notifications"
         >
-          <Bell size={20} className="text-zinc-400 group-hover:text-zinc-200 transition-colors" />
+          <Bell size={20} className="text-ui-muted transition-colors group-hover:text-ui-primary" />
           
           {unreadCount > 0 && (
             <div className="absolute -top-1 -right-1">
@@ -113,9 +113,8 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
               className="absolute right-0 top-full mt-2 w-[470px] max-w-[calc(100vw-2rem)] z-50"
             >
               <div
-                className="nativebar-dropdown-panel dropdown-panel rounded-[var(--t-card-radius-lg)] overflow-hidden"
+                className="nativebar-dropdown-panel dropdown-panel overflow-hidden rounded-[var(--t-card-radius-lg)]"
                 style={{
-                  background: 'rgba(18, 18, 18, 1)',
                   backdropFilter: 'blur(20px) saturate(140%)',
                   WebkitBackdropFilter: 'blur(20px) saturate(140%)',
                 }}
@@ -125,7 +124,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <Bell size={18} className="text-primary" />
-                      <h3 className="text-label font-semibold text-white">Notifications</h3>
+                      <h3 className="text-label font-semibold text-ui-primary">Notifications</h3>
                       {unreadCount > 0 && (
                         <NotificationBadge count={unreadCount} size="sm" />
                       )}
@@ -137,7 +136,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                       {unreadCount > 0 && (
                         <button
                           onClick={handleMarkAllAsRead}
-                          className="p-1.5 hover:bg-[rgba(255,255,255,0.06)] rounded-lg text-zinc-400 transition-colors"
+                          className="rounded-lg p-1.5 text-ui-muted transition-colors hover:bg-[var(--t-surface-5)] hover:text-ui-primary"
                           title="Mark all as read"
                         >
                           <Check size={16} />
@@ -148,7 +147,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                       {notifications.length > 0 && (
                         <button
                           onClick={handleClearAll}
-                          className="p-1.5 hover:bg-[rgba(255,255,255,0.06)] rounded-lg text-zinc-400 transition-colors"
+                          className="rounded-lg p-1.5 text-ui-muted transition-colors hover:bg-[var(--t-surface-5)] hover:text-ui-primary"
                           title="Clear all"
                         >
                           <Trash2 size={16} />
@@ -159,7 +158,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                       <button
                         onClick={() => setShowSettings(!showSettings)}
                         className={`ml-1 p-1.5 rounded-lg transition-colors ${
-                          showSettings ? 'bg-[rgba(255,255,255,0.08)] text-white' : 'hover:bg-[rgba(255,255,255,0.06)] text-zinc-400'
+                          showSettings ? 'bg-[var(--t-surface-10)] text-ui-primary' : 'text-ui-muted hover:bg-[var(--t-surface-5)] hover:text-ui-primary'
                         }`}
                         title="Settings"
                       >
@@ -177,8 +176,8 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                           onClick={() => setFilterType(option.value)}
                           className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border-0 ${
                             filterType === option.value
-                              ? 'bg-[rgba(255,255,255,0.08)] text-white'
-                              : 'bg-[rgba(255,255,255,0.04)] text-zinc-400 hover:bg-[rgba(255,255,255,0.05)] hover:text-white'
+                              ? 'bg-[var(--t-surface-10)] text-ui-primary'
+                              : 'bg-[var(--t-surface-5)] text-ui-muted hover:bg-[var(--t-surface-hover)] hover:text-ui-primary'
                           }`}
                         >
                           {option.label}
@@ -198,14 +197,14 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                       exit={{ opacity: 0, height: 0 }}
                       className="p-4"
                     >
-                      <h4 className="text-section-header text-white mb-4">
+                      <h4 className="mb-4 text-section-header text-ui-primary">
                         Notification Preferences
                       </h4>
 
                       <div className="space-y-3">
                         {/* Toggle switches */}
                         <label className="flex items-center justify-between cursor-pointer group">
-                          <span className="text-xs text-zinc-400 group-hover:text-white transition-colors">
+                          <span className="text-xs text-ui-secondary transition-colors group-hover:text-ui-primary">
                             Desktop notifications
                           </span>
                           <ToggleSwitch
@@ -215,7 +214,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                         </label>
 
                         <label className="flex items-center justify-between cursor-pointer group">
-                          <span className="text-xs text-zinc-400 group-hover:text-white transition-colors">
+                          <span className="text-xs text-ui-secondary transition-colors group-hover:text-ui-primary">
                             Sound effects
                           </span>
                           <ToggleSwitch
@@ -225,7 +224,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                         </label>
 
                         <label className="flex items-center justify-between cursor-pointer group">
-                          <span className="text-xs text-zinc-400 group-hover:text-white transition-colors">
+                          <span className="text-xs text-ui-secondary transition-colors group-hover:text-ui-primary">
                             Toast notifications
                           </span>
                           <ToggleSwitch
@@ -236,13 +235,13 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
 
                         {/* Divider */}
                         <div className="pt-3 mt-3">
-                          <p className="text-xs font-semibold text-zinc-500 mb-3 uppercase tracking-wider">
+                          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-ui-muted">
                             Notification Types
                           </p>
 
                           {/* Toggle switches thay thế checkboxes */}
                           <label className="flex items-center justify-between cursor-pointer group mb-2">
-                            <span className="text-xs text-zinc-400 group-hover:text-white transition-colors">
+                            <span className="text-xs text-ui-secondary transition-colors group-hover:text-ui-primary">
                               Order updates
                             </span>
                             <ToggleSwitch
@@ -254,7 +253,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                           </label>
 
                           <label className="flex items-center justify-between cursor-pointer group mb-2">
-                            <span className="text-xs text-zinc-400 group-hover:text-white transition-colors">
+                            <span className="text-xs text-ui-secondary transition-colors group-hover:text-ui-primary">
                               New messages
                             </span>
                             <ToggleSwitch
@@ -266,7 +265,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                           </label>
 
                           <label className="flex items-center justify-between cursor-pointer group mb-2">
-                            <span className="text-xs text-zinc-400 group-hover:text-white transition-colors">
+                            <span className="text-xs text-ui-secondary transition-colors group-hover:text-ui-primary">
                               Community activity
                             </span>
                             <ToggleSwitch
@@ -278,7 +277,7 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                           </label>
 
                           <label className="flex items-center justify-between cursor-pointer group">
-                            <span className="text-xs text-zinc-400 group-hover:text-white transition-colors">
+                            <span className="text-xs text-ui-secondary transition-colors group-hover:text-ui-primary">
                               System alerts
                             </span>
                             <ToggleSwitch
@@ -305,8 +304,8 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps) 
                           exit={{ opacity: 0 }}
                           className="p-12 text-center"
                         >
-                          <Bell size={48} className="text-zinc-700 mx-auto mb-3" />
-                          <p className="text-sm text-zinc-500">
+                          <Bell size={48} className="mx-auto mb-3 text-ui-muted opacity-50" />
+                          <p className="text-sm text-ui-muted">
                             {filterType === 'all' 
                               ? 'No notifications yet' 
                               : `No ${filterType} notifications`

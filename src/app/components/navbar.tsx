@@ -266,13 +266,7 @@ export function Navbar({
 
   return (
     <nav
-      className="relative mx-2.5 mt-2.5 flex h-[var(--t-shell-nav-h)] items-center gap-2 rounded-[var(--t-shell-nav-radius)] px-[var(--t-shell-nav-x)] z-20 sm:gap-4"
-      style={{
-        background: 'rgba(18, 18, 18, 1)',
-        borderBottom: '0.666667px solid #000000',
-        backdropFilter: 'blur(20px) saturate(140%)',
-        WebkitBackdropFilter: 'blur(20px) saturate(140%)',
-      }}
+      className="relative z-20 mx-2.5 mt-2.5 flex h-[var(--t-shell-nav-h)] shrink-0 items-center gap-2 rounded-[var(--t-shell-nav-radius)] border border-ui-border-subtle bg-ui-nav px-[var(--t-shell-nav-x)] shadow-[0_18px_44px_-34px_rgba(0,0,0,0.5)] backdrop-blur-[20px] sm:gap-4"
       data-page={activePage}
     >
       <div className="flex items-center gap-2 shrink-0 sm:gap-4">
@@ -301,10 +295,9 @@ export function Navbar({
                 onClick={() => setActivePage(item.id)}
                 className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-[13px] font-medium leading-none transition-colors sm:h-auto sm:w-auto sm:rounded-none sm:px-0 sm:py-2 ${
                   isActive
-                    ? 'bg-[var(--t-nav-pill-bg)] text-white sm:bg-transparent'
-                    : 'text-[rgba(226,232,240,0.72)] hover:bg-[var(--t-nav-pill-bg)] hover:text-white sm:hover:bg-transparent'
+                    ? 'bg-[var(--t-nav-pill-bg)] text-ui-primary sm:bg-transparent'
+                    : 'text-ui-secondary hover:bg-[var(--t-nav-pill-bg)] hover:text-ui-primary sm:hover:bg-transparent'
                 }`}
-                style={{ fontFamily: "'Space Grotesk', var(--font-sans)" }}
                 aria-label={item.label}
                 title={item.label}
               >
@@ -317,8 +310,7 @@ export function Navbar({
             <button
               type="button"
               onClick={onOpenTestnetStarterKit}
-              className="inline-flex items-center gap-2 py-2 text-[13px] font-medium leading-none text-[rgba(226,232,240,0.72)] transition-colors hover:text-white"
-              style={{ fontFamily: "'Space Grotesk', var(--font-sans)" }}
+              className="inline-flex items-center gap-2 py-2 text-[13px] font-medium leading-none text-ui-secondary transition-colors hover:text-ui-primary"
               aria-label="Open testnet starter kit"
               title="Testnet Starter Kit"
             >
@@ -329,14 +321,10 @@ export function Navbar({
         </div>
       </div>
 
-      <div ref={searchWrapRef} className="relative min-w-0 flex-1 max-w-none sm:max-w-[var(--t-shell-nav-search-max-w)] md:ml-[var(--t-shell-nav-search-offset)]">
+      <div ref={searchWrapRef} className="relative min-w-0 flex-1 max-w-none sm:max-w-[var(--t-shell-nav-search-max-w)] lg:mx-auto">
         <form onSubmit={handleSearchSubmit}>
           <div
-            className="relative h-[var(--t-shell-nav-search-h)] rounded-full"
-            style={{
-              background: 'rgba(18, 18, 18, 0.5)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-            }}
+            className="relative h-[var(--t-shell-nav-search-h)] rounded-full border border-ui-border-subtle bg-ui-input transition-colors focus-within:bg-ui-input-focus focus-within:ring-2 focus-within:ring-[#2CC295]/20"
           >
             <Search
               size={13}
@@ -353,8 +341,7 @@ export function Navbar({
                 setIsMobileMenuOpen(false);
               }}
               placeholder="Search..."
-              className="w-full h-full rounded-full border-0 bg-transparent pl-10 pr-4 text-[13px] leading-[17px] font-normal text-ui-secondary outline-none placeholder:text-ui-muted"
-              style={{ fontFamily: "'Space Grotesk', var(--font-sans)" }}
+              className="h-full w-full rounded-full border-0 bg-transparent pl-10 pr-4 text-[13px] font-normal leading-[17px] text-ui-primary outline-none placeholder:text-ui-muted"
             />
           </div>
         </form>
@@ -367,11 +354,6 @@ export function Navbar({
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
               className="nativebar-search-dropdown absolute top-full mt-2 w-full dropdown-panel rounded-[var(--t-card-radius-lg)] overflow-hidden z-50"
-              style={{
-                background: 'rgba(18, 18, 18, 1)',
-                backdropFilter: 'blur(20px) saturate(140%)',
-                WebkitBackdropFilter: 'blur(20px) saturate(140%)',
-              }}
             >
               <div className="p-3">
                 <div className="flex items-center mb-2 px-2">
@@ -457,11 +439,6 @@ export function Navbar({
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.16 }}
               className="nativebar-dropdown-panel dropdown-panel absolute right-0 top-full z-50 mt-2 w-[min(82vw,280px)] overflow-hidden rounded-[var(--t-card-radius-lg)] pb-2"
-              style={{
-                background: 'rgba(18, 18, 18, 1)',
-                backdropFilter: 'blur(20px) saturate(140%)',
-                WebkitBackdropFilter: 'blur(20px) saturate(140%)',
-              }}
             >
               <div className="px-3 py-3">
                 <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[rgba(148,163,184,0.86)]">
@@ -549,7 +526,7 @@ export function Navbar({
           <button
             type="button"
             onClick={onToggleAI}
-            className="group relative flex h-[var(--t-shell-icon-button)] w-[var(--t-shell-icon-button)] items-center justify-center rounded-full bg-transparent transition-colors"
+            className="group ui-control-surface relative flex h-[var(--t-shell-icon-button)] w-[var(--t-shell-icon-button)] items-center justify-center rounded-full"
             title="ORINA AI"
           >
             <img src="/flower-static.svg" alt="AI" className={`w-[20px] h-[20px] transition-opacity ${aiActive ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`} />

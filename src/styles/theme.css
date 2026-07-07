@@ -36,7 +36,7 @@
   --font-weight-bold: 600;
 
   --t-page-bg: #0a0a0a;
-  --t-nav-bg: rgba(18, 18, 18, 0.74);
+  --t-nav-bg: rgba(15, 16, 18, 0.88);
   --t-nav-border: rgba(255, 255, 255, 0.1);
   --t-nav-pill-bg: rgba(255, 255, 255, 0.06);
   --t-card-bg: rgba(255, 255, 255, 0.035);
@@ -46,7 +46,7 @@
   --t-surface-hover: rgba(255, 255, 255, 0.06);
   --t-input-bg: rgba(255, 255, 255, 0.03);
   --t-input-focus-bg: rgba(255, 255, 255, 0.06);
-  --t-dropdown-glass-bg: rgba(14, 14, 16, 0.62);
+  --t-dropdown-glass-bg: rgba(15, 16, 18, 0.9);
   --t-text-strong: #ffffff;
   --t-text-primary: #f1f5f9;
   --t-text-secondary: #cbd5e1;
@@ -107,9 +107,9 @@
   --color-pill-active-bg: #2cc295;
   --color-pill-active-fg: #0a0a0a;
   --color-pill-inactive-fg: #94a3b8;
-  --color-button-secondary-bg: rgba(255, 255, 255, 0.03);
-  --color-button-secondary-bg-hover: rgba(255, 255, 255, 0.08);
-  --color-button-secondary-border: rgba(255, 255, 255, 0.08);
+  --color-button-secondary-bg: rgba(255, 255, 255, 0.045);
+  --color-button-secondary-bg-hover: rgba(255, 255, 255, 0.09);
+  --color-button-secondary-border: rgba(255, 255, 255, 0.1);
   --color-chat-send-bg: #f8fafc;
   --color-chat-send-bg-hover: #ffffff;
   --color-chat-send-border: rgba(255, 255, 255, 0.16);
@@ -233,7 +233,7 @@
   --switch-background: rgba(44, 194, 149, 0.25);
 
   --t-page-bg: #eef1f4;
-  --t-nav-bg: rgba(255, 255, 255, 0.8);
+  --t-nav-bg: rgba(255, 255, 255, 0.88);
   --t-nav-border: rgba(0, 0, 0, 0.07);
   --t-nav-pill-bg: rgba(0, 0, 0, 0.05);
   --t-card-bg: rgba(255, 255, 255, 0.74);
@@ -243,7 +243,7 @@
   --t-surface-hover: rgba(0, 0, 0, 0.06);
   --t-input-bg: rgba(255, 255, 255, 0.72);
   --t-input-focus-bg: rgba(255, 255, 255, 0.9);
-  --t-dropdown-glass-bg: rgba(245, 247, 250, 0.72);
+  --t-dropdown-glass-bg: rgba(255, 255, 255, 0.92);
   --t-text-strong: #111827;
   --t-text-primary: #1e293b;
   --t-text-secondary: #475569;
@@ -261,9 +261,9 @@
   --color-chat-composer-focus-bg: rgba(0, 0, 0, 0.08);
   --color-chat-composer-focus-border: rgba(44, 194, 149, 0.22);
   --color-chat-composer-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --color-button-secondary-bg: rgba(255, 255, 255, 0.78);
-  --color-button-secondary-bg-hover: rgba(255, 255, 255, 0.96);
-  --color-button-secondary-border: rgba(15, 23, 42, 0.08);
+  --color-button-secondary-bg: rgba(255, 255, 255, 0.82);
+  --color-button-secondary-bg-hover: rgba(255, 255, 255, 0.98);
+  --color-button-secondary-border: rgba(15, 23, 42, 0.1);
   --color-chat-send-bg: #0f172a;
   --color-chat-send-bg-hover: #020617;
   --color-chat-send-border: rgba(15, 23, 42, 0.22);
@@ -362,7 +362,7 @@
     color: var(--t-text-secondary);
     font-family: var(--font-sans);
     font-weight: var(--font-weight-normal);
-    letter-spacing: -0.01em;
+    letter-spacing: 0;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
@@ -377,7 +377,7 @@
     font-size: 2rem;
     font-weight: 700;
     line-height: 1.2;
-    letter-spacing: -0.025em;
+    letter-spacing: 0;
   }
 
   h2 {
@@ -668,9 +668,11 @@
 }
 
 .surface-primary-shell {
-  background-color: var(--t-card-bg) !important;
-  border: none !important;
-  box-shadow: none !important;
+  background-color: color-mix(in srgb, var(--t-card-bg) 92%, var(--t-page-bg) 8%) !important;
+  border: 1px solid var(--t-border-subtle) !important;
+  box-shadow: 0 18px 48px -34px rgba(0, 0, 0, 0.42) !important;
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
 }
 
 .market-card-shell {
@@ -1530,14 +1532,14 @@ input:checked+.toggle-slider:before {
   font-size: 3.75rem;
   font-weight: var(--font-weight-strong);
   line-height: 1.1;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .text-h2 {
   font-size: 3rem;
   font-weight: var(--font-weight-strong);
   line-height: 1.1;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .text-h3 {
@@ -1667,6 +1669,7 @@ input:checked+.toggle-slider:before {
   }
 
   .ui-secondary-button {
+    align-items: center;
     border-style: solid;
     border-width: 1px;
     border-color: var(--color-button-secondary-border);
@@ -1674,10 +1677,23 @@ input:checked+.toggle-slider:before {
     color: var(--t-text-primary);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
   }
 
   .ui-secondary-button:hover {
     background-color: var(--color-button-secondary-bg-hover);
+    border-color: var(--t-border-medium);
+  }
+
+  .ui-secondary-button:active {
+    transform: translateY(1px) scale(0.99);
+  }
+
+  .ui-secondary-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    transform: none;
   }
 
   .ui-ghost-button {
@@ -1691,6 +1707,25 @@ input:checked+.toggle-slider:before {
   .ui-ghost-button:hover {
     background-color: var(--t-surface-5);
     color: var(--color-button-ghost-fg-hover);
+  }
+
+  .ui-control-surface {
+    border: 1px solid var(--color-button-secondary-border);
+    background-color: var(--color-button-secondary-bg);
+    color: var(--t-text-secondary);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease;
+  }
+
+  .ui-control-surface:hover {
+    border-color: var(--t-border-medium);
+    background-color: var(--color-button-secondary-bg-hover);
+    color: var(--t-text-primary);
+  }
+
+  .ui-control-surface:active {
+    transform: translateY(1px) scale(0.99);
   }
 
   .chat-composer-shell {

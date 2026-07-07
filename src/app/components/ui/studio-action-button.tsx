@@ -48,7 +48,7 @@ export function StudioActionButton({
   return (
     <button
       className={cn(
-        'studio-action-button inline-flex items-center justify-center gap-2 rounded-full font-semibold tracking-[-0.01em] transition-[background-color,border-color,color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35',
+        'studio-action-button inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full font-semibold tracking-normal transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-200 active:translate-y-px active:scale-[0.99] disabled:pointer-events-none disabled:opacity-55 disabled:active:translate-y-0 disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35',
         sizeClass,
         variantClass,
         className

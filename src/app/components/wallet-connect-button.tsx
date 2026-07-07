@@ -88,26 +88,25 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false, drop
     animation: 'walletDropdownIn 0.15s ease',
     backdropFilter: 'blur(20px) saturate(140%)',
     WebkitBackdropFilter: 'blur(20px) saturate(140%)',
-    background: 'rgba(18, 18, 18, 1)',
   } as const;
 
   const dropdownItemClass =
-    'wallet-dropdown-item mx-3 my-0.5 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-[12px] px-4 py-3 text-sm text-[rgba(203,213,225,0.92)] hover:text-white transition-colors text-left';
+    'wallet-dropdown-item mx-3 my-0.5 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-[12px] px-4 py-3 text-left text-sm text-ui-secondary transition-colors hover:text-ui-primary';
 
   const renderWalletDropdown = (align: 'right' | 'left') => (
     <div
-      className={`wallet-dropdown-panel nativebar-dropdown-panel absolute ${align === 'right' ? 'right-0' : 'left-full ml-2'} top-full mt-2 w-[264px] dropdown-panel overflow-hidden rounded-[var(--t-card-radius-lg)] z-50 pb-[5px]`}
+      className={`wallet-dropdown-panel nativebar-dropdown-panel absolute ${align === 'right' ? 'right-0' : 'left-full ml-2'} top-full z-50 mt-2 w-[264px] overflow-hidden rounded-[var(--t-card-radius-lg)] border border-ui-border-subtle bg-ui-dropdown pb-[5px] shadow-[0_24px_60px_-34px_rgba(0,0,0,0.46)]`}
       style={dropdownPanelStyle}
     >
       <style>{`@keyframes walletDropdownIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
       <div className="px-4 py-3">
-        <p className="text-[10px] text-[rgba(148,163,184,0.86)] uppercase tracking-[0.8px] font-semibold mb-1">Connected Wallet</p>
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.8px] text-ui-muted">Connected Wallet</p>
         <div className="flex items-start gap-2">
-          <p className="text-xs font-mono text-[rgba(226,232,240,0.95)] break-all flex-1 leading-5">{address}</p>
+          <p className="flex-1 break-all font-mono text-xs leading-5 text-ui-primary">{address}</p>
           <button
             onClick={handleCopyAddress}
-            className="wallet-dropdown-copy mt-0.5 p-1 rounded-md text-[rgba(148,163,184,0.9)] hover:text-white hover:bg-[rgba(255,255,255,0.08)] transition-colors shrink-0"
+            className="wallet-dropdown-copy mt-0.5 shrink-0 rounded-md p-1 text-ui-muted transition-colors hover:bg-[var(--t-surface-5)] hover:text-ui-primary"
             title="Copy wallet address"
           >
             {copied ? <CheckCircle size={14} className="text-[#2CC295]" /> : <Copy size={14} />}
@@ -164,9 +163,9 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false, drop
           onClick={handleConnect}
           aria-label="Connect Wallet"
           title="Connect Wallet"
-          className="wallet-dropdown-item flex h-11 w-full items-center gap-3 rounded-[12px] px-4 text-left text-[rgba(203,213,225,0.92)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
+          className="wallet-dropdown-item flex h-11 w-full items-center gap-3 rounded-[12px] px-4 text-left text-ui-secondary transition-colors hover:bg-[var(--t-surface-5)] hover:text-ui-primary"
         >
-          <Wallet size={18} className="shrink-0 text-[rgba(148,163,184,0.9)]" aria-hidden="true" />
+          <Wallet size={18} className="shrink-0 text-ui-muted" aria-hidden="true" />
           <span className="text-xs font-semibold">Connect Wallet</span>
         </button>
       );
@@ -177,7 +176,7 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false, drop
       return (
         <button
           onClick={handleConnect}
-          className="w-full flex items-center justify-center h-9 text-ui-muted hover:text-ui-primary hover:bg-[rgba(255,255,255,0.06)] rounded-full transition-all"
+          className="ui-control-surface flex h-9 w-full items-center justify-center rounded-full"
           title="Connect Wallet"
         >
           <Wallet size={16} />
@@ -189,7 +188,7 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false, drop
           onClick={handleConnect}
           aria-label="Connect Wallet"
           title="Connect Wallet"
-          className="ui-secondary-button flex h-[var(--t-shell-icon-button)] w-[var(--t-shell-icon-button)] items-center justify-center gap-2 rounded-full px-0 text-xs font-semibold transition-all sm:w-full sm:px-3 sm:py-2"
+          className="ui-secondary-button flex h-[var(--t-shell-icon-button)] w-[var(--t-shell-icon-button)] items-center justify-center gap-2 rounded-full px-0 text-xs font-semibold sm:w-auto sm:px-3 sm:py-2"
         >
           <Wallet size={16} className="shrink-0" aria-hidden="true" />
           <span className="hidden sm:inline">Connect Wallet</span>
@@ -204,7 +203,7 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false, drop
         <button
           onMouseEnter={handleMouseEnter}
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-          className="wallet-dropdown-trigger w-full flex items-center justify-center h-9 rounded-full hover:bg-[rgba(255,255,255,0.06)] transition-all"
+          className="wallet-dropdown-trigger ui-control-surface flex h-9 w-full items-center justify-center rounded-full"
           title={resolvedLabel || formatAddress(address)}
         >
           {userData?.avatarUrl ? (
@@ -228,12 +227,12 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false, drop
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
         className={
           dropdownItem
-            ? 'wallet-dropdown-trigger flex h-11 w-full items-center justify-between gap-3 rounded-[12px] px-4 text-left text-[rgba(203,213,225,0.92)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white'
-            : 'wallet-dropdown-trigger flex h-[var(--t-shell-icon-button)] min-w-[132px] max-w-[220px] items-center justify-between gap-2 rounded-full bg-[rgba(18,18,18,0.5)] px-3 shadow-none transition-all hover:bg-[rgba(18,18,18,0.65)] max-sm:w-[var(--t-shell-icon-button)] max-sm:min-w-0 max-sm:justify-center max-sm:px-0'
+            ? 'wallet-dropdown-trigger flex h-11 w-full items-center justify-between gap-3 rounded-[12px] px-4 text-left text-ui-secondary transition-colors hover:bg-[var(--t-surface-5)] hover:text-ui-primary'
+            : 'wallet-dropdown-trigger ui-control-surface flex h-[var(--t-shell-icon-button)] min-w-[132px] max-w-[220px] items-center justify-between gap-2 rounded-full px-3 max-sm:w-[var(--t-shell-icon-button)] max-sm:min-w-0 max-sm:justify-center max-sm:px-0'
         }
       >
         <div className={`${dropdownItem ? 'block' : 'hidden sm:block'} min-w-0 flex-1 text-left`}>
-          <span className={`${dropdownItem ? 'text-xs' : 'text-[14px]'} leading-none font-semibold text-[rgba(241,245,249,0.96)] block truncate`}>
+          <span className={`${dropdownItem ? 'text-xs' : 'text-[14px]'} block truncate font-semibold leading-none text-ui-primary`}>
             {navLabel}
           </span>
         </div>
