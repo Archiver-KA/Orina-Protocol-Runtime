@@ -42,6 +42,7 @@
     "security:check-client-secrets": "node scripts/check-client-no-privileged-supabase-secrets.mjs",
     "security:sbom": "node scripts/generate-sbom.mjs",
     "release:manifest": "node scripts/generate-release-manifest.mjs",
+    "mirror:public-sync": "node scripts/sync-public-mirror.mjs",
     "security:scan": "node scripts/security-scan-system.mjs"
   },
   "dependencies": {
