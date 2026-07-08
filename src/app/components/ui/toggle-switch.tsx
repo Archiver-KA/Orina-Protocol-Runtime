@@ -22,9 +22,9 @@ export function ToggleSwitch({
       onClick={() => !disabled && onChange(!checked)}
       className={cn(
         'relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-all duration-200',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--t-page-bg)]',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-accent-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--t-page-bg)]',
         checked
-          ? 'bg-[#2CC295] shadow-[inset_0_1px_3px_rgba(0,0,0,0.15)]'
+          ? 'bg-[var(--t-accent)] shadow-[inset_0_1px_3px_rgba(0,0,0,0.15)]'
           : 'bg-[rgba(255,255,255,0.1)] shadow-[inset_0_1px_3px_rgba(0,0,0,0.25)]',
         disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
         className,

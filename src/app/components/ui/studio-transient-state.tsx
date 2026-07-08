@@ -24,9 +24,9 @@ export function StudioTransientState({
   const tone =
     variant === 'success'
       ? {
-          text: 'text-primary',
-          border: 'border-[color:color-mix(in_srgb,var(--color-primary-custom)_35%,transparent)]',
-          bg: 'bg-[color:color-mix(in_srgb,var(--color-primary-custom)_10%,transparent)]',
+          text: 'text-[var(--t-success-text)]',
+          border: 'border-[var(--t-success-border)]',
+          bg: 'bg-[var(--t-success-bg)]',
         }
       : variant === 'error'
         ? { text: 'text-red-400', border: 'border-red-500/30', bg: 'bg-red-500/10' }
@@ -34,7 +34,7 @@ export function StudioTransientState({
           ? { text: 'text-yellow-400', border: 'border-yellow-500/30', bg: 'bg-yellow-500/10' }
           : variant === 'loading'
             ? { text: 'text-blue-400', border: 'border-blue-500/30', bg: 'bg-blue-500/10' }
-            : { text: 'text-zinc-300', border: 'border-[var(--color-panel-border)]', bg: 'bg-zinc-900/40' };
+            : { text: 'text-ui-secondary', border: 'border-[var(--color-panel-border)]', bg: 'bg-[var(--t-surface-5)]' };
 
   const defaultIcon =
     variant === 'success' ? <CheckCircle size={14} /> :
@@ -56,7 +56,7 @@ export function StudioTransientState({
       <div className={cn(inline ? '' : 'min-w-0')}>
         {title ? <div className={cn(inline ? '' : `text-sm font-semibold ${tone.text}`)}>{title}</div> : null}
         {description ? (
-          <div className={cn(inline ? '' : 'text-xs text-zinc-400 mt-1')}>{description}</div>
+          <div className={cn(inline ? '' : 'mt-1 text-xs text-ui-secondary')}>{description}</div>
         ) : null}
       </div>
     </div>

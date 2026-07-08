@@ -36,7 +36,7 @@ export function StudioActionButton({
     variant === 'primary'
       ? 'border border-transparent bg-[var(--color-button-primary-bg)] text-[var(--color-button-primary-fg)] shadow-[0_18px_35px_-24px_rgba(0,0,0,0.55)] hover:bg-[var(--color-button-primary-bg-hover)]'
       : variant === 'danger'
-        ? 'border border-transparent bg-[#E05252] text-white shadow-[0_18px_35px_-24px_rgba(224,82,82,0.48)] hover:bg-[#C64343]'
+        ? 'border border-transparent bg-[var(--t-danger-bg)] text-[var(--t-danger-fg)] shadow-[0_18px_35px_-24px_var(--t-danger-shadow)] hover:bg-[var(--t-danger-bg-hover)]'
       : variant === 'ghost'
         ? hasCustomSurfaceOverride
           ? 'studio-action-button--ghost border border-transparent bg-transparent text-[var(--color-button-ghost-fg)] hover:bg-[var(--t-surface-5)] hover:text-[var(--color-button-ghost-fg-hover)]'
@@ -48,7 +48,7 @@ export function StudioActionButton({
   return (
     <button
       className={cn(
-        'studio-action-button inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full font-semibold tracking-normal transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-200 active:translate-y-px active:scale-[0.99] disabled:pointer-events-none disabled:opacity-55 disabled:active:translate-y-0 disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2CC295]/35',
+        'studio-action-button inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full font-semibold tracking-normal transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-200 active:translate-y-px active:scale-[0.99] disabled:pointer-events-none disabled:opacity-55 disabled:active:translate-y-0 disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-accent-ring)]',
         sizeClass,
         variantClass,
         className

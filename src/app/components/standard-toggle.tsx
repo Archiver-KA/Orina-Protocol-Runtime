@@ -17,7 +17,7 @@ export function StandardToggle({ options, value, onChange, className = '' }: Sta
             className={`
               flex-1 min-w-0 px-4 py-2.5 text-xs font-semibold rounded-md transition-all duration-200
               ${isActive 
-                ? 'bg-[#2CC295] text-black shadow-[0_8px_18px_-16px_rgba(44,194,149,0.9)]' 
+                ? 'bg-[var(--t-accent)] text-[var(--t-accent-fg)] shadow-[0_8px_18px_-16px_var(--t-accent-shadow)]' 
                 : 'bg-transparent text-ui-secondary hover:text-ui-primary hover:bg-ui-input-focus'
               }
             `}

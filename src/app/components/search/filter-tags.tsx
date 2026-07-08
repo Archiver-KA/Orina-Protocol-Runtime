@@ -88,17 +88,17 @@ export function FilterTags({ filters, onRemoveFilter, onClearAll }: FilterTagsPr
               transition={{ duration: 0.2 }}
               className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 group cursor-pointer transition-all ${
                 tag.key === 'query'
-                  ? 'bg-[#2CC295]/10 border-[#2CC295]/20 hover:border-[#2CC295]/35'
-                  : 'bg-[var(--t-surface-2)] border-ui-border-subtle hover:border-[#2CC295]/18 hover:bg-[var(--t-surface-5)]'
+                  ? 'bg-[var(--t-accent-bg)] border-[var(--t-accent-border)] hover:border-[var(--t-accent-border-strong)]'
+                  : 'bg-[var(--t-surface-2)] border-ui-border-subtle hover:border-[var(--t-accent-border)] hover:bg-[var(--t-surface-5)]'
               }`}
               onClick={() => onRemoveFilter(tag.key, tag.value)}
             >
-              <span className={`text-sm font-medium ${tag.key === 'query' ? 'text-[#2CC295]' : 'text-ui-primary'}`}>
+              <span className={`text-sm font-medium ${tag.key === 'query' ? 'text-[var(--t-accent-text)]' : 'text-ui-primary'}`}>
                 {tag.label}
               </span>
               <X
                 size={14}
-                className={tag.key === 'query' ? 'text-[#2CC295]/60 group-hover:text-[#2CC295]' : 'text-ui-muted group-hover:text-ui-primary'}
+                className={tag.key === 'query' ? 'text-[var(--t-accent-text)] opacity-60 group-hover:opacity-100' : 'text-ui-muted group-hover:text-ui-primary'}
               />
             </motion.div>
           ))}

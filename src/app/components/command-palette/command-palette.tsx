@@ -99,23 +99,23 @@ export function CommandPalette({
             transition={{ duration: 0.2 }}
             className="fixed top-[20vh] left-1/2 -translate-x-1/2 w-full max-w-2xl z-[101]"
           >
-            <div className="mx-4 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden">
+            <div className="mx-4 overflow-hidden rounded-xl border border-ui-border-subtle bg-[var(--t-dropdown-glass-bg)] shadow-2xl backdrop-blur-[18px]">
               {/* Search Input */}
-              <div className="flex items-center gap-3 px-4 py-4 border-b border-zinc-800">
-                <Search size={20} className="text-zinc-500 flex-shrink-0" />
+              <div className="flex items-center gap-3 border-b border-ui-border-subtle px-4 py-4">
+                <Search size={20} className="flex-shrink-0 text-ui-muted" />
                 <input
                   ref={inputRef}
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search or type a command..."
-                  className="flex-1 bg-transparent text-white placeholder-zinc-500 outline-none text-base"
+                  className="flex-1 bg-transparent text-base text-ui-primary placeholder:text-ui-muted outline-none"
                 />
                 <div className="flex items-center gap-1.5">
-                  <kbd className="px-2 py-1 text-xs text-zinc-400 bg-zinc-800 rounded border border-zinc-700">
+                  <kbd className="rounded border border-ui-border-subtle bg-[var(--t-surface-5)] px-2 py-1 text-xs text-ui-secondary">
                     ESC
                   </kbd>
-                  <span className="text-xs text-zinc-600">to close</span>
+                  <span className="text-xs text-ui-muted">to close</span>
                 </div>
               </div>
 
@@ -128,13 +128,13 @@ export function CommandPalette({
                   <div className="py-2">
                     {/* Group by type */}
                     {searchQuery && (
-                      <div className="px-3 py-2 text-xs font-semibold text-zinc-500 uppercase">
+                      <div className="px-3 py-2 text-xs font-semibold uppercase text-ui-muted">
                         Results ({searchResults.length})
                       </div>
                     )}
                     
                     {!searchQuery && searchResults.length > 0 && (
-                      <div className="px-3 py-2 flex items-center gap-2 text-xs font-semibold text-zinc-500 uppercase">
+                      <div className="flex items-center gap-2 px-3 py-2 text-xs font-semibold uppercase text-ui-muted">
                         <Clock size={14} />
                         Recent
                       </div>
@@ -146,8 +146,8 @@ export function CommandPalette({
                         onClick={() => handleResultClick(result)}
                         className={`w-full flex items-center gap-3 px-4 py-3 transition-all text-left ${
                           index === selectedIndex
-                            ? 'bg-[#2CC295]/10 border-l-2 border-[#2CC295]'
-                            : 'hover:bg-zinc-800/50 border-l-2 border-transparent'
+                            ? 'border-l-2 border-[var(--t-accent)] bg-[var(--t-accent-bg)]'
+                            : 'border-l-2 border-transparent hover:bg-[var(--t-surface-hover)]'
                         }`}
                       >
                         {/* Icon */}
@@ -159,16 +159,16 @@ export function CommandPalette({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className={`text-sm font-medium truncate ${
-                              index === selectedIndex ? 'text-white' : 'text-zinc-200'
+                              index === selectedIndex ? 'text-ui-primary' : 'text-ui-secondary'
                             }`}>
                               {result.title}
                             </span>
-                            <span className="text-xs text-zinc-600 flex-shrink-0">
+                            <span className="flex-shrink-0 text-xs text-ui-muted">
                               {getTypeLabel(result.type)}
                             </span>
                           </div>
                           {result.subtitle && (
-                            <p className="text-xs text-zinc-500 truncate">
+                            <p className="truncate text-xs text-ui-muted">
                               {result.subtitle}
                             </p>
                           )}
@@ -176,7 +176,7 @@ export function CommandPalette({
 
                         {/* Enter hint */}
                         {index === selectedIndex && (
-                          <kbd className="flex-shrink-0 px-2 py-1 text-xs text-zinc-400 bg-zinc-800 rounded border border-zinc-700">
+                          <kbd className="flex-shrink-0 rounded border border-ui-border-subtle bg-[var(--t-surface-5)] px-2 py-1 text-xs text-ui-secondary">
                             ↵
                           </kbd>
                         )}
@@ -186,16 +186,16 @@ export function CommandPalette({
                 ) : searchQuery ? (
                   <div className="py-12 text-center">
                     <div className="text-4xl mb-3">🔍</div>
-                    <p className="text-zinc-400 text-sm">No results found</p>
-                    <p className="text-zinc-600 text-xs mt-1">Try a different search term</p>
+                    <p className="text-sm text-ui-secondary">No results found</p>
+                    <p className="mt-1 text-xs text-ui-muted">Try a different search term</p>
                   </div>
                 ) : (
                   <div className="py-12 text-center">
                     <div className="text-4xl mb-3">
-                      <CommandIcon size={48} className="mx-auto text-zinc-700" />
+                      <CommandIcon size={48} className="mx-auto text-ui-muted" />
                     </div>
-                    <p className="text-zinc-400 text-sm font-medium mb-2">Quick Navigation</p>
-                    <p className="text-zinc-600 text-xs">
+                    <p className="mb-2 text-sm font-medium text-ui-secondary">Quick Navigation</p>
+                    <p className="text-xs text-ui-muted">
                       Type to search pages, assets, or commands
                     </p>
                   </div>
@@ -203,19 +203,19 @@ export function CommandPalette({
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-between px-4 py-3 bg-zinc-900/50 border-t border-zinc-800">
-                <div className="flex items-center gap-4 text-xs text-zinc-500">
+              <div className="flex items-center justify-between border-t border-ui-border-subtle bg-[var(--t-surface-2)] px-4 py-3">
+                <div className="flex items-center gap-4 text-xs text-ui-muted">
                   <div className="flex items-center gap-1.5">
-                    <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded border border-zinc-700">↑</kbd>
-                    <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded border border-zinc-700">↓</kbd>
+                    <kbd className="rounded border border-ui-border-subtle bg-[var(--t-surface-5)] px-1.5 py-0.5">↑</kbd>
+                    <kbd className="rounded border border-ui-border-subtle bg-[var(--t-surface-5)] px-1.5 py-0.5">↓</kbd>
                     <span>Navigate</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded border border-zinc-700">↵</kbd>
+                    <kbd className="rounded border border-ui-border-subtle bg-[var(--t-surface-5)] px-1.5 py-0.5">↵</kbd>
                     <span>Select</span>
                   </div>
                 </div>
-                <div className="text-xs text-zinc-600">
+                <div className="text-xs text-ui-muted">
                   Powered by Orina
                 </div>
               </div>

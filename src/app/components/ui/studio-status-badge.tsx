@@ -30,16 +30,16 @@ export function StudioStatusBadge({
 
   const variantClass =
     variant === 'success'
-      ? 'bg-[rgba(44,194,149,0.12)] text-[#2CC295]'
+      ? 'bg-[var(--t-success-bg)] text-[var(--t-success-text)]'
       : variant === 'warning'
-        ? 'bg-[rgba(247,220,127,0.12)] text-[#F7DC7F]'
+        ? 'bg-[var(--t-status-warning-bg)] text-[var(--t-status-warning-text)]'
         : variant === 'danger'
-          ? 'bg-[rgba(251,146,60,0.12)] text-orange-400'
+          ? 'bg-[var(--t-status-danger-bg)] text-[var(--t-status-danger-text)]'
           : variant === 'info'
-            ? 'bg-[rgba(96,165,250,0.12)] text-blue-400'
+            ? 'bg-[var(--t-status-info-bg)] text-[var(--t-status-info-text)]'
             : variant === 'accent'
-              ? 'bg-[rgba(196,181,253,0.12)] text-purple-300'
-              : 'bg-[rgba(255,255,255,0.06)] text-zinc-400';
+              ? 'bg-[var(--t-status-accent-bg)] text-[var(--t-status-accent-text)]'
+              : 'bg-[var(--t-status-muted-bg)] text-[var(--t-status-muted-text)]';
 
   return (
     <span

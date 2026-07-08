@@ -29,15 +29,15 @@ export function StudioProgressBar({
   const clamped = Math.max(0, Math.min(100, value));
   const indicatorVariantClass =
     variant === 'success'
-      ? 'bg-[#2CC295]'
-      : variant === 'warning'
-        ? 'bg-[#F7DC7F]'
+      ? 'bg-[var(--t-success-text)]'
+    : variant === 'warning'
+        ? 'bg-[var(--t-status-warning-text)]'
         : variant === 'danger'
-          ? 'bg-orange-400'
+          ? 'bg-[var(--t-status-danger-text)]'
           : variant === 'info'
-            ? 'bg-blue-500'
+            ? 'bg-[var(--t-status-info-text)]'
             : variant === 'purple'
-              ? 'bg-purple-500'
+              ? 'bg-[var(--t-status-accent-text)]'
               : 'bg-ui-border';
 
   return (

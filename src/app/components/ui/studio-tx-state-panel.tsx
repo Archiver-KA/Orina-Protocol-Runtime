@@ -27,10 +27,10 @@ export function StudioTxStatePanel({
   const tones =
     variant === 'success'
       ? {
-          box: 'bg-[color:color-mix(in_srgb,var(--color-primary-custom)_10%,transparent)] border-[color:color-mix(in_srgb,var(--color-primary-custom)_35%,transparent)]',
-          title: 'text-primary',
-          desc: 'text-[color:color-mix(in_srgb,var(--color-primary-custom)_70%,white_0%)]/70',
-          icon: <CheckCircle2 className="text-primary flex-shrink-0 mt-0.5" size={20} />,
+          box: 'border-[var(--t-success-border)] bg-[var(--t-success-bg)]',
+          title: 'text-[var(--t-success-text)]',
+          desc: 'text-[var(--t-success-text)]/70',
+          icon: <CheckCircle2 className="mt-0.5 flex-shrink-0 text-[var(--t-success-text)]" size={20} />,
         }
       : variant === 'error'
         ? {
@@ -69,13 +69,13 @@ export function StudioTxStatePanel({
                 href={explorerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 mt-2 transition-colors"
+                className="mt-2 inline-flex items-center gap-1.5 text-xs text-[var(--t-status-info-text)] transition-colors hover:text-ui-primary"
               >
                 View on Etherscan
                 <ExternalLink size={12} />
               </a>
             ) : (
-              <p className="text-xs text-zinc-500 mt-2 font-mono">
+              <p className="mt-2 font-mono text-xs text-ui-muted">
                 {hash.slice(0, 10)}...{hash.slice(-8)}
               </p>
             )

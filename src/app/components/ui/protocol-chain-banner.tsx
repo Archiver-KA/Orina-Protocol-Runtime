@@ -27,7 +27,7 @@ export function ProtocolChainBanner({
   const toneClass = !isConnected
     ? 'bg-red-400/10'
     : isOnProtocolChain
-      ? 'bg-[#2CC295]/10'
+      ? 'bg-[var(--t-success-bg)]'
       : 'bg-amber-400/10';
 
   const title = !isConnected
@@ -39,7 +39,7 @@ export function ProtocolChainBanner({
   const titleClass = !isConnected
     ? 'text-red-300'
     : isOnProtocolChain
-      ? 'text-[#2CC295]'
+      ? 'text-[var(--t-success-text)]'
       : 'text-amber-300';
 
   return (
@@ -50,7 +50,7 @@ export function ProtocolChainBanner({
             {!isConnected ? (
               <AlertTriangle size={16} className="text-red-300" />
             ) : isOnProtocolChain ? (
-              <CheckCircle2 size={16} className="text-[#2CC295]" />
+              <CheckCircle2 size={16} className="text-[var(--t-success-text)]" />
             ) : (
               <AlertTriangle size={16} className="text-amber-300" />
             )}

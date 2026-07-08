@@ -36,7 +36,7 @@ export function StudioLoadingOverlay({
       {children ?? (
         <div
           className={cn(
-            panel && 'px-4 py-3 rounded-xl bg-zinc-950/80 border border-[var(--color-panel-border)]',
+            panel && 'rounded-xl border border-[var(--color-panel-border)] bg-[var(--t-dropdown-glass-bg)] px-4 py-3',
             panelClassName
           )}
         >

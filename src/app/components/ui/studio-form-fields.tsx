@@ -69,7 +69,7 @@ export function StudioInputField({
       <input
         className={cn(
           'w-full px-4 py-3 bg-ui-input border border-ui-border-subtle rounded-full text-sm text-ui-primary placeholder:text-ui-muted transition-all',
-          'focus:outline-none focus:ring-2 focus:ring-[#2CC295]/35',
+          'focus:outline-none focus:ring-2 focus:ring-[var(--t-accent-ring)]',
           invalid ? 'focus:ring-red-500/30' : '',
           className,
           inputClassName
@@ -90,7 +90,7 @@ export function StudioInputField({
       <input
         className={cn(
           'w-full py-3 bg-ui-input border border-ui-border-subtle rounded-full text-sm text-ui-primary placeholder:text-ui-muted transition-all',
-          'focus:outline-none focus:ring-2 focus:ring-[#2CC295]/35',
+          'focus:outline-none focus:ring-2 focus:ring-[var(--t-accent-ring)]',
           hasLeftSlot ? 'pl-11' : 'pl-4',
           hasRightSlot ? 'pr-12' : 'pr-4',
           invalid ? 'focus:ring-red-500/30' : '',
@@ -140,7 +140,7 @@ export function StudioTextareaField({
     <textarea
       className={cn(
         'w-full px-4 py-3 bg-ui-input border border-ui-border-subtle rounded-[20px] text-sm text-ui-primary placeholder:text-ui-muted transition-all resize-none',
-        'focus:outline-none focus:ring-2 focus:ring-[#2CC295]/35',
+        'focus:outline-none focus:ring-2 focus:ring-[var(--t-accent-ring)]',
         invalid ? 'focus:ring-red-500/30' : '',
         className
       )}

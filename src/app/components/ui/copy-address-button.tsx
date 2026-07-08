@@ -40,7 +40,7 @@ export function CopyAddressButton({ address, className }: CopyAddressButtonProps
       aria-label={copied ? 'Wallet address copied' : 'Copy wallet address'}
       title={copied ? 'Copied' : 'Copy wallet address'}
     >
-      {copied ? <Check size={14} className="text-[#2CC295]" /> : <Copy size={14} />}
+      {copied ? <Check size={14} className="text-[var(--t-success-text)]" /> : <Copy size={14} />}
     </button>
   );
 }

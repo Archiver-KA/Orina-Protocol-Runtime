@@ -34,24 +34,24 @@ export function StudioTimelineItem({
 }: StudioTimelineItemProps) {
   const dotClass =
     tone === 'success'
-      ? 'bg-[#2CC295]'
+      ? 'bg-[var(--t-success-text)]'
       : tone === 'warning'
-        ? 'bg-[#F7DC7F]'
+        ? 'bg-[var(--t-status-warning-text)]'
         : tone === 'danger'
-          ? 'bg-orange-400'
+          ? 'bg-[var(--t-status-danger-text)]'
           : tone === 'info'
-            ? 'bg-blue-400'
-            : 'bg-zinc-700';
+            ? 'bg-[var(--t-status-info-text)]'
+            : 'bg-[var(--t-status-muted-text)]';
 
   const titleClass =
     tone === 'success'
       ? 'text-ui-primary'
       : tone === 'warning'
-        ? 'text-[#F7DC7F]'
+        ? 'text-[var(--t-status-warning-text)]'
       : tone === 'danger'
-        ? 'text-orange-300'
+        ? 'text-[var(--t-status-danger-text)]'
       : tone === 'info'
-            ? 'text-blue-300'
+            ? 'text-[var(--t-status-info-text)]'
             : 'text-ui-secondary';
 
   return (

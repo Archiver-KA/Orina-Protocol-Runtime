@@ -1073,7 +1073,7 @@ export function SearchPage({
                     }}
                     className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
                       filters.categories.includes(category.value)
-                        ? 'border-[#2CC295]/20 bg-[#2CC295]/10 text-[#2CC295]'
+                        ? 'border-[var(--t-accent-border)] bg-[var(--t-accent-bg)] text-[var(--t-accent-text)]'
                         : 'border-ui-border-subtle bg-ui-input text-ui-secondary hover:bg-[var(--t-surface-hover)]'
                     }`}
                   >
@@ -1089,7 +1089,7 @@ export function SearchPage({
           <StudioPanel className={filterSectionClassName}>
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-[11px] font-semibold uppercase text-ui-muted">Market Trends</h2>
-              <span className="rounded bg-[#2CC295]/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-[#2CC295]">
+              <span className="rounded bg-[var(--t-accent-bg)] px-2 py-0.5 text-[10px] font-semibold uppercase text-[var(--t-accent-text)]">
                 Live
               </span>
             </div>
@@ -1098,7 +1098,7 @@ export function SearchPage({
                 <p className="mb-1 text-[10px] font-medium uppercase text-ui-muted">Floor Price Trend</p>
                 <div className="flex items-end justify-between">
                   <span className="text-xl font-semibold text-ui-primary">1.12 ETH</span>
-                  <span className="flex items-center gap-1 text-xs font-semibold text-[#2CC295]">
+                  <span className="flex items-center gap-1 text-xs font-semibold text-[var(--t-accent-text)]">
                     <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                     </svg>
@@ -1110,8 +1110,8 @@ export function SearchPage({
                   <div className="flex-1 rounded-t-sm bg-[var(--t-surface-10)]" style={{ height: '60%' }}></div>
                   <div className="flex-1 rounded-t-sm bg-[var(--t-surface-10)]" style={{ height: '50%' }}></div>
                   <div className="flex-1 rounded-t-sm bg-[var(--t-surface-10)]" style={{ height: '80%' }}></div>
-                  <div className="flex-1 rounded-t-sm bg-[#2CC295]" style={{ height: '95%' }}></div>
-                  <div className="flex-1 rounded-t-sm bg-[#2CC295]" style={{ height: '100%' }}></div>
+                  <div className="flex-1 rounded-t-sm bg-[var(--t-accent)]" style={{ height: '95%' }}></div>
+                  <div className="flex-1 rounded-t-sm bg-[var(--t-accent)]" style={{ height: '100%' }}></div>
                 </div>
               </StudioPanel>
             </div>
@@ -1248,7 +1248,7 @@ export function SearchPage({
             <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-1 rounded-full border border-[#2CC295]/20 bg-[#2CC295]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#2CC295]">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-[var(--t-accent-border)] bg-[var(--t-accent-bg)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--t-accent-text)]">
                     <Sparkles size={12} />
                     ORINA AI Search
                   </span>

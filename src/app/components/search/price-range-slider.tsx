@@ -94,7 +94,7 @@ export function PriceRangeSlider({
       >
         {/* Active range */}
         <div
-          className="absolute h-full rounded-full bg-[#2CC295]"
+          className="absolute h-full rounded-full bg-[var(--t-accent)]"
           style={{
             left: `${minPercent}%`,
             right: `${100 - maxPercent}%`,
@@ -103,14 +103,14 @@ export function PriceRangeSlider({
 
         {/* Min thumb */}
         <div
-          className="absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border-2 border-[#2CC295] bg-[var(--t-card-bg)] shadow-[0_12px_28px_-18px_rgba(44,194,149,0.55)] cursor-grab transition-transform hover:scale-110 active:cursor-grabbing"
+          className="absolute top-1/2 h-5 w-5 -translate-y-1/2 cursor-grab rounded-full border-2 border-[var(--t-accent)] bg-[var(--t-card-bg)] shadow-[0_12px_28px_-18px_var(--t-accent-shadow)] transition-transform hover:scale-110 active:cursor-grabbing"
           style={{ left: `${minPercent}%`, marginLeft: '-10px' }}
           onMouseDown={handleMouseDown('min')}
         />
 
         {/* Max thumb */}
         <div
-          className="absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border-2 border-[#2CC295] bg-[var(--t-card-bg)] shadow-[0_12px_28px_-18px_rgba(44,194,149,0.55)] cursor-grab transition-transform hover:scale-110 active:cursor-grabbing"
+          className="absolute top-1/2 h-5 w-5 -translate-y-1/2 cursor-grab rounded-full border-2 border-[var(--t-accent)] bg-[var(--t-card-bg)] shadow-[0_12px_28px_-18px_var(--t-accent-shadow)] transition-transform hover:scale-110 active:cursor-grabbing"
           style={{ left: `${maxPercent}%`, marginLeft: '-10px' }}
           onMouseDown={handleMouseDown('max')}
         />
@@ -139,7 +139,7 @@ export function PriceRangeSlider({
               min={min}
               max={localValue[1] - step}
               aria-label="Minimum price"
-              className="h-[44px] w-full rounded-full border border-ui-border-subtle bg-ui-input px-4 pr-12 text-sm font-medium text-ui-primary placeholder:text-ui-muted focus:border-[#2CC295] focus:ring-2 focus:ring-[#2CC295]/18 outline-none"
+              className="h-[44px] w-full rounded-full border border-ui-border-subtle bg-ui-input px-4 pr-12 text-sm font-medium text-ui-primary placeholder:text-ui-muted outline-none focus:border-[var(--t-accent)] focus:ring-2 focus:ring-[var(--t-accent-ring-soft)]"
             />
             <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-[0.14em] text-ui-muted">
               ETH
@@ -167,7 +167,7 @@ export function PriceRangeSlider({
               min={localValue[0] + step}
               max={max}
               aria-label="Maximum price"
-              className="h-[44px] w-full rounded-full border border-ui-border-subtle bg-ui-input px-4 pr-12 text-sm font-medium text-ui-primary placeholder:text-ui-muted focus:border-[#2CC295] focus:ring-2 focus:ring-[#2CC295]/18 outline-none"
+              className="h-[44px] w-full rounded-full border border-ui-border-subtle bg-ui-input px-4 pr-12 text-sm font-medium text-ui-primary placeholder:text-ui-muted outline-none focus:border-[var(--t-accent)] focus:ring-2 focus:ring-[var(--t-accent-ring-soft)]"
             />
             <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-[0.14em] text-ui-muted">
               ETH

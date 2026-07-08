@@ -32,9 +32,9 @@ export function StudioLoadingIndicator({
     tone === 'primary'
       ? 'text-primary'
       : tone === 'muted'
-        ? 'text-zinc-400'
+        ? 'text-ui-muted'
         : tone === 'light'
-          ? 'text-white'
+          ? 'text-ui-strong'
           : 'text-current';
 
   const isStacked = layout === 'stacked';
@@ -51,12 +51,12 @@ export function StudioLoadingIndicator({
       {(label || subLabel) && (
         <div className={cn(isStacked ? 'space-y-0.5' : 'contents')}>
           {label ? (
-            <span className={cn(isStacked ? 'block text-sm font-medium text-white' : 'text-current', labelClassName)}>
+            <span className={cn(isStacked ? 'block text-sm font-medium text-ui-primary' : 'text-current', labelClassName)}>
               {label}
             </span>
           ) : null}
           {subLabel ? (
-            <span className={cn(isStacked ? 'block text-xs text-zinc-500' : 'text-current', subLabelClassName)}>
+            <span className={cn(isStacked ? 'block text-xs text-ui-muted' : 'text-current', subLabelClassName)}>
               {subLabel}
             </span>
           ) : null}

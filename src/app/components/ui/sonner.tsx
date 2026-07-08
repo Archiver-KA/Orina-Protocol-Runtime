@@ -14,11 +14,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
       className="toaster group"
       closeButton
       icons={{
-        success: <CheckCircle size={20} className="text-[#2CC295]" />,
+        success: <CheckCircle size={20} className="text-[var(--t-success-text)]" />,
         error: <XCircle size={20} className="text-[#ef4444]" />,
         warning: <AlertTriangle size={20} className="text-[#f59e0b]" />,
-        info: <Info size={20} className="text-[#2CC295]" />,
-        loading: <Loader2 size={20} className="animate-spin text-[#2CC295]" />,
+        info: <Info size={20} className="text-[var(--t-accent-text)]" />,
+        loading: <Loader2 size={20} className="animate-spin text-[var(--t-accent-text)]" />,
         close: <X size={16} />,
       }}
       toastOptions={{
@@ -33,12 +33,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
           icon: "mt-1 shrink-0",
           closeButton:
             "mt-0.5 shrink-0 text-ui-muted transition-colors hover:text-ui-strong focus:outline-none",
-          success: "border-l-[#2CC295]",
+          success: "border-l-[var(--t-success-text)]",
           error: "border-l-[#ef4444]",
           warning: "border-l-[#f59e0b]",
-          info: "border-l-[#2CC295]",
-          loading: "border-l-[#2CC295]",
-          default: "border-l-[#2CC295]",
+          info: "border-l-[var(--t-accent-text)]",
+          loading: "border-l-[var(--t-accent-text)]",
+          default: "border-l-[var(--t-accent-text)]",
         },
       }}
       style={

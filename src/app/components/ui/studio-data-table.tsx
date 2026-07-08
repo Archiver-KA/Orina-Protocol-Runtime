@@ -27,7 +27,7 @@ export function StudioDataTableHeadRow({ children, className, ...props }: HTMLAt
   return (
     <tr
       className={cn(
-        'text-[10px] text-zinc-500 uppercase tracking-widest border-b border-[#27272a]/50 bg-white/[0.01]',
+        'border-b border-ui-border-subtle bg-[var(--t-surface-2)] text-[10px] uppercase tracking-widest text-ui-muted',
         className
       )}
       {...props}
@@ -51,7 +51,7 @@ export function StudioDataTableHeadCell({
 
 export function StudioDataTableFooter({ children, className }: WithChildren) {
   return (
-    <div className={cn('p-4 border-t border-[#27272a]/30 bg-white/[0.01] flex items-center justify-between', className)}>
+    <div className={cn('flex items-center justify-between border-t border-ui-border-subtle bg-[var(--t-surface-2)] p-4', className)}>
       {children}
     </div>
   );
