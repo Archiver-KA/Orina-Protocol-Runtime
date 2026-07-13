@@ -69,8 +69,6 @@ export function useIPFSUpload() {
       clearInterval(progressInterval);
       setProgress(100);
 
-      console.log('Single upload - Response status:', response.status);
-      console.log('Single upload - Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         const contentType = response.headers.get('content-type');
@@ -79,16 +77,14 @@ export function useIPFSUpload() {
         if (contentType && contentType.includes('application/json')) {
           errorData = await response.json();
         } else {
-          const errorText = await response.text();
-          console.error('Single upload - Non-JSON error response:', errorText);
-          throw new Error(`Upload failed: ${response.status} - ${errorText.substring(0, 200)}`);
+          console.error('Single upload returned a non-JSON error response');
+          throw new Error(`Upload failed: ${response.status}`);
         }
         
         throw new Error(errorData.error || `Upload failed: ${response.status}`);
       }
 
       const result = await response.json();
-      console.log('Single upload - Success result:', result);
 
       if (!result.success) {
         throw new Error(result.error || 'Upload failed');

@@ -1,5 +1,5 @@
-import type { Context, Hono, Next } from "npm:hono";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import type { Context, Hono, Next } from "npm:hono@4.12.29";
+import { createClient } from "npm:@supabase/supabase-js@2.100.1";
 
 const IDEMPOTENCY_TABLE = "edge_idempotency_records";
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
@@ -164,6 +164,8 @@ function collectReplayHeaders(headers: Headers): Record<string, string> {
 
 function containsNonReplayableSecret(bodyText: string): boolean {
   return /"rawKey"\s*:/i.test(bodyText) ||
+    /"accessToken"\s*:/i.test(bodyText) ||
+    /\beyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\b/.test(bodyText) ||
     /\bsk_orina_[a-f0-9]{16,}\b/i.test(bodyText) ||
     /"privateKey"\s*:/i.test(bodyText) ||
     /"ciphertextHex"\s*:/i.test(bodyText);

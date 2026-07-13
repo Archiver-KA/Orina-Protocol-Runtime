@@ -1,16 +1,11 @@
 export type SupabasePublicEnv = Record<string, string | undefined>;
 
-export interface SupabasePublicFallback {
-  projectId: string;
-  publicKey: string;
-}
-
 export interface ResolvedSupabasePublicConfig {
   projectId: string;
   publicKey: string;
   publishableKey: string;
   supabaseUrl: string;
-  source: 'environment' | 'fallback' | 'disabled';
+  source: 'environment' | 'disabled';
   warning: string;
 }
 
@@ -21,9 +16,21 @@ function readValue(env: SupabasePublicEnv, name: string): string {
 function projectIdFromUrl(value: string): string {
   if (!value) return '';
   try {
-    const hostname = new URL(value).hostname.toLowerCase();
+    const parsed = new URL(value);
+    const hostname = parsed.hostname.toLowerCase();
     const suffix = '.supabase.co';
-    return hostname.endsWith(suffix) ? hostname.slice(0, -suffix.length) : '';
+    const projectId = hostname.endsWith(suffix) ? hostname.slice(0, -suffix.length) : '';
+    if (
+      parsed.protocol !== 'https:'
+      || parsed.username
+      || parsed.password
+      || parsed.port && parsed.port !== '443'
+      || parsed.pathname !== '/'
+      || parsed.search
+      || parsed.hash
+      || !/^[a-z0-9]{10,64}$/.test(projectId)
+    ) return '';
+    return projectId;
   } catch {
     return '';
   }
@@ -46,8 +53,6 @@ function projectIdFromJwt(value: string): string {
 
 export function resolveSupabasePublicConfig(
   env: SupabasePublicEnv,
-  fallback: SupabasePublicFallback,
-  fallbackEnabled: boolean,
 ): ResolvedSupabasePublicConfig {
   const configuredUrl = readValue(env, 'VITE_SUPABASE_URL').replace(/\/+$/, '');
   const configuredProjectId = readValue(env, 'VITE_SUPABASE_PROJECT_ID');
@@ -65,24 +70,7 @@ export function resolveSupabasePublicConfig(
     urlProjectId && configuredProjectId && urlProjectId !== configuredProjectId,
   );
   const keyMismatch = Boolean(jwtProjectId && effectiveProjectId && jwtProjectId !== effectiveProjectId);
-  const nonCanonicalProject = Boolean(
-    fallbackEnabled && effectiveProjectId && effectiveProjectId !== fallback.projectId,
-  );
   const incomplete = !effectiveProjectId || !configuredKey;
-  const shouldUseFallback = fallbackEnabled && (
-    invalidUrl || identityMismatch || keyMismatch || nonCanonicalProject || incomplete
-  );
-
-  if (shouldUseFallback) {
-    return {
-      projectId: fallback.projectId,
-      publicKey: fallback.publicKey,
-      publishableKey: '',
-      supabaseUrl: `https://${fallback.projectId}.supabase.co`,
-      source: 'fallback',
-      warning: 'Supabase environment config was missing, stale, or inconsistent; canonical fallback applied.',
-    };
-  }
 
   if (invalidUrl || identityMismatch || keyMismatch || incomplete) {
     return {
@@ -91,7 +79,7 @@ export function resolveSupabasePublicConfig(
       publishableKey: '',
       supabaseUrl: '',
       source: 'disabled',
-      warning: 'Supabase environment config is incomplete or inconsistent; remote access disabled.',
+      warning: 'Supabase environment config is incomplete or inconsistent; remote access is disabled to prevent cross-environment data access.',
     };
   }
 

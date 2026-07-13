@@ -5,7 +5,7 @@ import { hydrateReputationFromSupabase } from '@/utils/profileReputationSync';
 import {
   encodeIn,
   isSupabaseRestEnabled,
-  restRpc,
+  restPublicRpc,
   restSelect,
   toQuery,
   dispatchSyncEvent,
@@ -587,7 +587,7 @@ export async function fetchMarketplaceProfilePageFromSupabase(
   }
 
   try {
-    const rows = await restRpc<MarketplaceProfilePageRpcRow[]>(
+    const rows = await restPublicRpc<MarketplaceProfilePageRpcRow[]>(
       'get_marketplace_profile_page_v1',
       {
         p_limit: limit,

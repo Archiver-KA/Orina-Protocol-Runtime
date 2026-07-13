@@ -4,10 +4,23 @@
  * Pattern: raw fetch() with graceful fallback (matches ipfs-upload.tsx style)
  */
 
+import { readBoundedJson } from './bounded-response.ts';
+
 const DEFAULT_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const DEFAULT_NIM_CHAT_MODEL = "nvidia/nemotron-3-super-120b-a12b";
 const DEFAULT_NIM_EMBEDDING_MODEL = "nvidia/nv-embedqa-e5-v5";
 const DEFAULT_NIM_VISION_MODEL = "meta/llama-3.2-11b-vision-instruct";
+const MAX_REMOTE_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_NIM_RESPONSE_BYTES = 2 * 1024 * 1024;
+const MAX_DATA_IMAGE_LENGTH = 7 * 1024 * 1024;
+const MAX_TOTAL_IMAGE_INPUT_LENGTH = 10 * 1024 * 1024;
+const ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const DEFAULT_AI_IMAGE_HOSTS = new Set([
+  "gateway.pinata.cloud",
+  "ipfs.io",
+  "cloudflare-ipfs.com",
+  "dweb.link",
+]);
 
 function readNIMEnv(...names: string[]): string | null {
   for (const name of names) {
@@ -21,8 +34,28 @@ function getNIMApiKey(): string | null {
   return readNIMEnv("NVIDIA_API_KEY", "NIM_API_KEY", "NEMO_API_KEY");
 }
 
+export function resolveNIMBaseUrl(value: string | null | undefined): string {
+  const candidate = String(value || DEFAULT_NIM_BASE_URL).trim().replace(/\/+$/, "");
+  try {
+    const parsed = new URL(candidate);
+    if (
+      parsed.protocol !== "https:"
+      || parsed.hostname.toLowerCase() !== "integrate.api.nvidia.com"
+      || parsed.username
+      || parsed.password
+      || parsed.port && parsed.port !== "443"
+      || parsed.search
+      || parsed.hash
+      || parsed.pathname !== "/v1"
+    ) return DEFAULT_NIM_BASE_URL;
+    return `${parsed.origin}/v1`;
+  } catch {
+    return DEFAULT_NIM_BASE_URL;
+  }
+}
+
 function getNIMBaseUrl(): string {
-  return readNIMEnv("NVIDIA_BASE_URL", "NIM_BASE_URL", "NEMO_BASE_URL") || DEFAULT_NIM_BASE_URL;
+  return resolveNIMBaseUrl(readNIMEnv("NVIDIA_BASE_URL", "NIM_BASE_URL", "NEMO_BASE_URL"));
 }
 
 function getNIMChatModel(): string {
@@ -35,6 +68,150 @@ function getNIMEmbeddingModel(): string {
 
 function getNIMVisionModel(): string {
   return readNIMEnv("NVIDIA_VISION_MODEL", "NIM_VISION_MODEL") || DEFAULT_NIM_VISION_MODEL;
+}
+
+function configuredAIImageHosts(): Set<string> {
+  const hosts = new Set(DEFAULT_AI_IMAGE_HOSTS);
+  const supabaseUrl = readNIMEnv("SUPABASE_URL");
+  if (supabaseUrl) {
+    try {
+      hosts.add(new URL(supabaseUrl).hostname.toLowerCase());
+    } catch {
+      // A malformed backend URL is handled by the caller that requires Supabase.
+    }
+  }
+  for (const host of String(readNIMEnv("ATP2_AI_IMAGE_ALLOWED_HOSTS") || "").split(",")) {
+    const normalized = host.trim().toLowerCase();
+    if (normalized) hosts.add(normalized);
+  }
+  return hosts;
+}
+
+function isIpLiteral(hostname: string): boolean {
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) || hostname.includes(":");
+}
+
+export function validateVisionImageUrl(value: string): { valid: true; url: string } | { valid: false; error: string } {
+  const candidate = String(value || "").trim();
+  if (/^data:image\/(?:jpeg|png|webp|gif);base64,/i.test(candidate)) {
+    return candidate.length <= MAX_DATA_IMAGE_LENGTH
+      ? { valid: true, url: candidate }
+      : { valid: false, error: "data image exceeds the encoded size limit" };
+  }
+  if (candidate.startsWith("data:")) return { valid: false, error: "unsupported data image type" };
+
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    return { valid: false, error: "image URL must be absolute" };
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || (parsed.port && parsed.port !== "443")) {
+    return { valid: false, error: "image URL must use credential-free HTTPS" };
+  }
+  if (isIpLiteral(hostname) || !configuredAIImageHosts().has(hostname)) {
+    return { valid: false, error: "image host is not approved" };
+  }
+  if (DEFAULT_AI_IMAGE_HOSTS.has(hostname) && !parsed.pathname.startsWith("/ipfs/")) {
+    return { valid: false, error: "IPFS gateway URL must use an /ipfs/ path" };
+  }
+  if (hostname.endsWith(".supabase.co") && !parsed.pathname.startsWith("/storage/v1/object/")) {
+    return { valid: false, error: "Supabase image URL must use the Storage object path" };
+  }
+  return { valid: true, url: parsed.toString() };
+}
+
+export function validateVisionImageUrls(
+  values: unknown,
+  maxImages = 5,
+): { valid: true; urls: string[] } | { valid: false; error: string } {
+  if (!Array.isArray(values) || values.length > maxImages) {
+    return { valid: false, error: `imageUrls must contain at most ${maxImages} images` };
+  }
+  const urls: string[] = [];
+  let totalLength = 0;
+  for (const value of values) {
+    if (typeof value !== 'string') return { valid: false, error: 'Every image URL must be a string' };
+    totalLength += value.length;
+    if (totalLength > MAX_TOTAL_IMAGE_INPUT_LENGTH) {
+      return { valid: false, error: 'Combined image input exceeds the 10 MB encoded limit' };
+    }
+    const validation = validateVisionImageUrl(value);
+    if (!validation.valid) return validation;
+    urls.push(validation.url);
+  }
+  return { valid: true, urls };
+}
+
+function hasExpectedImageMagic(bytes: Uint8Array, mimeType: string): boolean {
+  if (mimeType === "image/jpeg") return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (mimeType === "image/png") {
+    return bytes.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+      .every((value, index) => bytes[index] === value);
+  }
+  if (mimeType === "image/gif") {
+    const header = new TextDecoder().decode(bytes.slice(0, 6));
+    return header === "GIF87a" || header === "GIF89a";
+  }
+  if (mimeType === "image/webp") {
+    return new TextDecoder().decode(bytes.slice(0, 4)) === "RIFF"
+      && new TextDecoder().decode(bytes.slice(8, 12)) === "WEBP";
+  }
+  return false;
+}
+
+async function readBoundedResponseBytes(response: Response): Promise<Uint8Array> {
+  const declaredLength = Number(response.headers.get("content-length") || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_REMOTE_IMAGE_BYTES) {
+    throw new Error("remote image exceeds size limit");
+  }
+  if (!response.body) throw new Error("remote image response has no body");
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > MAX_REMOTE_IMAGE_BYTES) throw new Error("remote image exceeds size limit");
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const output = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return output;
+}
+
+async function fetchVisionImageAsDataUrl(value: string, signal: AbortSignal): Promise<string> {
+  const validation = validateVisionImageUrl(value);
+  if (!validation.valid) throw new Error(validation.error);
+  if (validation.url.startsWith("data:")) return validation.url;
+
+  const response = await fetch(validation.url, {
+    method: "GET",
+    redirect: "error",
+    signal,
+    headers: { Accept: "image/jpeg,image/png,image/webp,image/gif" },
+  });
+  if (!response.ok) throw new Error(`remote image returned ${response.status}`);
+  const contentType = String(response.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
+  if (!ALLOWED_IMAGE_MIME_TYPES.has(contentType)) throw new Error("remote response is not an approved image type");
+  const bytes = await readBoundedResponseBytes(response);
+  if (!hasExpectedImageMagic(bytes, contentType)) throw new Error("remote image signature does not match its MIME type");
+
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return `data:${contentType};base64,${btoa(binary)}`;
 }
 
 // Transient HTTP status codes that warrant a retry
@@ -90,8 +267,7 @@ async function retryableNIMFetch(
   try {
     const response = await fetch(url, { ...init, signal });
     if (RETRYABLE_STATUS_CODES.has(response.status)) {
-      const statusText = await response.text().catch(() => '');
-      console.warn(`⚠️ NIM transient error ${response.status}, retrying in ${RETRY_DELAY_MS}ms...`, statusText.slice(0, 120));
+      console.warn(`⚠️ NIM transient error ${response.status}, retrying in ${RETRY_DELAY_MS}ms...`);
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
       await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -220,11 +396,10 @@ export async function callNvidiaNIM(
     );
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "unknown");
-      return { success: false, error: `NIM API ${response.status}: ${errorText}` };
+      return { success: false, error: `NIM API returned status ${response.status}` };
     }
 
-    const data = await response.json();
+    const data = await readBoundedJson<any>(response, MAX_NIM_RESPONSE_BYTES);
     const content = data?.choices?.[0]?.message?.content;
 
     if (!content) {
@@ -345,11 +520,10 @@ export async function callNvidiaNIMEmbedding(
     });
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "unknown");
-      return { success: false, error: `NIM Embedding API ${response.status}: ${errorText}` };
+      return { success: false, error: `NIM Embedding API returned status ${response.status}` };
     }
 
-    const data = await response.json();
+    const data = await readBoundedJson<any>(response, MAX_NIM_RESPONSE_BYTES);
     const embedding = data?.data?.[0]?.embedding;
 
     if (!embedding || !Array.isArray(embedding)) {
@@ -381,6 +555,10 @@ export async function callNvidiaNIMVision(
   imageUrls: string[],
   options: NIMOptions = {},
 ): Promise<NIMResult> {
+  const imageValidation = validateVisionImageUrls(imageUrls);
+  if (!imageValidation.valid) {
+    return { success: false, error: imageValidation.error };
+  }
   const apiKey = getNIMApiKey();
   if (!apiKey) {
     return { success: false, error: "NVIDIA_API_KEY/NIM_API_KEY not configured" };
@@ -419,25 +597,12 @@ export async function callNvidiaNIMVision(
     contentBlocks.push({ type: "text", text: textPrompt });
 
     // Fetch images and convert to base64 (cap at 5)
-    for (const url of imageUrls.slice(0, 5)) {
+    for (const url of imageValidation.urls) {
       try {
-        if (url.startsWith("data:")) {
-          contentBlocks.push({ type: "image_url", image_url: { url } });
-          continue;
-        }
-        const imgResponse = await fetch(url, { signal: controller.signal });
-        if (!imgResponse.ok) continue;
-        const arrayBuffer = await imgResponse.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-        const contentType = imgResponse.headers.get("content-type") || "image/jpeg";
-        let binary = "";
-        for (let i = 0; i < bytes.length; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        const base64 = btoa(binary);
+        const safeDataUrl = await fetchVisionImageAsDataUrl(url, controller.signal);
         contentBlocks.push({
           type: "image_url",
-          image_url: { url: `data:${contentType};base64,${base64}` },
+          image_url: { url: safeDataUrl },
         });
       } catch {
         continue; // Skip failed images
@@ -473,11 +638,10 @@ export async function callNvidiaNIMVision(
     });
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "unknown");
-      return { success: false, error: `NIM Vision API ${response.status}: ${errorText}` };
+      return { success: false, error: `NIM Vision API returned status ${response.status}` };
     }
 
-    const data = await response.json();
+    const data = await readBoundedJson<any>(response, MAX_NIM_RESPONSE_BYTES);
     const content = data?.choices?.[0]?.message?.content;
 
     if (!content) {

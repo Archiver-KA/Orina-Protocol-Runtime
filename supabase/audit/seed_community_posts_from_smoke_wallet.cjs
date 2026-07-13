@@ -13,20 +13,6 @@ function shortWallet(address) {
   return normalized ? `${normalized.slice(0, 6)}...${normalized.slice(-4)}` : 'unknown';
 }
 
-function buildWalletAuthMessage(address, signedAt) {
-  const normalized = normalizeAddress(address);
-  const iso = new Date(signedAt).toISOString();
-  return [
-    'Orina Wallet Session Authentication',
-    '',
-    'Sign this message to authenticate your session in Orina.',
-    'No blockchain transaction or gas fee is required.',
-    '',
-    `Address: ${normalized}`,
-    `Time: ${iso}`,
-  ].join('\n');
-}
-
 function buildRoutePath(prefix, routePath) {
   const normalizedRoutePath = String(routePath || '').replace(/^\/+/, '');
   const normalizedPrefix = String(prefix || '').trim().replace(/\/+$/, '');
@@ -50,17 +36,40 @@ async function requestJson(url, init = {}) {
   return { status: res.status, ok: res.ok, json };
 }
 
-async function exchangeBridge({ supabaseUrl, anonKey, fnName, bridgePathPrefix, account }) {
+async function exchangeBridge({
+  supabaseUrl,
+  anonKey,
+  fnName,
+  bridgePathPrefix,
+  account,
+  origin = 'https://app.orina.io',
+}) {
   const walletAddress = normalizeAddress(account.address);
-  const signedAt = Date.now();
-  const message = buildWalletAuthMessage(walletAddress, signedAt);
+  const bridgeBase = `${supabaseUrl}/functions/v1/${fnName}`;
+  const challenge = await requestJson(`${bridgeBase}${buildRoutePath(bridgePathPrefix, 'challenge')}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${anonKey}`,
+      apikey: anonKey,
+      Origin: origin,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ walletAddress, chainId: 97 }),
+  });
+  if (!challenge.ok || typeof challenge.json?.message !== 'string') {
+    throw new Error(`Bridge challenge failed (${challenge.status})`);
+  }
+  const message = challenge.json.message;
+  const signedAt = Date.parse(String(challenge.json.issuedAt || ''));
+  if (!Number.isFinite(signedAt)) throw new Error('Bridge challenge returned invalid issuedAt');
   const signature = await account.signMessage({ message });
-  const url = `${supabaseUrl}/functions/v1/${fnName}${buildRoutePath(bridgePathPrefix, 'exchange')}`;
+  const url = `${bridgeBase}${buildRoutePath(bridgePathPrefix, 'exchange')}`;
   const response = await requestJson(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${anonKey}`,
       apikey: anonKey,
+      Origin: origin,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({

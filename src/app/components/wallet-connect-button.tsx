@@ -9,6 +9,8 @@ import { copyToClipboard } from '@/utils/clipboard';
 import { useGuestMode } from '@/hooks/useGuestMode';
 import { useAccessMode } from '@/hooks/useAccessMode';
 import { clearWalletAuthSession } from '@/utils/walletAuthSession';
+import { clearSupabaseBridgeSession } from '@/utils/supabaseAuthClaimBridge';
+import { purgeWalletScopedSensitiveStorage } from '@/utils/walletSensitiveStorage';
 import { formatUserDisplayName } from '@/utils/profileUtils';
 
 interface WalletConnectButtonProps {
@@ -44,6 +46,8 @@ export function WalletConnectButton({ onNavigate, sidebarCollapsed = false, drop
 
   const handleDisconnect = async () => {
     enableGuestMode();
+    purgeWalletScopedSensitiveStorage(address);
+    clearSupabaseBridgeSession();
     clearWalletAuthSession();
     clearUserSession();
     disconnect();

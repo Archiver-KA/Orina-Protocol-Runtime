@@ -386,8 +386,6 @@ function profileRowFromLocal(profile: UserProfile): Partial<DbProfileRow> {
     twitter: profile.socialLinks?.twitter || null,
     discord: profile.socialLinks?.discord || null,
     telegram: profile.socialLinks?.telegram || null,
-    is_verified: !!profile.verified,
-    status: 'active',
   };
 }
 
@@ -486,7 +484,7 @@ async function syncProfileToSupabase(profile: UserProfile): Promise<void> {
   try {
     await restUpsert<DbProfileRow>(
       'profiles',
-      [{ ...profileRowFromLocal(local), id: remoteProfileId }],
+      [profileRowFromLocal(local)],
       { onConflict: 'wallet_address' }
     );
   } catch (error) {
@@ -1094,14 +1092,12 @@ export function isValidWalletAddress(address: string): boolean {
  * This should be called once on app startup
  */
 export function migrateOldProfiles(): void {
-  console.log('🔄 [Migration] Starting old profile cleanup...');
   let cleaned = 0;
   
   // Find and remove old profile keys (studio_user_profile_user_*)
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
     if (key && key.startsWith('studio_user_profile_user_')) {
-      console.log(`🗑️ [Migration] Removing old profile: ${key}`);
       localStorage.removeItem(key);
       cleaned++;
     }

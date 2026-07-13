@@ -18,7 +18,7 @@ This note records the runtime prerequisites that must be true before the delegat
 
 Current baseline:
 
-- Supabase project ref: `vcixsdudkizgfikhmfuv`
+- Supabase project ref: `ystjugghyteyylkevbsl`
 - BSC testnet `DelegationManager`: `0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13`
 - BSC testnet `AIWalletFactoryV2`: `0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441`
 
@@ -29,8 +29,8 @@ Legacy shared-bundle routes like `/functions/v1/make-server-b0d68fc8/ai/m2m/*` o
 Set these in the Vite or hosting runtime:
 
 ```env
-VITE_SUPABASE_PROJECT_ID=vcixsdudkizgfikhmfuv
-VITE_SUPABASE_URL=https://vcixsdudkizgfikhmfuv.supabase.co
+VITE_SUPABASE_PROJECT_ID=ystjugghyteyylkevbsl
+VITE_SUPABASE_URL=https://ystjugghyteyylkevbsl.supabase.co
 VITE_SUPABASE_ANON_KEY=<supabase anon key>
 
 VITE_SUPABASE_FUNCTIONS_NAMESPACE=make-server-b0d68fc8

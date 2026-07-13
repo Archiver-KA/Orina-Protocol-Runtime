@@ -1,7 +1,6 @@
 /**
- * Wallet auth session (EIP-191) is stored in localStorage. Same-origin XSS can read it and replay
- * within the signed message TTL. Mitigate with strict CSP, dependency review, and avoiding
- * unsanitized HTML injection; prefer httpOnly cookies only if you move auth off pure SPA storage.
+ * The short-lived EIP-191 proof is kept in tab-scoped sessionStorage. The backend consumes the
+ * server-issued nonce once, so a copied proof cannot mint another bridge session.
  */
 import { normalizeAddress } from '@/utils/storageScope';
 
@@ -9,7 +8,7 @@ const env = (import.meta as ImportMeta & { env?: Record<string, string | undefin
 const WALLET_AUTH_SESSION_KEY = 'orina_wallet_auth_session';
 // Keep the browser proof window aligned with the claim-bridge max age so protected surfaces do
 // not force a new signature much earlier than the backend session model.
-const DEFAULT_WALLET_AUTH_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_WALLET_AUTH_SESSION_TTL_MS = 5 * 60 * 1000;
 
 interface WalletAuthSession {
   address: string;
@@ -45,7 +44,14 @@ export function hasCompatibleWalletAuthMessage(
     return false;
   }
 
-  if (!/^Time:\s+.+$/m.test(normalizedMessage)) {
+  if (
+    !/^Domain:\s+[^\s]+$/m.test(normalizedMessage)
+    || !/^URI:\s+https?:\/\/[^\s]+$/m.test(normalizedMessage)
+    || !/^Chain ID:\s+\d+$/m.test(normalizedMessage)
+    || !/^Nonce:\s+[a-f0-9]{64}$/m.test(normalizedMessage)
+    || !/^Issued At:\s+.+$/m.test(normalizedMessage)
+    || !/^Expiration Time:\s+.+$/m.test(normalizedMessage)
+  ) {
     return false;
   }
 
@@ -59,7 +65,9 @@ export function hasCompatibleWalletAuthMessage(
 export function getWalletAuthSession(): WalletAuthSession | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem(WALLET_AUTH_SESSION_KEY);
+    // Never migrate a legacy persistent proof: remove it and require a fresh challenge.
+    window.localStorage?.removeItem(WALLET_AUTH_SESSION_KEY);
+    const raw = window.sessionStorage.getItem(WALLET_AUTH_SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as WalletAuthSession;
     if (!parsed?.address || !parsed?.signature) return null;
@@ -105,25 +113,14 @@ export function setWalletAuthSession(
     signature,
     message: opts?.message,
   };
-  localStorage.setItem(WALLET_AUTH_SESSION_KEY, JSON.stringify(payload));
+  window.localStorage?.removeItem(WALLET_AUTH_SESSION_KEY);
+  window.sessionStorage.setItem(WALLET_AUTH_SESSION_KEY, JSON.stringify(payload));
   window.dispatchEvent(new Event('orina:wallet-auth-change'));
 }
 
 export function clearWalletAuthSession() {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem(WALLET_AUTH_SESSION_KEY);
+  window.localStorage?.removeItem(WALLET_AUTH_SESSION_KEY);
+  window.sessionStorage.removeItem(WALLET_AUTH_SESSION_KEY);
   window.dispatchEvent(new Event('orina:wallet-auth-change'));
-}
-
-export function buildWalletAuthMessage(address: string, signedAt: number = Date.now()) {
-  const ts = new Date(signedAt).toISOString();
-  return [
-    'Orina Wallet Session Authentication',
-    '',
-    'Sign this message to authenticate your session in Orina.',
-    'No blockchain transaction or gas fee is required.',
-    '',
-    `Address: ${normalizeAddress(address)}`,
-    `Time: ${ts}`,
-  ].join('\n');
 }

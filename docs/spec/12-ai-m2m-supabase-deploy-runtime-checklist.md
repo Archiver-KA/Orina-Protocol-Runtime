@@ -4,10 +4,10 @@
 
 ## Current Runtime Bases
 
-- project ref: `vcixsdudkizgfikhmfuv`
-- shared core: `https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/make-server-b0d68fc8`
-- auth bridge: `https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/orina-auth-bridge-v1`
-- AI M2M: `https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/orina-ai-m2m-v2`
+- project ref: `ystjugghyteyylkevbsl`
+- shared core: `https://ystjugghyteyylkevbsl.supabase.co/functions/v1/make-server-b0d68fc8`
+- auth bridge: `https://ystjugghyteyylkevbsl.supabase.co/functions/v1/orina-auth-bridge-v1`
+- AI M2M: `https://ystjugghyteyylkevbsl.supabase.co/functions/v1/orina-ai-m2m-v2`
 
 Routes currently used by the app:
 
@@ -30,8 +30,8 @@ Mounted source of truth in repo:
 ## Frontend Runtime Baseline
 
 ```env
-VITE_SUPABASE_PROJECT_ID=vcixsdudkizgfikhmfuv
-VITE_SUPABASE_URL=https://vcixsdudkizgfikhmfuv.supabase.co
+VITE_SUPABASE_PROJECT_ID=ystjugghyteyylkevbsl
+VITE_SUPABASE_URL=https://ystjugghyteyylkevbsl.supabase.co
 VITE_SUPABASE_ANON_KEY=<project anon key>
 VITE_SUPABASE_FUNCTIONS_NAMESPACE=make-server-b0d68fc8
 VITE_SUPABASE_SHARED_SERVER_FN_NAME=make-server-b0d68fc8
@@ -60,7 +60,7 @@ These must be present remotely before route or browser verification:
 Run these probes first:
 
 ```bat
-node supabase\audit\test_h1_claim_bridge_http.cjs https://vcixsdudkizgfikhmfuv.supabase.co <anon-jwt> orina-auth-bridge-v1
+node supabase\audit\test_h1_claim_bridge_http.cjs https://ystjugghyteyylkevbsl.supabase.co <anon-jwt> orina-auth-bridge-v1
 ```
 
 ```bat
@@ -68,7 +68,7 @@ node supabase\audit\probe_ai_m2m_runtime.cjs
 ```
 
 ```bat
-node supabase\audit\smoke_wallet_claim_security.cjs https://vcixsdudkizgfikhmfuv.supabase.co <anon-jwt> orina-auth-bridge-v1
+node supabase\audit\smoke_wallet_claim_security.cjs https://ystjugghyteyylkevbsl.supabase.co <anon-jwt> orina-auth-bridge-v1
 ```
 
 Pass criteria:

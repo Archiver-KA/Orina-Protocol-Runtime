@@ -4,6 +4,8 @@
  * Pattern: concurrent multi-query with deduplication (matches NVIDIA blog ReAct pattern)
  */
 
+import { readBoundedJson } from './bounded-response.ts';
+
 interface TavilySearchOptions {
   topic?: 'general' | 'news' | 'finance';
   searchDepth?: 'basic' | 'advanced';
@@ -74,11 +76,10 @@ export async function searchTavily(
     });
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "unknown");
-      return { success: false, error: `Tavily API ${response.status}: ${errorText}`, query };
+      return { success: false, error: `Tavily API returned status ${response.status}`, query };
     }
 
-    const data = await response.json();
+    const data = await readBoundedJson<any>(response, 4 * 1024 * 1024);
     const results: TavilyResult[] = (data.results || []).map((r: any) => ({
       title: r.title || '',
       url: r.url || '',

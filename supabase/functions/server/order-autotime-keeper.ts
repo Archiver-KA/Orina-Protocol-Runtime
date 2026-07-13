@@ -1,8 +1,8 @@
-import { Context, Hono } from "npm:hono";
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { createPublicClient, createWalletClient, decodeEventLog, http } from "npm:viem";
-import { privateKeyToAccount } from "npm:viem/accounts";
-import { bscTestnet } from "npm:viem/chains";
+import { Context, Hono } from "npm:hono@4.12.29";
+import { createClient } from "npm:@supabase/supabase-js@2.100.1";
+import { createPublicClient, createWalletClient, decodeEventLog, http } from "npm:viem@2.53.1";
+import { privateKeyToAccount } from "npm:viem@2.53.1/accounts";
+import { bscTestnet } from "npm:viem@2.53.1/chains";
 import { syncReceipts } from "./sync-receipt-nfts.ts";
 
 const router = new Hono();
@@ -40,6 +40,7 @@ const DEFAULT_STATUSES = [
   "pending_buyer_accept",
   "pending_seller_confirm",
 ];
+const ALLOWED_KEEPER_STATUSES = new Set(DEFAULT_STATUSES);
 
 const MARKETPLACE_READ_ABI = [{
   type: "function",
@@ -194,8 +195,6 @@ function keeperPrivateKey() {
   for (const value of [
     Deno.env.get("ORDER_AUTOTIME_KEEPER_PRIVATE_KEY"),
     Deno.env.get("ATP2_ORDER_AUTOTIME_KEEPER_PRIVATE_KEY"),
-    Deno.env.get("PRIVATE_KEY"),
-    Deno.env.get("SMOKE_SELLER_PRIVATE_KEY"),
   ]) {
     const normalized = String(value || "").trim().toLowerCase();
     if (/^0x[a-f0-9]{64}$/.test(normalized)) return normalized as `0x${string}`;
@@ -222,9 +221,11 @@ function requireKeeperAuth(c: Context) {
   const auth = c.req.header("Authorization") || "";
   const apikey = c.req.header("apikey") || "";
   const providedCronSecret = String(c.req.header("x-order-autotime-secret") || "").trim();
-  if (cronSecret && providedCronSecret === cronSecret) return null;
+  if (cronSecret.length >= 32 && providedCronSecret === cronSecret) return null;
   if (!serviceKey) return c.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }, 500);
-  if (!auth.includes(serviceKey) && apikey !== serviceKey) return c.json({ error: "Unauthorized — service role required" }, 403);
+  if (auth !== `Bearer ${serviceKey}` && apikey !== serviceKey) {
+    return c.json({ error: "Unauthorized — service role required" }, 403);
+  }
   return null;
 }
 
@@ -255,6 +256,7 @@ function parseIds(input: unknown) {
       if (id < 0n || seen.has(id.toString())) continue;
       seen.add(id.toString());
       out.push(id);
+      if (out.length >= MAX_LIMIT) break;
     } catch { /* ignore */ }
   }
   return out;
@@ -262,7 +264,10 @@ function parseIds(input: unknown) {
 
 function parseStatuses(input: unknown) {
   if (!Array.isArray(input)) return [...DEFAULT_STATUSES];
-  const out = input.map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
+  const out = input
+    .slice(0, DEFAULT_STATUSES.length)
+    .map((value) => String(value || "").trim().toLowerCase())
+    .filter((value) => ALLOWED_KEEPER_STATUSES.has(value));
   return out.length > 0 ? Array.from(new Set(out)) : [...DEFAULT_STATUSES];
 }
 
@@ -584,7 +589,6 @@ router.get("/health", (c: Context) => c.json({
   autoTimeManager: norm(DEFAULT_AUTOTIME),
   disputeManager: norm(DEFAULT_DISPUTE),
   assetContract: norm(DEFAULT_ASSET),
-  keeperConfigured: Boolean(keeperPrivateKey()),
 }));
 
 router.post("/run", async (c: Context) => {
@@ -677,6 +681,9 @@ router.post("/run", async (c: Context) => {
     if (syncReceiptProjection && executions.receipts.length > 0) {
       const blocks = executions.receipts.map((receipt: any) => Number(receipt.blockNumber));
       receiptProjection = await syncReceipts(Math.min(...blocks), Math.max(...blocks));
+      if (receiptProjection.errors > 0) {
+        throw new Error("Receipt projection sync completed with errors");
+      }
     }
 
     return c.json({

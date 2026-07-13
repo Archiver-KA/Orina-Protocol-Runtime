@@ -134,7 +134,7 @@ async function inspectTarget(target) {
           mentionsProtocolReleaseGate: lowerBody.includes('protocol release gate'),
           mentionsCloudflareWorkerBuilds: lowerBody.includes('worker builds') || lowerBody.includes('builds'),
           mentionsApporinaio: lowerBody.includes('apporinaio'),
-          mentionsSupabaseProject: lowerBody.includes('vcixsdudkizgfikhmfuv') || lowerBody.includes('atp'),
+          mentionsSupabaseProject: lowerBody.includes('ystjugghyteyylkevbsl') || lowerBody.includes('orina atp v3.5 beta'),
           mentionsRlsDisabled: lowerBody.includes('rls disabled in public'),
           mentionsSecurityAdvisorErrors: lowerBody.includes('errors 1 errors') || lowerBody.includes('security advisor')
             || lowerBody.includes('errors 1 errors'),

@@ -16,6 +16,7 @@ import type { MarketplaceAsset } from '@/app/types/asset';
 import { AIAgentClient } from '@/utils/aiAgentClient';
 import { resolveAISearchResults } from '@/utils/aiSearchUtils';
 import { sanitizeAIVisibleText } from '@/utils/aiTextSanitizer';
+import { safeExternalUrl } from '@/utils/safeExternalUrl';
 import { BorderlessTextarea } from './borderless-textarea';
 import { StudioSidebarShell } from '@/app/components/ui/studio-sidebar';
 import { getCategoryDisplayLabel } from '@/utils/taxonomy';
@@ -86,14 +87,17 @@ function renderInlineMarkdown(line: string) {
     const trimmedLine = line.trim();
     const linkOnlyMatch = trimmedLine.match(AI_LINK_ONLY_LINE_REGEX);
     if (linkOnlyMatch) {
+      const href = safeExternalUrl(linkOnlyMatch[2]);
+      if (!href) return line;
+      const hostname = new URL(href).hostname;
       return (
         <a
-          href={linkOnlyMatch[2]}
+          href={href}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-2.5 py-1 text-[10px] font-semibold tracking-[0.01em] text-ui-secondary no-underline transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#7CF0CB]"
         >
-          {linkOnlyMatch[1]}
+          {linkOnlyMatch[1]} · {hostname}
         </a>
       );
     }
@@ -107,17 +111,20 @@ function renderInlineMarkdown(line: string) {
       if (m.index > last) parts.push(normalizedLine.slice(last, m.index));
       if (m[1] !== undefined) parts.push(<strong key={m.index} className="font-semibold">{m[1]}</strong>);
       else if (m[2] !== undefined) parts.push(<em key={m.index} className="italic">{m[2]}</em>);
-      else if (m[3] !== undefined) parts.push(
-        <a
-          key={m.index}
-          href={m[4]}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-2.5 py-1 text-[10px] font-semibold tracking-[0.01em] text-ui-secondary no-underline transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#7CF0CB]"
-        >
-          {m[3]}
-        </a>
-      );
+      else if (m[3] !== undefined) {
+        const href = safeExternalUrl(m[4]);
+        parts.push(href ? (
+          <a
+            key={m.index}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center rounded-full border border-ui-border-subtle bg-[var(--t-surface-10)] px-2.5 py-1 text-[10px] font-semibold tracking-[0.01em] text-ui-secondary no-underline transition-colors hover:border-[#2CC295]/24 hover:bg-[#2CC295]/10 hover:text-[#7CF0CB]"
+          >
+            {m[3]} · {new URL(href).hostname}
+          </a>
+        ) : m[0]);
+      }
       last = m.index + m[0].length;
     }
     if (last < normalizedLine.length) parts.push(normalizedLine.slice(last));

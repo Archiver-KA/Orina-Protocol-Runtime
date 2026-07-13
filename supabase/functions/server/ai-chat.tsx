@@ -1,11 +1,12 @@
 // ai-chat.tsx — v2 rewrite: uses ORINAEngine + agent_configs table directly
 // Legacy AIAgentEngine (rule-based) fully removed.
 
-import { Hono } from 'npm:hono';
+import { Hono } from 'npm:hono@4.12.29';
 import { AIAgentConfig } from './types.ts';
-import { createClient } from 'npm:@supabase/supabase-js';
+import { createClient } from 'npm:@supabase/supabase-js@2.100.1';
 import { ORINAEngine } from './orina-ai-engine-v2.tsx';
 import { assertAuthenticatedWalletMatch, requireAuthenticatedWallet } from './request-auth.ts';
+import { checkRateLimit, rateLimitExceededResponse } from './rate-limiter.ts';
 
 const aiChat = new Hono();
 
@@ -23,7 +24,8 @@ async function getStoredConfig(walletAddress: string): Promise<AIAgentConfig | n
     .select('*')
     .eq('wallet_address', walletAddress)
     .maybeSingle();
-  if (error || !data) return null;
+  if (error) throw new Error('AI agent config lookup failed');
+  if (!data) return null;
   return {
     id: String(data.id),
     walletAddress: data.wallet_address,
@@ -56,6 +58,13 @@ aiChat.post('/chat', async (c) => {
 
     const walletMismatch = assertAuthenticatedWalletMatch(c, auth.identity, sellerAddress, 'sellerAddress');
     if (walletMismatch) return walletMismatch;
+    if (typeof message !== 'string' || message.length > 20_000 || String(conversationId).length > 200) {
+      return c.json({ error: 'message or conversationId exceeds the allowed length' }, 413);
+    }
+    const rateCheck = await checkRateLimit('ai_assist', auth.identity.walletAddress);
+    if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
+    const dailyRateCheck = await checkRateLimit('ai_assist_daily', auth.identity.walletAddress);
+    if (!dailyRateCheck.allowed) return rateLimitExceededResponse(c, dailyRateCheck);
 
     // Check if seller has AI agent enabled
     const config = await getStoredConfig(auth.identity.walletAddress);
@@ -90,8 +99,7 @@ aiChat.post('/chat', async (c) => {
   } catch (error) {
     console.error('AI Chat error:', error);
     return c.json({
-      error: 'Internal server error processing AI chat',
-      details: error instanceof Error ? error.message : String(error)
+      error: 'Internal server error processing AI chat'
     }, 500);
   }
 });
@@ -101,11 +109,12 @@ aiChat.get('/config/:walletAddress', async (c) => {
   try {
     const auth = await requireAuthenticatedWallet(c);
     if (!auth.ok) return auth.response;
+    const rateCheck = await checkRateLimit('ai_conversation_read', auth.identity.walletAddress);
+    if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
 
     const walletAddress = c.req.param('walletAddress');
     const walletMismatch = assertAuthenticatedWalletMatch(c, auth.identity, walletAddress, 'walletAddress');
     if (walletMismatch) return walletMismatch;
-
     const config = await getStoredConfig(auth.identity.walletAddress);
 
     if (!config) {
@@ -117,8 +126,7 @@ aiChat.get('/config/:walletAddress', async (c) => {
   } catch (error) {
     console.error('Get AI config error:', error);
     return c.json({
-      error: 'Error retrieving AI config',
-      details: error instanceof Error ? error.message : String(error)
+      error: 'Error retrieving AI config'
     }, 500);
   }
 });
@@ -135,6 +143,19 @@ aiChat.post('/config', async (c) => {
     const walletMismatch = assertAuthenticatedWalletMatch(c, auth.identity, walletAddress, 'walletAddress');
     if (walletMismatch) return walletMismatch;
 
+    const rateCheck = await checkRateLimit('ai_config_write', auth.identity.walletAddress);
+    if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
+    const validBehaviors = new Set(['conservative', 'moderate', 'proactive']);
+    if (
+      name !== undefined && (typeof name !== 'string' || name.trim().length > 120)
+      || behavior !== undefined && (typeof behavior !== 'string' || !validBehaviors.has(behavior))
+      || enabled !== undefined && typeof enabled !== 'boolean'
+      || autoReplyEnabled !== undefined && typeof autoReplyEnabled !== 'boolean'
+      || greetingMessage !== undefined && (typeof greetingMessage !== 'string' || greetingMessage.length > 2_000)
+    ) {
+      return c.json({ error: 'Invalid or oversized AI configuration' }, 400);
+    }
+
     const resolvedWalletAddress = auth.identity.walletAddress;
     const supabase = getSupabaseClient();
     const existing = await getStoredConfig(resolvedWalletAddress);
@@ -150,7 +171,7 @@ aiChat.post('/config', async (c) => {
       updatedAt:         new Date().toISOString(),
     };
 
-    await supabase
+    const { error: upsertError } = await supabase
       .from('agent_configs')
       .upsert({
         wallet_address: resolvedWalletAddress,
@@ -162,14 +183,14 @@ aiChat.post('/config', async (c) => {
           enabled: config.enabled,
         },
       }, { onConflict: 'wallet_address' });
+    if (upsertError) throw new Error('AI agent config upsert failed');
 
     return c.json({ success: true, config });
 
   } catch (error) {
     console.error('Save AI config error:', error);
     return c.json({
-      error: 'Error saving AI config',
-      details: error instanceof Error ? error.message : String(error)
+      error: 'Error saving AI config'
     }, 500);
   }
 });
@@ -179,8 +200,13 @@ aiChat.get('/conversation/:conversationId', async (c) => {
   try {
     const auth = await requireAuthenticatedWallet(c);
     if (!auth.ok) return auth.response;
+    const rateCheck = await checkRateLimit('ai_conversation_read', auth.identity.walletAddress);
+    if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
 
     const conversationId = c.req.param('conversationId');
+    if (!conversationId || conversationId.length > 200) {
+      return c.json({ error: 'Invalid conversationId' }, 400);
+    }
     const canAccess = await ORINAEngine.hasConversationAccess(auth.identity.walletAddress, conversationId);
     if (!canAccess) {
       return c.json({ error: 'Conversation not found or access denied' }, 403);
@@ -193,8 +219,7 @@ aiChat.get('/conversation/:conversationId', async (c) => {
   } catch (error) {
     console.error('Get conversation error:', error);
     return c.json({
-      error: 'Error retrieving conversation',
-      details: error instanceof Error ? error.message : String(error)
+      error: 'Error retrieving conversation'
     }, 500);
   }
 });

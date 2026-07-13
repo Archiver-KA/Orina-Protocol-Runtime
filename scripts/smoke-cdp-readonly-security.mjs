@@ -284,8 +284,8 @@ function pageInspectionScript() {
     domLeakPatternNames: leakPatterns.map((pattern) => String(pattern)).filter((pattern) => new RegExp(pattern.slice(1, pattern.lastIndexOf('/')), pattern.split('/').pop()).test(bodyText) || new RegExp(pattern.slice(1, pattern.lastIndexOf('/')), pattern.split('/').pop()).test(html)),
     localStorage: listWebStorage(window.localStorage),
     sessionStorage: listWebStorage(window.sessionStorage),
-    walletAuthSessionPresent: window.localStorage.getItem('orina_wallet_auth_session') !== null,
-    bridgeSessionPresent: window.localStorage.getItem('orina_supabase_bridge_session') !== null,
+    walletAuthSessionPresent: window.sessionStorage.getItem('orina_wallet_auth_session') !== null,
+    bridgeSessionPresent: window.sessionStorage.getItem('orina_supabase_auth_claim_bridge_session') !== null,
   };
 }
 

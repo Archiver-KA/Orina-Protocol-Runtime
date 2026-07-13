@@ -41,6 +41,7 @@ import {
   forceHydrateProfileFromSupabase
 } from '@/utils/profileUtils';
 import { sendCommunityNotificationViaBridge } from '@/utils/supabaseAuthClaimBridge';
+import { safeExternalUrl } from '@/utils/safeExternalUrl';
 import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
 import { getAvatarByUserId } from '@/app/components/user-avatars';
 import { SearchResultCard } from '@/app/components/search-result-card';
@@ -283,12 +284,6 @@ export function EnhancedProfile({
     connectedAddress.toLowerCase() === profileAddress.toLowerCase();
   const { orders: canonicalOrders, isLoading: isOrdersLoading } = useUserOrders(profileAddress);
 
-  console.log('🔍 [EnhancedProfile] REBUILT Profile System:');
-  console.log('   Connected Wallet:', connectedAddress);
-  console.log('   Profile Address:', profileAddress);
-  console.log('   Is Own Profile?', isOwnProfile);
-  console.log('   Mode:', isOwnProfile ? '👤 OWNER (Edit Mode)' : '👁️ VISITOR (View Mode)');
-
   useEffect(() => {
     if (!connectedAddress || !profileAddress || isOwnProfile) {
       setIsFollowingProfile(false);
@@ -334,18 +329,14 @@ export function EnhancedProfile({
   // ✅ SIMPLIFIED: Load profile on mount - address-based only
   useEffect(() => {
     if (!profileAddress) {
-      console.log('⚠️ [EnhancedProfile] No profile address available');
       return;
     }
-
-    console.log('📂 [EnhancedProfile] Loading profile for:', profileAddress);
 
     // Try to load profile by address
     let userProfile = loadUserProfile(profileAddress);
 
     // If not found, create a new profile
     if (!userProfile) {
-      console.log('✨ [EnhancedProfile] Creating new profile for:', profileAddress);
       userProfile = createDefaultProfile(profileAddress);
       if (isOwnProfile) {
         saveUserProfile(userProfile);
@@ -361,11 +352,9 @@ export function EnhancedProfile({
     // ✅ WALLET IDENTITY: Compute unified wallet data
     const identity = getWalletIdentity(profileAddress);
     setWalletIdentity(identity);
-    console.log('🆔 [WalletIdentity] Loaded for profile:', identity.address.slice(0, 10));
 
     // ✅ CRITICAL: Only sync to UserContext if viewing OWN profile
     if (isOwnProfile && connectedAddress) {
-      console.log('✅ [EnhancedProfile] Syncing to UserContext (OWN profile)');
       updateUserData({
         address: profileAddress,
         displayName: userProfile.displayName,
@@ -377,8 +366,6 @@ export function EnhancedProfile({
         twitter: userProfile.socialLinks?.twitter,
         website: userProfile.socialLinks?.website,
       });
-    } else {
-      console.log('👁️ [EnhancedProfile] VISITOR mode - NOT syncing to UserContext');
     }
   }, [profileAddress, connectedAddress, isOwnProfile]);
 
@@ -710,8 +697,6 @@ export function EnhancedProfile({
   };
 
   const handleCardClick = (assetId: string) => {
-    console.log('Card clicked, assetId:', assetId);
-    console.log('onNavigateToAsset function:', onNavigateToAsset);
     if (onNavigateToAsset) {
       onNavigateToAsset(assetId, 'profile');
     } else {
@@ -900,11 +885,6 @@ export function EnhancedProfile({
     setProfile(updatedProfile);
     saveUserProfile(updatedProfile);
 
-    console.log('[Orina Profile] Saving profile updates:', updates);
-    console.log('[Orina Profile] Updated profile:', updatedProfile);
-    console.log('[Orina Profile] Profile ID:', updatedProfile.id);
-    console.log('[Orina Profile] Display name:', updatedProfile.displayName);
-
     // Sync all updated fields to UserContext
     updateUserData({
       address: profileAddress,
@@ -918,12 +898,9 @@ export function EnhancedProfile({
       website: updatedProfile.socialLinks?.website,
     });
 
-    console.log('[Orina Profile] Synced to UserContext');
-
     // ✅ Refresh WalletIdentity after profile changes
     const refreshedIdentity = getWalletIdentity(profileAddress);
     setWalletIdentity(refreshedIdentity);
-    console.log('[Orina Profile] WalletIdentity refreshed after save');
 
     setIsEditModalOpen(false);
     toast.success('Profile updated successfully!');
@@ -1058,7 +1035,7 @@ export function EnhancedProfile({
                   )}
                   {profile.socialLinks.discord && (
                     <a
-                      href={profile.socialLinks.discord}
+                      href={safeExternalUrl(profile.socialLinks.discord)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={bannerIconButtonClassName}
@@ -1069,7 +1046,7 @@ export function EnhancedProfile({
                   )}
                   {profile.socialLinks.telegram && (
                     <a
-                      href={profile.socialLinks.telegram}
+                      href={safeExternalUrl(profile.socialLinks.telegram)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={bannerIconButtonClassName}
@@ -1080,7 +1057,7 @@ export function EnhancedProfile({
                   )}
                   {profile.socialLinks.website && (
                     <a
-                      href={profile.socialLinks.website}
+                      href={safeExternalUrl(profile.socialLinks.website)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={bannerIconButtonClassName}

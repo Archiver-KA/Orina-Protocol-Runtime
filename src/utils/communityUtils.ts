@@ -1099,7 +1099,7 @@ export async function savePost(post: Post): Promise<void> {
     if (shouldBlockGuestCommunityWrite('savePost')) return;
     const normalizedPost = normalizePostRecord(post);
     if (!normalizedPost) {
-      console.error('[Community] Refused to save invalid post payload:', post);
+      console.error('[Community] Refused to save invalid post payload');
       return;
     }
     await syncPostToSupabase(normalizedPost);

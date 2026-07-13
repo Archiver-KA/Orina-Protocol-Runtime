@@ -1,0 +1,12 @@
+/*
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://bsc-dataseed.binance.org https://data-seed-prebsc-1-s1.bnbchain.org:8545 https://sepolia.base.org https://sepolia-rollup.arbitrum.io https://*.publicnode.com https://api.avax-test.network https://worldchain-sepolia.g.alchemy.com https://eth.merkle.io wss://data-stream.binance.vision https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com https://server.arcgisonline.com https://fonts.openmaptiles.org; worker-src 'self' blob:; frame-src 'self' https://verify.walletconnect.org https://verify.walletconnect.com; manifest-src 'self'; upgrade-insecure-requests
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), clipboard-write=(self), fullscreen=(self)
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+  Cross-Origin-Resource-Policy: same-origin
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

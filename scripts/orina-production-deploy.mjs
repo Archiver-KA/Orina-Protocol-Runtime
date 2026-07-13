@@ -6,6 +6,7 @@ const repo = 'Archiver-KA/Orina-Protocol-Runtime';
 const workflow = 'supabase-production-deploy.yml';
 const workflowName = 'Supabase Production Deploy';
 const productionEnvironment = 'production';
+const productionProjectRef = 'ystjugghyteyylkevbsl';
 const defaultApprovalRecord = 'audit/deployment-approval-contract.json';
 const requiredSecretNames = [
   'SUPABASE_ACCESS_TOKEN',
@@ -105,10 +106,49 @@ function validateSecretShapes() {
   if (!/^[a-z0-9]{20}$/.test(projectRef)) {
     fail('SUPABASE_PROJECT_REF must look like a 20-character Supabase project ref.');
   }
+  if (projectRef !== productionProjectRef) {
+    fail('SUPABASE_PROJECT_REF does not match the canonical Orina production project.');
+  }
 
   const anonKey = envValue('VITE_SUPABASE_ANON_KEY');
   if (anonKey.length < 40) {
     fail('VITE_SUPABASE_ANON_KEY is present but too short to be a valid anon key.');
+  }
+
+  const publicProjectId = envValue('VITE_SUPABASE_PROJECT_ID');
+  if (publicProjectId && publicProjectId !== projectRef) {
+    fail('VITE_SUPABASE_PROJECT_ID does not match SUPABASE_PROJECT_REF.');
+  }
+
+  const publicUrl = envValue('VITE_SUPABASE_URL');
+  if (publicUrl) {
+    let parsedPublicUrl;
+    try {
+      parsedPublicUrl = new URL(publicUrl);
+    } catch {
+      fail('VITE_SUPABASE_URL must be a parseable HTTPS URL.');
+    }
+    if (
+      parsedPublicUrl.protocol !== 'https:'
+      || parsedPublicUrl.hostname.toLowerCase() !== `${projectRef}.supabase.co`
+    ) {
+      fail('VITE_SUPABASE_URL does not match SUPABASE_PROJECT_REF.');
+    }
+  }
+
+  const jwtPayload = anonKey.split('.')[1] || '';
+  if (jwtPayload) {
+    try {
+      const normalized = jwtPayload.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+      const jwtProjectRef = String(JSON.parse(Buffer.from(padded, 'base64').toString('utf8'))?.ref || '');
+      if (jwtProjectRef && jwtProjectRef !== projectRef) {
+        fail('VITE_SUPABASE_ANON_KEY does not belong to SUPABASE_PROJECT_REF.');
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('does not belong')) throw error;
+      fail('VITE_SUPABASE_ANON_KEY contains a malformed JWT payload.');
+    }
   }
 
   const dbUrl = envValue('SUPABASE_DB_AUDIT_URL');
@@ -131,6 +171,12 @@ function validateSecretShapes() {
   }
   if (!parsed.port) {
     fail('SUPABASE_DB_AUDIT_URL must include an explicit port.');
+  }
+
+  const dbUsername = decodeURIComponent(parsed.username).toLowerCase();
+  const dbHostname = parsed.hostname.toLowerCase();
+  if (!dbUsername.includes(projectRef) && !dbHostname.includes(projectRef)) {
+    fail('SUPABASE_DB_AUDIT_URL does not identify SUPABASE_PROJECT_REF.');
   }
 
   log('secret_shape_validation', 'passed');

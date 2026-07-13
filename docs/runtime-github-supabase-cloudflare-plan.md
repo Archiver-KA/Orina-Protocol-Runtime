@@ -326,7 +326,7 @@ Do not put frontend-incompatible secrets into the Cloudflare Worker build:
 - `VITE_SUPABASE_AI_M2M_FN_NAME=orina-ai-m2m-v2`
 - `VITE_SUPABASE_SHARED_SERVER_FN_NAME=make-server-b0d68fc8`
 - `VITE_SUPABASE_AUTH_BRIDGE_ENABLED=true`
-- `VITE_ENABLE_SUPABASE_CONFIG_FALLBACK=true`
+- `VITE_ENABLE_SUPABASE_CONFIG_FALLBACK=false`
 - `VITE_M2M_DELEGATION_MANAGER=0xb27C8eCc266423dDA3323983Ae3a2eF691ed8a13`
 - `VITE_M2M_AI_WALLET_FACTORY_V2=0xD838268fa8dF6AFD1Fd79D9C0Fd243A3D23D0441`
 
@@ -336,8 +336,8 @@ Operational notes:
 - push to `main` should remain the only production trigger
 - local `wrangler deploy` should be treated as emergency-only and followed by a normal Git push sync
 - public Supabase config is resolved as one atomic tuple: URL, project ref, and public key
-- when fallback is enabled, missing, stale, or cross-project build variables resolve to the canonical
-  v3.5 public fallback; when fallback is disabled, inconsistent config fails closed
+- missing, stale, or cross-project build variables fail closed; the browser no longer embeds a
+  fallback project URL or public key
 
 ### Marketplace incident check (2026-06-22)
 

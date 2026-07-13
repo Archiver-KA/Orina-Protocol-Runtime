@@ -25,6 +25,9 @@ function main() {
   const securityScan = read('scripts/security-scan-system.mjs');
   const cdpSmoke = read('scripts/smoke-cdp-readonly-security.mjs');
   const m2m = read('supabase/functions/server/ai-m2m-wallet.ts');
+  const m2mMigration = read('supabase/migrations/000083_m2m_atomic_relational_state.sql');
+  const conversationEngine = read('supabase/functions/server/orina-ai-engine-v2.tsx');
+  const conversationCutover = read('supabase/migrations/000084_ai_conversation_relational_cutover.sql');
   const cors = read('supabase/functions/server/edge-app.ts');
   const freshness = read('scripts/verify-marketplace-browse-freshness.mjs');
   const dataApiGrantVerifier = read('scripts/verify-supabase-public-data-api-grants.mjs');
@@ -44,6 +47,14 @@ function main() {
       'client secret scan is available as an npm script',
       scripts['security:check-client-secrets'] === 'node scripts/check-client-no-privileged-supabase-secrets.mjs',
       'package.json maps security:check-client-secrets to the privileged-secret scanner.',
+    ),
+    check(
+      'tracked-source secret scan is available and release-gated',
+      scripts['security:check-tracked-secrets'] === 'node scripts/check-tracked-secrets.mjs' &&
+        exists('scripts/check-tracked-secrets.mjs') &&
+        /check-tracked-secrets\.mjs/.test(securityScan) &&
+        /npm run security:scan/.test(workflow),
+      'security:scan invokes the tracked/unignored high-confidence secret scanner and the release workflow runs security:scan.',
     ),
     check(
       'deterministic build verification is available',
@@ -126,7 +137,7 @@ function main() {
     ),
     check(
       'release CI uploads provenance artifacts',
-      /actions\/upload-artifact@v4/.test(workflow) &&
+      /actions\/upload-artifact@[0-9a-f]{40}/.test(workflow) &&
         /audit\/sbom\.cdx\.json/.test(workflow) &&
         /audit\/release-manifest\.unsigned\.json/.test(workflow),
       '.github/workflows/protocol-release-gate.yml uploads the SBOM and unsigned release manifest.',
@@ -158,7 +169,8 @@ function main() {
     ),
     check(
       'connected smoke remains manual-only',
-      /github\.event_name == 'workflow_dispatch' && inputs\.run_connected_smoke/.test(workflow),
+      /github\.event_name == 'workflow_dispatch'[^}\r\n]*inputs\.run_connected_smoke/.test(workflow) &&
+        /environment:\s*wallet-smoke/.test(workflow),
       'connected-protocol-smoke job is gated by workflow_dispatch and run_connected_smoke.',
     ),
     check(
@@ -173,8 +185,10 @@ function main() {
     ),
     check(
       'M2M invite replay is rejected',
-      /invite\.status !== 'pending'/.test(m2m) && /status:\s*'claimed'/.test(m2m),
-      'accept-invite rejects non-pending invites and marks successful claims as claimed.',
+      /FOR UPDATE/i.test(m2mMigration) &&
+        /v_invite\.status <> 'pending'/.test(m2mMigration) &&
+        /status = 'claimed'/.test(m2mMigration),
+      'The atomic claim RPC locks the invite, rejects non-pending state, and marks successful claims as claimed.',
     ),
     check(
       'M2M invite creation and accept are rate limited',
@@ -192,6 +206,20 @@ function main() {
       !/return\s+c\.json\([^)]*privateKey/s.test(m2m) &&
         !/\bsuccess:\s*true[^}]*privateKey/s.test(m2m),
       'No privateKey return pattern was found in M2M JSON responses.',
+    ),
+    check(
+      'AI conversations use relational storage only',
+      !/kv_store|\bkv\./.test(conversationEngine) &&
+        /\.from\('agent_threads'\)/.test(conversationEngine) &&
+        /\.from\('agent_messages'\)/.test(conversationEngine),
+      'Conversation ownership, history, list, and delete operations use agent_threads/agent_messages.',
+    ),
+    check(
+      'Legacy KV runtime access is revoked after backfill',
+      /legacy-kv-cutover-000084/.test(conversationCutover) &&
+        /REVOKE ALL ON TABLE public\.kv_store_b0d68fc8 FROM service_role;/i.test(conversationCutover),
+      'Migration 000084 backfills wallet-scoped conversations and revokes service-role Data API access to legacy KV.',
+      'The migration must be applied in the same approved maintenance window as the relational-only Edge deployment.',
     ),
     check(
       'CORS blocks localhost in production mode',

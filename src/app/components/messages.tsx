@@ -437,18 +437,16 @@ export function Messages({
     
     try {
       messagesLoadInFlightRef.current = { conversationId: conversationKey, silent };
-      console.log('[Messages] Loading messages for conversation:', conversationId);
       const result = await MessagesClient.getMessages(String(conversationId), currentAddress);
       messagesPollErrorStreakRef.current = 0;
       messagesPollBackoffUntilRef.current = 0;
       
       // ✅ FIX: Guard against stale response - only update if this conversation is still active
       if (activeConversationRef.current !== conversationId || latestMessagesRequestRef.current !== requestId) {
-        console.log('[Messages] Discarding stale response for conversation:', conversationId);
+        console.log('[Messages] Discarding stale conversation response');
         return;
       }
       
-      console.log('[Messages] Received messages:', result.messages);
 
       // If backend reports the conversation no longer exists (e.g. reset/deleted),
       // clear stale UI cache for that thread instead of preserving old local state.
@@ -485,7 +483,6 @@ export function Messages({
         return;
       }
       
-      console.log('[Messages] Transformed messages:', transformed);
       setConversationMessagesFor(conversationId, (prev) => {
         const confirmedPrev = prev.filter(
           (msg: any) => !String(msg.id).startsWith('temp_')

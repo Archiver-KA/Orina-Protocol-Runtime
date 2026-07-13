@@ -11,6 +11,7 @@ import {
 } from '@/utils/resilience';
 
 type Json = Record<string, any> | any[];
+type RestAuthMode = 'public' | 'required';
 
 export class SupabaseRestError extends Error {
   status?: number;
@@ -36,8 +37,10 @@ function restBase(): string {
   return `${supabaseUrl.replace(/\/+$/, '')}/rest/v1`;
 }
 
-function buildHeaders(extra?: Record<string, string>): Record<string, string> {
-  const bearerToken = getSupabaseBridgeAccessToken() || publicAnonKey;
+function buildHeaders(
+  bearerToken: string,
+  extra?: Record<string, string>,
+): Record<string, string> {
   return {
     apikey: publicAnonKey,
     Authorization: `Bearer ${bearerToken}`,
@@ -71,19 +74,32 @@ function buildRestResiliencePolicy(path: string, init: RequestInit): ResilientFe
   };
 }
 
-async function requestJson<T = any>(path: string, init: RequestInit = {}): Promise<T> {
+async function resolveBearerToken(authMode: RestAuthMode): Promise<string> {
+  const existingToken = getSupabaseBridgeAccessToken();
+  if (existingToken) return existingToken;
+  if (authMode === 'public') return publicAnonKey;
+
+  if (!isSupabaseAuthClaimBridgeEnabled()) {
+    throw new SupabaseRestError('A secure Orina session is required for this write.', 401);
+  }
+
+  const token = await ensureSupabaseBridgeAccessToken({ promptOnAuthMissing: false });
+  if (!token) {
+    throw new SupabaseRestError('A secure Orina session is required for this write.', 401);
+  }
+  return token;
+}
+
+async function requestJson<T = any>(
+  path: string,
+  init: RequestInit = {},
+  authMode: RestAuthMode = 'required',
+): Promise<T> {
   if (!isSupabaseRestEnabled()) {
     throw new SupabaseRestError('Supabase REST is not configured');
   }
 
-  if (isSupabaseAuthClaimBridgeEnabled() && !getSupabaseBridgeAccessToken()) {
-    try {
-      await ensureSupabaseBridgeAccessToken({ promptOnAuthMissing: false });
-    } catch (error) {
-      // Fall back to anon key path until bridge is fully deployed/available.
-      console.debug('[SupabaseRest] Claim bridge exchange skipped:', error);
-    }
-  }
+  const bearerToken = await resolveBearerToken(authMode);
 
   let res: Response;
   try {
@@ -91,7 +107,7 @@ async function requestJson<T = any>(path: string, init: RequestInit = {}): Promi
       buildUrl(path),
       {
         ...init,
-        headers: buildHeaders(init.headers as Record<string, string> | undefined),
+        headers: buildHeaders(bearerToken, init.headers as Record<string, string> | undefined),
       },
       buildRestResiliencePolicy(path, init),
     );
@@ -144,7 +160,7 @@ export function toQuery(params: Record<string, string | undefined>): string {
 }
 
 export async function restSelect<T = any>(table: string, query = ''): Promise<T[]> {
-  return requestJson<T[]>(`/${table}${query}`);
+  return requestJson<T[]>(`/${table}${query}`, {}, 'public');
 }
 
 export async function restInsert<T = any>(table: string, rows: Json, query = ''): Promise<T[]> {
@@ -213,6 +229,14 @@ export function isSupabaseConnectivityIssue(error: unknown): boolean {
   if (!(error instanceof SupabaseRestError)) return isResilienceError(error);
   if (error.payload?.resilienceCode) return true;
   return (error.status ?? 0) >= 500;
+}
+
+/** Explicitly allowlisted read/telemetry RPCs that are designed for anon callers. */
+export async function restPublicRpc<T = any>(fnName: string, args: Record<string, any> = {}): Promise<T> {
+  return requestJson<T>(`/rpc/${fnName}`, {
+    method: 'POST',
+    body: JSON.stringify(args),
+  }, 'public');
 }
 
 function localMapKey(kind: string, key: string): string {

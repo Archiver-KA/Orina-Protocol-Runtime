@@ -1,6 +1,7 @@
-import { Context, Hono } from 'npm:hono';
-import { createClient } from 'npm:@supabase/supabase-js';
+import { Context, Hono } from 'npm:hono@4.12.29';
+import { createClient } from 'npm:@supabase/supabase-js@2.100.1';
 import { requireAuthenticatedWallet } from './request-auth.ts';
+import { checkRateLimit, rateLimitExceededResponse } from './rate-limiter.ts';
 
 const apiKeysHandler = new Hono();
 
@@ -115,16 +116,19 @@ apiKeysHandler.get('/api-keys/list', async (c: Context) => {
   try {
     const auth = await requireAuthenticatedWallet(c);
     if (!auth.ok) return auth.response;
+    const rate = await checkRateLimit('api_key_read', auth.identity.walletAddress);
+    if (!rate.allowed) return rateLimitExceededResponse(c, rate);
 
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('api_credentials')
       .select(API_KEY_SELECT)
       .eq('wallet_address', auth.identity.walletAddress)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(100);
 
     if (error) {
-      return c.json({ error: `Unable to load API keys: ${error.message}` }, 500);
+      return c.json({ error: 'Unable to load API keys' }, 500);
     }
 
     const rows = (data ?? []) as unknown as ApiCredentialRow[];
@@ -136,7 +140,7 @@ apiKeysHandler.get('/api-keys/list', async (c: Context) => {
   } catch (error) {
     console.error('[API Keys] Failed to list keys:', error);
     return c.json(
-      { error: error instanceof Error ? error.message : 'Unable to load API keys' },
+      { error: 'Unable to load API keys' },
       500,
     );
   }
@@ -146,20 +150,46 @@ apiKeysHandler.post('/api-keys/generate', async (c: Context) => {
   try {
     const auth = await requireAuthenticatedWallet(c);
     if (!auth.ok) return auth.response;
+    const rate = await checkRateLimit('api_key_write', auth.identity.walletAddress);
+    if (!rate.allowed) return rateLimitExceededResponse(c, rate);
 
     const body = await c.req.json().catch(() => ({}));
     const keyName = String(body?.name || '').trim();
-    if (!keyName) {
-      return c.json({ error: 'Key name is required' }, 400);
+    if (!keyName || keyName.length > 120) {
+      return c.json({ error: 'Key name is required and must not exceed 120 characters' }, 400);
+    }
+    const hasExpiryInput = body?.expiresInDays !== null
+      && body?.expiresInDays !== undefined
+      && body?.expiresInDays !== '';
+    const expiresInDays = parseExpiresInDays(body?.expiresInDays);
+    if (hasExpiryInput && expiresInDays === null) {
+      return c.json({ error: 'expiresInDays must be a positive integer no greater than 3650' }, 400);
     }
 
     const permissions = normalizePermissions(body?.permissions);
-    const expiresAt = buildExpiryIso(parseExpiresInDays(body?.expiresInDays));
+    const expiresAt = buildExpiryIso(expiresInDays);
     const rawKey = buildRawKey();
     const keyHash = await sha256Hex(rawKey);
     const keyPrefix = rawKey.slice(0, 16);
 
     const supabase = getSupabaseClient();
+    const { data: existingRows, error: existingError } = await supabase
+      .from('api_credentials')
+      .select('id,is_active,revoked_at,expires_at')
+      .eq('wallet_address', auth.identity.walletAddress)
+      .limit(100);
+    if (existingError) return c.json({ error: 'Unable to verify API key quota' }, 500);
+    if ((existingRows || []).length >= 100) {
+      return c.json({ error: 'API key history limit reached; delete unused keys before creating another' }, 409);
+    }
+    const activeCount = (existingRows || []).filter((row) => (
+      row.is_active
+      && !row.revoked_at
+      && (!row.expires_at || Date.parse(row.expires_at) > Date.now())
+    )).length;
+    if (activeCount >= 20) {
+      return c.json({ error: 'Maximum active API key limit reached' }, 409);
+    }
     const { data, error } = await supabase
       .from('api_credentials')
       .insert({
@@ -175,7 +205,7 @@ apiKeysHandler.post('/api-keys/generate', async (c: Context) => {
       .single();
 
     if (error) {
-      return c.json({ error: `Unable to create API key: ${error.message}` }, 500);
+      return c.json({ error: 'Unable to create API key' }, 500);
     }
 
     if (!data) {
@@ -194,7 +224,7 @@ apiKeysHandler.post('/api-keys/generate', async (c: Context) => {
   } catch (error) {
     console.error('[API Keys] Failed to generate key:', error);
     return c.json(
-      { error: error instanceof Error ? error.message : 'Unable to generate API key' },
+      { error: 'Unable to generate API key' },
       500,
     );
   }
@@ -204,6 +234,8 @@ apiKeysHandler.patch('/api-keys/:id/revoke', async (c: Context) => {
   try {
     const auth = await requireAuthenticatedWallet(c);
     if (!auth.ok) return auth.response;
+    const rate = await checkRateLimit('api_key_write', auth.identity.walletAddress);
+    if (!rate.allowed) return rateLimitExceededResponse(c, rate);
 
     const keyId = parseKeyId(c.req.param('id'));
     if (!keyId) {
@@ -223,7 +255,7 @@ apiKeysHandler.patch('/api-keys/:id/revoke', async (c: Context) => {
       .maybeSingle();
 
     if (error) {
-      return c.json({ error: `Unable to revoke API key: ${error.message}` }, 500);
+      return c.json({ error: 'Unable to revoke API key' }, 500);
     }
     if (!data) {
       return c.json({ error: 'API key not found' }, 404);
@@ -235,7 +267,7 @@ apiKeysHandler.patch('/api-keys/:id/revoke', async (c: Context) => {
   } catch (error) {
     console.error('[API Keys] Failed to revoke key:', error);
     return c.json(
-      { error: error instanceof Error ? error.message : 'Unable to revoke API key' },
+      { error: 'Unable to revoke API key' },
       500,
     );
   }
@@ -245,6 +277,8 @@ apiKeysHandler.delete('/api-keys/:id', async (c: Context) => {
   try {
     const auth = await requireAuthenticatedWallet(c);
     if (!auth.ok) return auth.response;
+    const rate = await checkRateLimit('api_key_write', auth.identity.walletAddress);
+    if (!rate.allowed) return rateLimitExceededResponse(c, rate);
 
     const keyId = parseKeyId(c.req.param('id'));
     if (!keyId) {
@@ -259,14 +293,14 @@ apiKeysHandler.delete('/api-keys/:id', async (c: Context) => {
       .eq('wallet_address', auth.identity.walletAddress);
 
     if (error) {
-      return c.json({ error: `Unable to delete API key: ${error.message}` }, 500);
+      return c.json({ error: 'Unable to delete API key' }, 500);
     }
 
     return c.json({ success: true });
   } catch (error) {
     console.error('[API Keys] Failed to delete key:', error);
     return c.json(
-      { error: error instanceof Error ? error.message : 'Unable to delete API key' },
+      { error: 'Unable to delete API key' },
       500,
     );
   }

@@ -7,13 +7,20 @@ const APP_FUNCTION_RULES = new Map([
   ['assets_catalog_apply_metadata_defaults_v1()', { roles: ['postgres', 'service_role'], searchPath: 'public' }],
   ['assets_catalog_projection_is_visible_v1(p_asset_id uuid, p_chain_id bigint, p_contract_address text, p_token_id text)', { roles: ['anon', 'authenticated', 'postgres', 'service_role'], searchPath: 'public' }],
   ['agent_thread_sync_stats(tid text)', { roles: ['postgres', 'service_role'], searchPath: 'public' }],
+  ['atp2_claim_m2m_delegate_invite_v1(p_invite_id text, p_claimed_wallet_address text, p_delegate_id text)', { roles: ['postgres', 'service_role'], searchPath: 'pg_catalog, public' }],
+  ['atp2_create_m2m_delegate_invite_v1(p_id text, p_root_wallet_address text, p_expires_at timestamp with time zone)', { roles: ['postgres', 'service_role'], searchPath: 'pg_catalog, public' }],
   ['atp2_is_conversation_participant_v1(p_conversation_id uuid)', { roles: ['authenticated', 'postgres', 'service_role'], searchPath: 'public' }],
+  ['atp2_register_m2m_managed_delegate_v1(p_id text, p_root_wallet_address text, p_delegate_address text, p_label text, p_iv_hex text, p_ciphertext_hex text)', { roles: ['postgres', 'service_role'], searchPath: 'pg_catalog, public' }],
   ['get_asset_listing_stats_v1(p_asset_uids text[])', { roles: ['anon', 'authenticated', 'postgres', 'service_role'], searchPath: 'public' }],
   ['increment_thread_message_count(tid text)', { roles: ['postgres', 'service_role'], searchPath: 'public' }],
   ['protocol_projection_is_visible_v1(p_entity_type text, p_chain_id bigint, p_contract_address text, p_entity_uid text)', { roles: ['anon', 'authenticated', 'postgres', 'service_role'], searchPath: 'public' }],
   ['rate_limit_cleanup()', { roles: ['postgres', 'service_role'], searchPath: 'public' }],
   ['rate_limit_increment(p_scope_key text, p_endpoint text, p_wallet text, p_window_start timestamp with time zone)', { roles: ['postgres', 'service_role'], searchPath: 'public' }],
   ['record_asset_view_v1(p_asset_uid text, p_viewer_key text, p_wallet_address text)', { roles: ['anon', 'authenticated', 'postgres', 'service_role'], searchPath: 'public' }],
+  [
+    'submit_profile_review_v2(p_chain_id bigint, p_marketplace_contract text, p_order_uid text, p_reviewed_wallet text, p_rating_type text, p_overall_rating numeric, p_communication_rating numeric, p_delivery_rating numeric, p_accuracy_rating numeric, p_review_text text, p_asset_uid text, p_asset_name text)',
+    { roles: ['authenticated', 'postgres'], searchPath: 'pg_catalog, public' },
+  ],
 ]);
 
 const REVIEWED_PRIVILEGED_FUNCTION_RULES = new Map([
@@ -161,10 +168,9 @@ function parseExecuteRoles(proacl) {
 
 function parseSearchPath(proconfig) {
   if (!proconfig || proconfig === 'NULL') return null;
-  for (const entry of proconfig.split(',')) {
-    const [key, value] = entry.split('=', 2);
-    if (key === 'search_path') return value || null;
-  }
+  const marker = 'search_path=';
+  const markerIndex = proconfig.indexOf(marker);
+  if (markerIndex >= 0) return proconfig.slice(markerIndex + marker.length).trim() || null;
   return null;
 }
 

@@ -1,0 +1,7 @@
+{
+  "name": "@orina/edge-functions",
+  "private": true,
+  "overrides": {
+    "ws": "8.21.0"
+  }
+}

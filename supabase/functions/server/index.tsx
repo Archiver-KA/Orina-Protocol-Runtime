@@ -1,10 +1,13 @@
-import { Hono } from "npm:hono";
-import { logger } from "npm:hono/logger";
+import { Hono } from "npm:hono@4.12.29";
 import aiChat from "./ai-chat.tsx";
 import aiAssist from "./ai-assist.ts";
 import aiM2MWallet from "./ai-m2m-wallet.ts";
 import apiKeysHandler from "./api-keys-handler.ts";
-import { registerCorsMiddleware } from "./edge-app.ts";
+import {
+  registerCorsMiddleware,
+  registerRequestBodyLimitMiddleware,
+  registerSafeRequestLogging,
+} from "./edge-app.ts";
 import { registerIdempotencyReplayMiddleware } from "./idempotency-replay.ts";
 import ipfsRouter from "./ipfs-upload.tsx";
 import sellerMintingRouter from "./seller-ai-minting-handler.ts";
@@ -37,10 +40,10 @@ function registerSharedRoutes(prefix: string) {
   app.route(sharedRoutePath(prefix, "auth/supabase-claim-bridge"), walletAuthClaimBridge);
 }
 
-// Enable logger
-app.use('*', logger(console.log));
+registerSafeRequestLogging(app);
 
 registerCorsMiddleware(app);
+registerRequestBodyLimitMiddleware(app);
 registerIdempotencyReplayMiddleware(app);
 
 for (const prefix of SHARED_ROUTE_PREFIXES) {

@@ -26,7 +26,7 @@ The shared bundle remains for:
 Use these client env defaults for split deploys:
 
 ```env
-VITE_SUPABASE_URL=https://vcixsdudkizgfikhmfuv.supabase.co
+VITE_SUPABASE_URL=https://ystjugghyteyylkevbsl.supabase.co
 VITE_SUPABASE_ANON_KEY=<anon-key>
 
 VITE_SUPABASE_FUNCTIONS_NAMESPACE=make-server-b0d68fc8
@@ -81,13 +81,13 @@ API grant deployment on unexecutable extension-table SQL.
 Deploy the isolated functions first, then the shared bundle and operational functions:
 
 ```bat
-supabase functions deploy orina-auth-bridge-v1 --project-ref vcixsdudkizgfikhmfuv
-supabase functions deploy orina-ai-m2m-v2 --project-ref vcixsdudkizgfikhmfuv
-supabase functions deploy orina-seller-minting-v1 --project-ref vcixsdudkizgfikhmfuv
-supabase functions deploy orina-receipt-sync-v1 --project-ref vcixsdudkizgfikhmfuv
-supabase functions deploy make-server-b0d68fc8 --project-ref vcixsdudkizgfikhmfuv
-supabase functions deploy orina-chat-v1 --project-ref vcixsdudkizgfikhmfuv
-supabase functions deploy orina-order-autotime-v1 --project-ref vcixsdudkizgfikhmfuv
+supabase functions deploy orina-auth-bridge-v1 --project-ref ystjugghyteyylkevbsl
+supabase functions deploy orina-ai-m2m-v2 --project-ref ystjugghyteyylkevbsl
+supabase functions deploy orina-seller-minting-v1 --project-ref ystjugghyteyylkevbsl
+supabase functions deploy orina-receipt-sync-v1 --project-ref ystjugghyteyylkevbsl
+supabase functions deploy make-server-b0d68fc8 --project-ref ystjugghyteyylkevbsl
+supabase functions deploy orina-chat-v1 --project-ref ystjugghyteyylkevbsl
+supabase functions deploy orina-order-autotime-v1 --project-ref ystjugghyteyylkevbsl
 ```
 
 Use this order whenever only one sensitive surface changes:
@@ -105,7 +105,7 @@ Use this order whenever only one sensitive surface changes:
 Bridge reachability:
 
 ```bat
-node supabase\audit\test_h1_claim_bridge_http.cjs https://vcixsdudkizgfikhmfuv.supabase.co <anon-jwt> orina-auth-bridge-v1
+node supabase\audit\test_h1_claim_bridge_http.cjs https://ystjugghyteyylkevbsl.supabase.co <anon-jwt> orina-auth-bridge-v1
 ```
 
 M2M reachability:
@@ -117,7 +117,7 @@ node supabase\audit\probe_ai_m2m_runtime.cjs
 Wallet claim security smoke:
 
 ```bat
-node supabase\audit\smoke_wallet_claim_security.cjs https://vcixsdudkizgfikhmfuv.supabase.co <anon-jwt> orina-auth-bridge-v1
+node supabase\audit\smoke_wallet_claim_security.cjs https://ystjugghyteyylkevbsl.supabase.co <anon-jwt> orina-auth-bridge-v1
 ```
 
 Positive auth + isolated route smoke:
@@ -138,7 +138,7 @@ Invoke-WebRequest `
   -UseBasicParsing `
   -Method Options `
   -Headers $headers `
-  -Uri https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/make-server-b0d68fc8/health
+  -Uri https://ystjugghyteyylkevbsl.supabase.co/functions/v1/make-server-b0d68fc8/health
 ```
 
 Expected: `Access-Control-Allow-Origin` equals the request origin and is never `*`. If a deployed function returns `*`, redeploy the updated Edge bundle before release.
@@ -147,11 +147,11 @@ Expected: `Access-Control-Allow-Origin` equals the request origin and is never `
 
 Production URLs should resolve to:
 
-- auth bridge: `https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/orina-auth-bridge-v1`
-- AI M2M: `https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/orina-ai-m2m-v2`
-- seller minting: `https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/orina-seller-minting-v1`
-- receipt sync: `https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/orina-receipt-sync-v1`
-- shared core: `https://vcixsdudkizgfikhmfuv.supabase.co/functions/v1/make-server-b0d68fc8`
+- auth bridge: `https://ystjugghyteyylkevbsl.supabase.co/functions/v1/orina-auth-bridge-v1`
+- AI M2M: `https://ystjugghyteyylkevbsl.supabase.co/functions/v1/orina-ai-m2m-v2`
+- seller minting: `https://ystjugghyteyylkevbsl.supabase.co/functions/v1/orina-seller-minting-v1`
+- receipt sync: `https://ystjugghyteyylkevbsl.supabase.co/functions/v1/orina-receipt-sync-v1`
+- shared core: `https://ystjugghyteyylkevbsl.supabase.co/functions/v1/make-server-b0d68fc8`
 
 ## Safety Notes
 

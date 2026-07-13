@@ -9,7 +9,7 @@ import {
   dispatchSyncEvent,
   encodeIn,
   isSupabaseRestEnabled,
-  restRpc,
+  restPublicRpc,
   restSelect,
   toQuery,
 } from '@/utils/supabaseRest';
@@ -263,7 +263,7 @@ async function fetchMarketplaceCatalogPageRowsViaRpc(
   limit: number,
 ): Promise<AssetCatalogPageRpcRow[] | null> {
   try {
-    return await restRpc<AssetCatalogPageRpcRow[]>(
+    return await restPublicRpc<AssetCatalogPageRpcRow[]>(
       'get_marketplace_catalog_page_v1',
       {
         p_limit: limit,
@@ -577,7 +577,7 @@ async function fetchCanonicalListingStats(assetIds: string[]): Promise<Map<strin
     const rowGroups = await Promise.all(
       chunkArray(uniqueIds).map(async (assetUidChunk) => {
         try {
-          const rows = await restRpc<AssetListingStatsRow[]>('get_asset_listing_stats_v1', {
+          const rows = await restPublicRpc<AssetListingStatsRow[]>('get_asset_listing_stats_v1', {
             p_asset_uids: assetUidChunk,
           });
           return Array.isArray(rows) ? rows : [];
@@ -1415,7 +1415,7 @@ export function incrementMarketplaceAssetView(assetId: string): void {
   const viewerKey = getMarketplaceViewerKey();
   if (!viewerKey || !isSupabaseRestEnabled()) return;
 
-  void restRpc<null>('record_asset_view_v1', {
+  void restPublicRpc<null>('record_asset_view_v1', {
     p_asset_uid: targetId,
     p_viewer_key: viewerKey,
     p_wallet_address: null,

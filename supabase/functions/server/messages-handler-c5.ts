@@ -8,8 +8,8 @@
  * Keeps the frontend API contract stable while migrating storage away from kv_store.
  */
 
-import { Context } from 'npm:hono';
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { Context } from 'npm:hono@4.12.29';
+import { createClient } from 'npm:@supabase/supabase-js@2.100.1';
 import type { AuthenticatedWalletIdentity } from './request-auth.ts';
 import {
   assertAuthenticatedWalletMatch,
@@ -17,6 +17,7 @@ import {
   requireAuthenticatedWallet,
 } from './request-auth.ts';
 import { checkRateLimit, rateLimitExceededResponse } from './rate-limiter.ts';
+import { validateVisionImageUrl } from './nvidia-nim-client.ts';
 
 // Types (compatible with existing frontend MessagesClient)
 export interface Message {
@@ -81,6 +82,26 @@ type DbMessageRow = {
   deleted_at: string | null;
 };
 
+const MAX_CONVERSATIONS_PER_WALLET = 100;
+const MAX_MESSAGES_PER_CONVERSATION = 500;
+const MAX_MESSAGES_FOR_CONVERSATION_LIST = 5_000;
+
+function isValidWalletAddress(value: unknown): boolean {
+  return /^0x[a-f0-9]{40}$/.test(normalizeAddress(String(value || '')));
+}
+
+function validateChatImage(value: unknown): { url: string; ipfsHash?: string } | null {
+  if (!value || typeof value !== 'object') return null;
+  const image = value as Record<string, unknown>;
+  if (typeof image.url !== 'string' || image.url.length > 2_048 || image.url.startsWith('data:')) return null;
+  const validation = validateVisionImageUrl(image.url);
+  if (!validation.valid) return null;
+  const ipfsHash = typeof image.ipfsHash === 'string' && image.ipfsHash.length <= 120
+    ? image.ipfsHash
+    : undefined;
+  return { url: validation.url, ipfsHash };
+}
+
 function normalizeAddress(address: string): string {
   return String(address || '').trim().toLowerCase();
 }
@@ -110,6 +131,9 @@ async function resolveOrCreateProfile(
   walletAddress: string
 ): Promise<DbProfileRow> {
   const normalized = normalizeAddress(walletAddress);
+  if (!isValidWalletAddress(normalized)) {
+    throw new Error('Invalid wallet address');
+  }
   const { data: existing, error: selectError } = await supabase
     .from('profiles')
     .select('id,wallet_address,display_name,avatar_url,status')
@@ -121,7 +145,10 @@ async function resolveOrCreateProfile(
   }
 
   const found = (existing?.[0] as DbProfileRow | undefined) || null;
-  if (found) return found;
+  if (found) {
+    if (found.status !== 'active') throw new Error('Profile is not active');
+    return found;
+  }
 
   const { data: inserted, error: insertError } = await supabase
     .from('profiles')
@@ -312,9 +339,10 @@ async function loadVisibleMessagesForConversations(
     .select('id,conversation_id,sender_user_id,client_message_id,body,attachments,metadata,created_at,edited_at,deleted_at')
     .in('conversation_id', conversationIds)
     .is('deleted_at', null)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false })
+    .limit(MAX_MESSAGES_FOR_CONVERSATION_LIST);
   if (error) throw new Error(`messages batch select failed: ${error.message}`);
-  return (data || []) as DbMessageRow[];
+  return ((data || []) as DbMessageRow[]).reverse();
 }
 
 async function buildConversationResponse(
@@ -375,7 +403,7 @@ async function sendMessageImpl(
     ? [{ kind: 'image', url: image.url, ipfsHash: image.ipfsHash || null }]
     : [];
 
-  const clientMessageId = `api_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const clientMessageId = `api_${crypto.randomUUID()}`;
   const { data: insertedRows, error: insertError } = await supabase
     .from('messages')
     .insert({
@@ -429,7 +457,9 @@ async function getUserConversationsImpl(address: string): Promise<{
   const { data: myParticipantRows, error: myParticipantError } = await supabase
     .from('conversation_participants')
     .select('conversation_id,user_id,role,joined_at,last_read_at')
-    .eq('user_id', profile.id);
+    .eq('user_id', profile.id)
+    .order('joined_at', { ascending: false })
+    .limit(MAX_CONVERSATIONS_PER_WALLET);
   if (myParticipantError) throw new Error(`conversation_participants list failed: ${myParticipantError.message}`);
   const mine = (myParticipantRows || []) as DbParticipantRow[];
   const conversationIds = mine.map((r) => r.conversation_id);
@@ -564,9 +594,10 @@ async function getConversationMessagesImpl(
     .from('messages')
     .select('id,conversation_id,sender_user_id,client_message_id,body,attachments,metadata,created_at,edited_at,deleted_at')
     .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false })
+    .limit(MAX_MESSAGES_PER_CONVERSATION);
   if (msgError) throw new Error(`messages get failed: ${msgError.message}`);
-  const msgRows = ((msgRowsRaw || []) as DbMessageRow[]).filter((m) => !m.deleted_at);
+  const msgRows = ((msgRowsRaw || []) as DbMessageRow[]).filter((m) => !m.deleted_at).reverse();
 
   const requesterWallet = userProfile?.wallet_address || wallet;
   const participantWallets = participantRows
@@ -672,6 +703,28 @@ async function deleteConversationImpl(
   if (error) throw new Error(`delete conversation participant row failed: ${error.message}`);
 }
 
+async function reportConversationHasParties(
+  supabase: ServiceSupabaseClient,
+  conversationId: string,
+  reporterWallet: string,
+  targetWallet: string,
+): Promise<boolean> {
+  const { data: profiles, error: profileError } = await supabase
+    .from('profiles')
+    .select('id,wallet_address,status')
+    .in('wallet_address', [reporterWallet, targetWallet])
+    .eq('status', 'active');
+  if (profileError || !profiles || profiles.length !== 2) return false;
+  const profileIds = profiles.map((profile) => profile.id);
+  const { data: participants, error: participantError } = await supabase
+    .from('conversation_participants')
+    .select('user_id')
+    .eq('conversation_id', conversationId)
+    .in('user_id', profileIds);
+  if (participantError) return false;
+  return new Set((participants || []).map((participant) => participant.user_id)).size === 2;
+}
+
 // ============================================================================
 // HTTP Handlers (same routes/contract as legacy handler)
 // ============================================================================
@@ -687,6 +740,12 @@ export async function handleCreateConversation(c: Context) {
     if (!sender || !receiver) {
       return c.json({ error: 'Missing sender or receiver' }, 400);
     }
+    if (!isValidWalletAddress(receiver) || normalizeAddress(sender) === normalizeAddress(receiver)) {
+      return c.json({ error: 'Receiver must be a different valid wallet address' }, 400);
+    }
+    if (displayName !== undefined && (typeof displayName !== 'string' || displayName.length > 200)) {
+      return c.json({ error: 'displayName exceeds the allowed length' }, 400);
+    }
 
     const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, sender, 'sender');
     if (mismatch) return mismatch;
@@ -698,7 +757,7 @@ export async function handleCreateConversation(c: Context) {
     return c.json({ success: true, conversation });
   } catch (error) {
     console.error('[Messages C5] Create conversation error:', error);
-    return c.json({ error: 'Failed to create conversation', details: error instanceof Error ? error.message : String(error) }, 500);
+    return c.json({ error: 'Failed to create conversation' }, 500);
   }
 }
 
@@ -716,6 +775,16 @@ export async function handleSendMessage(c: Context) {
     if (!text && !image) {
       return c.json({ error: 'Message must contain text or image' }, 400);
     }
+    if (!isValidWalletAddress(receiver) || normalizeAddress(sender) === normalizeAddress(receiver)) {
+      return c.json({ error: 'Receiver must be a different valid wallet address' }, 400);
+    }
+    if (text !== undefined && (typeof text !== 'string' || text.length > 10_000)) {
+      return c.json({ error: 'Message text exceeds the allowed length' }, 413);
+    }
+    const validatedImage = image === undefined || image === null ? undefined : validateChatImage(image);
+    if (image && !validatedImage) {
+      return c.json({ error: 'Message image URL is invalid or unapproved' }, 400);
+    }
 
     const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, sender, 'sender');
     if (mismatch) return mismatch;
@@ -723,11 +792,11 @@ export async function handleSendMessage(c: Context) {
     const rateCheck = await checkRateLimit('chat_send', auth.identity.walletAddress);
     if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
 
-    const result = await sendMessageImpl(sender, receiver, text || '', image);
+    const result = await sendMessageImpl(sender, receiver, typeof text === 'string' ? text : '', validatedImage || undefined);
     return c.json({ success: true, message: result.message, conversation: result.conversation });
   } catch (error) {
     console.error('[Messages C5] Send error:', error);
-    return c.json({ error: 'Failed to send message', details: error instanceof Error ? error.message : String(error) }, 500);
+    return c.json({ error: 'Failed to send message' }, 500);
   }
 }
 
@@ -751,7 +820,7 @@ export async function handleGetConversations(c: Context) {
     return c.json({ success: true, conversations: result.conversations, metadata: result.metadata });
   } catch (error) {
     console.error('[Messages C5] Get conversations error:', error);
-    return c.json({ error: 'Failed to get conversations', details: error instanceof Error ? error.message : String(error) }, 500);
+    return c.json({ error: 'Failed to get conversations' }, 500);
   }
 }
 
@@ -764,6 +833,9 @@ export async function handleGetMessages(c: Context) {
     const userAddress = c.req.query('userAddress');
     if (!conversationId) {
       return c.json({ error: 'Missing conversationId' }, 400);
+    }
+    if (conversationId.length > 200) {
+      return c.json({ error: 'Invalid conversationId' }, 400);
     }
     if (!userAddress?.trim()) {
       return c.json({ error: 'Missing userAddress' }, 400);
@@ -779,7 +851,7 @@ export async function handleGetMessages(c: Context) {
     return c.json({ success: true, messages: result.messages, conversation: result.conversation });
   } catch (error) {
     console.error('[Messages C5] Get messages error:', error);
-    return c.json({ error: 'Failed to get messages', details: error instanceof Error ? error.message : String(error) }, 500);
+    return c.json({ error: 'Failed to get messages' }, 500);
   }
 }
 
@@ -793,15 +865,18 @@ export async function handleMarkAsRead(c: Context) {
     if (!conversationId || !userAddress) {
       return c.json({ error: 'Missing conversationId or userAddress' }, 400);
     }
+    if (String(conversationId).length > 200) return c.json({ error: 'Invalid conversationId' }, 400);
 
     const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, userAddress, 'userAddress');
     if (mismatch) return mismatch;
+    const rateCheck = await checkRateLimit('chat_write', auth.identity.walletAddress);
+    if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
 
     await markConversationAsReadImpl(conversationId, userAddress);
     return c.json({ success: true });
   } catch (error) {
     console.error('[Messages C5] Mark as read error:', error);
-    return c.json({ error: 'Failed to mark as read', details: error instanceof Error ? error.message : String(error) }, 500);
+    return c.json({ error: 'Failed to mark as read' }, 500);
   }
 }
 
@@ -815,15 +890,18 @@ export async function handleDeleteConversation(c: Context) {
     if (!conversationId || !userAddress) {
       return c.json({ error: 'Missing conversationId or userAddress' }, 400);
     }
+    if (conversationId.length > 200) return c.json({ error: 'Invalid conversationId' }, 400);
 
     const mismatch = assertAuthenticatedWalletMatch(c, auth.identity, userAddress, 'userAddress');
     if (mismatch) return mismatch;
+    const rateCheck = await checkRateLimit('chat_write', auth.identity.walletAddress);
+    if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
 
     await deleteConversationImpl(conversationId, userAddress);
     return c.json({ success: true });
   } catch (error) {
     console.error('[Messages C5] Delete conversation error:', error);
-    return c.json({ error: 'Failed to delete conversation', details: error instanceof Error ? error.message : String(error) }, 500);
+    return c.json({ error: 'Failed to delete conversation' }, 500);
   }
 }
 
@@ -838,20 +916,41 @@ export async function handleReportMessage(c: Context) {
     if (!targetWallet || !reason) {
       return c.json({ error: 'Missing targetWallet or reason' }, 400);
     }
+    const normalizedTargetWallet = normalizeAddress(targetWallet);
+    if (
+      !isValidWalletAddress(normalizedTargetWallet)
+      || normalizedTargetWallet === auth.identity.walletAddress
+      || typeof reason !== 'string'
+      || reason.trim().length < 3
+      || reason.length > 120
+      || targetName !== undefined && (typeof targetName !== 'string' || targetName.length > 200)
+      || details !== undefined && (typeof details !== 'string' || details.length > 4_000)
+      || conversationId !== undefined && (typeof conversationId !== 'string' || conversationId.length > 200)
+    ) {
+      return c.json({ error: 'Invalid or oversized report payload' }, 400);
+    }
 
     const rateCheck = await checkRateLimit('moderation_report', auth.identity.walletAddress);
     if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    );
+    const supabase = getServiceSupabaseClient();
+    if (
+      conversationId
+      && !await reportConversationHasParties(
+        supabase,
+        conversationId,
+        auth.identity.walletAddress,
+        normalizedTargetWallet,
+      )
+    ) {
+      return c.json({ error: 'Conversation report scope does not match both parties' }, 403);
+    }
 
     const { error } = await supabase.from('message_reports').insert({
       reporter_wallet: auth.identity.walletAddress,
-      target_wallet: targetWallet,
+      target_wallet: normalizedTargetWallet,
       target_name: targetName || null,
-      reason,
+      reason: reason.trim(),
       details: details || null,
       conversation_id: conversationId || null,
       status: 'pending',
@@ -865,6 +964,6 @@ export async function handleReportMessage(c: Context) {
     return c.json({ success: true });
   } catch (error) {
     console.error('[Messages C5] Report error:', error);
-    return c.json({ error: 'Failed to submit report', details: error instanceof Error ? error.message : String(error) }, 500);
+    return c.json({ error: 'Failed to submit report' }, 500);
   }
 }

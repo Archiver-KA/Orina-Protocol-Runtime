@@ -1,10 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  buildWalletAuthMessage,
   clearWalletAuthSession,
   getWalletAuthSession,
   setWalletAuthSession,
 } from '@/utils/walletAuthSession';
+
+function buildChallengeMessage(address: string, signedAt: number) {
+  return [
+    'Orina Wallet Session Authentication',
+    '',
+    'Sign this message to authenticate your session in Orina.',
+    'No blockchain transaction or gas fee is required.',
+    '',
+    'Domain: app.orina.io',
+    'URI: https://app.orina.io',
+    `Address: ${address}`,
+    'Chain ID: 97',
+    `Nonce: ${'ab'.repeat(32)}`,
+    `Issued At: ${new Date(signedAt).toISOString()}`,
+    `Expiration Time: ${new Date(signedAt + 5 * 60 * 1000).toISOString()}`,
+  ].join('\n');
+}
 
 function createStorage() {
   const store = new Map();
@@ -29,17 +45,24 @@ describe('walletAuthSession', () => {
   const signature = '0xdeadbeef';
   const originalWindow = globalThis.window;
   const originalLocalStorage = globalThis.localStorage;
+  const originalSessionStorage = globalThis.sessionStorage;
 
   beforeEach(() => {
-    const storage = createStorage();
+    const localStorage = createStorage();
+    const sessionStorage = createStorage();
     Object.defineProperty(globalThis, 'localStorage', {
       configurable: true,
-      value: storage,
+      value: localStorage,
+    });
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      configurable: true,
+      value: sessionStorage,
     });
     Object.defineProperty(globalThis, 'window', {
       configurable: true,
       value: {
-        localStorage: storage,
+        localStorage,
+        sessionStorage,
         dispatchEvent: vi.fn(),
       },
     });
@@ -63,13 +86,22 @@ describe('walletAuthSession', () => {
         value: originalLocalStorage,
       });
     }
+
+    if (originalSessionStorage === undefined) {
+      Reflect.deleteProperty(globalThis, 'sessionStorage');
+    } else {
+      Object.defineProperty(globalThis, 'sessionStorage', {
+        configurable: true,
+        value: originalSessionStorage,
+      });
+    }
   });
 
   it('returns a stored session while it is still fresh', () => {
     const signedAt = Date.now();
     setWalletAuthSession(address, signature, {
       signedAt,
-      message: buildWalletAuthMessage(address, signedAt),
+      message: buildChallengeMessage(address, signedAt),
     });
 
     expect(getWalletAuthSession()).toMatchObject({
@@ -82,18 +114,18 @@ describe('walletAuthSession', () => {
     const signedAt = Date.now() - (8 * 24 * 60 * 60 * 1000);
     setWalletAuthSession(address, signature, {
       signedAt,
-      message: buildWalletAuthMessage(address, signedAt),
+      message: buildChallengeMessage(address, signedAt),
     });
 
     expect(getWalletAuthSession()).toBeNull();
-    expect(globalThis.localStorage.getItem('orina_wallet_auth_session')).toBeNull();
+    expect(globalThis.sessionStorage.getItem('orina_wallet_auth_session')).toBeNull();
   });
 
-  it('keeps a session that is only a few hours old', () => {
-    const signedAt = Date.now() - (6 * 60 * 60 * 1000);
+  it('keeps a session that is only a few minutes old', () => {
+    const signedAt = Date.now() - (2 * 60 * 1000);
     setWalletAuthSession(address, signature, {
       signedAt,
-      message: buildWalletAuthMessage(address, signedAt),
+      message: buildChallengeMessage(address, signedAt),
     });
 
     expect(getWalletAuthSession()).toMatchObject({
@@ -109,6 +141,6 @@ describe('walletAuthSession', () => {
     });
 
     expect(getWalletAuthSession()).toBeNull();
-    expect(globalThis.localStorage.getItem('orina_wallet_auth_session')).toBeNull();
+    expect(globalThis.sessionStorage.getItem('orina_wallet_auth_session')).toBeNull();
   });
 });

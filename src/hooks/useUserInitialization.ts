@@ -27,7 +27,6 @@ export function useUserInitialization() {
   useEffect(() => {
     // Handle wallet disconnect - active session state is cleared elsewhere; reset init marker here
     if (!isConnected && userData.address) {
-      console.log(`[Orina] Wallet disconnected, resetting initialization state`);
       initializedAddress.current = null; // Reset on disconnect
       // Don't clear anything - keep address for profile lookup on reconnect
       return;
@@ -48,8 +47,6 @@ export function useUserInitialization() {
         // Different wallet or first connection
         let hasExistingProfile = false;
         
-        console.log(`[Orina] Checking for existing profile...`);
-        
         // PRIORITY 1: Check Profile System (studio_user_profile_${userId})
         const savedProfile = loadUserProfileLocalOnlySnapshot(address);
         if (savedProfile) {
@@ -69,9 +66,6 @@ export function useUserInitialization() {
             website: savedProfile.socialLinks?.website,
           });
           
-          console.log(`[Orina] ✅ Loaded profile from Profile System`);
-          console.log(`[Orina] Display name: ${savedProfile.displayName || savedProfile.username}`);
-          console.log(`[Orina] Avatar URL: ${savedProfile.avatar || 'default'}`);
         }
         
         // PRIORITY 2: Create default profile if no existing profile found
@@ -88,10 +82,6 @@ export function useUserInitialization() {
             // Keep other fields undefined until user sets them
           });
           
-          console.log(`[Orina] 🆕 Initialized new user: ${address}`);
-          console.log(`[Orina] Default avatar: ${avatarType}`);
-          console.log(`[Orina] Default username: ${defaultUsername}`);
-          console.log(`[Orina] Default display name: ${defaultDisplayName}`);
         }
         
         // Mark this address as initialized
@@ -105,8 +95,6 @@ export function useUserInitialization() {
         // Same wallet but missing avatarType - add it
         const avatarType = getAvatarTypeForAddress(address);
         updateUserData({ avatarType });
-        console.log(`[Orina] Added missing avatarType: ${avatarType}`);
-        
         // Mark as initialized
         initializedAddress.current = address.toLowerCase();
         
@@ -156,11 +144,8 @@ function runDataMigration(address: string) {
   const migrationDone = localStorage.getItem(migrationKey);
   
   if (migrationDone === 'true') {
-    console.log(`[Migration] ✅ Already migrated for ${address}`);
     return;
   }
-  
-  console.log(`[Migration] 🔄 Starting data migration for ${address}...`);
   
   try {
     // ✅ PHASE 1: Migrate favorites (no userId needed - address-based only)
@@ -172,8 +157,7 @@ function runDataMigration(address: string) {
     // Mark migration as complete
     localStorage.setItem(migrationKey, 'true');
     
-    console.log(`[Migration] ✅ Migration complete for ${address}`);
-  } catch (error) {
-    console.error(`[Migration] ❌ Migration failed for ${address}:`, error);
+  } catch {
+    console.error('[Migration] Data migration failed');
   }
 }

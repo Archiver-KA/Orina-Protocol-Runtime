@@ -13,9 +13,11 @@
  *     Public health check
  */
 
-import { Context, Hono } from "npm:hono";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { Context, Hono } from "npm:hono@4.12.29";
+import { createClient } from "npm:@supabase/supabase-js@2.100.1";
+import { readBoundedJson } from "./bounded-response.ts";
 import { requireAuthenticatedWallet } from "./request-auth.ts";
+import { checkRateLimit, rateLimitExceededResponse } from "./rate-limiter.ts";
 
 const receiptSyncRouter = new Hono();
 
@@ -34,10 +36,6 @@ const CHAIN_ID = Number(Deno.env.get("RECEIPT_CHAIN_ID") || "97");
 // Verified via: cast keccak "ReceiptMinted(uint256,uint256,address,uint256,uint8)"
 const RECEIPT_MINTED_EVENT_TOPIC =
   "0x69648846b4d81dbed39e23805e28389a593e4eda60f4c02c8b4e5373bf2d7f9f";
-
-const BALANCE_OF_SELECTOR = "0x70a08231";
-const OWNER_OF_SELECTOR = "0x6352211e";
-const RECEIPTS_SELECTOR = "0x0f7ee1ec";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -65,32 +63,18 @@ function normalizeAddress(address: string): string {
   return String(address || "").trim().toLowerCase();
 }
 
-function encodeUint256(value: number | bigint): string {
-  return BigInt(value).toString(16).padStart(64, "0");
+function isServiceRoleRequest(c: Context): boolean {
+  const serviceKey = String(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "").trim();
+  if (!serviceKey) return false;
+  const authorization = String(c.req.header("Authorization") || "").trim();
+  const apiKey = String(c.req.header("apikey") || "").trim();
+  return authorization === `Bearer ${serviceKey}` || apiKey === serviceKey;
 }
 
-function encodeAddress(address: string): string {
-  return normalizeAddress(address).replace(/^0x/, "").padStart(64, "0");
-}
-
-function decodeWord(data: string, index: number): string {
-  const normalized = data.startsWith("0x") ? data.slice(2) : data;
-  const start = index * 64;
-  return normalized.slice(start, start + 64).padStart(64, "0");
-}
-
-function decodeAddressResult(data: string): string | null {
-  const normalized = data.startsWith("0x") ? data.slice(2) : data;
-  if (normalized.length < 64) return null;
-  return `0x${normalized.slice(normalized.length - 40)}`.toLowerCase();
-}
-
-async function sha256Hex(value: string): Promise<string> {
-  const input = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", input);
-  return `0x${Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("")}`;
+function boundedInteger(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(Math.floor(parsed), min), max);
 }
 
 interface ReceiptLog {
@@ -106,8 +90,8 @@ interface ReceiptLog {
 }
 
 interface ProtocolReceiptProjectionRow {
-  token_id: number;
-  order_id: number;
+  token_id: string;
+  order_id: string;
   owner_address: string;
   amount: string;
   asset_type: number;
@@ -170,9 +154,10 @@ async function rpcCall(method: string, params: unknown[]): Promise<unknown> {
       method,
       params,
     }),
+    signal: AbortSignal.timeout(20_000),
   });
-  const json = await res.json();
-  if (json.error) throw new Error(`RPC error: ${JSON.stringify(json.error)}`);
+  const json = await readBoundedJson<any>(res, 1024 * 1024);
+  if (json.error) throw new Error('RPC returned an error');
   return json.result;
 }
 
@@ -195,184 +180,6 @@ async function getLogs(
     },
   ]);
   return (result as any[]) || [];
-}
-
-async function ethCall(to: string, data: string): Promise<string> {
-  const result = await rpcCall("eth_call", [
-    {
-      to,
-      data,
-    },
-    "latest",
-  ]);
-  return String(result || "0x");
-}
-
-async function readReceiptBalance(walletAddress: string): Promise<number> {
-  const data = await ethCall(
-    RECEIPT_NFT_ADDRESS,
-    `${BALANCE_OF_SELECTOR}${encodeAddress(walletAddress)}`,
-  );
-  return Number(hexToBigInt(data));
-}
-
-async function readReceiptOwner(tokenId: number): Promise<string | null> {
-  try {
-    const data = await ethCall(
-      RECEIPT_NFT_ADDRESS,
-      `${OWNER_OF_SELECTOR}${encodeUint256(tokenId)}`,
-    );
-    return decodeAddressResult(data);
-  } catch {
-    return null;
-  }
-}
-
-async function readReceiptState(tokenId: number): Promise<{
-  orderId: number;
-  assetId: number;
-  amount: string;
-  assetType: number;
-} | null> {
-  try {
-    const data = await ethCall(
-      RECEIPT_NFT_ADDRESS,
-      `${RECEIPTS_SELECTOR}${encodeUint256(tokenId)}`,
-    );
-    const orderId = Number(BigInt(`0x${decodeWord(data, 0)}`));
-    const assetId = Number(BigInt(`0x${decodeWord(data, 1)}`));
-    const amount = BigInt(`0x${decodeWord(data, 2)}`).toString();
-    const assetType = Number(BigInt(`0x${decodeWord(data, 3)}`));
-    return {
-      orderId,
-      assetId,
-      amount,
-      assetType,
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function findHighestReceiptTokenId(): Promise<number> {
-  const zeroOwner = await readReceiptOwner(0);
-  if (!zeroOwner) return -1;
-
-  let low = 0;
-  let high = 1;
-
-  while ((await readReceiptOwner(high)) !== null) {
-    low = high;
-    high *= 2;
-    if (high > 1_000_000) break;
-  }
-
-  while (low + 1 < high) {
-    const mid = Math.floor((low + high) / 2);
-    if ((await readReceiptOwner(mid)) !== null) {
-      low = mid;
-    } else {
-      high = mid;
-    }
-  }
-
-  return low;
-}
-
-async function buildWalletStateReceiptRows(walletAddress: string): Promise<{
-  blockNumber: number;
-  blockTime: string;
-  balance: number;
-  highestTokenId: number;
-  rows: ProtocolReceiptProjectionRow[];
-}> {
-  const normalizedWalletAddress = normalizeAddress(walletAddress);
-  const balance = await readReceiptBalance(normalizedWalletAddress);
-  const blockNumber = await getBlockNumber();
-  const blockTime = new Date().toISOString();
-
-  if (balance <= 0) {
-    return {
-      blockNumber,
-      blockTime,
-      balance,
-      highestTokenId: -1,
-      rows: [],
-    };
-  }
-
-  const highestTokenId = await findHighestReceiptTokenId();
-  const rows: ProtocolReceiptProjectionRow[] = [];
-
-  for (let tokenId = 0; tokenId <= highestTokenId && rows.length < balance; tokenId += 1) {
-    const ownerAddress = await readReceiptOwner(tokenId);
-    if (!ownerAddress || ownerAddress !== normalizedWalletAddress) {
-      continue;
-    }
-
-    const receiptState = await readReceiptState(tokenId);
-    if (!receiptState) {
-      continue;
-    }
-
-    rows.push({
-      token_id: tokenId,
-      order_id: receiptState.orderId,
-      owner_address: normalizedWalletAddress,
-      amount: receiptState.amount,
-      asset_type: receiptState.assetType,
-      chain_id: CHAIN_ID,
-      contract_address: RECEIPT_NFT_ADDRESS.toLowerCase(),
-      tx_hash: await sha256Hex(
-        `wallet-state:${CHAIN_ID}:${RECEIPT_NFT_ADDRESS.toLowerCase()}:${normalizedWalletAddress}:${tokenId}:${receiptState.orderId}`,
-      ),
-      log_index: -1,
-      block_number: blockNumber,
-      block_time: blockTime,
-    });
-  }
-
-  return {
-    blockNumber,
-    blockTime,
-    balance,
-    highestTokenId,
-    rows,
-  };
-}
-
-async function syncWalletReceiptsFromContract(
-  supabase: ReturnType<typeof getServiceClient>,
-  walletAddress: string,
-  existingRows: ProtocolReceiptProjectionRow[],
-): Promise<{
-  synced: number;
-  balance: number;
-  highestTokenId: number;
-  blockNumber: number;
-  blockTime: string;
-}> {
-  const state = await buildWalletStateReceiptRows(walletAddress);
-  const existingTokenIds = new Set(existingRows.map((row) => Number(row.token_id)));
-  const missingRows = state.rows.filter((row) => !existingTokenIds.has(Number(row.token_id)));
-
-  if (missingRows.length > 0) {
-    const { error } = await supabase
-      .from("protocol_receipts")
-      .upsert(missingRows, { onConflict: "tx_hash,log_index", ignoreDuplicates: true });
-
-    if (error) {
-      throw new Error(`protocol_receipts wallet state upsert failed: ${error.message}`);
-    }
-  }
-
-  return {
-    synced: missingRows.length,
-    balance: state.balance,
-    highestTokenId: state.highestTokenId,
-    blockNumber: state.blockNumber,
-    blockTime: state.blockTime,
-  };
 }
 
 // ── Sync logic ──────────────────────────────────────────────────────────────
@@ -404,10 +211,14 @@ export async function syncReceipts(fromBlock?: number, toBlockOverride?: number)
   toBlock: number;
 }> {
   const supabase = getServiceClient();
+  const chainHead = await getBlockNumber();
+  const confirmations = boundedInteger(Deno.env.get("RECEIPT_SYNC_CONFIRMATIONS"), 12, 0, 64);
+  const finalizedHead = Math.max(0, chainHead - confirmations);
+  const maxSyncSpan = boundedInteger(Deno.env.get("RECEIPT_SYNC_MAX_BLOCK_SPAN"), 50_000, 1, 50_000);
 
   // Determine start block: use provided value, or last synced block + 1
   let startBlock = fromBlock ?? 0;
-  if (!fromBlock) {
+  if (fromBlock === undefined) {
     const { data: latest } = await supabase
       .from("protocol_receipts")
       .select("block_number")
@@ -415,12 +226,33 @@ export async function syncReceipts(fromBlock?: number, toBlockOverride?: number)
       .limit(1)
       .maybeSingle();
 
-    startBlock = latest ? Number(latest.block_number) + 1 : 0;
+    const configuredDeploymentBlock = boundedInteger(
+      Deno.env.get("RECEIPT_DEPLOYMENT_BLOCK"),
+      0,
+      0,
+      Number.MAX_SAFE_INTEGER,
+    );
+    startBlock = latest
+      ? Number(latest.block_number) + 1
+      : Math.max(configuredDeploymentBlock, finalizedHead - maxSyncSpan + 1);
   }
 
-  const currentBlock = typeof toBlockOverride === "number"
-    ? Math.max(startBlock, Math.floor(toBlockOverride))
-    : await getBlockNumber();
+  if (!Number.isSafeInteger(startBlock) || startBlock < 0) {
+    throw new Error("fromBlock must be a non-negative safe integer");
+  }
+  if (toBlockOverride !== undefined && (!Number.isSafeInteger(toBlockOverride) || toBlockOverride < 0)) {
+    throw new Error("toBlock must be a non-negative safe integer");
+  }
+  const currentBlock = Math.min(
+    finalizedHead,
+    toBlockOverride === undefined ? finalizedHead : Math.floor(toBlockOverride),
+  );
+  if (currentBlock < startBlock) {
+    return { synced: 0, errors: 0, fromBlock: startBlock, toBlock: currentBlock };
+  }
+  if (currentBlock - startBlock + 1 > maxSyncSpan) {
+    throw new Error(`Requested receipt sync range exceeds ${maxSyncSpan} blocks`);
+  }
 
   // BSC Testnet RPC typically limits to 5000 blocks per getLogs call
   const MAX_RANGE = 5000;
@@ -454,8 +286,8 @@ export async function syncReceipts(fromBlock?: number, toBlockOverride?: number)
 
     // Upsert into protocol_receipts (idempotent via tx_hash + log_index unique)
     const rows = receipts.map((r) => ({
-      token_id: Number(r.tokenId),
-      order_id: Number(r.orderId),
+      token_id: r.tokenId.toString(),
+      order_id: r.orderId.toString(),
       owner_address: r.ownerAddress,
       amount: r.amount.toString(),
       asset_type: r.assetType,
@@ -513,11 +345,7 @@ receiptSyncRouter.get("/health", (c: Context) => {
  * Requires service-role authentication (called by cron or admin trigger).
  */
 receiptSyncRouter.post("/sync", async (c: Context) => {
-  // Verify service-role: check the Authorization header contains the service role key
-  const authHeader = c.req.header("Authorization") || "";
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-
-  if (!serviceKey || !authHeader.includes(serviceKey)) {
+  if (!isServiceRoleRequest(c)) {
     return c.json({ error: "Unauthorized — service role required" }, 403);
   }
 
@@ -527,6 +355,9 @@ receiptSyncRouter.post("/sync", async (c: Context) => {
     const toBlock = typeof body.toBlock === "number" ? body.toBlock : undefined;
 
     const result = await syncReceipts(fromBlock, toBlock);
+    if (result.errors > 0) {
+      return c.json({ error: "Sync completed with projection errors", ...result }, 502);
+    }
 
     return c.json({
       success: true,
@@ -537,7 +368,6 @@ receiptSyncRouter.post("/sync", async (c: Context) => {
     return c.json(
       {
         error: "Sync failed",
-        message: error instanceof Error ? error.message : "Unknown error",
       },
       500
     );
@@ -551,57 +381,25 @@ receiptSyncRouter.post("/sync-wallet", async (c: Context) => {
   }
 
   try {
-    const body = await c.req.json().catch(() => ({}));
-    const fromBlock = typeof body.fromBlock === "number" ? body.fromBlock : undefined;
-    const toBlock = typeof body.toBlock === "number" ? body.toBlock : undefined;
-    const supabase = getServiceClient();
     const walletAddress = auth.identity.walletAddress;
-    const existingRows = await readWalletReceiptRows(supabase, walletAddress);
-    const requestedSyncMode = typeof fromBlock === "number"
-      ? "explicit-range"
-      : existingRows.length === 0
-        ? "wallet-backfill"
-        : "incremental";
-    let result = {
-      synced: 0,
-      errors: 0,
-      fromBlock: typeof fromBlock === "number" ? fromBlock : 0,
-      toBlock: typeof toBlock === "number" ? toBlock : await getBlockNumber(),
-    };
-    let logSyncError: string | null = null;
+    const rateCheck = await checkRateLimit("receipt_wallet_read", walletAddress);
+    if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
 
-    if (typeof fromBlock === "number" || existingRows.length > 0) {
-      try {
-        result = await syncReceipts(
-          typeof fromBlock === "number" ? fromBlock : undefined,
-          toBlock,
-        );
-      } catch (error) {
-        logSyncError = error instanceof Error ? error.message : String(error);
-      }
-    }
-
-    const stateSync = await syncWalletReceiptsFromContract(supabase, walletAddress, existingRows);
+    const supabase = getServiceClient();
     const receipts = await readWalletReceiptRows(supabase, walletAddress);
 
     return c.json({
       success: true,
       walletAddress,
-      syncMode: stateSync.synced > 0 && requestedSyncMode === "wallet-backfill"
-        ? "wallet-state-backfill"
-        : requestedSyncMode,
+      syncMode: "projection-read",
       receiptCount: receipts.length,
-      stateSync,
-      logSyncError,
       receipts,
-      ...result,
     });
   } catch (error) {
     console.error("[ReceiptSync] wallet sync error:", error);
     return c.json(
       {
         error: "Wallet receipt sync failed",
-        message: error instanceof Error ? error.message : "Unknown error",
       },
       500,
     );

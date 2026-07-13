@@ -1,5 +1,5 @@
 import type { MarketplaceAsset } from '@/app/types/asset';
-import { isSupabaseRestEnabled, restRpc } from '@/utils/supabaseRest';
+import { isSupabaseRestEnabled, restPublicRpc } from '@/utils/supabaseRest';
 
 export const DEFAULT_MARKETPLACE_PERSONALIZATION_SURFACE = 'marketplace_browse';
 const MAX_PERSONALIZATION_ASSET_IDS = 250;
@@ -94,7 +94,7 @@ export async function fetchMarketplacePersonalizationRows(
   if (assetUids.length === 0) return [];
 
   try {
-    const rows = await restRpc<MarketplacePersonalizationRpcRow[]>(
+    const rows = await restPublicRpc<MarketplacePersonalizationRpcRow[]>(
       'get_personalized_marketplace_assets_v1',
       {
         p_asset_uids: assetUids,

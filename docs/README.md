@@ -59,7 +59,7 @@ It separates user-facing guides, runtime verification runbooks, and current-code
 
 - On-chain contract state is authoritative for ATP assets, orders, escrow, disputes, and receipts.
 - Supabase `protocol_assets`, `protocol_orders`, and `protocol_order_events` are projections.
-- Browser localStorage is cache, wallet-scoped preference, auth-session, or runtime shadow state depending on feature.
+- Browser `localStorage` is limited to non-secret caches, wallet-scoped preferences, or runtime shadow state depending on feature. Wallet proofs and bridge tokens are tab-scoped in `sessionStorage` and short-lived.
 - The marketplace/search catalog is hydrated through `marketplaceCatalog.ts`, not an old durable mock catalog.
 - Port `9222` is the Chrome DevTools Protocol endpoint, not the app port.
 

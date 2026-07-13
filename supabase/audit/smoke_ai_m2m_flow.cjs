@@ -25,20 +25,6 @@ function normalizeAddress(address) {
   return String(address || '').trim().toLowerCase();
 }
 
-function buildWalletAuthMessage(address) {
-  const normalized = normalizeAddress(address);
-  const ts = new Date().toISOString();
-  return [
-    'Orina Wallet Session Authentication',
-    '',
-    'Sign this message to authenticate your session in Orina.',
-    'No blockchain transaction or gas fee is required.',
-    '',
-    `Address: ${normalized}`,
-    `Time: ${ts}`,
-  ].join('\n');
-}
-
 async function requestJson(url, init = {}) {
   const res = await fetch(url, init);
   const text = await res.text();
@@ -66,9 +52,33 @@ function buildRoutePath(prefix, routePath) {
   return normalizedPrefix ? `${normalizedPrefix}/${normalizedRoutePath}` : `/${normalizedRoutePath}`;
 }
 
-async function exchangeBridge({ functionBase, anonKey, bridgePathPrefix, account }) {
+async function exchangeBridge({
+  functionBase,
+  anonKey,
+  bridgePathPrefix,
+  account,
+  origin = 'https://app.orina.io',
+}) {
   const walletAddress = normalizeAddress(account.address);
-  const message = buildWalletAuthMessage(walletAddress);
+  const challengeResponse = await requestJson(
+    `${functionBase}${buildRoutePath(bridgePathPrefix, 'challenge')}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${anonKey}`,
+        apikey: anonKey,
+        Origin: origin,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ walletAddress, chainId: 97 }),
+    },
+  );
+  if (!challengeResponse.ok || typeof challengeResponse.json?.message !== 'string') {
+    throw new Error(`Bridge challenge failed with status ${challengeResponse.status}`);
+  }
+  const message = challengeResponse.json.message;
+  const signedAt = Date.parse(String(challengeResponse.json.issuedAt || ''));
+  if (!Number.isFinite(signedAt)) throw new Error('Bridge challenge returned invalid issuedAt');
   const signature = await account.signMessage({ message });
   const url = `${functionBase}${buildRoutePath(bridgePathPrefix, 'exchange')}`;
   const response = await requestJson(url, {
@@ -76,13 +86,14 @@ async function exchangeBridge({ functionBase, anonKey, bridgePathPrefix, account
     headers: {
       Authorization: `Bearer ${anonKey}`,
       apikey: anonKey,
+      Origin: origin,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       walletAddress,
       walletAuthSession: {
         address: walletAddress,
-        signedAt: Date.now(),
+        signedAt,
         signature,
         message,
       },

@@ -61,20 +61,6 @@ function normalizeAddress(value) {
   return String(value || '').trim().toLowerCase();
 }
 
-function buildWalletAuthMessage(address, signedAt) {
-  const walletAddress = normalizeAddress(address);
-  const iso = new Date(Number(signedAt)).toISOString();
-  return [
-    'Orina Wallet Session Authentication',
-    '',
-    'Sign this message to authenticate your session in Orina.',
-    'No blockchain transaction or gas fee is required.',
-    '',
-    `Address: ${walletAddress}`,
-    `Time: ${iso}`,
-  ].join('\n');
-}
-
 function buildRoutePath(prefix, routePath) {
   const normalizedRoutePath = String(routePath || '').replace(/^\/+/, '');
   const normalizedPrefix = String(prefix || '').trim().replace(/\/+$/, '');
@@ -168,11 +154,38 @@ function parseWalletAuthSession(rawSession, walletAddressHint, label) {
   };
 }
 
-async function buildWalletAuthSessionFromPrivateKey(privateKey) {
+async function buildWalletAuthSessionFromPrivateKey({
+  privateKey,
+  baseUrl,
+  anonKey,
+  fnName,
+  routePrefix,
+  origin,
+  chainId,
+}) {
   const account = privateKeyToAccount(String(privateKey || '').trim());
   const address = normalizeAddress(account.address);
-  const signedAt = Date.now();
-  const message = buildWalletAuthMessage(address, signedAt);
+  const challenge = await requestJson(
+    `${baseUrl}/functions/v1/${fnName}${buildRoutePath(routePrefix, 'challenge')}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${anonKey}`,
+        apikey: anonKey,
+        Origin: origin,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ walletAddress: address, chainId }),
+    },
+  );
+  if (!challenge.ok || typeof challenge.json?.message !== 'string') {
+    throw new Error(`Bridge challenge failed with status ${challenge.status}`);
+  }
+  const message = challenge.json.message;
+  const signedAt = Date.parse(String(challenge.json.issuedAt || ''));
+  if (!Number.isFinite(signedAt) || signedAt <= 0) {
+    throw new Error('Bridge challenge returned an invalid issuedAt');
+  }
   const signature = await account.signMessage({ message });
 
   return {
@@ -191,12 +204,14 @@ async function exchangeWalletAuthSession({
   walletAuthSession,
   phase,
   clientApp = 'ATP2',
+  origin,
 }) {
   return requestJson(`${baseUrl}/functions/v1/${fnName}${buildRoutePath(routePrefix, 'exchange')}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${anonKey}`,
       apikey: anonKey,
+      Origin: origin,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -270,6 +285,20 @@ async function resolveBridgePrincipal({
   requireWalletAddress = false,
   clientApp = 'ATP2',
 }) {
+  const origin = firstNonEmpty(
+    getScopedNamedArg(namedArgs, 'bridge-origin', suffix),
+    getScopedEnv(env, 'ATP2_BRIDGE_ORIGIN', suffix),
+    'https://app.orina.io',
+  );
+  const rawChainId = firstNonEmpty(
+    getScopedNamedArg(namedArgs, 'bridge-chain-id', suffix),
+    getScopedEnv(env, 'ATP2_BRIDGE_CHAIN_ID', suffix),
+    '97',
+  );
+  const chainId = Number(rawChainId);
+  if (!/^https:\/\//i.test(origin) || !Number.isSafeInteger(chainId) || chainId <= 0) {
+    throw new Error('Bridge origin or chain id is invalid');
+  }
   const accessToken = firstNonEmpty(
     getScopedNamedArg(namedArgs, 'bridge-access-token', suffix),
     getScopedEnv(env, 'ATP2_BRIDGE_ACCESS_TOKEN', suffix),
@@ -323,7 +352,15 @@ async function resolveBridgePrincipal({
       );
       authSource = 'wallet-session';
     } else if (privateKey) {
-      walletAuthSession = await buildWalletAuthSessionFromPrivateKey(privateKey);
+      walletAuthSession = await buildWalletAuthSessionFromPrivateKey({
+        privateKey,
+        baseUrl,
+        anonKey,
+        fnName,
+        routePrefix,
+        origin,
+        chainId,
+      });
       if (walletAddressHint && walletAddressHint !== walletAuthSession.address) {
         throw new Error(
           `Bridge wallet override ${walletAddressHint} does not match the resolved private-key address ${walletAuthSession.address}`,
@@ -346,6 +383,7 @@ async function resolveBridgePrincipal({
       walletAuthSession,
       phase,
       clientApp,
+      origin,
     });
 
     if (!exchange.ok || !exchange.json?.accessToken) {
@@ -376,7 +414,6 @@ async function resolveBridgePrincipal({
 
 module.exports = {
   buildRoutePath,
-  buildWalletAuthMessage,
   loadFoundryEnv,
   normalizeAddress,
   parseEnvFile,

@@ -1,10 +1,16 @@
 import { createContext, useContext, ReactNode, useState, useCallback, useEffect, useRef, type Context } from 'react';
-import { useAccount, useSignMessage } from 'wagmi';
+import { useAccount, useChainId, useSignMessage } from 'wagmi';
 import { toast } from 'sonner';
-import { buildWalletAuthMessage, setWalletAuthSession } from '@/utils/walletAuthSession';
+import { clearWalletAuthSession, setWalletAuthSession } from '@/utils/walletAuthSession';
 import { clearGuestModeForced } from '@/utils/guestMode';
 import { getWalletErrorMessage, isWalletRequestPendingError } from '@/utils/walletErrors';
-import { BRIDGE_SECURITY_CHECK_EVENT, type BridgeSecurityCheckRequest } from '@/utils/supabaseAuthClaimBridge';
+import {
+  BRIDGE_SECURITY_CHECK_EVENT,
+  clearSupabaseBridgeSession,
+  requestWalletAuthChallenge,
+  type BridgeSecurityCheckRequest,
+} from '@/utils/supabaseAuthClaimBridge';
+import { purgeWalletScopedSensitiveStorage } from '@/utils/walletSensitiveStorage';
 import { WalletModalState, SignatureRequestData, SecurityCheckRequestData, TransactionResult, WalletModalConfirmHandler } from '@/types/wallet';
 
 interface WalletModalContextValue {
@@ -38,8 +44,21 @@ export function WalletModalProvider({ children }: { children: ReactNode }) {
     step: null,
   });
   const { address, isConnected } = useAccount();
+  const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
   const connectToastShownRef = useRef(false);
+  const previousAddressRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const currentAddress = address?.toLowerCase() || null;
+    const previousAddress = previousAddressRef.current;
+    if (previousAddress && previousAddress !== currentAddress) {
+      purgeWalletScopedSensitiveStorage(previousAddress);
+      clearSupabaseBridgeSession();
+      clearWalletAuthSession();
+    }
+    previousAddressRef.current = currentAddress;
+  }, [address]);
 
   const openSecurityCheckModal = useCallback((securityCheckData: SecurityCheckRequestData, onConfirm?: WalletModalConfirmHandler) => {
     setModalState({
@@ -143,8 +162,9 @@ export function WalletModalProvider({ children }: { children: ReactNode }) {
       }
 
       setModalState((prev) => ({ ...prev, isBusy: true }));
-      const signedAt = Date.now();
-      const authMessage = buildWalletAuthMessage(address, signedAt);
+      const challenge = await requestWalletAuthChallenge(address, chainId);
+      const signedAt = Date.parse(challenge.issuedAt);
+      const authMessage = challenge.message;
       const signature = await signMessageAsync({ message: authMessage });
 
       setWalletAuthSession(address, signature, { message: authMessage, signedAt });
@@ -171,7 +191,7 @@ export function WalletModalProvider({ children }: { children: ReactNode }) {
       }
       setModalState((prev) => ({ ...prev, step: 'security_check', source: 'auth', isBusy: false }));
     }
-  }, [address, closeModal, modalState, signMessageAsync]);
+  }, [address, chainId, closeModal, modalState, signMessageAsync]);
 
   const handleSignatureConfirm = useCallback(async () => {
     try {

@@ -166,7 +166,14 @@ export function fromPersistedOrder(order: PersistedOrderUiRecord): OrderUiRecord
 
 function readLocalRuntimeOrders(scope?: RuntimeOrderScope): OrderUiRecord[] {
   if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(getRuntimeOrdersStorageKey(scope));
+  const key = getRuntimeOrdersStorageKey(scope);
+  const sessionRaw = window.sessionStorage.getItem(key);
+  const legacyRaw = window.localStorage.getItem(key);
+  window.localStorage.removeItem(key);
+  if (!sessionRaw && legacyRaw) {
+    window.sessionStorage.setItem(key, legacyRaw);
+  }
+  const raw = sessionRaw || legacyRaw;
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw) as PersistedOrderUiRecord[];
@@ -179,7 +186,9 @@ function readLocalRuntimeOrders(scope?: RuntimeOrderScope): OrderUiRecord[] {
 function writeLocalRuntimeOrders(orders: OrderUiRecord[], scope?: RuntimeOrderScope) {
   if (typeof window === "undefined") return;
   const serialized = JSON.stringify(orders.map(toPersistedOrder));
-  window.localStorage.setItem(getRuntimeOrdersStorageKey(scope), serialized);
+  const key = getRuntimeOrdersStorageKey(scope);
+  window.localStorage.removeItem(key);
+  window.sessionStorage.setItem(key, serialized);
   dispatchSyncEvent(RUNTIME_ORDERS_CHANGED_EVENT);
 }
 

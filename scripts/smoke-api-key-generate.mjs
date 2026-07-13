@@ -712,7 +712,7 @@ async function waitForSuccessPanel(session, timeoutMs) {
 async function getBridgeSession(session) {
   return evaluate(session, `(() => {
     try {
-      const raw = localStorage.getItem('orina_supabase_auth_claim_bridge_session');
+      const raw = sessionStorage.getItem('orina_supabase_auth_claim_bridge_session');
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;

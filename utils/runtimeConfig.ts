@@ -23,9 +23,6 @@ function readFloat(name: string, fallback: number): number {
 }
 
 export const runtimeFlags = {
-  // Keep public Supabase fallbacks active by default so Git-pulled Cloudflare builds do not
-  // silently degrade into an empty runtime surface when build-time env drifts.
-  enableSupabaseConfigFallback: readFlag('VITE_ENABLE_SUPABASE_CONFIG_FALLBACK', true),
   enableTestWalletFixtures: readFlag('VITE_ENABLE_TEST_WALLET_FIXTURES', false),
   enableCommunityMockData: readFlag('VITE_ENABLE_COMMUNITY_MOCK_DATA', false),
   enableSearchDemoPanels: readFlag('VITE_ENABLE_SEARCH_DEMO_PANELS', false),

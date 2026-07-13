@@ -69,9 +69,15 @@ export function ConfirmDeliveryModal({ order, onConfirm, onCancel }: ConfirmDeli
         setIsSubmitting(true);
         await onConfirm();
         if (rating > 0 && address) {
+          const marketplaceContract = protocolChain.selectedContracts?.MARKETPLACE_ATP;
+          if (!protocolChain.targetChainId || !marketplaceContract) {
+            throw new Error('Protocol order scope is unavailable for verified review submission.');
+          }
           await submitProfileReview({
             reviewerAddress: address,
             reviewedAddress: order.seller,
+            chainId: protocolChain.targetChainId,
+            marketplaceContract,
             orderUid: order.orderId.toString(),
             assetId: order.assetUid?.trim() || order.assetId.toString(),
             assetName: order.assetName,

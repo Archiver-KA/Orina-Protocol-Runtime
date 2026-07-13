@@ -33,6 +33,7 @@ const bridgeBase = FN === 'make-server-b0d68fc8'
   ? `${functionBase}/auth/supabase-claim-bridge`
   : functionBase;
 const restBase = `${baseUrl}/rest/v1`;
+const approvedOrigin = String(process.env.ATP2_SMOKE_ORIGIN || 'https://app.orina.io').trim();
 
 function randomHex(n) {
   const chars = 'abcdef0123456789';
@@ -49,19 +50,6 @@ function fakeSignature() {
   return `0x${'1a'.repeat(65)}`;
 }
 
-/** Matches server assertWalletAuthSessionMessage + buildWalletAuthMessage */
-function buildOrinaMessage(walletAddress, timeIso) {
-  return [
-    'Orina Wallet Session Authentication',
-    '',
-    'Sign this message to authenticate your session in Orina.',
-    'No blockchain transaction or gas fee is required.',
-    '',
-    `Address: ${walletAddress}`,
-    `Time: ${timeIso}`,
-  ].join('\n');
-}
-
 async function requestJson(url, init = {}) {
   const res = await fetch(url, init);
   const text = await res.text();
@@ -74,12 +62,26 @@ async function requestJson(url, init = {}) {
   return { status: res.status, ok: res.ok, json };
 }
 
-async function exchange(walletAddress, body) {
+async function challenge(walletAddress, origin = approvedOrigin) {
+  return requestJson(`${bridgeBase}/challenge`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${anonKey}`,
+      apikey: anonKey,
+      Origin: origin,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ walletAddress, chainId: 97 }),
+  });
+}
+
+async function exchange(walletAddress, body, origin = approvedOrigin) {
   return requestJson(`${bridgeBase}/exchange`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${anonKey}`,
       apikey: anonKey,
+      Origin: origin,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -93,7 +95,6 @@ async function exchange(walletAddress, body) {
 async function main() {
   const wallet = randomWallet();
   const now = Date.now();
-  const nowIso = new Date(now).toISOString();
   const summary = {
     context: { baseUrl, bridgeBase, testedAt: new Date().toISOString(), wallet },
     checks: {},
@@ -111,7 +112,28 @@ async function main() {
     process.exit(2);
   }
 
-  const goodMessage = buildOrinaMessage(wallet, nowIso);
+  const challengeResponse = await challenge(wallet);
+  summary.checks.challenge_created = challengeResponse.status === 200
+    && challengeResponse.json?.ok === true
+    && typeof challengeResponse.json?.message === 'string';
+  if (!summary.checks.challenge_created) {
+    console.log(JSON.stringify({ ...summary, challengeStatus: challengeResponse.status }, null, 2));
+    process.exit(2);
+  }
+  const goodMessage = challengeResponse.json.message;
+
+  const deniedChallenge = await challenge(randomWallet(), 'https://evil.example');
+  summary.checks.challenge_unapproved_origin_403 = deniedChallenge.status === 403;
+
+  const missingOriginExchange = await exchange(wallet, {
+    walletAuthSession: {
+      address: wallet,
+      signedAt: now,
+      signature: fakeSignature(),
+      message: goodMessage,
+    },
+  }, '');
+  summary.checks.exchange_missing_origin_403 = missingOriginExchange.status === 403;
 
   // 1) Invalid signature must fail (401)
   const badSig = await exchange(wallet, {
@@ -130,14 +152,14 @@ async function main() {
       address: wallet,
       signedAt: now,
       signature: fakeSignature(),
-      message: `Wrong prefix\n\nAddress: ${wallet}\nTime: ${nowIso}`,
+      message: `Wrong prefix\n\nAddress: ${wallet}`,
     },
   });
   summary.checks.exchange_bad_message_prefix_400 = badPrefix.status === 400;
 
   // 3) Stale Time in message (older than client max age) must fail (400)
   const stale = new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString();
-  const staleMessage = buildOrinaMessage(wallet, stale);
+  const staleMessage = goodMessage.replace(/^Issued At:.*$/m, `Issued At: ${stale}`);
   const staleReq = await exchange(wallet, {
     walletAuthSession: {
       address: wallet,
@@ -171,6 +193,9 @@ async function main() {
     summary.checks.exchange_invalid_signature_401,
     summary.checks.exchange_bad_message_prefix_400,
     summary.checks.exchange_stale_message_400,
+    summary.checks.challenge_created,
+    summary.checks.challenge_unapproved_origin_403,
+    summary.checks.exchange_missing_origin_403,
     summary.checks.anon_insert_protocol_assets_denied,
   ].every(Boolean);
 

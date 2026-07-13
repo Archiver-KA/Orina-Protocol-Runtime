@@ -1,5 +1,6 @@
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { getSupabaseFunctionUrl } from '/utils/supabase/functions';
+import { getSupabaseBridgeAccessToken } from '@/utils/supabaseAuthClaimBridge';
 
 /**
  * Check if IPFS upload is configured (PINATA_JWT is set)
@@ -7,14 +8,16 @@ import { getSupabaseFunctionUrl } from '/utils/supabase/functions';
 export async function checkIPFSConfigured(): Promise<boolean> {
   try {
     const checkUrl = getSupabaseFunctionUrl('ipfs/check');
-    if (!checkUrl || !publicAnonKey) return false;
+    const bridgeToken = getSupabaseBridgeAccessToken();
+    if (!checkUrl || !publicAnonKey || !bridgeToken) return false;
 
     const response = await fetch(
       checkUrl,
       {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
+          'Authorization': `Bearer ${bridgeToken}`,
+          'apikey': publicAnonKey,
         },
       }
     );

@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js';
+import { createClient } from 'npm:@supabase/supabase-js@2.100.1';
 import type { AIAssistContext, AIStructuredResponse } from './types.ts';
 
 const DEFAULT_ASSIST_MODEL_ID = 'orina-ai-engine-v2';
@@ -552,7 +552,7 @@ export async function persistRelationalUserTurn(input: {
       active_page: input.activePage || null,
       original_message: input.originalMessage || null,
       clarification_selections: input.clarificationSelections || [],
-      dual_write_version: '000065',
+      persistence_version: 'relational-000084',
     },
   });
 
@@ -623,7 +623,7 @@ export async function persistRelationalAssistantTurn(input: RelationalAssistantT
       agent_context: input.agentContext,
       action: input.response.action || 'general',
       confidence: input.response.disputeSuggestion?.confidence || 0.85,
-      dual_write_version: '000065',
+      persistence_version: 'relational-000084',
       active_page: input.activePage || null,
       clarification_selections: input.clarificationSelections || [],
       products_count: Array.isArray(input.response.products) ? input.response.products.length : 0,

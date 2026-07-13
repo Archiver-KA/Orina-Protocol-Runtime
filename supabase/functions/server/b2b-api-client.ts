@@ -8,7 +8,7 @@
  */
 
 import { searchTavily, type TavilyResult } from "./tavily-client.ts";
-import { get as kvGet, set as kvSet } from "./kv_store.tsx";
+import { readBoundedJson } from "./bounded-response.ts";
 
 // ─── Unified Product Interface ──────────────────────────────────────────────
 
@@ -61,6 +61,78 @@ interface CJTokenCache {
   expiresAt: number;
 }
 
+const MAX_VENDOR_RESPONSE_BYTES = 4 * 1024 * 1024;
+
+function sanitizeUntrustedText(value: unknown, maxLength: number): string {
+  return String(value ?? '')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/[<>\[\]{}()`*_#|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}
+
+export function safePublicHttpsUrl(value: unknown): string {
+  try {
+    const parsed = new URL(String(value || '').trim());
+    const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    if (parsed.protocol !== 'https:' || !hostname || parsed.username || parsed.password) return '';
+    if (parsed.port && parsed.port !== '443') return '';
+    if (
+      hostname === 'localhost'
+      || hostname.endsWith('.localhost')
+      || hostname.endsWith('.local')
+      || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)
+      || hostname.includes(':')
+    ) return '';
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+}
+
+function finiteNumber(value: unknown, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return min;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+export function sanitizeSourcedProduct(product: SourcedProduct, index: number): SourcedProduct | null {
+  const source: ApiSource = ['alibaba', 'amazon', 'cj', 'tavily'].includes(product.source)
+    ? product.source
+    : 'tavily';
+  const url = safePublicHttpsUrl(product.url);
+  const title = sanitizeUntrustedText(product.title, 240);
+  if (!url || !title) return null;
+  const imageUrl = safePublicHttpsUrl(product.imageUrl);
+  const currency = sanitizeUntrustedText(product.currency, 8).toUpperCase();
+  return {
+    ...product,
+    id: sanitizeUntrustedText(product.id, 128) || `${source}-${index}`,
+    title,
+    url,
+    imageUrl,
+    source,
+    price: finiteNumber(product.price, 0, 1_000_000_000),
+    priceMax: product.priceMax === undefined ? undefined : finiteNumber(product.priceMax, 0, 1_000_000_000),
+    currency: /^[A-Z]{3,8}$/.test(currency) ? currency : 'USD',
+    moq: product.moq === undefined ? undefined : Math.trunc(finiteNumber(product.moq, 0, 1_000_000_000)),
+    suggestedRetailPrice: product.suggestedRetailPrice === undefined
+      ? undefined
+      : finiteNumber(product.suggestedRetailPrice, 0, 1_000_000_000),
+    supplierName: product.supplierName ? sanitizeUntrustedText(product.supplierName, 200) : undefined,
+    supplierCountry: product.supplierCountry ? sanitizeUntrustedText(product.supplierCountry, 100) : undefined,
+    supplierYears: product.supplierYears === undefined ? undefined : Math.trunc(finiteNumber(product.supplierYears, 0, 1000)),
+    rating: product.rating === undefined ? undefined : finiteNumber(product.rating, 0, 5),
+    reviewCount: product.reviewCount === undefined ? undefined : Math.trunc(finiteNumber(product.reviewCount, 0, 1_000_000_000)),
+    salesVolume: product.salesVolume ? sanitizeUntrustedText(product.salesVolume, 100) : undefined,
+    inventory: product.inventory === undefined ? undefined : Math.trunc(finiteNumber(product.inventory, 0, 1_000_000_000)),
+    shippingDays: product.shippingDays === undefined ? undefined : Math.trunc(finiteNumber(product.shippingDays, 0, 3650)),
+    variants: product.variants === undefined ? undefined : Math.trunc(finiteNumber(product.variants, 0, 1_000_000)),
+    relevanceScore: finiteNumber(product.relevanceScore, 0, 1),
+  };
+}
+
 // ─── RapidAPI Shared Config ─────────────────────────────────────────────────
 
 function getRapidAPIKey(): string {
@@ -100,11 +172,11 @@ export async function searchAlibaba(
     });
 
     if (!res.ok) {
-      console.warn(`⚠️ Alibaba API ${res.status}:`, await res.text().catch(() => ""));
+      console.warn(`Alibaba API returned status ${res.status}`);
       return [];
     }
 
-    const data = await res.json();
+    const data = await readBoundedJson<any>(res, MAX_VENDOR_RESPONSE_BYTES);
     const resultList: unknown[] = data?.result?.resultList || [];
     if (!Array.isArray(resultList)) return [];
 
@@ -197,11 +269,11 @@ export async function searchAmazon(
     });
 
     if (!res.ok) {
-      console.warn(`⚠️ Amazon API ${res.status}:`, await res.text().catch(() => ""));
+      console.warn(`Amazon API returned status ${res.status}`);
       return [];
     }
 
-    const data = await res.json();
+    const data = await readBoundedJson<any>(res, MAX_VENDOR_RESPONSE_BYTES);
     const products: unknown[] = data?.data?.products || data?.products || data?.results || [];
     if (!Array.isArray(products)) return [];
 
@@ -240,29 +312,14 @@ export async function searchAmazon(
 
 let cachedCJToken: CJTokenCache | null = null;
 
-function isCJTokenCache(value: unknown): value is CJTokenCache {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Record<string, unknown>;
-  return typeof candidate.token === "string" && typeof candidate.expiresAt === "number";
-}
-
 async function getCJAccessToken(): Promise<string | null> {
   // 1. Return in-memory cache if valid
   if (cachedCJToken && Date.now() < cachedCJToken.expiresAt) {
     return cachedCJToken.token;
   }
 
-  // 2. Check KV store (persists across cold starts)
-  try {
-    const stored = await kvGet<CJTokenCache>("cj_access_token");
-    if (isCJTokenCache(stored) && Date.now() < stored.expiresAt) {
-      cachedCJToken = stored;
-      console.log("✅ CJ token restored from KV store");
-      return stored.token;
-    }
-  } catch { /* KV read failed, continue to fresh auth */ }
-
-  // 3. Request fresh token from CJ API
+  // Request a fresh token from CJ. Vendor bearer tokens stay in memory and
+  // are never persisted to the generic database KV table.
   const apiKey = Deno.env.get("CJ_API_KEY");
   if (!apiKey) {
     console.warn("⚠️ CJ_API_KEY not set");
@@ -274,32 +331,31 @@ async function getCJAccessToken(): Promise<string | null> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ apiKey }),
+      signal: AbortSignal.timeout(12_000),
     });
 
     if (!res.ok) {
-      console.warn(`⚠️ CJ auth ${res.status}:`, await res.text().catch(() => ""));
+      console.warn(`CJ auth returned status ${res.status}`);
       return null;
     }
 
-    const data = await res.json();
+    const data = await readBoundedJson<any>(res, 256 * 1024);
     if (data?.code !== 200 || !data?.data?.accessToken) {
-      console.warn("⚠️ CJ auth failed:", data?.msg || data?.message);
+      console.warn("CJ auth returned an invalid response");
       return null;
     }
 
-    const token = data.data.accessToken;
+    const token = String(data.data.accessToken || '').trim();
+    if (token.length < 20 || token.length > 4096) {
+      console.warn('CJ auth returned an invalid token');
+      return null;
+    }
     const tokenData: CJTokenCache = {
       token,
       expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000, // 14 days
     };
 
-    // Cache in-memory
     cachedCJToken = tokenData;
-
-    // Persist to KV store
-    try { await kvSet("cj_access_token", tokenData); } catch { /* non-fatal */ }
-
-    console.log("✅ CJ access token obtained + persisted");
     return token;
   } catch (err) {
     console.error("❌ CJ auth error:", err);
@@ -330,13 +386,13 @@ export async function searchCJ(
     });
 
     if (!res.ok) {
-      console.warn(`⚠️ CJ API ${res.status}:`, await res.text().catch(() => ""));
+      console.warn(`CJ API returned status ${res.status}`);
       return [];
     }
 
-    const data = await res.json();
+    const data = await readBoundedJson<any>(res, MAX_VENDOR_RESPONSE_BYTES);
     if (data?.code !== 200) {
-      console.warn("⚠️ CJ search failed:", data?.msg || data?.message);
+      console.warn("CJ search returned an invalid response");
       return [];
     }
 
@@ -457,13 +513,18 @@ export async function searchProducts(
   channels: string[],
   options: SearchOptions = {},
 ): Promise<{ products: SourcedProduct[]; sources: string[]; errors: string[] }> {
-  const { maxResults = 8, region, timeoutMs = 12000 } = options;
+  const maxResults = Math.min(20, Math.max(1, Math.trunc(Number(options.maxResults ?? 8)) || 8));
+  const timeoutMs = Math.min(20_000, Math.max(1_000, Math.trunc(Number(options.timeoutMs ?? 12_000)) || 12_000));
+  const region = sanitizeUntrustedText(options.region, 32);
+  const safeQuery = sanitizeUntrustedText(query, 300);
+  const safeChannels = Array.isArray(channels) ? channels.slice(0, 20) : [];
   const errors: string[] = [];
   const activeSources = new Set<string>();
+  if (!safeQuery) return { products: [], sources: [], errors: ['empty query'] };
 
   // Deduplicate API sources (e.g., ALIBABA + ALIBABA_1688 both map to 'alibaba')
   const apiCalls: Map<ApiSource, string[]> = new Map();
-  for (const ch of channels) {
+  for (const ch of safeChannels) {
     const src = CHANNEL_API_MAP[ch] || "tavily";
     if (!apiCalls.has(src)) apiCalls.set(src, []);
     apiCalls.get(src)!.push(ch);
@@ -476,23 +537,23 @@ export async function searchProducts(
     switch (src) {
       case "alibaba":
         promises.push(
-          searchAlibaba(query, { maxResults, region, timeoutMs })
+          searchAlibaba(safeQuery, { maxResults, region, timeoutMs })
             .then(r => { if (r.length) activeSources.add("Alibaba"); return r; })
-            .catch(e => { errors.push(`alibaba: ${e}`); return []; })
+            .catch(() => { errors.push('alibaba request failed'); return []; })
         );
         break;
       case "amazon":
         promises.push(
-          searchAmazon(query, { maxResults: Math.min(maxResults, 5), region, timeoutMs })
+          searchAmazon(safeQuery, { maxResults: Math.min(maxResults, 5), region, timeoutMs })
             .then(r => { if (r.length) activeSources.add("Amazon"); return r; })
-            .catch(e => { errors.push(`amazon: ${e}`); return []; })
+            .catch(() => { errors.push('amazon request failed'); return []; })
         );
         break;
       case "cj":
         promises.push(
-          searchCJ(query, { maxResults, timeoutMs })
+          searchCJ(safeQuery, { maxResults, timeoutMs })
             .then(r => { if (r.length) activeSources.add("CJ Dropshipping"); return r; })
-            .catch(e => { errors.push(`cj: ${e}`); return []; })
+            .catch(() => { errors.push('cj request failed'); return []; })
         );
         break;
       case "tavily":
@@ -500,9 +561,9 @@ export async function searchProducts(
         for (const ch of chs.slice(0, 3)) {
           const name = CHANNEL_NAMES[ch] || ch;
           promises.push(
-            searchTavilyFallback(query, name, { maxResults: 3, timeoutMs })
+            searchTavilyFallback(safeQuery, name, { maxResults: 3, timeoutMs })
               .then(r => { if (r.length) activeSources.add(name); return r; })
-              .catch(e => { errors.push(`tavily(${ch}): ${e}`); return []; })
+              .catch(() => { errors.push(`tavily(${sanitizeUntrustedText(ch, 32)}) request failed`); return []; })
           );
         }
         break;
@@ -517,9 +578,14 @@ export async function searchProducts(
     if (s.status === "fulfilled") {
       allProducts = allProducts.concat(s.value);
     } else {
-      errors.push(String(s.reason));
+      errors.push('supplier request failed');
     }
   }
+
+  allProducts = allProducts
+    .map(sanitizeSourcedProduct)
+    .filter((product): product is SourcedProduct => product !== null)
+    .slice(0, 60);
 
   // Sort: B2B first (alibaba, cj), then price reference (amazon), then web (tavily)
   const sourceOrder: Record<ApiSource, number> = { alibaba: 0, cj: 1, amazon: 2, tavily: 3 };

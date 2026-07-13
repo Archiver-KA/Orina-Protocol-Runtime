@@ -4,10 +4,6 @@ import process from 'node:process';
 
 const repoRoot = process.cwd();
 const envPath = path.join(repoRoot, '.env');
-const DEFAULT_SUPABASE_PROJECT_ID = 'vcixsdudkizgfikhmfuv';
-const DEFAULT_SUPABASE_URL = `https://${DEFAULT_SUPABASE_PROJECT_ID}.supabase.co`;
-const DEFAULT_SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjaXhzZHVka2l6Z2Zpa2htZnV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5OTIyMjgsImV4cCI6MjA4NzU2ODIyOH0.Gk3PIFWYzEWwqTJ11E81WVQGtNyFZOdHa7PitY_Sf5o';
 const requiredTables = [
   'assets_catalog',
   'asset_protocol_links',
@@ -85,14 +81,20 @@ async function main() {
   const configuredProjectId = resolveEnvValue(localEnv, 'VITE_SUPABASE_PROJECT_ID');
   const supabaseUrl =
     configuredUrl
-    || (configuredProjectId ? `https://${configuredProjectId}.supabase.co` : DEFAULT_SUPABASE_URL);
+    || (configuredProjectId ? `https://${configuredProjectId}.supabase.co` : '');
   const anonKey =
     resolveEnvValue(
       localEnv,
       'VITE_SUPABASE_ANON_KEY',
       'VITE_SUPABASE_PUBLISHABLE_KEY',
       'VITE_SUPABASE_LEGACY_ANON_KEY',
-    ) || DEFAULT_SUPABASE_ANON_KEY;
+    );
+
+  if (!supabaseUrl || !anonKey) {
+    throw new Error(
+      'Explicit VITE_SUPABASE_URL (or project id) and anon/publishable key are required; embedded fallbacks are disabled.',
+    );
+  }
 
   const baseUrl = supabaseUrl.replace(/\/+$/, '');
   const results = [];

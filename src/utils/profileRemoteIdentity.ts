@@ -111,8 +111,6 @@ function profileRowFromSeed(address: string, seed?: Record<string, unknown> | nu
       seed?.socialLinks && typeof seed.socialLinks === 'object' && typeof (seed.socialLinks as Record<string, unknown>).telegram === 'string'
         ? ((seed.socialLinks as Record<string, unknown>).telegram as string)
         : null,
-    is_verified: !!seed?.verified,
-    status: 'active',
   };
 }
 

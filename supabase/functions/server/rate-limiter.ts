@@ -15,7 +15,7 @@
  *   rows where window_start < now() - interval '24 hours'.
  */
 
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2.100.1';
 
 export interface RateBudget {
   maxRequests: number;
@@ -28,18 +28,38 @@ export interface RateBudget {
 export const RATE_BUDGETS: Record<string, RateBudget> = {
   chat_create: { maxRequests: 10, windowMs: 10 * 60_000 },
   chat_send: { maxRequests: 20, windowMs: 60_000 },
-  chat_send_conv: { maxRequests: 5, windowMs: 60_000 },
   chat_read: { maxRequests: 120, windowMs: 60_000 },
+  chat_write: { maxRequests: 60, windowMs: 60_000 },
+  ipfs_check: { maxRequests: 30, windowMs: 60_000 },
   ipfs_upload: { maxRequests: 30, windowMs: 60_000 },
   ipfs_upload_batch: { maxRequests: 10, windowMs: 60_000 },
+  ipfs_upload_daily: { maxRequests: 30, windowMs: 24 * 3600_000 },
+  ipfs_upload_batch_daily: { maxRequests: 10, windowMs: 24 * 3600_000 },
   ai_assist: { maxRequests: 10, windowMs: 60_000 },
   ai_assist_daily: { maxRequests: 200, windowMs: 24 * 3600_000 },
   ai_assist_image: { maxRequests: 3, windowMs: 60_000 },
   ai_assist_image_daily: { maxRequests: 30, windowMs: 24 * 3600_000 },
+  ai_search: { maxRequests: 20, windowMs: 60_000 },
+  seller_ai_generate: { maxRequests: 5, windowMs: 60_000 },
+  seller_ai_generate_daily: { maxRequests: 50, windowMs: 24 * 3600_000 },
   ai_config_write: { maxRequests: 20, windowMs: 3600_000 },
+  ai_conversation_read: { maxRequests: 120, windowMs: 60_000 },
+  ai_conversation_delete: { maxRequests: 30, windowMs: 60_000 },
+  seller_config_read: { maxRequests: 120, windowMs: 60_000 },
+  seller_config_write: { maxRequests: 20, windowMs: 3600_000 },
+  seller_market_analysis: { maxRequests: 20, windowMs: 60_000 },
+  ai_m2m_config_write: { maxRequests: 20, windowMs: 3600_000 },
+  ai_m2m_read: { maxRequests: 120, windowMs: 60_000 },
+  ai_m2m_delegate_generate: { maxRequests: 5, windowMs: 24 * 3600_000 },
+  api_key_read: { maxRequests: 120, windowMs: 60_000 },
+  api_key_write: { maxRequests: 20, windowMs: 3600_000 },
   ai_m2m_delegate_invite: { maxRequests: 10, windowMs: 3600_000 },
   ai_m2m_delegate_accept: { maxRequests: 20, windowMs: 3600_000 },
   moderation_report: { maxRequests: 10, windowMs: 24 * 3600_000 },
+  wallet_auth_challenge: { maxRequests: 10, windowMs: 10 * 60_000 },
+  wallet_auth_challenge_ip: { maxRequests: 60, windowMs: 10 * 60_000 },
+  wallet_auth_exchange: { maxRequests: 20, windowMs: 10 * 60_000 },
+  receipt_wallet_read: { maxRequests: 30, windowMs: 60_000 },
 };
 
 function getServiceClient() {
@@ -125,7 +145,8 @@ export async function checkRateLimit(
 ): Promise<RateLimitResult> {
   const budget = RATE_BUDGETS[endpoint];
   if (!budget) {
-    return { allowed: true, remaining: Infinity, retryAfterMs: 0, currentCount: 0 };
+    console.error('[RateLimiter] Unknown endpoint budget:', endpoint);
+    return { allowed: false, remaining: 0, retryAfterMs: 60_000, currentCount: 0 };
   }
 
   const ws = windowStart(budget.windowMs);
@@ -142,8 +163,9 @@ export async function checkRateLimit(
       '[RateLimiter] atomic increment error:',
       error instanceof Error ? error.message : String(error),
     );
-    // Fail-open on DB errors to avoid blocking legitimate traffic.
-    return { allowed: true, remaining: budget.maxRequests, retryAfterMs: 0, currentCount: 0 };
+    // Resource-consuming and authentication endpoints must fail closed when the shared limiter
+    // is unavailable; otherwise an attacker can turn a database outage into an unlimited bypass.
+    return { allowed: false, remaining: 0, retryAfterMs: budget.windowMs, currentCount: 0 };
   }
 
   if (currentCount <= budget.maxRequests) {

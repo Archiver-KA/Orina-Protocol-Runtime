@@ -9,6 +9,7 @@ import { execSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { classifyNpmAudit, isBlockingSecuritySeverity } from './security-scan-policy.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -22,7 +23,7 @@ const REPORT = {
 
 function addSection(title, items, severity = 'info') {
   REPORT.sections.push({ title, items, severity });
-  if (severity === 'critical') REPORT.exitCode = 1;
+  if (isBlockingSecuritySeverity(severity)) REPORT.exitCode = 1;
 }
 
 function walk(dir, out = []) {
@@ -38,7 +39,11 @@ function walk(dir, out = []) {
 }
 
 function scanSourceRiskPatterns() {
-  const dirs = [path.join(ROOT, 'src'), path.join(ROOT, 'utils')];
+  const dirs = [
+    path.join(ROOT, 'src'),
+    path.join(ROOT, 'utils'),
+    path.join(ROOT, 'supabase', 'functions'),
+  ];
   const files = dirs.flatMap((d) => walk(d));
   const hits = { dangerouslySetInnerHTML: [], innerHTML: [], evalish: [] };
 
@@ -93,6 +98,10 @@ function scanM2MModule() {
     return { ok: false, items: ['ai-m2m-wallet.ts not found'], checks: {} };
   }
   const text = fs.readFileSync(m2mPath, 'utf8');
+  const atomicMigrationPath = path.join(ROOT, 'supabase', 'migrations', '000083_m2m_atomic_relational_state.sql');
+  const atomicMigrationText = fs.existsSync(atomicMigrationPath)
+    ? fs.readFileSync(atomicMigrationPath, 'utf8')
+    : '';
   const inviteRouteBlock = extractRouteBlock(text, "aiM2MWallet.post('/delegates/invite'", "aiM2MWallet.post('/delegates/accept-invite'");
   const acceptInviteRouteBlock = extractRouteBlock(text, "aiM2MWallet.post('/delegates/accept-invite'", 'export default aiM2MWallet');
   const authCalls = (text.match(/requireAuthenticatedWallet\(/g) || []).length;
@@ -108,19 +117,43 @@ function scanM2MModule() {
   const checks = {
     minAuthHandlers: authCalls >= 5,
     walletMatchPresent: walletMatchCalls >= 3,
-    encryptionKeyEnvDocumented: hasEncryptionEnv,
+    encryptionKeyEnvDocumented:
+      hasEncryptionEnv && /new TextEncoder\(\)\.encode\(secret\)\.byteLength < 32/.test(text),
     encryptAtRest: encryptFn,
     noPrivateKeyInJson: !leakyReturn,
     inviteMinEntropy: /DELEGATE_INVITE_RANDOM_BYTES\s*=\s*(3[2-9]|[4-9]\d|\d{3,})/.test(text),
     inviteUsesCryptoRandomness:
       /crypto\.getRandomValues\(new Uint8Array\(bytesLength\)\)/.test(text) &&
       /randomHex\(DELEGATE_INVITE_RANDOM_BYTES\)/.test(text),
-    inviteHasCollisionRetry: /createUniqueDelegateInviteId/.test(text) && /DELEGATE_INVITE_ID_MAX_ATTEMPTS/.test(text),
-    inviteHasExpiration: /DELEGATE_INVITE_TTL_MS/.test(text) && /expireInviteIfNeeded\(storedInvite\)/.test(text),
-    inviteReplayRejected: /invite\.status !== 'pending'/.test(text) && /status:\s*'claimed'/.test(acceptInviteRouteBlock),
+    inviteHasCollisionRetry:
+      /createDelegateInvite/.test(text) &&
+      /DELEGATE_INVITE_ID_MAX_ATTEMPTS/.test(text) &&
+      /error\.code\s*\|\|\s*['"]{2}\)\s*===\s*['"]23505['"]/.test(text),
+    inviteHasExpiration:
+      /DELEGATE_INVITE_TTL_MS/.test(text) &&
+      /p_expires_at <= v_now/.test(atomicMigrationText) &&
+      /v_invite\.expires_at <= v_now/.test(atomicMigrationText),
+    inviteReplayRejected:
+      /FOR UPDATE/i.test(atomicMigrationText) &&
+      /v_invite\.status <> 'pending'/.test(atomicMigrationText) &&
+      /status = 'claimed'/.test(atomicMigrationText),
     inviteRoutesRateLimited:
       /checkRateLimit\('ai_m2m_delegate_invite'/.test(inviteRouteBlock) &&
       /checkRateLimit\('ai_m2m_delegate_accept'/.test(acceptInviteRouteBlock),
+    relationalRuntime:
+      !/from ['"]\.\/kv_store\.tsx['"]/.test(text) &&
+      /\.from\('m2m_wallet_config'\)/.test(text) &&
+      /\.from\('m2m_delegates'\)/.test(text) &&
+      /\.from\('m2m_delegate_secrets'\)/.test(text),
+    atomicDelegateCapacity:
+      /atp2_create_m2m_delegate_invite_v1/.test(atomicMigrationText) &&
+      /atp2_register_m2m_managed_delegate_v1/.test(atomicMigrationText) &&
+      /atp2_claim_m2m_delegate_invite_v1/.test(atomicMigrationText) &&
+      (atomicMigrationText.match(/pg_advisory_xact_lock/g) || []).length >= 3,
+    serviceRoleOnlyAtomicRpcs:
+      (atomicMigrationText.match(/REVOKE ALL ON FUNCTION public\.atp2_/g) || []).length >= 3 &&
+      (atomicMigrationText.match(/TO service_role;/g) || []).length >= 3 &&
+      (atomicMigrationText.match(/SET search_path = pg_catalog, public/g) || []).length >= 3,
   };
 
   items.push(
@@ -155,7 +188,7 @@ function scanM2MModule() {
   );
   items.push(
     checks.inviteHasCollisionRetry
-      ? 'Delegate invite creation retries random ids on KV collision.'
+      ? 'Delegate invite creation retries cryptographic ids on primary-key collision.'
       : 'WARNING: delegate invite creation does not clearly retry id collisions.',
   );
   items.push(
@@ -167,10 +200,19 @@ function scanM2MModule() {
     checks.inviteRoutesRateLimited
       ? 'Delegate invite creation and accept routes use the distributed rate limiter.'
       : 'WARNING: delegate invite routes are not clearly rate limited.',
+    checks.relationalRuntime
+      ? 'M2M config, delegates, invites, and encrypted secrets use relational tables at runtime.'
+      : 'CRITICAL: M2M runtime still depends on legacy KV state.',
+    checks.atomicDelegateCapacity
+      ? 'Invite creation, invite claim, and managed delegate registration use serialized Postgres transactions.'
+      : 'CRITICAL: M2M capacity and invite state are not clearly transactionally serialized.',
+    checks.serviceRoleOnlyAtomicRpcs
+      ? 'M2M mutation RPCs are service-role-only SECURITY DEFINER functions with a fixed search path.'
+      : 'CRITICAL: M2M mutation RPC execution grants or search_path are incomplete.',
   );
   const clientLeak = scanClientM2MSecrets();
   items.push(...clientLeak.items);
-  const backupScan = scanManagedDelegateBackupHandling(text);
+  const backupScan = scanManagedDelegateBackupHandling(text, atomicMigrationText);
   items.push(...backupScan.items);
 
   return {
@@ -182,7 +224,7 @@ function scanM2MModule() {
   };
 }
 
-function scanManagedDelegateBackupHandling(text) {
+function scanManagedDelegateBackupHandling(text, atomicMigrationText) {
   const secretRecordBlock = extractRouteBlock(
     text,
     'async function encryptManagedDelegateSecret',
@@ -198,8 +240,9 @@ function scanManagedDelegateBackupHandling(text) {
     aesGcm: /AES-GCM/.test(secretRecordBlock),
     twelveByteIv: /new Uint8Array\(12\)/.test(secretRecordBlock),
     ciphertextRecordOnly:
-      /kv\.set\(managedDelegateSecretKey\(delegateRecord\.id\), encryptedSecret\)/.test(generateRouteBlock) &&
-      !/kv\.set\([^)]*privateKey/s.test(generateRouteBlock),
+      /registerManagedDelegate\(delegateRecord, encryptedSecret\)/.test(generateRouteBlock) &&
+      /INSERT INTO public\.m2m_delegate_secrets/.test(atomicMigrationText) &&
+      /INSERT INTO public\.m2m_delegates/.test(atomicMigrationText),
     noSecretRecordInJson: !/c\.json\([^)]*(encryptedSecret|ciphertextHex|ivHex)/s.test(text),
     noPrivateKeyLogging: !/console\.(log|error|warn)\([^)]*privateKey/s.test(text),
     noDecryptOrExportEndpoint: !/decryptManagedDelegateSecret|privateKey.*download|export.*delegate.*secret/i.test(text),
@@ -227,7 +270,7 @@ function scanManagedDelegateBackupHandling(text) {
       checks.noDecryptOrExportEndpoint
         ? 'No delegate secret decrypt/export endpoint is present.'
         : 'WARNING: delegate secret decrypt/export surface requires review.',
-      'Residual note: KV backups can still contain ciphertext; protection depends on keeping ATP2_M2M_DELEGATE_ENCRYPTION_KEY outside backups and logs.',
+      'Legacy KV ciphertext is backfilled by migration 000083; migration 000084 revokes runtime Data API access to the owner-only archive.',
     ],
   };
 }
@@ -325,7 +368,7 @@ function scanIpfsModule() {
     checks.batchUploadRateLimited
       ? 'Batch IPFS upload uses the distributed rate limiter.'
       : 'WARNING: batch IPFS upload is not covered by the distributed rate limiter.',
-    'IPFS check/info routes remain public read-only helpers and do not expose Pinata credentials.',
+    'IPFS check and upload routes require wallet authentication; public info responses do not expose Pinata credentials.',
   ];
 
   return { ok: Object.values(checks).every(Boolean), items, checks };
@@ -338,11 +381,30 @@ function scanRateLimiterModule() {
   }
 
   const text = fs.readFileSync(filePath, 'utf8');
+  const budgetNames = new Set(
+    [...text.matchAll(/^\s{2}([a-z][a-z0-9_]+):\s*\{\s*maxRequests:/gm)].map((match) => match[1]),
+  );
+  const calledBudgets = new Map();
+  for (const sourcePath of walk(path.join(ROOT, 'supabase', 'functions', 'server'))) {
+    const source = fs.readFileSync(sourcePath, 'utf8');
+    const relativePath = path.relative(ROOT, sourcePath);
+    for (const match of source.matchAll(/checkRateLimit\(\s*['"]([a-z][a-z0-9_]+)['"]/g)) {
+      if (!calledBudgets.has(match[1])) calledBudgets.set(match[1], []);
+      calledBudgets.get(match[1]).push(relativePath);
+    }
+  }
+  const missingBudgets = [...calledBudgets.keys()].filter((name) => !budgetNames.has(name)).sort();
+  const unusedBudgets = [...budgetNames].filter((name) => !calledBudgets.has(name)).sort();
   const checks = {
     usesAtomicRpc: /\.rpc\(['"]rate_limit_increment['"]/.test(text),
     noLegacyReadModifyWrite:
       !/request_count\s*:\s*currentCount/.test(text) &&
       !/\.select\(['"]id,request_count,window_start['"]\)/.test(text),
+    allCallSitesHaveBudgets: missingBudgets.length === 0,
+    unknownBudgetFailsClosed:
+      /if \(!budget\)[\s\S]{0,250}allowed:\s*false/.test(text),
+    sharedStoreFailureFailsClosed:
+      /atomic increment error:[\s\S]{0,500}allowed:\s*false/.test(text),
   };
 
   const items = [
@@ -352,9 +414,21 @@ function scanRateLimiterModule() {
     checks.noLegacyReadModifyWrite
       ? 'No legacy select-then-update request_count path detected.'
       : 'WARNING: legacy read-modify-write rate limit path is still present.',
+    checks.allCallSitesHaveBudgets
+      ? `All ${calledBudgets.size} referenced rate-limit families have declared budgets.`
+      : `CRITICAL: missing rate-limit budgets: ${missingBudgets.join(', ')}`,
+    checks.unknownBudgetFailsClosed
+      ? 'Unknown rate-limit families fail closed.'
+      : 'CRITICAL: unknown rate-limit families may fail open.',
+    checks.sharedStoreFailureFailsClosed
+      ? 'Shared rate-limit store failures fail closed.'
+      : 'CRITICAL: shared rate-limit store failure may bypass throttling.',
+    unusedBudgets.length
+      ? `Unused declared budgets (non-blocking cleanup): ${unusedBudgets.join(', ')}`
+      : 'No unused rate-limit budgets.',
   ];
 
-  return { ok: Object.values(checks).every(Boolean), items, checks };
+  return { ok: Object.values(checks).every(Boolean), items, checks, missingBudgets, unusedBudgets };
 }
 
 function scanAuditServiceRoleAliases() {
@@ -467,6 +541,121 @@ function scanCorsConfigurations() {
   };
 }
 
+function runEdgeDependencyAudit() {
+  const result = spawnSync(
+    'deno',
+    ['audit', '--lock=supabase/functions/deno.lock', '--frozen', '--level=high'],
+    { cwd: ROOT, encoding: 'utf8', shell: true },
+  );
+  return {
+    ok: result.status === 0,
+    output: String(result.stdout || result.stderr || '').trim().slice(0, 4_000),
+  };
+}
+
+function scanP0HardeningControls() {
+  const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
+  const bridge = read('supabase/functions/server/wallet-auth-claim-bridge.tsx');
+  const receiptSync = read('supabase/functions/server/sync-receipt-nfts.ts');
+  const orderKeeper = read('supabase/functions/server/order-autotime-keeper.ts');
+  const vision = read('supabase/functions/server/nvidia-nim-client.ts');
+  const minting = read('supabase/functions/server/seller-ai-minting-handler.ts');
+  const rest = read('src/utils/supabaseRest.ts');
+  const config = read('utils/supabase/info.tsx');
+  const runtimeSurface = read('scripts/check-protocol-runtime-surface.mjs');
+  const prerender = read('scripts/prerender-public-routes.mjs');
+  const migration = read('supabase/migrations/000082_p0_trust_projection_and_review_hardening.sql');
+  const m2mMigration = read('supabase/migrations/000083_m2m_atomic_relational_state.sql');
+  const conversationMigration = read('supabase/migrations/000084_ai_conversation_relational_cutover.sql');
+  const conversationEngine = read('supabase/functions/server/orina-ai-engine-v2.tsx');
+  const m2m = read('supabase/functions/server/ai-m2m-wallet.ts');
+  const requestAuth = read('supabase/functions/server/request-auth.ts');
+  const idempotency = read('supabase/functions/server/idempotency-replay.ts');
+  const edgeApp = read('supabase/functions/server/edge-app.ts');
+  const b2b = read('supabase/functions/server/b2b-api-client.ts');
+  const headers = read('public/_headers');
+  const walletSyncHandler = receiptSync.match(/post\("\/sync-wallet"[\s\S]*?export default/)?.[0] || '';
+
+  const checks = {
+    oneTimeWalletChallenge: /post\('\/challenge'/.test(bridge)
+      && /consumeWalletAuthChallenge/.test(bridge)
+      && /crypto\.getRandomValues/.test(bridge)
+      && /walletAuthSession\.message origin mismatch/.test(bridge)
+      && /verifyRequestAndResolveIdentity\(body, walletAddress, allowedOrigin\)/.test(bridge),
+    privilegedBridgeRoutesOperatorOnly:
+      (bridge.match(/isRepairOperatorWallet\(auth\.identity\.walletAddress\)/g) || []).length >= 4,
+    walletSyncCannotTriggerGlobalRangeScan: walletSyncHandler.length > 0
+      && !/syncReceipts\s*\(/.test(walletSyncHandler)
+      && !/findHighestReceiptTokenId|syncWalletReceiptsFromContract/.test(receiptSync),
+    remoteImageFetchIsRestricted: /redirect:\s*["']error["']/.test(vision)
+      && /validateVisionImageUrl/.test(vision)
+      && /MAX_REMOTE_IMAGE_BYTES/.test(vision),
+    clientMintProjectionDisabled: /verified_mint_projection_required/.test(minting),
+    restWritesRequireBridgeToken: /resolveBearerToken\(authMode/.test(rest)
+      && !/getSupabaseBridgeAccessToken\(\)\s*\|\|\s*publicAnonKey/.test(rest),
+    noHardcodedSupabaseFallback: !/eyJhbGciOi/.test(config)
+      && !/DEFAULT_PROJECT_ID/.test(config)
+      && !/eyJhbGciOi/.test(runtimeSurface)
+      && !/DEFAULT_SUPABASE_PROJECT_ID/.test(runtimeSurface)
+      && !/eyJhbGciOi/.test(prerender)
+      && !/DEFAULT_SUPABASE_PROJECT_ID/.test(prerender),
+    trustAndProjectionMigration: /submit_profile_review_v2/.test(migration)
+      && /revoke insert, update, delete on table public\.protocol_orders from authenticated/i.test(migration)
+      && /numeric\(78, 0\)/.test(migration),
+    requestJwtAndSessionAreBounded:
+      /header\.alg \|\| ['"]{2}\) !== ['"]HS256['"]/.test(requestAuth)
+      && /header\.typ \|\| ['"]{2}\) !== ['"]JWT['"]/.test(requestAuth)
+      && /ATP2_SUPABASE_AUTH_BRIDGE_MAX_TOKEN_TTL_SECONDS/.test(requestAuth)
+      && /new TextEncoder\(\)\.encode\(secret\)\.byteLength >= 32/.test(requestAuth)
+      && /\.from\('wallet_sessions'\)/.test(requestAuth)
+      && /\.from\('profiles'\)/.test(requestAuth)
+      && /\.eq\('status', 'active'\)/.test(requestAuth),
+    idempotencyDoesNotPersistTokens:
+      /accessToken/.test(idempotency)
+      && /containsNonReplayableSecret/.test(idempotency)
+      && /completed_no_replay/.test(idempotency),
+    requestAndVendorBodiesAreBounded:
+      /registerRequestBodyLimitMiddleware/.test(edgeApp)
+      && /readBoundedResponseBytes/.test(edgeApp)
+      && /readBoundedJson/.test(b2b),
+    supplierDataIsTreatedAsUntrusted:
+      /safePublicHttpsUrl/.test(b2b)
+      && /sanitizeSourcedProduct/.test(b2b)
+      && !/kvSet\(["']cj_access_token/.test(b2b),
+    m2mMutationsAreAtomicAndRelational:
+      !/from ['"]\.\/kv_store\.tsx['"]/.test(m2m)
+      && (m2mMigration.match(/pg_advisory_xact_lock/g) || []).length >= 3
+      && (m2mMigration.match(/REVOKE ALL ON FUNCTION public\.atp2_/g) || []).length >= 3,
+    aiConversationsAreRelationalOnly:
+      !/kv_store|\bkv\./.test(conversationEngine)
+      && /\.from\('agent_threads'\)/.test(conversationEngine)
+      && /\.from\('agent_messages'\)/.test(conversationEngine)
+      && /legacy-kv-cutover-000084/.test(conversationMigration)
+      && /REVOKE ALL ON TABLE public\.kv_store_b0d68fc8 FROM service_role;/i.test(conversationMigration)
+      && !fs.existsSync(path.join(ROOT, 'supabase', 'functions', 'server', 'kv_store.tsx')),
+    serviceExecutorAuthIsExactAndHighEntropy:
+      /authorization === `Bearer \$\{serviceRoleKey\}`/.test(m2m)
+      && /expectedSecret\.length >= 32/.test(m2m)
+      && /auth !== `Bearer \$\{serviceKey\}`/.test(orderKeeper)
+      && /cronSecret\.length >= 32/.test(orderKeeper)
+      && !/auth\.includes\(serviceKey\)/.test(orderKeeper),
+    browserSecurityHeaders:
+      /Content-Security-Policy:/i.test(headers)
+      && /Strict-Transport-Security:/i.test(headers)
+      && /X-Content-Type-Options:\s*nosniff/i.test(headers)
+      && !/connect-src[^;]*\shttps:\s/i.test(headers)
+      && !/connect-src[^;]*\swss:\s/i.test(headers),
+  };
+  const failed = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
+  return {
+    ok: failed.length === 0,
+    checks,
+    items: failed.length === 0
+      ? ['Wallet nonce, object authorization, SSRF, projection provenance, REST fail-closed and trust-field controls are present.']
+      : failed.map((name) => `Missing P0 hardening invariant: ${name}`),
+  };
+}
+
 function scanSupabasePublicDataApiGrants() {
   const scriptPath = path.join(ROOT, 'scripts', 'verify-supabase-public-data-api-grants.mjs');
   if (!fs.existsSync(scriptPath)) {
@@ -490,11 +679,12 @@ function scanSupabasePublicDataApiGrants() {
     items.push(`CRITICAL: unable to parse Data API grant verifier output: ${result.stderr || result.stdout || 'empty output'}`);
   } else {
     items.push(`Public tables created by migrations: ${report.publicTablesCreated}`);
-    items.push(`Tables with explicit Data API grants: ${report.tablesWithExplicitDataApiGrant}`);
+    items.push(`Tables with an explicit Data API grant/revoke decision: ${report.tablesWithExplicitDataApiDecision}`);
+    items.push(`Tables retaining at least one explicit Data API role grant: ${report.tablesWithExplicitDataApiGrant}`);
     items.push(
       report.missingExplicitGrant?.length
-        ? `CRITICAL: missing explicit grants for ${report.missingExplicitGrant.map((entry) => entry.table).join(', ')}`
-        : 'All migration-created public tables have an explicit grant decision for Data API roles.',
+        ? `CRITICAL: missing explicit grant/revoke decisions for ${report.missingExplicitGrant.map((entry) => entry.table).join(', ')}`
+        : 'All migration-created public tables have an explicit grant or revoke decision for Data API roles.',
     );
     items.push(
       report.postgisSpatialRefSys?.enabled
@@ -535,12 +725,12 @@ function buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, rateLimiterScan,
     m2mDelegatedAiWallet: {
       status: m2mScan?.ok ? 'ok' : 'review',
       summary:
-        'M2M routes use bridge JWT + wallet match; delegate keys encrypted at rest; client uses bridge token only.',
+        'M2M routes use bridge JWT + wallet match; relational mutations are serialized; delegate keys are encrypted at rest.',
       details: m2mScan?.checks || {},
     },
     apiKeyManagement: {
       status: 'ok',
-      summary: 'KV key routes require H1 JWT + wallet match (index.tsx).',
+      summary: 'Relational API-key routes require H1 JWT + wallet match and store only key hashes.',
     },
     messaging: {
       status: messagingScan?.ok ? 'ok' : 'review',
@@ -603,6 +793,7 @@ function main() {
   const auditAliasScan = scanAuditServiceRoleAliases();
   const corsScan = scanCorsConfigurations();
   const dataApiGrantScan = scanSupabasePublicDataApiGrants();
+  const p0HardeningScan = scanP0HardeningControls();
 
   // 1) Client privileged secrets (existing script)
   try {
@@ -615,24 +806,40 @@ function main() {
     addSection('Client bundle: privileged Supabase env patterns', [String(e.stderr || e.message || e)], 'critical');
   }
 
+  try {
+    execSync(`node "${path.join(ROOT, 'scripts', 'check-tracked-secrets.mjs')}"`, {
+      cwd: ROOT,
+      stdio: 'pipe',
+    });
+    addSection('Tracked/unignored files: high-confidence secret patterns', ['OK: no forbidden patterns'], 'info');
+  } catch (e) {
+    addSection('Tracked/unignored files: high-confidence secret patterns', [String(e.stderr || e.message || e)], 'critical');
+  }
+
   // 2) npm audit
   const audit = runNpmAuditJson();
   const { summary: vuln } = summarizeAudit(audit);
+  const npmAuditPolicy = classifyNpmAudit(audit);
   if (vuln) {
     const line = `vulnerabilities — critical:${vuln.critical} high:${vuln.high} moderate:${vuln.moderate} low:${vuln.low} info:${vuln.info}`;
-    const sev =
-      vuln.critical > 0 || vuln.high > 0 ? 'high' : vuln.moderate > 0 ? 'moderate' : 'info';
-    addSection('npm audit (summary)', [line, 'Remediation: npm audit fix (or pin overrides in package.json)'], sev);
+    addSection('npm audit (summary)', [line, 'Remediation: npm audit fix (or pin overrides in package.json)'], npmAuditPolicy.severity);
   } else {
     addSection('npm audit', ['Could not parse audit JSON — run npm audit manually'], 'high');
   }
+
+  const edgeAudit = runEdgeDependencyAudit();
+  addSection(
+    'Deno Edge dependency audit',
+    [edgeAudit.output || (edgeAudit.ok ? 'No known high/critical Edge dependency vulnerabilities.' : 'Deno audit did not return evidence.')],
+    edgeAudit.ok ? 'info' : 'high',
+  );
 
   // 3) Source risk patterns
   const { hits, fileCount } = scanSourceRiskPatterns();
   addSection(
     'DOM / code injection patterns (manual review)',
     [
-      `Scanned ${fileCount} TS/TSX files under src/, utils/`,
+      `Scanned ${fileCount} TS/TSX files under src/, utils/, supabase/functions/`,
       hits.dangerouslySetInnerHTML.length
         ? `dangerouslySetInnerHTML: ${hits.dangerouslySetInnerHTML.join(', ')}`
         : 'dangerouslySetInnerHTML: none',
@@ -649,7 +856,7 @@ function main() {
     'Repository hygiene',
     [
       checkGitignoreEnv() ? '.gitignore lists .env (good)' : 'WARNING: .env may not be gitignored',
-      'Embedded anon JWT in utils/supabase/info.tsx is expected (public anon key); rotate in Dashboard if leaked.',
+      'Supabase URL and anon/publishable key are environment-only; no executable project fallback is embedded.',
     ],
     'info'
   );
@@ -658,8 +865,7 @@ function main() {
   addSection(
     'Edge / server (review periodically)',
     [
-      'API routes under /make-server-b0d68fc8/api/v1 require sk_seller_* API key (see api-endpoints.tsx).',
-      'POST /keys/* now require H1 bridge JWT + wallet match (request-auth.ts).',
+      'API-key management routes require an H1 bridge JWT and keep only SHA-256 hashes; no public API-key bearer consumer is registered in the current Edge router.',
       'Messaging (orina-chat-v1 + messages-handler-c5): H1 JWT + wallet match enforced, with participant membership checks on message reads.',
       'IPFS upload (ipfs-upload.tsx): single and batch routes require H1 JWT and distributed per-wallet rate limits.',
       'CORS: shared edge app applies origin allowlist/pattern gating; review deployed origins periodically.',
@@ -669,19 +875,11 @@ function main() {
 
   // 6) AI M2M (delegated wallet) — static analysis
   const m2mScan = scanM2MModule();
-  addSection('AI M2M / delegated wallet (ai-m2m-wallet.ts + client)', m2mScan.items, 'info');
-  const m2mBlocking =
-    !m2mScan.checks.minAuthHandlers ||
-    !m2mScan.checks.encryptAtRest ||
-    !m2mScan.checks.noPrivateKeyInJson ||
-    !m2mScan.checks.inviteMinEntropy ||
-    !m2mScan.checks.inviteUsesCryptoRandomness ||
-    !m2mScan.checks.inviteHasExpiration ||
-    !m2mScan.checks.inviteReplayRejected ||
-    !m2mScan.checks.inviteRoutesRateLimited ||
-    !m2mScan.backup?.ok ||
-    !m2mScan.clientM2M?.ok;
-  if (m2mBlocking) REPORT.exitCode = 1;
+  addSection(
+    'AI M2M / delegated wallet (ai-m2m-wallet.ts + client)',
+    m2mScan.items,
+    m2mScan.ok ? 'info' : 'critical',
+  );
 
   addSection('Messaging auth / authorization (messages-handler-c5.ts)', messagingScan.items, messagingScan.ok ? 'info' : 'critical');
   addSection('IPFS upload protection (ipfs-upload.tsx)', ipfsScan.items, ipfsScan.ok ? 'info' : 'critical');
@@ -689,8 +887,11 @@ function main() {
   addSection('Audit tooling secret aliases', auditAliasScan.items, auditAliasScan.ok ? 'info' : 'moderate');
   addSection('Edge function CORS posture', corsScan.items, corsScan.ok ? 'info' : 'moderate');
   addSection('Supabase public Data API grants', dataApiGrantScan.items, dataApiGrantScan.ok ? 'info' : 'critical');
+  addSection('P0 application hardening invariants', p0HardeningScan.items, p0HardeningScan.ok ? 'info' : 'critical');
 
-  if (!messagingScan.ok || !ipfsScan.ok || !rateLimiterScan.ok || !dataApiGrantScan.ok) REPORT.exitCode = 1;
+  if (!messagingScan.ok || !ipfsScan.ok || !rateLimiterScan.ok || !dataApiGrantScan.ok || !p0HardeningScan.ok) {
+    REPORT.exitCode = 1;
+  }
 
   REPORT.aggregate = buildAggregate(vuln, m2mScan, messagingScan, ipfsScan, rateLimiterScan, auditAliasScan, corsScan, dataApiGrantScan);
 

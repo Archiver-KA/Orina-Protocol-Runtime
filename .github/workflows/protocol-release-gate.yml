@@ -19,6 +19,23 @@ permissions:
   contents: read
 
 jobs:
+  dependency-review:
+    name: Dependency Review
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          fail-on-severity: high
+
   viewer-release:
     name: Viewer Release Gate
     runs-on: ubuntu-latest
@@ -28,13 +45,20 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: v2.7.8
 
       - name: Install dependencies
         run: npm ci
@@ -50,6 +74,11 @@ jobs:
 
       - name: Run security scan
         run: npm run security:scan
+
+      - name: Audit and typecheck Edge dependencies
+        run: |
+          npm run security:audit-edge
+          npm run typecheck:edge
 
       - name: Run marketplace freshness verification
         run: npm run verify:marketplace-freshness
@@ -67,7 +96,7 @@ jobs:
         run: npm run release:manifest
 
       - name: Upload release provenance artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-provenance-${{ github.sha }}
           if-no-files-found: error
@@ -89,17 +118,19 @@ jobs:
     name: Supabase Security Audit (Advisory)
     needs:
       - viewer-release
-    if: ${{ needs.viewer-release.result == 'success' }}
+    if: ${{ needs.viewer-release.result == 'success' && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     env:
       SUPABASE_DB_AUDIT_URL: ${{ secrets.SUPABASE_DB_AUDIT_URL }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
@@ -111,7 +142,7 @@ jobs:
         shell: bash
         run: |
           if [ -z "$SUPABASE_DB_AUDIT_URL" ]; then
-            echo "SUPABASE_DB_AUDIT_URL is not configured; skipping Supabase SECURITY DEFINER audit."
+            echo "::warning::SUPABASE_DB_AUDIT_URL is not configured; skipping advisory live audit."
             exit 0
           fi
           set +e
@@ -119,7 +150,7 @@ jobs:
           audit_status=$?
           set -e
           if [ "$audit_status" -ne 0 ]; then
-            echo "::warning::Supabase SECURITY DEFINER audit reported live database drift. Frontend release gating remains green; backend production deployment remains blocked by the dedicated Supabase deployment workflow until the drift is resolved or explicitly reviewed."
+            echo "::warning::Live SECURITY DEFINER drift detected. Frontend verification remains advisory; backend deployment stays blocked until the dedicated workflow audit passes."
           fi
           exit 0
 
@@ -127,19 +158,22 @@ jobs:
     name: Connected Protocol Smoke
     needs:
       - viewer-release
-    if: ${{ needs.viewer-release.result == 'success' && github.event_name == 'workflow_dispatch' && inputs.run_connected_smoke }}
+    if: ${{ needs.viewer-release.result == 'success' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.run_connected_smoke }}
     runs-on:
       - self-hosted
       - Windows
       - protocol-smoke
     timeout-minutes: 15
+    environment: wallet-smoke
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm

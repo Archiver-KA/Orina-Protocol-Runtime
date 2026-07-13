@@ -47,7 +47,7 @@ Repository evidence defines a GitHub-dispatched Supabase Edge Function deploymen
 
 Project ref from docs:
 
-- `vcixsdudkizgfikhmfuv`
+- `ystjugghyteyylkevbsl`
 
 Backend deployment sequence:
 
@@ -82,13 +82,13 @@ The helper checks the local release state, required secret names, database URL s
 Split function order for multi-function deploys:
 
 ```bat
-supabase functions deploy orina-auth-bridge-v1 --project-ref vcixsdudkizgfikhmfuv
-supabase functions deploy orina-ai-m2m-v2 --project-ref vcixsdudkizgfikhmfuv
-supabase functions deploy orina-seller-minting-v1 --project-ref vcixsdudkizgfikhmfuv
-supabase functions deploy orina-receipt-sync-v1 --project-ref vcixsdudkizgfikhmfuv
-supabase functions deploy make-server-b0d68fc8 --project-ref vcixsdudkizgfikhmfuv
-supabase functions deploy orina-chat-v1 --project-ref vcixsdudkizgfikhmfuv
-supabase functions deploy orina-order-autotime-v1 --project-ref vcixsdudkizgfikhmfuv
+supabase functions deploy orina-auth-bridge-v1 --project-ref ystjugghyteyylkevbsl
+supabase functions deploy orina-ai-m2m-v2 --project-ref ystjugghyteyylkevbsl
+supabase functions deploy orina-seller-minting-v1 --project-ref ystjugghyteyylkevbsl
+supabase functions deploy orina-receipt-sync-v1 --project-ref ystjugghyteyylkevbsl
+supabase functions deploy make-server-b0d68fc8 --project-ref ystjugghyteyylkevbsl
+supabase functions deploy orina-chat-v1 --project-ref ystjugghyteyylkevbsl
+supabase functions deploy orina-order-autotime-v1 --project-ref ystjugghyteyylkevbsl
 ```
 
 Database migrations are a separate production path from Edge Function deployment. Before any database push, run migration drift checks. If remote-only migrations appear, stop and reconcile before deploying. Do not treat the Edge Function workflow as a schema migration workflow.

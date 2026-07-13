@@ -1,8 +1,15 @@
-import { Context, Hono } from "npm:hono";
-import { createClient } from "npm:@supabase/supabase-js";
-import { callNvidiaNIM, parseJSONFromLLM, callNvidiaNIMEmbedding, callNvidiaNIMVision } from "./nvidia-nim-client.ts";
+import { Context, Hono } from "npm:hono@4.12.29";
+import { createClient } from "npm:@supabase/supabase-js@2.100.1";
+import {
+  callNvidiaNIM,
+  parseJSONFromLLM,
+  callNvidiaNIMEmbedding,
+  callNvidiaNIMVision,
+  validateVisionImageUrls,
+} from "./nvidia-nim-client.ts";
 import { normalizeListingTaxonomy } from "./taxonomy-normalizer.ts";
 import { assertAuthenticatedWalletMatch, requireAuthenticatedWallet } from "./request-auth.ts";
+import { checkRateLimit, rateLimitExceededResponse } from "./rate-limiter.ts";
 
 const sellerMintingRouter = new Hono();
 
@@ -37,6 +44,19 @@ type SellerAuthResult =
   | { ok: true; sellerId: string }
   | { ok: false; response: Response };
 
+function isOptionalBoolean(value: unknown): boolean {
+  return value === undefined || typeof value === "boolean";
+}
+
+function isOptionalPrice(value: unknown): boolean {
+  return value === undefined || (
+    typeof value === "number"
+    && Number.isFinite(value)
+    && value >= 0
+    && value <= 1_000_000_000
+  );
+}
+
 async function requireAuthenticatedSeller(
   c: Context,
   candidateSellerId: string | null | undefined,
@@ -62,6 +82,8 @@ sellerMintingRouter.get("/config/:sellerId", async (c) => {
     const sellerAuth = await requireAuthenticatedSeller(c, c.req.param("sellerId"));
     if (!sellerAuth.ok) return sellerAuth.response;
     const sellerId = sellerAuth.sellerId;
+    const rate = await checkRateLimit("seller_config_read", sellerId);
+    if (!rate.allowed) return rateLimitExceededResponse(c, rate);
 
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
@@ -99,6 +121,18 @@ sellerMintingRouter.post("/config", async (c) => {
     const sellerAuth = await requireAuthenticatedSeller(c, sellerId);
     if (!sellerAuth.ok) return sellerAuth.response;
     const resolvedSellerId = sellerAuth.sellerId;
+    const rate = await checkRateLimit("seller_config_write", resolvedSellerId);
+    if (!rate.allowed) return rateLimitExceededResponse(c, rate);
+    if (
+      !isOptionalBoolean(enabled)
+      || !isOptionalBoolean(autoAnalyzeEnabled)
+      || !isOptionalPrice(minPriceUsd)
+      || !isOptionalPrice(maxPriceUsd)
+      || category !== undefined && (typeof category !== "string" || category.length > 120)
+      || typeof minPriceUsd === "number" && typeof maxPriceUsd === "number" && minPriceUsd > maxPriceUsd
+    ) {
+      return c.json({ error: "Invalid seller minting configuration" }, 400);
+    }
 
     const supabase = getSupabaseClient();
 
@@ -159,6 +193,8 @@ sellerMintingRouter.get("/advisor/:sellerId", async (c) => {
     const sellerAuth = await requireAuthenticatedSeller(c, c.req.param("sellerId"));
     if (!sellerAuth.ok) return sellerAuth.response;
     const sellerId = sellerAuth.sellerId;
+    const rate = await checkRateLimit("seller_config_read", sellerId);
+    if (!rate.allowed) return rateLimitExceededResponse(c, rate);
 
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
@@ -196,10 +232,22 @@ sellerMintingRouter.post("/advisor", async (c) => {
     const sellerAuth = await requireAuthenticatedSeller(c, sellerId);
     if (!sellerAuth.ok) return sellerAuth.response;
     const resolvedSellerId = sellerAuth.sellerId;
+    const rate = await checkRateLimit("seller_config_write", resolvedSellerId);
+    if (!rate.allowed) return rateLimitExceededResponse(c, rate);
 
     const validBehaviors = ["conservative", "moderate", "proactive"];
     if (behavior && !validBehaviors.includes(behavior)) {
       return c.json({ error: `behavior must be one of: ${validBehaviors.join(", ")}` }, 400);
+    }
+    if (
+      !isOptionalBoolean(enabled)
+      || !isOptionalBoolean(autoReply)
+      || storeName !== undefined && (typeof storeName !== "string" || storeName.length > 200)
+      || greeting !== undefined && (typeof greeting !== "string" || greeting.length > 2_000)
+      || negotiationPolicy !== undefined && (typeof negotiationPolicy !== "string" || negotiationPolicy.length > 4_000)
+      || preferredLang !== undefined && (typeof preferredLang !== "string" || preferredLang.length > 20)
+    ) {
+      return c.json({ error: "Invalid or oversized store advisor configuration" }, 400);
     }
 
     const supabase = getSupabaseClient();
@@ -270,6 +318,19 @@ sellerMintingRouter.post("/generate-draft", async (c) => {
 
     const sellerAuth = await requireAuthenticatedSeller(c, sellerId);
     if (!sellerAuth.ok) return sellerAuth.response;
+    const rateCheck = await checkRateLimit("seller_ai_generate", sellerAuth.sellerId);
+    if (!rateCheck.allowed) return rateLimitExceededResponse(c, rateCheck);
+    const dailyRateCheck = await checkRateLimit("seller_ai_generate_daily", sellerAuth.sellerId);
+    if (!dailyRateCheck.allowed) return rateLimitExceededResponse(c, dailyRateCheck);
+    const imageValidation = validateVisionImageUrls(imageUrls);
+    if (!imageValidation.valid) return c.json({ error: imageValidation.error }, 400);
+    const safeImageUrls = imageValidation.urls;
+    if (String(category).length > 120 || String(subcategory || "").length > 120) {
+      return c.json({ error: "Category input exceeds the allowed length" }, 413);
+    }
+    if (String(overrideName || "").length > 200 || String(overrideDescription || "").length > 4_000) {
+      return c.json({ error: "Draft override text exceeds the allowed length" }, 413);
+    }
 
     const taxonomy = normalizeListingTaxonomy(category, subcategory);
     const canonicalCategory = taxonomy.categorySlug;
@@ -282,7 +343,7 @@ sellerMintingRouter.post("/generate-draft", async (c) => {
     let draft: GeneratedDraft = buildFallbackDraft(
       canonicalCategory,
       canonicalSubcategory,
-      imageUrls,
+      safeImageUrls,
       overrideName,
       overrideDescription,
       taxonomy.categoryLabel,
@@ -291,12 +352,12 @@ sellerMintingRouter.post("/generate-draft", async (c) => {
 
     // Step 1: Analyze images with vision model
     let visionDescription = "";
-    if (imageUrls.length > 0) {
+    if (safeImageUrls.length > 0) {
       try {
         const visionResult = await callNvidiaNIMVision(
           "You are a product image analyst. Describe what you see in detail: product type, condition, color, material, brand (if visible), any defects. Be specific and factual.",
           `Analyze these product images for category: ${categoryContext}. Provide a detailed description.`,
-          imageUrls,
+          safeImageUrls,
           { maxTokens: 1024, timeoutMs: 40000 },
         );
         if (visionResult.success) {
@@ -364,7 +425,7 @@ Return ONLY valid JSON with this exact structure:
           category: canonicalCategory,
           subcategory: canonicalSubcategory,
           attributes: parsed.attributes || { condition: "good", color: "varied", material: "mixed" },
-          imageUrls,
+          imageUrls: safeImageUrls,
           estimatedPrice: {
             min: parsed.estimatedPrice.min || 100,
             suggested: parsed.estimatedPrice.suggested || 250,
@@ -427,6 +488,8 @@ sellerMintingRouter.get("/market-analysis", async (c) => {
     const price = c.req.query("price");
     const auth = await requireAuthenticatedWallet(c);
     if (!auth.ok) return auth.response;
+    const rate = await checkRateLimit("seller_market_analysis", auth.identity.walletAddress);
+    if (!rate.allowed) return rateLimitExceededResponse(c, rate);
     const requestedSellerId = c.req.query("sellerId");
     if (requestedSellerId) {
       const walletMismatch = assertAuthenticatedWalletMatch(c, auth.identity, requestedSellerId, "sellerId");
@@ -436,6 +499,14 @@ sellerMintingRouter.get("/market-analysis", async (c) => {
 
     if (!category) {
       return c.json({ error: "category required" }, 400);
+    }
+    const numericPrice = price === undefined ? null : Number(price);
+    if (
+      category.length > 120
+      || String(subcategory || "").length > 120
+      || numericPrice !== null && (!Number.isFinite(numericPrice) || numericPrice < 0 || numericPrice > 1_000_000_000)
+    ) {
+      return c.json({ error: "Invalid market analysis input" }, 400);
     }
 
     const supabase = getSupabaseClient();
@@ -481,7 +552,7 @@ sellerMintingRouter.get("/market-analysis", async (c) => {
           supabase,
           taxonomy.categoryQueryCandidates,
           profile.id,
-          parseFloat(price),
+          numericPrice!,
         );
         volumeForecast = forecast || null;
       }
@@ -535,105 +606,15 @@ sellerMintingRouter.post("/mint-asset", async (c) => {
 
     const sellerAuth = await requireAuthenticatedSeller(c, sellerId);
     if (!sellerAuth.ok) return sellerAuth.response;
-    const resolvedSellerId = sellerAuth.sellerId;
+    const rate = await checkRateLimit("seller_config_write", sellerAuth.sellerId);
+    if (!rate.allowed) return rateLimitExceededResponse(c, rate);
 
-    const supabase = getSupabaseClient();
-    const taxonomy = normalizeListingTaxonomy(draft.category, draft.subcategory);
-    const nowIso = new Date().toISOString();
-    const sellerWallet = resolvedSellerId.toLowerCase();
-    const estimatedSuggestedPrice = Number(draft.estimatedPrice?.suggested || 0);
-    const listingCurrency = String(draft.estimatedPrice?.currency || "USD").trim().toUpperCase() || "USD";
-
-    // Resolve wallet address to profile UUID
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("wallet_address", resolvedSellerId)
-      .single();
-
-    if (profileError || !profile) {
-      return c.json({ error: "Seller profile not found" }, 404);
-    }
-
-    // Generate a unique asset_uid
-    const assetUid = `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    // Create asset record in assets_catalog
-    const { data: asset, error } = await supabase
-      .from("assets_catalog")
-      .insert({
-        asset_uid: assetUid,
-        title: draft.name,
-        description: draft.description,
-        category: taxonomy.categorySlug,
-        subcategory: taxonomy.subcategorySlug || null,
-        cover_image_url: draft.imageUrls[0] || null,
-        gallery_images: draft.imageUrls,
-        attributes: {
-          ...draft.attributes,
-          estimated_price: draft.estimatedPrice,
-        },
-        metadata: {
-          name: draft.name,
-          description: draft.description,
-          image: draft.imageUrls[0] || null,
-          images: draft.imageUrls,
-          category: taxonomy.categorySlug,
-          subcategory: taxonomy.subcategorySlug || null,
-          seller_wallet: sellerWallet,
-          seller: {
-            address: sellerWallet,
-            verified: false,
-          },
-          price: `${estimatedSuggestedPrice || 0} ${listingCurrency}`,
-          priceUSD: listingCurrency === "USD" || listingCurrency === "USDT" || listingCurrency === "USDC"
-            ? `$${estimatedSuggestedPrice || 0}`
-            : null,
-          currency: listingCurrency,
-          blockchain: "BSC",
-          network: "testnet",
-          views: 0,
-          likes: 0,
-          verified: false,
-          featured: false,
-          createdAt: nowIso,
-          updatedAt: nowIso,
-          mintedAt: nowIso,
-          mintTxHash: transactionHash,
-        },
-        seller_user_id: profile.id,
-        is_active: true,
-        ai_created: true,
-        ai_analysis: {
-          confidence: draft.confidence,
-          generatedAt: nowIso,
-          transactionHash,
-        },
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // Generate and store embedding (best-effort, don't fail the mint)
-    try {
-      const embeddingText = `${draft.name} ${draft.description} ${taxonomy.categoryLabel} ${taxonomy.subcategoryLabel || ""} ${taxonomy.categorySlug} ${taxonomy.subcategorySlug || ""}`;
-      const embResult = await callNvidiaNIMEmbedding(embeddingText);
-      if (embResult.success) {
-        const vectorStr = `[${embResult.embedding.join(",")}]`;
-        await supabase
-          .from("assets_catalog")
-          .update({ embedding: vectorStr })
-          .eq("id", asset.id);
-      }
-    } catch (embError) {
-      console.warn("Embedding storage failed (non-blocking):", embError);
-    }
-
+    // A client-supplied transaction hash is not provenance. Keep projection creation disabled
+    // until an indexer/RPC verifies the finalized receipt, contract, event, token and seller.
     return c.json({
-      success: true,
-      assetId: asset.id,
-      assetUid,
-    });
+      error: 'Client mint projection is disabled; wait for the verified on-chain indexer.',
+      code: 'verified_mint_projection_required',
+    }, 409);
   } catch (error) {
     console.error("Error minting asset:", error);
     return c.json({ error: "Failed to mint asset" }, 500);

@@ -1,8 +1,73 @@
-import { Hono } from "npm:hono";
+import { Hono } from "npm:hono@4.12.29";
+import { readBoundedJson } from "./bounded-response.ts";
 import { requireAuthenticatedWallet } from "./request-auth.ts";
 import { checkRateLimit, rateLimitExceededResponse } from "./rate-limiter.ts";
 
 const ipfsRouter = new Hono();
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024;
+const MAX_BATCH_SIZE = 50 * 1024 * 1024;
+const MAX_BATCH_FILES = 5;
+const PINATA_TIMEOUT_MS = 60_000;
+const ALLOWED_FILE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "video/mp4",
+]);
+
+function maxSizeForType(type: string): number {
+  return type === "video/mp4" ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+}
+
+function hasOversizedContentLength(c: { req: { header: (name: string) => string | undefined } }, maxBytes: number): boolean {
+  const length = Number(c.req.header("Content-Length") || 0);
+  return Number.isFinite(length) && length > maxBytes;
+}
+
+async function hasValidFileSignature(file: File): Promise<boolean> {
+  const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  if (file.type === "image/jpeg") return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (file.type === "image/png") {
+    return [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+      .every((value, index) => bytes[index] === value);
+  }
+  if (file.type === "image/gif") {
+    const header = new TextDecoder().decode(bytes.slice(0, 6));
+    return header === "GIF87a" || header === "GIF89a";
+  }
+  if (file.type === "image/webp") {
+    return new TextDecoder().decode(bytes.slice(0, 4)) === "RIFF"
+      && new TextDecoder().decode(bytes.slice(8, 12)) === "WEBP";
+  }
+  if (file.type === "video/mp4") {
+    return new TextDecoder().decode(bytes.slice(4, 8)) === "ftyp";
+  }
+  return false;
+}
+
+function isValidIpfsCid(value: unknown): value is string {
+  const cid = String(value || "").trim();
+  return /^Qm[1-9A-HJ-NP-Za-km-z]{44}$/.test(cid)
+    || /^b[a-z2-7]{20,119}$/.test(cid);
+}
+
+async function uploadFileToPinata(file: File, pinataJwt: string, metadata: Record<string, unknown>) {
+  const pinataFormData = new FormData();
+  pinataFormData.append("file", file);
+  pinataFormData.append("pinataMetadata", JSON.stringify(metadata));
+  const response = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${pinataJwt}` },
+    body: pinataFormData,
+    signal: AbortSignal.timeout(PINATA_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`Pinata upload failed with status ${response.status}`);
+  const result = await readBoundedJson<any>(response, 64 * 1024);
+  if (!isValidIpfsCid(result?.IpfsHash)) throw new Error("Pinata returned an invalid IPFS CID");
+  return result as { IpfsHash: string; Timestamp?: string };
+}
 
 /**
  * Check IPFS configuration status
@@ -10,20 +75,24 @@ const ipfsRouter = new Hono();
  */
 ipfsRouter.get("/check", async (c) => {
   try {
+    const auth = await requireAuthenticatedWallet(c);
+    if (!auth.ok) return auth.response;
+    const rate = await checkRateLimit("ipfs_check", auth.identity.walletAddress);
+    if (!rate.allowed) return rateLimitExceededResponse(c, rate);
     const PINATA_JWT = Deno.env.get("PINATA_JWT");
     
     return c.json({
       configured: !!PINATA_JWT,
-      message: PINATA_JWT 
-        ? "IPFS upload is configured and ready" 
-        : "IPFS not configured. Set PINATA_JWT environment variable."
+      message: PINATA_JWT
+        ? "IPFS upload is configured and ready"
+        : "IPFS upload is unavailable"
     });
   } catch (error) {
     console.error("IPFS check error:", error);
     return c.json({ 
       configured: false,
       error: "Failed to check IPFS configuration",
-      message: error instanceof Error ? error.message : "Unknown error"
+      message: "IPFS configuration check failed"
     }, 500);
   }
 });
@@ -41,6 +110,8 @@ ipfsRouter.post("/upload", async (c) => {
     if (!rate.allowed) {
       return rateLimitExceededResponse(c, rate);
     }
+    const dailyRate = await checkRateLimit("ipfs_upload_daily", auth.identity.walletAddress);
+    if (!dailyRate.allowed) return rateLimitExceededResponse(c, dailyRate);
 
     const PINATA_JWT = Deno.env.get("PINATA_JWT");
     
@@ -51,6 +122,10 @@ ipfsRouter.post("/upload", async (c) => {
       }, 500);
     }
 
+    if (hasOversizedContentLength(c, MAX_VIDEO_SIZE + 1024 * 1024)) {
+      return c.json({ error: "Upload request exceeds the maximum allowed size" }, 413);
+    }
+
     // Get form data from request
     const formData = await c.req.formData();
     const file = formData.get("file");
@@ -59,67 +134,28 @@ ipfsRouter.post("/upload", async (c) => {
       return c.json({ error: "No file provided" }, 400);
     }
 
-    // Validate file size (max 100MB)
-    const MAX_SIZE = 100 * 1024 * 1024; // 100MB
-    if (file.size > MAX_SIZE) {
-      return c.json({ error: "File size exceeds 100MB limit" }, 400);
+    if (file.name.length > 255) {
+      return c.json({ error: "File name exceeds 255 characters" }, 400);
     }
-
-    // Validate file type
-    const allowedTypes = [
-      "image/jpeg",
-      "image/jpg", 
-      "image/png",
-      "image/gif",
-      "image/webp",
-      "video/mp4",
-    ];
-    
-    if (!allowedTypes.includes(file.type)) {
-      return c.json({ 
-        error: `Invalid file type. Allowed: ${allowedTypes.join(", ")}` 
-      }, 400);
+    if (!ALLOWED_FILE_TYPES.has(file.type)) {
+      return c.json({ error: "Invalid file type" }, 400);
     }
-
-    // Prepare form data for Pinata
-    const pinataFormData = new FormData();
-    pinataFormData.append("file", file);
+    if (file.size <= 0 || file.size > maxSizeForType(file.type)) {
+      return c.json({ error: "File exceeds the allowed size for its media type" }, 413);
+    }
+    if (!await hasValidFileSignature(file)) {
+      return c.json({ error: "File signature does not match its declared media type" }, 400);
+    }
 
     // Optional metadata
-    const metadata = JSON.stringify({
+    const metadata = {
       name: file.name,
       keyvalues: {
         uploadedAt: new Date().toISOString(),
         uploadedBy: auth.identity.walletAddress,
       },
-    });
-    pinataFormData.append("pinataMetadata", metadata);
-
-    // Upload to Pinata
-    const response = await fetch(
-      "https://api.pinata.cloud/pinning/pinFileToIPFS",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${PINATA_JWT}`,
-        },
-        body: pinataFormData,
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Pinata API error: ${response.status} - ${errorText}`);
-      return new Response(JSON.stringify({
-        error: `Failed to upload to IPFS: ${response.status}`,
-        details: errorText
-      }), {
-        status: response.status,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    const result = await response.json();
+    };
+    const result = await uploadFileToPinata(file, PINATA_JWT, metadata);
 
     // Return IPFS URLs
     return c.json({
@@ -143,8 +179,7 @@ ipfsRouter.post("/upload", async (c) => {
   } catch (error) {
     console.error("IPFS upload error:", error);
     return c.json({ 
-      error: "Internal server error during IPFS upload",
-      message: error instanceof Error ? error.message : "Unknown error" 
+      error: "Internal server error during IPFS upload"
     }, 500);
   }
 });
@@ -162,6 +197,8 @@ ipfsRouter.post("/upload-multiple", async (c) => {
     if (!rate.allowed) {
       return rateLimitExceededResponse(c, rate);
     }
+    const dailyRate = await checkRateLimit("ipfs_upload_batch_daily", auth.identity.walletAddress);
+    if (!dailyRate.allowed) return rateLimitExceededResponse(c, dailyRate);
 
     const PINATA_JWT = Deno.env.get("PINATA_JWT");
     
@@ -172,6 +209,9 @@ ipfsRouter.post("/upload-multiple", async (c) => {
       }, 500);
     }
 
+    if (hasOversizedContentLength(c, MAX_BATCH_SIZE + 2 * 1024 * 1024)) {
+      return c.json({ error: "Batch upload request exceeds the maximum allowed size" }, 413);
+    }
     const formData = await c.req.formData();
     const files = formData.getAll("files");
 
@@ -179,9 +219,15 @@ ipfsRouter.post("/upload-multiple", async (c) => {
       return c.json({ error: "No files provided" }, 400);
     }
 
-    // Limit to 10 files
-    if (files.length > 10) {
-      return c.json({ error: "Maximum 10 files allowed per upload" }, 400);
+    if (files.length > MAX_BATCH_FILES) {
+      return c.json({ error: `Maximum ${MAX_BATCH_FILES} files allowed per upload` }, 400);
+    }
+    const totalSize = files.reduce(
+      (sum, file) => sum + (file instanceof File ? file.size : 0),
+      0,
+    );
+    if (totalSize > MAX_BATCH_SIZE) {
+      return c.json({ error: "Combined batch size exceeds 50 MB" }, 413);
     }
 
     const uploadResults = [];
@@ -197,59 +243,32 @@ ipfsRouter.post("/upload-multiple", async (c) => {
       }
 
       try {
-        // Validate file
-        const MAX_SIZE = 100 * 1024 * 1024;
-        if (file.size > MAX_SIZE) {
-          errors.push({ index: i, fileName: file.name, error: "File exceeds 100MB" });
+        if (file.name.length > 255) {
+          errors.push({ index: i, error: "File name exceeds 255 characters" });
+          continue;
+        }
+        if (!ALLOWED_FILE_TYPES.has(file.type)) {
+          errors.push({ index: i, error: "Invalid file type" });
+          continue;
+        }
+        if (file.size <= 0 || file.size > maxSizeForType(file.type)) {
+          errors.push({ index: i, error: "File exceeds the allowed media size" });
+          continue;
+        }
+        if (!await hasValidFileSignature(file)) {
+          errors.push({ index: i, error: "File signature mismatch" });
           continue;
         }
 
-        const allowedTypes = [
-          "image/jpeg", "image/jpg", "image/png", 
-          "image/gif", "image/webp", "video/mp4"
-        ];
-        if (!allowedTypes.includes(file.type)) {
-          errors.push({ index: i, fileName: file.name, error: "Invalid file type" });
-          continue;
-        }
-
-        // Upload to Pinata
-        const pinataFormData = new FormData();
-        pinataFormData.append("file", file);
-        
-        const metadata = JSON.stringify({
+        const metadata = {
           name: file.name,
           keyvalues: {
             uploadedAt: new Date().toISOString(),
             uploadedBy: auth.identity.walletAddress,
             batchIndex: i,
           },
-        });
-        pinataFormData.append("pinataMetadata", metadata);
-
-        const response = await fetch(
-          "https://api.pinata.cloud/pinning/pinFileToIPFS",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${PINATA_JWT}`,
-            },
-            body: pinataFormData,
-          }
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          errors.push({ 
-            index: i, 
-            fileName: file.name, 
-            error: `Upload failed: ${response.status}`,
-            details: errorText 
-          });
-          continue;
-        }
-
-        const result = await response.json();
+        };
+        const result = await uploadFileToPinata(file, PINATA_JWT, metadata);
 
         uploadResults.push({
           index: i,
@@ -268,11 +287,10 @@ ipfsRouter.post("/upload-multiple", async (c) => {
           },
         });
 
-      } catch (error) {
+      } catch {
         errors.push({ 
           index: i, 
-          fileName: file instanceof File ? file.name : "unknown",
-          error: error instanceof Error ? error.message : "Unknown error" 
+          error: "Upload failed"
         });
       }
     }
@@ -288,8 +306,7 @@ ipfsRouter.post("/upload-multiple", async (c) => {
   } catch (error) {
     console.error("IPFS batch upload error:", error);
     return c.json({ 
-      error: "Internal server error during batch IPFS upload",
-      message: error instanceof Error ? error.message : "Unknown error" 
+      error: "Internal server error during batch IPFS upload"
     }, 500);
   }
 });
@@ -302,8 +319,8 @@ ipfsRouter.get("/info/:hash", async (c) => {
   try {
     const hash = c.req.param("hash");
     
-    if (!hash) {
-      return c.json({ error: "IPFS hash is required" }, 400);
+    if (!isValidIpfsCid(hash)) {
+      return c.json({ error: "A valid IPFS CID is required" }, 400);
     }
 
     // Return available gateway URLs
@@ -320,8 +337,7 @@ ipfsRouter.get("/info/:hash", async (c) => {
   } catch (error) {
     console.error("IPFS info error:", error);
     return c.json({ 
-      error: "Failed to get IPFS info",
-      message: error instanceof Error ? error.message : "Unknown error" 
+      error: "Failed to get IPFS info"
     }, 500);
   }
 });

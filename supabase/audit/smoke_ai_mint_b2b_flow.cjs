@@ -41,17 +41,6 @@ function normalizeAddress(address) {
   return String(address || '').trim().toLowerCase();
 }
 
-function buildWalletAuthMessage(address) {
-  const normalized = normalizeAddress(address);
-  const ts = new Date().toISOString();
-  return [
-    'Orina Wallet Session Authentication', '',
-    'Sign this message to authenticate your session in Orina.',
-    'No blockchain transaction or gas fee is required.', '',
-    `Address: ${normalized}`, `Time: ${ts}`,
-  ].join('\n');
-}
-
 async function requestJson(url, init = {}) {
   const res = await fetch(url, init);
   const text = await res.text();
@@ -82,6 +71,7 @@ async function main() {
   const authBridgeFnName = env.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME || 'orina-auth-bridge-v1';
   const bridgePathPrefix = env.VITE_SUPABASE_AUTH_BRIDGE_PATH_PREFIX || (authBridgeFnName === sharedFnName ? '/auth/supabase-claim-bridge' : '');
   const aiM2MFnName = env.VITE_SUPABASE_AI_M2M_FN_NAME || 'orina-ai-m2m-v2';
+  const approvedOrigin = String(process.env.ATP2_SMOKE_ORIGIN || 'https://app.orina.io').trim();
   const rpcUrl = foundryEnv.BSC_TESTNET_RPC_URL;
   const delegationManager = env.VITE_M2M_DELEGATION_MANAGER;
   const walletFactory = env.VITE_M2M_AI_WALLET_FACTORY_V2;
@@ -161,18 +151,33 @@ async function main() {
   }
 
   // ── Step 2: Wallet Bridge Auth ────────────────────────────────────────────
-  const message = buildWalletAuthMessage(sellerAddr);
-  const signature = await seller.signMessage({ message });
-  const exchangeUrl = `${baseUrl}/functions/v1/${authBridgeFnName}${bridgePathPrefix}/exchange`;
-  const exchange = await requestJson(exchangeUrl, {
+  const bridgeBase = `${baseUrl}/functions/v1/${authBridgeFnName}${bridgePathPrefix}`;
+  const challenge = await requestJson(`${bridgeBase}/challenge`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${anonKey}`, apikey: anonKey,
+      Origin: approvedOrigin,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ walletAddress: sellerAddr, chainId: 97 }),
+  });
+  if (!challenge.ok || typeof challenge.json?.message !== 'string') {
+    throw new Error(`Bridge challenge failed with status ${challenge.status}`);
+  }
+  const message = challenge.json.message;
+  const issuedAt = Date.parse(String(challenge.json.issuedAt || ''));
+  if (!Number.isFinite(issuedAt)) throw new Error('Bridge challenge returned an invalid issuedAt');
+  const signature = await seller.signMessage({ message });
+  const exchange = await requestJson(`${bridgeBase}/exchange`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${anonKey}`, apikey: anonKey,
+      Origin: approvedOrigin,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       walletAddress: sellerAddr,
-      walletAuthSession: { address: sellerAddr, signedAt: Date.now(), signature, message },
+      walletAuthSession: { address: sellerAddr, signedAt: issuedAt, signature, message },
       client: { app: 'ATP2-smoke', phase: 'ai-mint-b2b', requestedAt: new Date().toISOString() },
     }),
   });

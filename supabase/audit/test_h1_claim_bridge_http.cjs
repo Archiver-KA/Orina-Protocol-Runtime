@@ -12,6 +12,7 @@ if (!baseUrlArg || !anonKeyArg) {
 const baseUrl = baseUrlArg.replace(/\/+$/, '');
 const anonKey = anonKeyArg;
 const fnName = fnNameArg;
+const approvedOrigin = String(process.env.ATP2_SMOKE_ORIGIN || 'https://app.orina.io').trim();
 
 const functionBase = `${baseUrl}/functions/v1/${fnName}`;
 const routePrefix =
@@ -30,18 +31,6 @@ function buildRoutePath(prefix, routePath) {
   }
 
   return normalizedPrefix ? `${normalizedPrefix}/${normalizedRoutePath}` : `/${normalizedRoutePath}`;
-}
-
-function buildOrinaMessage(walletAddress, timeIso) {
-  return [
-    'Orina Wallet Session Authentication',
-    '',
-    'Sign this message to authenticate your session in Orina.',
-    'No blockchain transaction or gas fee is required.',
-    '',
-    `Address: ${walletAddress}`,
-    `Time: ${timeIso}`,
-  ].join('\n');
 }
 
 async function request(path, init = {}) {
@@ -86,21 +75,30 @@ function fakeSignature() {
   }
 
   const wallet = randomWallet();
+  const challengePath = buildRoutePath(routePrefix, 'challenge');
+  const challenge = await request(challengePath, {
+    method: 'POST',
+    headers: {
+      Origin: approvedOrigin,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ walletAddress: wallet, chainId: 97 }),
+  });
   const exchangePath = buildRoutePath(routePrefix, 'exchange');
-  const nowIso = new Date().toISOString();
   const exchange = await request(exchangePath, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       apikey: anonKey,
+      Origin: approvedOrigin,
     },
     body: JSON.stringify({
       walletAddress: wallet,
       walletAuthSession: {
         address: wallet,
-        signedAt: Date.now(),
+        signedAt: Date.parse(String(challenge.json?.issuedAt || '')) || Date.now(),
         signature: fakeSignature(),
-        message: buildOrinaMessage(wallet, nowIso),
+        message: String(challenge.json?.message || ''),
       },
       client: {
         app: 'ATP2',
@@ -117,6 +115,7 @@ function fakeSignature() {
       testedAt: new Date().toISOString(),
     },
     probes,
+    challenge: { kind: 'challenge', path: challengePath, status: challenge.status },
     exchange: { kind: 'exchange', path: exchangePath, ...exchange },
   };
   console.log(JSON.stringify(result, null, 2));

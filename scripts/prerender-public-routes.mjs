@@ -5,9 +5,6 @@ const ROOT_DIR = process.cwd();
 const DIST_DIR = path.join(ROOT_DIR, 'dist');
 const INDEX_HTML_PATH = path.join(DIST_DIR, 'index.html');
 const DEFAULT_SITE_URL = 'https://app.orina.io';
-const DEFAULT_SUPABASE_PROJECT_ID = 'vcixsdudkizgfikhmfuv';
-const DEFAULT_SUPABASE_URL = `https://${DEFAULT_SUPABASE_PROJECT_ID}.supabase.co`;
-const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjaXhzZHVka2l6Z2Zpa2htZnV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5OTIyMjgsImV4cCI6MjA4NzU2ODIyOH0.Gk3PIFWYzEWwqTJ11E81WVQGtNyFZOdHa7PitY_Sf5o';
 const DEFAULT_OG_IMAGE = '/orina-social-card.svg';
 const DEFAULT_LIMIT = 120;
 const BUILD_LASTMOD_ISO = resolveBuildLastModifiedIso();
@@ -320,14 +317,14 @@ function resolveSupabaseBuildEnv(siteEnv) {
 
   const supabaseUrl =
     configuredUrl
-    || (configuredProjectId ? `https://${configuredProjectId}.supabase.co` : DEFAULT_SUPABASE_URL);
-  const apiKey = configuredApiKey || DEFAULT_SUPABASE_ANON_KEY;
-  const usingFallback = !configuredUrl || !configuredApiKey;
+    || (configuredProjectId ? `https://${configuredProjectId}.supabase.co` : '');
+  const apiKey = configuredApiKey;
+  const enabled = Boolean(supabaseUrl && apiKey);
 
   return {
     supabaseUrl,
     apiKey,
-    usingFallback,
+    enabled,
   };
 }
 
@@ -639,10 +636,10 @@ async function fetchRestRows(baseUrl, apiKey, table, params) {
 }
 
 async function loadPublicData(siteEnv) {
-  const { supabaseUrl, apiKey, usingFallback } = resolveSupabaseBuildEnv(siteEnv);
+  const { supabaseUrl, apiKey, enabled } = resolveSupabaseBuildEnv(siteEnv);
 
-  if (usingFallback) {
-    warn('Supabase build env is incomplete. Using canonical public runtime fallbacks for prerender data.');
+  if (!enabled) {
+    warn('Supabase build env is incomplete. Skipping remote prerender data (fail-closed, no embedded project fallback).');
   }
 
   const limit = Math.max(20, Number.parseInt(siteEnv.ORINA_PRERENDER_LIMIT || '', 10) || DEFAULT_LIMIT);

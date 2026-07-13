@@ -142,20 +142,6 @@ function counterpartyHash(address) {
   return keccak256(encodeAbiParameters([{ type: 'address' }], [address]));
 }
 
-function buildWalletAuthMessage(address) {
-  const normalized = normalizeAddress(address);
-  const ts = new Date().toISOString();
-  return [
-    'Orina Wallet Session Authentication',
-    '',
-    'Sign this message to authenticate your session in Orina.',
-    'No blockchain transaction or gas fee is required.',
-    '',
-    `Address: ${normalized}`,
-    `Time: ${ts}`,
-  ].join('\n');
-}
-
 async function requestJson(url, init = {}) {
   const response = await fetch(url, init);
   const text = await response.text();
@@ -177,20 +163,37 @@ async function exchangeBridge({ env, account }) {
   const anonKey = env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const fnName = env.VITE_SUPABASE_AUTH_BRIDGE_FN_NAME || 'orina-auth-bridge-v1';
   const walletAddress = normalizeAddress(account.address);
-  const message = buildWalletAuthMessage(walletAddress);
+  const origin = String(process.env.ATP2_SMOKE_ORIGIN || 'https://app.orina.io').trim();
+  const challenge = await requestJson(buildFunctionUrl(baseUrl, fnName, 'challenge'), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${anonKey}`,
+      apikey: anonKey,
+      Origin: origin,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ walletAddress, chainId: 97 }),
+  });
+  if (!challenge.ok || typeof challenge.json?.message !== 'string') {
+    throw new Error(`Auth bridge challenge failed with status ${challenge.status}`);
+  }
+  const message = challenge.json.message;
+  const signedAt = Date.parse(String(challenge.json.issuedAt || ''));
+  if (!Number.isFinite(signedAt)) throw new Error('Auth bridge challenge returned invalid issuedAt');
   const signature = await account.signMessage({ message });
   const response = await requestJson(buildFunctionUrl(baseUrl, fnName, 'exchange'), {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${anonKey}`,
       apikey: anonKey,
+      Origin: origin,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       walletAddress,
       walletAuthSession: {
         address: walletAddress,
-        signedAt: Date.now(),
+        signedAt,
         signature,
         message,
       },

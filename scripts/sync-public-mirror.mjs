@@ -239,14 +239,8 @@ function generateMirrorPackageFiles() {
 }
 
 function sanitizeMirrorFrontend() {
-  replaceInFile('apps/web/utils/supabase/info.tsx', [
-    [/const DEFAULT_PROJECT_ID\s*=\s*["'][^"']*["'];/, 'const DEFAULT_PROJECT_ID = "";'],
-    [/const DEFAULT_LEGACY_ANON_KEY\s*=\s*(?:\r?\n\s*)?["'][^"']*["'];/, 'const DEFAULT_LEGACY_ANON_KEY = "";'],
-  ]);
-
   replaceInFile('apps/web/utils/runtimeConfig.ts', [
     [/const DEFAULT_SUPABASE_FUNCTIONS_NAMESPACE\s*=\s*["'][^"']*["'];/, "const DEFAULT_SUPABASE_FUNCTIONS_NAMESPACE = '';"],
-    [/enableSupabaseConfigFallback:\s*readFlag\('VITE_ENABLE_SUPABASE_CONFIG_FALLBACK',\s*true\)/, "enableSupabaseConfigFallback: readFlag('VITE_ENABLE_SUPABASE_CONFIG_FALLBACK', false)"],
   ]);
 
   replaceInFile('apps/web/src/utils/supabaseAuthClaimBridge.ts', [

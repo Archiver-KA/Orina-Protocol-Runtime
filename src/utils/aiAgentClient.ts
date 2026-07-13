@@ -117,7 +117,7 @@ export class AIAgentClient {
       // Validate HTTP status BEFORE calling .json() — prevents crash on HTML error pages
       if (!response.ok) {
         const statusText = await response.text().catch(() => '');
-        console.error(`[AI] /ai/assist HTTP ${response.status}:`, statusText.slice(0, 200));
+        console.error(`[AI] /ai/assist HTTP ${response.status}`);
         // Try to extract JSON error if the body is valid JSON
         try {
           const parsed = JSON.parse(statusText);

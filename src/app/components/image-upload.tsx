@@ -123,8 +123,6 @@ export function ImageUpload({
       setUploadProgress(100);
 
       // Log raw response for debugging
-      console.log('Upload response status:', response.status);
-      console.log('Upload response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         let errorData;
@@ -133,16 +131,14 @@ export function ImageUpload({
         if (contentType && contentType.includes('application/json')) {
           errorData = await response.json();
         } else {
-          const errorText = await response.text();
-          console.error('Non-JSON error response:', errorText);
-          throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+          console.error('Upload returned a non-JSON error response');
+          throw new Error(`Upload failed: ${response.status}`);
         }
         
         throw new Error(errorData.error || `Upload failed: ${response.status}`);
       }
 
       const result = await response.json();
-      console.log('Upload result:', result);
 
       if (!result.success) {
         throw new Error(result.error || 'Upload failed');

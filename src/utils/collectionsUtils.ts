@@ -22,7 +22,7 @@ import {
   encodeEq,
   isSupabaseRestEnabled,
   restDelete,
-  restRpc,
+  restPublicRpc,
   restSelect,
   restUpsert,
   toQuery,
@@ -516,7 +516,10 @@ function saveDeletedCollectionIds(ids: string[]): void {
   saveLocalArray(DELETED_COLLECTION_IDS_KEY, Array.from(new Set(ids.filter(Boolean))));
 }
 
-function mapCollectionToDbRow(collection: CollectionSummary, ownerUserId: string): DbCollectionRow {
+function mapCollectionToDbRow(
+  collection: CollectionSummary,
+  ownerUserId: string,
+): Omit<DbCollectionRow, 'verified' | 'featured' | 'created_at' | 'updated_at'> {
   return {
     id: collection.id,
     owner_user_id: ownerUserId,
@@ -528,11 +531,7 @@ function mapCollectionToDbRow(collection: CollectionSummary, ownerUserId: string
     cover_image: collection.coverImage,
     bio: collection.bio,
     tags: uniqueStrings(collection.tags),
-    verified: Boolean(collection.verified),
-    featured: Boolean(collection.featured),
     metadata: {},
-    created_at: new Date(collection.createdAt || Date.now()).toISOString(),
-    updated_at: new Date(collection.updatedAt || Date.now()).toISOString(),
   };
 }
 
@@ -986,7 +985,7 @@ export async function fetchMarketplaceCollectionPageFromSupabase(
   }
 
   try {
-    const rows = await restRpc<MarketplaceCollectionPageRpcRow[]>(
+    const rows = await restPublicRpc<MarketplaceCollectionPageRpcRow[]>(
       'get_marketplace_collection_page_v1',
       {
         p_limit: limit,

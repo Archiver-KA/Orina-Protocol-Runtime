@@ -2,6 +2,7 @@ import { AlertTriangle, ArrowUp, Bot, Clock, Loader2, Plus, Sparkles, X } from '
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { createPortal } from 'react-dom';
+import { safeExternalUrl } from '@/utils/safeExternalUrl';
 import { usePublicClient } from 'wagmi';
 import type { AIDisputeSuggestion } from '@/app/types/ai-agent';
 import { AssetThumb } from '@/app/components/asset-thumb';
@@ -564,12 +565,12 @@ export function DisputeResolutionModal({
                               {message.imageUrls.map((url, index) => (
                                 <a
                                   key={`${message.id}-image-${index}`}
-                                  href={url}
+                                  href={safeExternalUrl(url)}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="overflow-hidden rounded-2xl border border-ui-border-subtle bg-[var(--t-surface-2)]"
                                 >
-                                  <img src={url} alt={`Dispute attachment ${index + 1}`} className="h-36 w-full object-cover" />
+                                  <img src={safeExternalUrl(url)} alt={`Dispute attachment ${index + 1}`} className="h-36 w-full object-cover" />
                                 </a>
                               ))}
                             </div>
@@ -660,12 +661,12 @@ export function DisputeResolutionModal({
                       {disputeCase.evidenceUrls.slice(0, 8).map((url, index) => (
                         <a
                           key={`${url}-${index}`}
-                          href={url}
+                          href={safeExternalUrl(url)}
                           target="_blank"
                           rel="noreferrer"
                           className={`${insetShellClass} overflow-hidden`}
                         >
-                          <img src={url} alt={`Dispute evidence ${index + 1}`} className="h-20 w-full object-cover" />
+                          <img src={safeExternalUrl(url)} alt={`Dispute evidence ${index + 1}`} className="h-20 w-full object-cover" />
                         </a>
                       ))}
                     </div>

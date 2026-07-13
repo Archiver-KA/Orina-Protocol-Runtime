@@ -1,5 +1,5 @@
-import { Hono, type Context } from "npm:hono";
-import { logger } from "npm:hono/logger";
+import { Hono, type Context } from "npm:hono@4.12.29";
+import { readBoundedResponseBytes } from "./bounded-response.ts";
 import { registerIdempotencyReplayMiddleware } from "./idempotency-replay.ts";
 
 const EXACT_ALLOWED_ORIGINS = new Set([
@@ -25,6 +25,9 @@ const CORS_ALLOW_HEADERS =
 const CORS_ALLOW_METHODS = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
 const CORS_EXPOSE_HEADERS = "Content-Length, X-Orina-Request-Id, Retry-After";
 const CORS_MAX_AGE = "600";
+const DEFAULT_REQUEST_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
+const IPFS_REQUEST_BODY_LIMIT_BYTES = 55 * 1024 * 1024;
+const METHODS_WITH_BODY = new Set(["POST", "PUT", "PATCH"]);
 
 function readEdgeEnv(name: string): string {
   try {
@@ -39,12 +42,21 @@ function readEdgeFlag(name: string): boolean {
 }
 
 function readConfiguredAllowedOrigins(): Set<string> {
-  return new Set(
-    readEdgeEnv("ORINA_CORS_ALLOWED_ORIGINS")
-      .split(",")
-      .map((origin) => origin.trim())
-      .filter(Boolean),
-  );
+  const configured = new Set<string>();
+  for (const entry of readEdgeEnv("ORINA_CORS_ALLOWED_ORIGINS").split(",")) {
+    const candidate = entry.trim().replace(/\/+$/, "");
+    if (!candidate) continue;
+    try {
+      const url = new URL(candidate);
+      if (url.origin !== candidate || url.username || url.password) continue;
+      if (isProductionCorsMode() && url.protocol !== "https:") continue;
+      if (isProductionCorsMode() && LOCAL_ORIGIN_PATTERNS.some((rule) => rule.test(url.origin))) continue;
+      configured.add(url.origin);
+    } catch {
+      // Invalid configured origins are ignored rather than broadening access.
+    }
+  }
+  return configured;
 }
 
 function isProductionCorsMode(): boolean {
@@ -131,11 +143,47 @@ export function registerCorsMiddleware(app: Hono) {
   });
 }
 
+export function registerSafeRequestLogging(app: Hono) {
+  app.use("*", async (c, next) => {
+    const startedAt = performance.now();
+    await next();
+    console.log("[Edge Request]", {
+      method: c.req.method,
+      status: c.res.status,
+      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+    });
+  });
+}
+
+export function registerRequestBodyLimitMiddleware(app: Hono) {
+  app.use("*", async (c, next) => {
+    if (!METHODS_WITH_BODY.has(c.req.method)) {
+      await next();
+      return;
+    }
+    const pathname = new URL(c.req.url).pathname;
+    const maxBytes = /\/ipfs\/upload(?:-multiple)?$/.test(pathname)
+      ? IPFS_REQUEST_BODY_LIMIT_BYTES
+      : DEFAULT_REQUEST_BODY_LIMIT_BYTES;
+    try {
+      const clonedRequest = c.req.raw.clone();
+      await readBoundedResponseBytes(
+        new Response(clonedRequest.body, { headers: clonedRequest.headers }),
+        maxBytes,
+      );
+    } catch {
+      return c.json({ error: "Request body exceeds the allowed size" }, 413);
+    }
+    await next();
+  });
+}
+
 export function createEdgeApp() {
   const app = new Hono();
 
-  app.use("*", logger(console.log));
+  registerSafeRequestLogging(app);
   registerCorsMiddleware(app);
+  registerRequestBodyLimitMiddleware(app);
   registerIdempotencyReplayMiddleware(app);
 
   return app;

@@ -16,8 +16,8 @@ import {
   encodeEq,
   encodeIn,
   isSupabaseRestEnabled,
+  restRpc,
   restSelect,
-  restUpsert,
   toQuery,
 } from '@/utils/supabaseRest';
 
@@ -65,7 +65,9 @@ type SubmitProfileReviewInput = {
   reviewerAddress: string;
   reviewedAddress: string;
   reviewerName?: string;
-  orderUid?: string | null;
+  chainId: number;
+  marketplaceContract: string;
+  orderUid: string;
   assetId?: string | null;
   assetName?: string | null;
   rating: number;
@@ -74,8 +76,6 @@ type SubmitProfileReviewInput = {
   communicationRating?: number;
   deliveryRating?: number;
   accuracyRating?: number;
-  verified?: boolean;
-  helpful?: number;
   timestamp?: number;
   source?: string;
 };
@@ -686,14 +686,23 @@ export async function hydrateReputationFromSupabase(
 export async function submitProfileReview(input: SubmitProfileReviewInput): Promise<Rating | null> {
   const reviewerAddress = normalizeWallet(input.reviewerAddress);
   const reviewedAddress = normalizeWallet(input.reviewedAddress);
-  if (!reviewerAddress || !reviewedAddress || reviewerAddress === reviewedAddress) return null;
+  if (
+    !reviewerAddress
+    || !reviewedAddress
+    || reviewerAddress === reviewedAddress
+    || !Number.isSafeInteger(input.chainId)
+    || input.chainId <= 0
+    || !/^0x[a-f0-9]{40}$/i.test(input.marketplaceContract)
+    || !String(input.orderUid || '').trim()
+    || !isSupabaseRestEnabled()
+  ) return null;
 
   const timestamp = input.timestamp || Date.now();
   const ratingValue = clampRating(input.rating);
   const rating: Rating = {
     id:
       input.orderUid
-        ? `profile-review-${input.orderUid}-${reviewerAddress.slice(2, 8)}-${input.ratingType}`
+        ? `profile-review-${input.chainId}-${input.orderUid}-${reviewerAddress.slice(2, 8)}-${input.ratingType}`
         : `profile-review-${timestamp}-${reviewerAddress.slice(2, 8)}`,
     fromUserId: reviewerAddress,
     fromUsername: input.reviewerName?.trim() || reviewerAddress.slice(2, 10),
@@ -707,58 +716,34 @@ export async function submitProfileReview(input: SubmitProfileReviewInput): Prom
     accuracyRating: clampRating(input.accuracyRating ?? ratingValue),
     review: input.review?.trim() || undefined,
     ratingType: input.ratingType,
-    verified: input.verified ?? true,
-    helpful: input.helpful ?? 0,
+    verified: true,
+    helpful: 0,
     timestamp,
   };
 
-  const nextRatings = mergeRatingIntoLocalCache(reviewedAddress, rating);
-  refreshCachedReputationFromLocalData(reviewedAddress, nextRatings);
-  dispatchSyncEvent(REPUTATION_SYNC_EVENT);
-
-  if (!isSupabaseRestEnabled()) {
-    return rating;
-  }
-
   try {
-    const [reviewerUserId, reviewedUserId] = await Promise.all([
-      ensureRemoteProfileIdForWallet(reviewerAddress),
-      ensureRemoteProfileIdForWallet(reviewedAddress),
-    ]);
-
-    if (reviewerUserId && reviewedUserId) {
-      await restUpsert(
-        'profile_reviews',
-        [{
-          reviewer_user_id: reviewerUserId,
-          reviewed_user_id: reviewedUserId,
-          order_uid: input.orderUid || null,
-          asset_uid: input.assetId || null,
-          asset_name: input.assetName || null,
-          review_text: rating.review || null,
-          overall_rating: rating.overallRating,
-          communication_rating: rating.communicationRating,
-          delivery_rating: rating.deliveryRating,
-          accuracy_rating: rating.accuracyRating,
-          rating_type: rating.ratingType,
-          response_text: null,
-          response_date: null,
-          verified: rating.verified,
-          helpful_count: rating.helpful,
-          metadata: {
-            source: input.source || 'ui',
-            reviewer_address: reviewerAddress,
-            reviewed_address: reviewedAddress,
-          },
-        }],
-        { onConflict: 'reviewer_user_id,reviewed_user_id,order_uid,rating_type' }
-      );
-    }
+    await restRpc('submit_profile_review_v2', {
+      p_chain_id: input.chainId,
+      p_marketplace_contract: input.marketplaceContract.toLowerCase(),
+      p_order_uid: input.orderUid,
+      p_reviewed_wallet: reviewedAddress,
+      p_rating_type: rating.ratingType,
+      p_overall_rating: rating.overallRating,
+      p_communication_rating: rating.communicationRating,
+      p_delivery_rating: rating.deliveryRating,
+      p_accuracy_rating: rating.accuracyRating,
+      p_review_text: rating.review || null,
+      p_asset_uid: input.assetId || null,
+      p_asset_name: input.assetName || null,
+    });
+    const nextRatings = mergeRatingIntoLocalCache(reviewedAddress, rating);
+    refreshCachedReputationFromLocalData(reviewedAddress, nextRatings);
+    dispatchSyncEvent(REPUTATION_SYNC_EVENT);
+    return rating;
   } catch (error) {
-    console.debug('[Reputation] Remote review sync skipped:', error);
+    console.debug('[Reputation] Verified review submission failed:', error);
+    return null;
   } finally {
     void hydrateReputationFromSupabase(reviewedAddress, { force: true });
   }
-
-  return rating;
 }

@@ -1,6 +1,6 @@
 /**
- * Bridge tokens and metadata are stored in localStorage (see STORAGE_KEY). Treat as sensitive to
- * same-origin XSS like the wallet session; do not add VITE_* or client-side secrets for signing JWTs.
+ * Bridge tokens are tab-scoped in sessionStorage. Legacy localStorage tokens are deleted and are
+ * never migrated because persistent bearer tokens amplify same-origin compromise.
  */
 import { supabaseUrl, publicAnonKey } from '/utils/supabase/info';
 import { clearWalletAuthSession, getWalletAuthSession, hasCompatibleWalletAuthMessage } from '@/utils/walletAuthSession';
@@ -20,7 +20,7 @@ function readEnvString(name: string): string | null {
 }
 
 const BRIDGE_ENABLED =
-  (readEnvString('VITE_SUPABASE_AUTH_BRIDGE_ENABLED') || 'true').toLowerCase() === 'true';
+  (readEnvString('VITE_SUPABASE_AUTH_BRIDGE_ENABLED') || 'false').toLowerCase() === 'true';
 const requestedBridgeFnName = readEnvString('VITE_SUPABASE_AUTH_BRIDGE_FN_NAME');
 const requestedSharedServerFnName = readEnvString('VITE_SUPABASE_SHARED_SERVER_FN_NAME');
 const BRIDGE_FN_NAME =
@@ -55,6 +55,15 @@ interface ExchangeResponse {
   walletAddress: string;
   profileId?: string | null;
   claimVersion?: string;
+}
+
+export interface WalletAuthChallengeResponse {
+  message: string;
+  nonce: string;
+  issuedAt: string;
+  expiresAt: string;
+  walletAddress: string;
+  chainId: number;
 }
 
 interface AssetMetadataSeedBridgeItem {
@@ -187,6 +196,7 @@ function getBridgeBaseUrl(): string {
 function bridgeHeaders(extra?: Record<string, string>): Record<string, string> {
   return {
     Authorization: `Bearer ${publicAnonKey}`,
+    apikey: publicAnonKey,
     'Content-Type': 'application/json',
     ...extra,
   };
@@ -213,7 +223,8 @@ function parseExpiry(input: string | number): number {
 function readStoredSession(): SupabaseAuthClaimBridgeSession | null {
   if (!isBrowser()) return null;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    window.localStorage.removeItem(STORAGE_KEY);
+    const raw = window.sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as SupabaseAuthClaimBridgeSession;
     if (!parsed?.accessToken || !parsed?.walletAddress) return null;
@@ -234,8 +245,10 @@ function writeStoredSession(session: SupabaseAuthClaimBridgeSession | null): voi
   try {
     if (!session) {
       window.localStorage.removeItem(STORAGE_KEY);
+      window.sessionStorage.removeItem(STORAGE_KEY);
     } else {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      window.localStorage.removeItem(STORAGE_KEY);
+      window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
     }
     window.dispatchEvent(new Event(SESSION_EVENT));
   } catch {
@@ -253,7 +266,9 @@ function isBridgeReauthRequiredMessage(message?: string | null): boolean {
   return (
     normalized.includes('locked after inactivity') ||
     normalized.includes('requires a fresh wallet signature') ||
-    normalized.includes('sign the orina wallet auth message again')
+    normalized.includes('sign the orina wallet auth message again') ||
+    normalized.includes('challenge is invalid, expired, or already used') ||
+    normalized.includes('challenge was already used')
   );
 }
 
@@ -324,6 +339,63 @@ export function getSupabaseBridgeAccessToken(): string | null {
   return getSupabaseBridgeSession()?.accessToken ?? null;
 }
 
+export async function requestWalletAuthChallenge(
+  walletAddress: string,
+  chainId: number,
+): Promise<WalletAuthChallengeResponse> {
+  if (!isSupabaseAuthClaimBridgeEnabled()) {
+    throw new Error('Secure wallet authentication is not configured.');
+  }
+  const normalizedWallet = normalizeAddress(walletAddress);
+  if (!normalizedWallet || !Number.isSafeInteger(chainId) || chainId <= 0) {
+    throw new Error('Wallet address and chain are required for the security challenge.');
+  }
+
+  const response = await fetch(`${getBridgeBaseUrl()}/challenge`, {
+    method: 'POST',
+    headers: bridgeHeaders(),
+    body: JSON.stringify({ walletAddress: normalizedWallet, chainId }),
+  });
+  const payload = await response.json().catch(() => null) as (WalletAuthChallengeResponse & { error?: string }) | null;
+  if (!response.ok || !payload?.message || !payload.nonce || !payload.issuedAt || !payload.expiresAt) {
+    throw new Error(payload?.error || `Unable to create wallet security challenge (${response.status}).`);
+  }
+  if (normalizeAddress(payload.walletAddress) !== normalizedWallet || payload.chainId !== chainId) {
+    throw new Error('Wallet security challenge did not match the requested wallet and chain.');
+  }
+  const issuedAtMs = Date.parse(payload.issuedAt);
+  const expiresAtMs = Date.parse(payload.expiresAt);
+  if (
+    !/^[a-f0-9]{64}$/.test(payload.nonce)
+    || !Number.isFinite(issuedAtMs)
+    || !Number.isFinite(expiresAtMs)
+    || issuedAtMs > Date.now() + 60_000
+    || expiresAtMs <= Date.now()
+    || expiresAtMs <= issuedAtMs
+    || expiresAtMs - issuedAtMs > 10 * 60 * 1000
+  ) {
+    throw new Error('Wallet security challenge has invalid timing or nonce data.');
+  }
+  const expectedMessage = [
+    'Orina Wallet Session Authentication',
+    '',
+    'Sign this message to authenticate your session in Orina.',
+    'No blockchain transaction or gas fee is required.',
+    '',
+    `Domain: ${window.location.host}`,
+    `URI: ${window.location.origin}`,
+    `Address: ${normalizedWallet}`,
+    `Chain ID: ${chainId}`,
+    `Nonce: ${payload.nonce}`,
+    `Issued At: ${payload.issuedAt}`,
+    `Expiration Time: ${payload.expiresAt}`,
+  ].join('\n');
+  if (payload.message.replace(/\r\n/g, '\n') !== expectedMessage) {
+    throw new Error('Wallet security challenge message did not match the requested origin and scope.');
+  }
+  return payload;
+}
+
 export async function ensureSupabaseBridgeAccessToken(
   options: EnsureBridgeAccessTokenOptions = {},
 ): Promise<string | null> {
@@ -332,9 +404,13 @@ export async function ensureSupabaseBridgeAccessToken(
   }
 
   const requestedWallet = options.walletAddress ? normalizeAddress(options.walletAddress) : '';
-  const existingToken = getSupabaseBridgeAccessToken();
-  if (existingToken) {
-    return existingToken;
+  const existingSession = getSupabaseBridgeSession();
+  if (existingSession) {
+    if (requestedWallet && existingSession.walletAddress !== requestedWallet) {
+      clearSupabaseBridgeSession();
+    } else {
+      return existingSession.accessToken;
+    }
   }
 
   const walletSession: BridgeWalletAuthLikeSession | null = getWalletAuthSession();
@@ -464,7 +540,15 @@ export async function exchangeWalletAuthForSupabaseClaimSession(
 
   const data = payload as ExchangeResponse;
   const expiresAt = parseExpiry(data.expiresAt);
-  if (!data.accessToken || !expiresAt) {
+  if (
+    !data.accessToken
+    || data.accessToken.length > 8 * 1024
+    || data.accessToken.split('.').length !== 3
+    || !expiresAt
+    || expiresAt <= Date.now()
+    || expiresAt > Date.now() + 60 * 60 * 1000
+    || normalizeAddress(data.walletAddress) !== normalizedWallet
+  ) {
     throw new Error('Bridge exchange returned an invalid session payload');
   }
 

@@ -1,5 +1,5 @@
-import { Context } from 'npm:hono';
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { Context } from 'npm:hono@4.12.29';
+import { createClient } from 'npm:@supabase/supabase-js@2.100.1';
 
 export interface AuthenticatedWalletIdentity {
   walletAddress: string;
@@ -14,12 +14,13 @@ type AuthResult =
   | { ok: false; response: Response };
 
 function getJwtSecret(): string | null {
-  return (
+  const secret = (
     Deno.env.get('ATP2_SUPABASE_JWT_SECRET') ||
     Deno.env.get('SUPABASE_JWT_SECRET') ||
     Deno.env.get('JWT_SECRET') ||
     null
   );
+  return secret && new TextEncoder().encode(secret).byteLength >= 32 ? secret : null;
 }
 
 function getExpectedIssuer(): string {
@@ -48,6 +49,15 @@ type WalletSessionAuthRow = {
   revoked_at: string | null;
 };
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_BEARER_TOKEN_LENGTH = 8 * 1024;
+
+function getMaxBridgeTokenTtlSeconds(): number {
+  const raw = Number(Deno.env.get('ATP2_SUPABASE_AUTH_BRIDGE_MAX_TOKEN_TTL_SECONDS') || 3600);
+  if (!Number.isFinite(raw) || raw <= 0) return 3600;
+  return Math.min(Math.max(Math.floor(raw), 60), 3600);
+}
+
 export function normalizeWalletAddress(address: string | null | undefined): string {
   return String(address || '').trim().toLowerCase();
 }
@@ -66,7 +76,7 @@ function getBearerToken(c: Context): string | null {
   const header = c.req.header('Authorization') || '';
   if (!header.startsWith('Bearer ')) return null;
   const token = header.slice('Bearer '.length).trim();
-  return token || null;
+  return token && token.length <= MAX_BEARER_TOKEN_LENGTH ? token : null;
 }
 
 function decodeBase64UrlBytes(value: string): Uint8Array {
@@ -113,6 +123,7 @@ async function verifyHs256Jwt(token: string, secret: string): Promise<Record<str
   const payload = decodeBase64UrlJson(encodedPayload);
   if (!header || !payload) return null;
   if (String(header.alg || '') !== 'HS256') return null;
+  if (String(header.typ || '') !== 'JWT') return null;
 
   try {
     const key = await crypto.subtle.importKey(
@@ -144,7 +155,10 @@ function isAudienceAuthenticated(aud: unknown): boolean {
 }
 
 function buildIdentity(token: string, claims: Record<string, unknown>): AuthenticatedWalletIdentity | null {
+  const nowSec = Math.floor(Date.now() / 1000);
   const exp = Number(claims.exp || 0);
+  const iat = Number(claims.iat || 0);
+  const nbf = claims.nbf === undefined ? null : Number(claims.nbf);
   const role = String(claims.role || '');
   const issuer = String(claims.iss || '');
   const claimVersion = String(claims.claim_version || '');
@@ -156,15 +170,17 @@ function buildIdentity(token: string, claims: Record<string, unknown>): Authenti
     ? claims.wallet_session_id.trim()
     : '';
 
-  if (!Number.isFinite(exp) || exp <= Math.floor(Date.now() / 1000)) return null;
+  if (!Number.isFinite(exp) || !Number.isFinite(iat) || exp <= nowSec || iat <= 0) return null;
+  if (iat > nowSec + 60 || exp <= iat || exp - iat > getMaxBridgeTokenTtlSeconds()) return null;
+  if (nbf !== null && (!Number.isFinite(nbf) || nbf > nowSec + 60)) return null;
   if (role !== 'authenticated') return null;
   if (issuer !== getExpectedIssuer()) return null;
   if (claimVersion !== getExpectedClaimVersion()) return null;
   if (authMethod !== 'wallet_signature') return null;
   if (!isAudienceAuthenticated(claims.aud)) return null;
   if (!isValidWalletAddress(walletAddress)) return null;
-  if (!profileId || !subject || profileId !== subject) return null;
-  if (!walletSessionId) return null;
+  if (!profileId || !subject || profileId !== subject || !UUID_PATTERN.test(profileId)) return null;
+  if (!walletSessionId || !UUID_PATTERN.test(walletSessionId)) return null;
 
   return {
     walletAddress,
@@ -175,26 +191,39 @@ function buildIdentity(token: string, claims: Record<string, unknown>): Authenti
   };
 }
 
-async function hasActiveWalletSession(
+async function hasActiveWalletIdentity(
   supabase: ServiceSupabaseClient,
   walletSessionId: string,
   walletAddress: string,
+  profileId: string,
 ): Promise<boolean> {
   const nowIso = new Date().toISOString();
-  const { data, error } = await supabase
-    .from('wallet_sessions')
-    .select('id,wallet_address,expires_at,revoked_at')
-    .eq('id', walletSessionId)
-    .eq('wallet_address', walletAddress)
-    .is('revoked_at', null)
-    .gt('expires_at', nowIso)
-    .limit(1);
+  const [sessionResult, profileResult] = await Promise.all([
+    supabase
+      .from('wallet_sessions')
+      .select('id,wallet_address,expires_at,revoked_at')
+      .eq('id', walletSessionId)
+      .eq('wallet_address', walletAddress)
+      .is('revoked_at', null)
+      .gt('expires_at', nowIso)
+      .limit(1),
+    supabase
+      .from('profiles')
+      .select('id,wallet_address,status')
+      .eq('id', profileId)
+      .eq('wallet_address', walletAddress)
+      .eq('status', 'active')
+      .limit(1),
+  ]);
 
-  if (error) {
-    throw new Error(`wallet session verification failed: ${error.message}`);
+  if (sessionResult.error || profileResult.error) {
+    throw new Error('wallet identity verification query failed');
   }
 
-  return Boolean((data?.[0] as WalletSessionAuthRow | undefined)?.id);
+  return Boolean(
+    (sessionResult.data?.[0] as WalletSessionAuthRow | undefined)?.id
+    && profileResult.data?.[0]?.id,
+  );
 }
 
 export async function requireAuthenticatedWallet(c: Context): Promise<AuthResult> {
@@ -221,10 +250,11 @@ export async function requireAuthenticatedWallet(c: Context): Promise<AuthResult
 
   try {
     const supabase = getServiceSupabaseClient();
-    const isSessionActive = await hasActiveWalletSession(
+    const isSessionActive = await hasActiveWalletIdentity(
       supabase,
       identity.walletSessionId,
       identity.walletAddress,
+      identity.profileId!,
     );
     if (!isSessionActive) {
       return { ok: false, response: c.json({ error: 'Authenticated wallet session is no longer active' }, 401) };
@@ -234,7 +264,7 @@ export async function requireAuthenticatedWallet(c: Context): Promise<AuthResult
     return {
       ok: false,
       response: c.json(
-        { error: error instanceof Error ? error.message : 'Wallet session verification failed' },
+        { error: 'Wallet session verification is temporarily unavailable' },
         500,
       ),
     };

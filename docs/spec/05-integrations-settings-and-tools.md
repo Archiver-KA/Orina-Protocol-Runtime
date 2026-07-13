@@ -48,7 +48,7 @@ Important local keys:
 - `orina_wallet_auth_session`
 - `orina_supabase_auth_claim_bridge_session`
 
-The browser session is sensitive. Same-origin script access can read localStorage, so do not introduce untrusted scripts into the runtime.
+The wallet proof and bridge token are short-lived and tab-scoped in `sessionStorage`; legacy `localStorage` entries are deleted. Same-origin scripts can still read `sessionStorage`, so do not introduce untrusted scripts into the runtime.
 
 ## Edge Function Namespaces
 

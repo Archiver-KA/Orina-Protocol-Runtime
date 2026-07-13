@@ -1,9 +1,8 @@
-import { Hono } from 'npm:hono';
-import { createClient } from 'npm:@supabase/supabase-js@2';
-import { createPublicClient, createWalletClient, http, type Chain, zeroAddress } from 'npm:viem';
-import { privateKeyToAccount } from 'npm:viem/accounts';
-import { arbitrumSepolia, baseSepolia, bscTestnet } from 'npm:viem/chains';
-import * as kv from './kv_store.tsx';
+import { Hono } from 'npm:hono@4.12.29';
+import { createClient } from 'npm:@supabase/supabase-js@2.100.1';
+import { createPublicClient, createWalletClient, http, type Chain, zeroAddress } from 'npm:viem@2.53.1';
+import { privateKeyToAccount } from 'npm:viem@2.53.1/accounts';
+import { arbitrumSepolia, baseSepolia, bscTestnet } from 'npm:viem@2.53.1/chains';
 import {
   assertAuthenticatedWalletMatch,
   isValidWalletAddress,
@@ -30,6 +29,8 @@ const DELEGATE_INVITE_RANDOM_BYTES = 32;
 const DELEGATE_INVITE_ID_PREFIX = 'm2m_';
 const DELEGATE_INVITE_ID_MAX_ATTEMPTS = 8;
 const DELEGATE_ENCRYPTION_SECRET_ENV = 'ATP2_M2M_DELEGATE_ENCRYPTION_KEY';
+const MAX_DELEGATES_PER_ROOT = 20;
+const MAX_PENDING_INVITES_PER_ROOT = 20;
 const SELLER_CONFIRM_ACTION_BIT = 1n << 3n;
 const DEFAULT_CHAIN_ID = 97;
 const DEFAULT_MAX_SELLER_CONFIRM_BATCH = 20;
@@ -180,16 +181,24 @@ type ManagedDelegateSecretRecord = {
   createdAt: string;
 };
 
-const configKey = (walletAddress: string) => `ai_m2m_wallet_config:${walletAddress}`;
-const delegateListKey = (walletAddress: string) => `ai_m2m_wallet_delegates:${walletAddress}`;
-const delegateInviteIdsKey = (walletAddress: string) => `ai_m2m_wallet_delegate_invites:${walletAddress}`;
-const delegateInviteKey = (inviteId: string) => `ai_m2m_wallet_delegate_invite:${inviteId}`;
-const managedDelegateSecretKey = (delegateId: string) => `ai_m2m_wallet_delegate_secret:${delegateId}`;
+type M2MStateErrorCode =
+  | 'delegate_limit'
+  | 'invite_limit'
+  | 'invite_unavailable'
+  | 'delegate_exists'
+  | 'delegate_matches_root';
+
+class M2MStateError extends Error {
+  constructor(readonly code: M2MStateErrorCode) {
+    super(code);
+    this.name = 'M2MStateError';
+  }
+}
 
 function defaultConfig(walletAddress: string): AIM2MWalletConfig {
   const now = new Date().toISOString();
   return {
-    id: `ai_m2m_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    id: `ai_m2m_${crypto.randomUUID()}`,
     walletAddress,
     enabled: false,
     selectedDelegateId: null,
@@ -209,7 +218,8 @@ function defaultConfig(walletAddress: string): AIM2MWalletConfig {
 function normalizeStringArray(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
   return input
-    .map((item) => String(item || '').trim())
+    .slice(0, 100)
+    .map((item) => String(item || '').trim().slice(0, 200))
     .filter(Boolean);
 }
 
@@ -228,7 +238,12 @@ function normalizeAmount(value: unknown): string {
 }
 
 function isValidAmountString(value: string): boolean {
-  return /^\d+(\.\d+)?$/.test(value);
+  return /^\d{1,30}(?:\.\d{1,18})?$/.test(value);
+}
+
+function decimalToScaledInteger(value: string): bigint {
+  const [whole, fraction = ''] = value.split('.');
+  return BigInt(`${whole}${fraction.padEnd(18, '0')}`);
 }
 
 function isBlank(value: string | null | undefined): boolean {
@@ -247,21 +262,10 @@ function generateDelegateInviteId(): string {
   return `${DELEGATE_INVITE_ID_PREFIX}${randomHex(DELEGATE_INVITE_RANDOM_BYTES)}`;
 }
 
-async function createUniqueDelegateInviteId(): Promise<string> {
-  for (let attempt = 0; attempt < DELEGATE_INVITE_ID_MAX_ATTEMPTS; attempt += 1) {
-    const inviteId = generateDelegateInviteId();
-    if (!await kv.get(delegateInviteKey(inviteId))) {
-      return inviteId;
-    }
-  }
-
-  throw new Error('Unable to allocate a unique delegate invite id');
-}
-
 async function getDelegateEncryptionKey(): Promise<CryptoKey> {
   const secret = String(Deno.env.get(DELEGATE_ENCRYPTION_SECRET_ENV) || '').trim();
-  if (!secret) {
-    throw new Error(`${DELEGATE_ENCRYPTION_SECRET_ENV} is not configured`);
+  if (new TextEncoder().encode(secret).byteLength < 32) {
+    throw new Error(`${DELEGATE_ENCRYPTION_SECRET_ENV} must contain at least 32 bytes of secret material`);
   }
 
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
@@ -319,16 +323,16 @@ async function openManagedDelegateBackup(record: ManagedDelegateSecretRecord): P
 }
 
 function getSupabaseServiceClient() {
-  return createClient(
-    Deno.env.get('SUPABASE_URL') || '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
-  );
+  const url = Deno.env.get('SUPABASE_URL') || '';
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+  if (!url || !serviceRoleKey) throw new Error('Missing Supabase service configuration');
+  return createClient(url, serviceRoleKey);
 }
 
 function isKeeperAuthorized(c: any): boolean {
   const expectedSecret = String(Deno.env.get('ATP2_M2M_AUTOCONFIRM_SECRET') || '').trim();
   const providedSecret = String(c.req.header('x-ai-m2m-autoconfirm-secret') || '').trim();
-  if (expectedSecret && providedSecret && expectedSecret === providedSecret) return true;
+  if (expectedSecret.length >= 32 && providedSecret && expectedSecret === providedSecret) return true;
 
   const serviceRoleKey = String(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '').trim();
   const authorization = String(c.req.header('authorization') || '').trim();
@@ -467,117 +471,187 @@ function buildOverview(config: AIM2MWalletConfig): AIM2MWalletOverview {
   };
 }
 
-function sanitizeStoredDelegateRecord(candidate: unknown, rootWalletAddress: string): AIM2MDelegateRecord | null {
+function toDelegateRecord(candidate: unknown, rootWalletAddress: string): AIM2MDelegateRecord | null {
   if (!candidate || typeof candidate !== 'object') return null;
   const source = candidate as Record<string, unknown>;
-  const delegateAddress = typeof source.delegateAddress === 'string'
-    ? normalizeWalletAddress(source.delegateAddress)
+  const rawDelegateAddress = source.delegate_address ?? source.delegateAddress;
+  const delegateAddress = typeof rawDelegateAddress === 'string'
+    ? normalizeWalletAddress(rawDelegateAddress)
     : '';
   if (!isValidWalletAddress(delegateAddress)) return null;
 
   const status = source.status === 'revoked' ? 'revoked' : 'verified';
   const mode = source.mode === 'enrolled' ? 'enrolled' : 'generated';
-  const createdAt = typeof source.createdAt === 'string' && source.createdAt
-    ? source.createdAt
+  const rawCreatedAt = source.created_at ?? source.createdAt;
+  const rawVerifiedAt = source.verified_at ?? source.verifiedAt;
+  const createdAt = typeof rawCreatedAt === 'string' && rawCreatedAt
+    ? rawCreatedAt
     : new Date().toISOString();
-  const verifiedAt = typeof source.verifiedAt === 'string' && source.verifiedAt
-    ? source.verifiedAt
+  const verifiedAt = typeof rawVerifiedAt === 'string' && rawVerifiedAt
+    ? rawVerifiedAt
     : createdAt;
+  const rawManagedByServer = source.managed_by_server ?? source.managedByServer;
 
   return {
-    id: typeof source.id === 'string' && source.id ? source.id : `delegate_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: typeof source.id === 'string' && source.id ? source.id : `delegate_${crypto.randomUUID()}`,
     rootWalletAddress,
     delegateAddress,
     mode,
     status,
     label: typeof source.label === 'string' && source.label.trim() ? source.label.trim() : null,
-    managedByServer: source.managedByServer === true,
+    managedByServer: rawManagedByServer === true,
     createdAt,
     verifiedAt,
   };
 }
 
-function sanitizeStoredInvite(candidate: unknown): AIM2MDelegateInvite | null {
-  if (!candidate || typeof candidate !== 'object') return null;
-  const source = candidate as Record<string, unknown>;
-  const rootWalletAddress = typeof source.rootWalletAddress === 'string'
-    ? normalizeWalletAddress(source.rootWalletAddress)
-    : '';
-  if (!isValidWalletAddress(rootWalletAddress)) return null;
-
-  const claimedByWalletAddress = typeof source.claimedByWalletAddress === 'string' && source.claimedByWalletAddress
-    ? normalizeWalletAddress(source.claimedByWalletAddress)
-    : null;
-
-  return {
-    id: typeof source.id === 'string' && source.id ? source.id : '',
-    rootWalletAddress,
-    status: source.status === 'claimed' ? 'claimed' : source.status === 'expired' ? 'expired' : 'pending',
-    createdAt: typeof source.createdAt === 'string' && source.createdAt ? source.createdAt : new Date().toISOString(),
-    expiresAt: typeof source.expiresAt === 'string' && source.expiresAt ? source.expiresAt : new Date().toISOString(),
-    claimedAt: typeof source.claimedAt === 'string' && source.claimedAt ? source.claimedAt : null,
-    claimedByWalletAddress: claimedByWalletAddress && isValidWalletAddress(claimedByWalletAddress) ? claimedByWalletAddress : null,
-  };
-}
-
-function expireInviteIfNeeded(invite: AIM2MDelegateInvite): AIM2MDelegateInvite {
-  if (invite.status !== 'pending') return invite;
-  if (Date.parse(invite.expiresAt) > Date.now()) return invite;
-  return { ...invite, status: 'expired' };
-}
-
 async function getDelegates(rootWalletAddress: string): Promise<AIM2MDelegateRecord[]> {
-  const stored = await kv.get<unknown[]>(delegateListKey(rootWalletAddress));
-  if (!Array.isArray(stored)) return [];
+  const supabase = getSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from('m2m_delegates')
+    .select('id,root_wallet_address,delegate_address,mode,status,label,managed_by_server,created_at,verified_at')
+    .eq('root_wallet_address', rootWalletAddress)
+    .order('verified_at', { ascending: false })
+    .limit(100);
+  if (error) throw new Error('Unable to load M2M delegates');
 
-  return stored
-    .map((entry) => sanitizeStoredDelegateRecord(entry, rootWalletAddress))
+  return (data || [])
+    .map((entry) => toDelegateRecord(entry, rootWalletAddress))
     .filter((entry): entry is AIM2MDelegateRecord => !!entry)
     .sort((left, right) => Date.parse(right.verifiedAt) - Date.parse(left.verifiedAt));
 }
 
-async function saveDelegates(rootWalletAddress: string, delegates: AIM2MDelegateRecord[]): Promise<void> {
-  await kv.set(delegateListKey(rootWalletAddress), delegates);
+function toDelegateInvite(candidate: unknown): AIM2MDelegateInvite | null {
+  if (!candidate || typeof candidate !== 'object') return null;
+  const source = candidate as Record<string, unknown>;
+  const rootWalletAddress = normalizeWalletAddress(String(source.root_wallet_address || ''));
+  const id = String(source.id || '');
+  const createdAt = String(source.created_at || '');
+  const expiresAt = String(source.expires_at || '');
+  if (!/^m2m_[a-f0-9]{64}$/.test(id) || !isValidWalletAddress(rootWalletAddress)) return null;
+  if (!Number.isFinite(Date.parse(createdAt)) || !Number.isFinite(Date.parse(expiresAt))) return null;
+
+  return {
+    id,
+    rootWalletAddress,
+    status: source.status === 'claimed' ? 'claimed' : source.status === 'expired' ? 'expired' : 'pending',
+    createdAt,
+    expiresAt,
+    claimedAt: source.claimed_at ? String(source.claimed_at) : null,
+    claimedByWalletAddress: source.claimed_by_wallet_address
+      ? normalizeWalletAddress(String(source.claimed_by_wallet_address))
+      : null,
+  };
 }
 
-async function appendDelegate(rootWalletAddress: string, delegate: AIM2MDelegateRecord): Promise<AIM2MDelegateRecord[]> {
-  const delegates = await getDelegates(rootWalletAddress);
-  const withoutSameId = delegates.filter((entry) => entry.id !== delegate.id);
-  withoutSameId.unshift(delegate);
-  await saveDelegates(rootWalletAddress, withoutSameId);
-  return withoutSameId;
-}
-
-async function getInviteIds(rootWalletAddress: string): Promise<string[]> {
-  const stored = await kv.get<string[]>(delegateInviteIdsKey(rootWalletAddress));
-  return Array.isArray(stored) ? stored.map((entry) => String(entry || '').trim()).filter(Boolean) : [];
-}
-
-async function pushInviteId(rootWalletAddress: string, inviteId: string): Promise<void> {
-  const existing = await getInviteIds(rootWalletAddress);
-  if (!existing.includes(inviteId)) {
-    await kv.set(delegateInviteIdsKey(rootWalletAddress), [inviteId, ...existing]);
+function firstRpcRow(data: unknown): Record<string, unknown> | null {
+  if (Array.isArray(data)) {
+    const first = data[0];
+    return first && typeof first === 'object' ? first as Record<string, unknown> : null;
   }
+  return data && typeof data === 'object' ? data as Record<string, unknown> : null;
+}
+
+function throwM2MStateRpcError(error: unknown, fallbackMessage: string): never {
+  const source = error && typeof error === 'object' ? error as Record<string, unknown> : {};
+  const message = String(source.message || '');
+  if (message.includes('m2m_pending_invite_limit_reached')) throw new M2MStateError('invite_limit');
+  if (message.includes('m2m_delegate_limit_reached')) throw new M2MStateError('delegate_limit');
+  if (message.includes('m2m_invite_unavailable')) throw new M2MStateError('invite_unavailable');
+  if (message.includes('m2m_delegate_already_registered')) throw new M2MStateError('delegate_exists');
+  if (message.includes('m2m_delegate_matches_root')) throw new M2MStateError('delegate_matches_root');
+  throw new Error(fallbackMessage);
+}
+
+async function createDelegateInvite(rootWalletAddress: string): Promise<AIM2MDelegateInvite> {
+  const supabase = getSupabaseServiceClient();
+  for (let attempt = 0; attempt < DELEGATE_INVITE_ID_MAX_ATTEMPTS; attempt += 1) {
+    const { data, error } = await supabase.rpc('atp2_create_m2m_delegate_invite_v1', {
+      p_id: generateDelegateInviteId(),
+      p_root_wallet_address: rootWalletAddress,
+      p_expires_at: new Date(Date.now() + DELEGATE_INVITE_TTL_MS).toISOString(),
+    });
+    if (error) {
+      if (String(error.code || '') === '23505') continue;
+      throwM2MStateRpcError(error, 'Unable to create delegate invite');
+    }
+    const invite = toDelegateInvite(firstRpcRow(data));
+    if (!invite) throw new Error('Delegate invite RPC returned an invalid record');
+    return invite;
+  }
+  throw new Error('Unable to allocate a unique delegate invite id');
+}
+
+async function registerManagedDelegate(
+  delegate: AIM2MDelegateRecord,
+  encryptedSecret: ManagedDelegateSecretRecord,
+): Promise<AIM2MDelegateRecord> {
+  const supabase = getSupabaseServiceClient();
+  const { data, error } = await supabase.rpc('atp2_register_m2m_managed_delegate_v1', {
+    p_id: delegate.id,
+    p_root_wallet_address: delegate.rootWalletAddress,
+    p_delegate_address: delegate.delegateAddress,
+    p_label: delegate.label,
+    p_iv_hex: encryptedSecret.ivHex,
+    p_ciphertext_hex: encryptedSecret.ciphertextHex,
+  });
+  if (error) throwM2MStateRpcError(error, 'Unable to register managed delegate');
+  const stored = toDelegateRecord(firstRpcRow(data), delegate.rootWalletAddress);
+  if (!stored) throw new Error('Managed delegate RPC returned an invalid record');
+  return stored;
+}
+
+async function claimDelegateInvite(inviteId: string, claimedWalletAddress: string): Promise<AIM2MDelegateRecord> {
+  const supabase = getSupabaseServiceClient();
+  const { data, error } = await supabase.rpc('atp2_claim_m2m_delegate_invite_v1', {
+    p_invite_id: inviteId,
+    p_claimed_wallet_address: claimedWalletAddress,
+    p_delegate_id: `delegate_${crypto.randomUUID()}`,
+  });
+  if (error) throwM2MStateRpcError(error, 'Unable to claim delegate invite');
+  const row = firstRpcRow(data);
+  const rootWalletAddress = normalizeWalletAddress(String(row?.root_wallet_address || ''));
+  const delegate = toDelegateRecord(row, rootWalletAddress);
+  if (!delegate || !isValidWalletAddress(rootWalletAddress)) {
+    throw new Error('Delegate invite RPC returned an invalid record');
+  }
+  return delegate;
+}
+
+async function getManagedDelegateSecret(delegateId: string): Promise<ManagedDelegateSecretRecord | null> {
+  const supabase = getSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from('m2m_delegate_secrets')
+    .select('version,iv_hex,ciphertext_hex,created_at')
+    .eq('delegate_id', delegateId)
+    .maybeSingle();
+  if (error) throw new Error('Unable to load managed delegate secret');
+  if (!data || data.version !== 1) return null;
+  if (!/^[a-f0-9]{24}$/i.test(String(data.iv_hex || '')) || !/^[a-f0-9]{164}$/i.test(String(data.ciphertext_hex || ''))) {
+    throw new Error('Managed delegate secret has an invalid encoding');
+  }
+  return {
+    version: 1,
+    ivHex: String(data.iv_hex),
+    ciphertextHex: String(data.ciphertext_hex),
+    createdAt: String(data.created_at),
+  };
 }
 
 async function getPendingInvites(rootWalletAddress: string): Promise<AIM2MDelegateInvite[]> {
-  const inviteIds = await getInviteIds(rootWalletAddress);
-  const invites: AIM2MDelegateInvite[] = [];
-
-  for (const inviteId of inviteIds) {
-    const invite = sanitizeStoredInvite(await kv.get(delegateInviteKey(inviteId)));
-    if (!invite || invite.rootWalletAddress !== rootWalletAddress) continue;
-
-    const hydrated = expireInviteIfNeeded(invite);
-    if (hydrated.status !== invite.status) {
-      await kv.set(delegateInviteKey(inviteId), hydrated);
-    }
-    if (hydrated.status === 'pending') {
-      invites.push(hydrated);
-    }
-  }
-
-  return invites.sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+  const supabase = getSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from('m2m_delegate_invites')
+    .select('id,root_wallet_address,status,created_at,expires_at,claimed_at,claimed_by_wallet_address')
+    .eq('root_wallet_address', rootWalletAddress)
+    .eq('status', 'pending')
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(MAX_PENDING_INVITES_PER_ROOT);
+  if (error) throw new Error('Unable to load delegate invites');
+  return (data || [])
+    .map(toDelegateInvite)
+    .filter((invite): invite is AIM2MDelegateInvite => !!invite && invite.status === 'pending');
 }
 
 function materializeConfigWithDelegates(
@@ -602,28 +676,68 @@ function sanitizeStoredConfig(candidate: unknown, walletAddress: string): AIM2MW
   }
 
   const source = candidate as Record<string, unknown>;
+  const selectedDelegateId = source.selected_delegate_id ?? source.selectedDelegateId;
+  const paymentToken = source.payment_token ?? source.paymentToken;
+  const allowedActions = source.allowed_actions ?? source.allowedActions;
+  const maxPerOrder = source.max_per_order ?? source.maxPerOrder;
+  const maxTotal = source.max_total ?? source.maxTotal;
+  const expiryDays = source.expiry_days ?? source.expiryDays;
+  const counterpartyAllowlist = source.counterparty_allowlist ?? source.counterpartyAllowlist;
+  const createdAt = source.created_at ?? source.createdAt;
+  const updatedAt = source.updated_at ?? source.updatedAt;
   return {
     id: typeof source.id === 'string' && source.id ? source.id : fallback.id,
     walletAddress,
     enabled: source.enabled === true,
-    selectedDelegateId: typeof source.selectedDelegateId === 'string' && source.selectedDelegateId.trim()
-      ? source.selectedDelegateId.trim()
+    selectedDelegateId: typeof selectedDelegateId === 'string' && selectedDelegateId.trim()
+      ? selectedDelegateId.trim()
       : null,
     delegateAddress: '',
-    paymentToken: typeof source.paymentToken === 'string' && source.paymentToken
-      ? normalizeWalletAddress(source.paymentToken)
+    paymentToken: typeof paymentToken === 'string' && paymentToken
+      ? normalizeWalletAddress(paymentToken)
       : null,
-    allowedActions: normalizeActions(source.allowedActions).length
-      ? normalizeActions(source.allowedActions)
+    allowedActions: normalizeActions(allowedActions).length
+      ? normalizeActions(allowedActions)
       : [...fallback.allowedActions],
-    maxPerOrder: normalizeAmount(source.maxPerOrder),
-    maxTotal: normalizeAmount(source.maxTotal),
-    expiryDays: Number.isFinite(Number(source.expiryDays)) ? Math.trunc(Number(source.expiryDays)) : fallback.expiryDays,
-    counterpartyAllowlist: normalizeStringArray(source.counterpartyAllowlist).map(normalizeWalletAddress),
+    maxPerOrder: normalizeAmount(maxPerOrder),
+    maxTotal: normalizeAmount(maxTotal),
+    expiryDays: Number.isFinite(Number(expiryDays)) ? Math.trunc(Number(expiryDays)) : fallback.expiryDays,
+    counterpartyAllowlist: normalizeStringArray(counterpartyAllowlist).map(normalizeWalletAddress),
     notes: typeof source.notes === 'string' ? source.notes : '',
-    createdAt: typeof source.createdAt === 'string' && source.createdAt ? source.createdAt : fallback.createdAt,
-    updatedAt: typeof source.updatedAt === 'string' && source.updatedAt ? source.updatedAt : fallback.updatedAt,
+    createdAt: typeof createdAt === 'string' && createdAt ? createdAt : fallback.createdAt,
+    updatedAt: typeof updatedAt === 'string' && updatedAt ? updatedAt : fallback.updatedAt,
   };
+}
+
+async function loadConfig(walletAddress: string): Promise<AIM2MWalletConfig> {
+  const supabase = getSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from('m2m_wallet_config')
+    .select('id,wallet_address,enabled,selected_delegate_id,payment_token,allowed_actions,max_per_order,max_total,expiry_days,counterparty_allowlist,notes,created_at,updated_at')
+    .eq('wallet_address', walletAddress)
+    .maybeSingle();
+  if (error) throw new Error('Unable to load M2M wallet configuration');
+  return sanitizeStoredConfig(data, walletAddress);
+}
+
+async function saveConfig(config: AIM2MWalletConfig): Promise<void> {
+  const supabase = getSupabaseServiceClient();
+  const { error } = await supabase.from('m2m_wallet_config').upsert({
+    id: config.id,
+    wallet_address: config.walletAddress,
+    enabled: config.enabled,
+    selected_delegate_id: config.selectedDelegateId,
+    payment_token: config.paymentToken,
+    allowed_actions: config.allowedActions,
+    max_per_order: config.maxPerOrder,
+    max_total: config.maxTotal,
+    expiry_days: config.expiryDays,
+    counterparty_allowlist: config.counterpartyAllowlist,
+    notes: config.notes || '',
+    created_at: config.createdAt,
+    updated_at: config.updatedAt,
+  }, { onConflict: 'wallet_address' });
+  if (error) throw new Error('Unable to save M2M wallet configuration');
 }
 
 function validateConfig(config: AIM2MWalletConfig, delegates: AIM2MDelegateRecord[]): string | null {
@@ -659,11 +773,13 @@ function validateConfig(config: AIM2MWalletConfig, delegates: AIM2MDelegateRecor
       return 'Max per order and max total must be numeric strings for delegated buy sessions.';
     }
 
-    if (Number(config.maxPerOrder) <= 0 || Number(config.maxTotal) <= 0) {
+    const maxPerOrder = decimalToScaledInteger(config.maxPerOrder);
+    const maxTotal = decimalToScaledInteger(config.maxTotal);
+    if (maxPerOrder <= 0n || maxTotal <= 0n) {
       return 'Budget caps must be greater than zero for delegated buy sessions.';
     }
 
-    if (Number(config.maxTotal) < Number(config.maxPerOrder)) {
+    if (maxTotal < maxPerOrder) {
       return 'Max total must be greater than or equal to max per order.';
     }
   }
@@ -706,17 +822,17 @@ aiM2MWallet.get('/config/:walletAddress', async (c) => {
   try {
     const auth = await requireAuthenticatedWallet(c);
     if (!auth.ok) return auth.response;
+    const rate = await checkRateLimit('ai_m2m_read', auth.identity.walletAddress);
+    if (!rate.allowed) return rateLimitExceededResponse(c, rate);
 
     const walletAddress = c.req.param('walletAddress');
     const walletMismatch = assertAuthenticatedWalletMatch(c, auth.identity, walletAddress, 'walletAddress');
     if (walletMismatch) return walletMismatch;
-
     const resolvedWalletAddress = auth.identity.walletAddress;
     const delegates = await getDelegates(resolvedWalletAddress);
     const pendingInvites = await getPendingInvites(resolvedWalletAddress);
-    const stored = await kv.get(configKey(resolvedWalletAddress));
     const config = materializeConfigWithDelegates(
-      sanitizeStoredConfig(stored, resolvedWalletAddress),
+      await loadConfig(resolvedWalletAddress),
       delegates,
     );
 
@@ -742,10 +858,21 @@ aiM2MWallet.post('/config', async (c) => {
     const walletAddress = String(body.walletAddress || '');
     const walletMismatch = assertAuthenticatedWalletMatch(c, auth.identity, walletAddress, 'walletAddress');
     if (walletMismatch) return walletMismatch;
+    const rate = await checkRateLimit('ai_m2m_config_write', auth.identity.walletAddress);
+    if (!rate.allowed) return rateLimitExceededResponse(c, rate);
+    if (
+      typeof body.notes === 'string' && body.notes.length > 2_000
+      || typeof body.selectedDelegateId === 'string' && body.selectedDelegateId.length > 200
+      || String(body.maxPerOrder ?? '').length > 50
+      || String(body.maxTotal ?? '').length > 50
+      || Array.isArray(body.counterpartyAllowlist) && body.counterpartyAllowlist.length > 100
+    ) {
+      return c.json({ error: 'AI M2M configuration exceeds the allowed size' }, 413);
+    }
 
     const resolvedWalletAddress = auth.identity.walletAddress;
     const delegates = await getDelegates(resolvedWalletAddress);
-    const existing = sanitizeStoredConfig(await kv.get(configKey(resolvedWalletAddress)), resolvedWalletAddress);
+    const existing = await loadConfig(resolvedWalletAddress);
 
     const candidateConfig: AIM2MWalletConfig = {
       ...existing,
@@ -766,7 +893,7 @@ aiM2MWallet.post('/config', async (c) => {
       maxTotal: normalizeAmount(body.maxTotal),
       expiryDays: Number.isFinite(Number(body.expiryDays)) ? Math.trunc(Number(body.expiryDays)) : existing.expiryDays,
       counterpartyAllowlist: normalizeStringArray(body.counterpartyAllowlist).map(normalizeWalletAddress),
-      notes: typeof body.notes === 'string' ? body.notes.trim() : '',
+      notes: typeof body.notes === 'string' ? body.notes.trim().slice(0, 2_000) : '',
       updatedAt: new Date().toISOString(),
     };
 
@@ -776,7 +903,7 @@ aiM2MWallet.post('/config', async (c) => {
       return c.json({ error: validationError }, 400);
     }
 
-    await kv.set(configKey(resolvedWalletAddress), config);
+    await saveConfig(config);
 
     return c.json({
       success: true,
@@ -802,7 +929,12 @@ aiM2MWallet.post('/delegates/generate', async (c) => {
     if (walletMismatch) return walletMismatch;
 
     const resolvedWalletAddress = auth.identity.walletAddress;
+    const rate = await checkRateLimit('ai_m2m_delegate_generate', resolvedWalletAddress);
+    if (!rate.allowed) return rateLimitExceededResponse(c, rate);
     const existingDelegates = await getDelegates(resolvedWalletAddress);
+    if (existingDelegates.length >= MAX_DELEGATES_PER_ROOT) {
+      return c.json({ error: 'Delegate limit reached for this root wallet' }, 409);
+    }
     const { privateKey, address } = generateManagedDelegateAccount();
     const now = new Date().toISOString();
     const delegateRecord: AIM2MDelegateRecord = {
@@ -818,19 +950,21 @@ aiM2MWallet.post('/delegates/generate', async (c) => {
     };
 
     const encryptedSecret = await encryptManagedDelegateSecret(privateKey);
-    await kv.set(managedDelegateSecretKey(delegateRecord.id), encryptedSecret);
-    const delegates = await appendDelegate(resolvedWalletAddress, delegateRecord);
+    const storedDelegate = await registerManagedDelegate(delegateRecord, encryptedSecret);
+    const delegates = await getDelegates(resolvedWalletAddress);
 
     return c.json({
       success: true,
-      delegate: delegateRecord,
+      delegate: storedDelegate,
       delegates,
       pendingInvites: await getPendingInvites(resolvedWalletAddress),
     });
   } catch (error) {
+    if (error instanceof M2MStateError && (error.code === 'delegate_limit' || error.code === 'delegate_exists')) {
+      return c.json({ error: 'Delegate limit or duplicate constraint reached for this root wallet' }, 409);
+    }
     console.error('Generate AI M2M delegate error:', error);
-    const message = error instanceof Error ? error.message : 'Error generating delegate';
-    return c.json({ error: message }, 500);
+    return c.json({ error: 'Error generating delegate' }, 500);
   }
 });
 
@@ -849,27 +983,22 @@ aiM2MWallet.post('/delegates/invite', async (c) => {
     if (!rate.allowed) {
       return rateLimitExceededResponse(c, rate);
     }
+    const pendingInvites = await getPendingInvites(resolvedWalletAddress);
+    if (pendingInvites.length >= MAX_PENDING_INVITES_PER_ROOT) {
+      return c.json({ error: 'Pending delegate invite limit reached' }, 409);
+    }
 
-    const nowMs = Date.now();
-    const invite: AIM2MDelegateInvite = {
-      id: await createUniqueDelegateInviteId(),
-      rootWalletAddress: resolvedWalletAddress,
-      status: 'pending',
-      createdAt: new Date(nowMs).toISOString(),
-      expiresAt: new Date(nowMs + DELEGATE_INVITE_TTL_MS).toISOString(),
-      claimedAt: null,
-      claimedByWalletAddress: null,
-    };
-
-    await kv.set(delegateInviteKey(invite.id), invite);
-    await pushInviteId(resolvedWalletAddress, invite.id);
+    const invite = await createDelegateInvite(resolvedWalletAddress);
 
     return c.json({
       success: true,
       invite,
-      pendingInvites: await getPendingInvites(resolvedWalletAddress),
+      pendingInvites: [invite, ...pendingInvites],
     });
   } catch (error) {
+    if (error instanceof M2MStateError && error.code === 'invite_limit') {
+      return c.json({ error: 'Pending delegate invite limit reached' }, 409);
+    }
     console.error('Create AI M2M delegate invite error:', error);
     return c.json({ error: 'Error creating delegate invite' }, 500);
   }
@@ -882,8 +1011,8 @@ aiM2MWallet.post('/delegates/accept-invite', async (c) => {
 
     const body = await c.req.json();
     const inviteId = String(body.inviteId || '').trim();
-    if (!inviteId) {
-      return c.json({ error: 'Missing inviteId' }, 400);
+    if (!/^m2m_[a-f0-9]{64}$/.test(inviteId)) {
+      return c.json({ error: 'Invalid inviteId' }, 400);
     }
 
     const rate = await checkRateLimit('ai_m2m_delegate_accept', auth.identity.walletAddress);
@@ -891,73 +1020,25 @@ aiM2MWallet.post('/delegates/accept-invite', async (c) => {
       return rateLimitExceededResponse(c, rate);
     }
 
-    const storedInvite = sanitizeStoredInvite(await kv.get(delegateInviteKey(inviteId)));
-    if (!storedInvite) {
-      return c.json({ error: 'Invite not found' }, 404);
-    }
-
-    const invite = expireInviteIfNeeded(storedInvite);
-    if (invite.status === 'expired') {
-      await kv.set(delegateInviteKey(invite.id), invite);
-      return c.json({ error: 'Invite has expired' }, 400);
-    }
-    if (invite.status !== 'pending') {
-      return c.json({ error: 'Invite is no longer available' }, 400);
-    }
-
-    const delegateWalletAddress = auth.identity.walletAddress;
-    if (delegateWalletAddress === invite.rootWalletAddress) {
-      return c.json({ error: 'Delegate wallet must be different from the root wallet.' }, 400);
-    }
-
-    const delegates = await getDelegates(invite.rootWalletAddress);
-    const existingByAddress = delegates.find(
-      (entry) => entry.delegateAddress === delegateWalletAddress && entry.status === 'verified',
-    );
-    if (existingByAddress) {
-      const claimedInvite: AIM2MDelegateInvite = {
-        ...invite,
-        status: 'claimed',
-        claimedAt: new Date().toISOString(),
-        claimedByWalletAddress: delegateWalletAddress,
-      };
-      await kv.set(delegateInviteKey(invite.id), claimedInvite);
-      return c.json({
-        success: true,
-        delegate: existingByAddress,
-        rootWalletAddress: invite.rootWalletAddress,
-      });
-    }
-
-    const now = new Date().toISOString();
-    const delegateRecord: AIM2MDelegateRecord = {
-      id: `delegate_${crypto.randomUUID()}`,
-      rootWalletAddress: invite.rootWalletAddress,
-      delegateAddress: delegateWalletAddress,
-      mode: 'enrolled',
-      status: 'verified',
-      label: null,
-      managedByServer: false,
-      createdAt: now,
-      verifiedAt: now,
-    };
-
-    await appendDelegate(invite.rootWalletAddress, delegateRecord);
-
-    const claimedInvite: AIM2MDelegateInvite = {
-      ...invite,
-      status: 'claimed',
-      claimedAt: now,
-      claimedByWalletAddress: delegateWalletAddress,
-    };
-    await kv.set(delegateInviteKey(invite.id), claimedInvite);
+    const delegate = await claimDelegateInvite(inviteId, auth.identity.walletAddress);
 
     return c.json({
       success: true,
-      delegate: delegateRecord,
-      rootWalletAddress: invite.rootWalletAddress,
+      delegate,
+      rootWalletAddress: delegate.rootWalletAddress,
     });
   } catch (error) {
+    if (error instanceof M2MStateError) {
+      if (error.code === 'delegate_matches_root') {
+        return c.json({ error: 'Delegate wallet must be different from the root wallet.' }, 400);
+      }
+      if (error.code === 'delegate_limit') {
+        return c.json({ error: 'Delegate limit reached for this root wallet' }, 409);
+      }
+      if (error.code === 'invite_unavailable') {
+        return c.json({ error: 'Invite is no longer available' }, 409);
+      }
+    }
     console.error('Accept AI M2M delegate invite error:', error);
     return c.json({ error: 'Error accepting delegate invite' }, 500);
   }
@@ -1028,7 +1109,7 @@ aiM2MWallet.post('/seller-confirm/run', async (c) => {
 
         const delegates = await getDelegates(seller);
         const config = materializeConfigWithDelegates(
-          sanitizeStoredConfig(await kv.get(configKey(seller)), seller),
+          await loadConfig(seller),
           delegates,
         );
         if (!config.enabled || !config.allowedActions.includes('sign_order') || !config.selectedDelegateId) {
@@ -1121,7 +1202,7 @@ aiM2MWallet.post('/seller-confirm/run', async (c) => {
           continue;
         }
 
-        const secret = await kv.get<ManagedDelegateSecretRecord>(managedDelegateSecretKey(delegate.id));
+        const secret = await getManagedDelegateSecret(delegate.id);
         if (!secret) {
           results.push({ orderId: orderId.toString(), status: 'skipped', reason: 'managed_delegate_secret_missing', seller, delegateId: delegate.id });
           continue;

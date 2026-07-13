@@ -107,7 +107,14 @@ function shouldBlockGuestWrite(op: string): boolean {
 
 function readLocalArraySafe<T>(key: string): T[] {
   try {
-    const raw = localStorage.getItem(key);
+    if (typeof window === 'undefined') return [];
+    const sessionRaw = window.sessionStorage.getItem(key);
+    const legacyRaw = window.localStorage.getItem(key);
+    window.localStorage.removeItem(key);
+    if (!sessionRaw && legacyRaw) {
+      window.sessionStorage.setItem(key, legacyRaw);
+    }
+    const raw = sessionRaw || legacyRaw;
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as T[]) : [];
@@ -288,7 +295,8 @@ function mergeDeliveryAddressesPreferLocal(
 function saveLocalDeliveryAddresses(walletAddress: string, addresses: DeliveryAddressRecord[]): DeliveryAddressRecord[] {
   const key = getDeliveryAddressesKey(walletAddress);
   const normalized = ensureSingleDefaultAddress(addresses.map(normalizeDeliveryAddressRecord));
-  localStorage.setItem(key, JSON.stringify(normalized));
+  window.localStorage.removeItem(key);
+  window.sessionStorage.setItem(key, JSON.stringify(normalized));
   dispatchSyncEvent(DELIVERY_ADDRESSES_SYNC_EVENT);
   return normalized;
 }

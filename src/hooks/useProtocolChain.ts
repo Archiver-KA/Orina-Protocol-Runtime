@@ -81,6 +81,7 @@ export function useProtocolChain() {
     status: selectionStatus,
     selectedNetwork,
     liveNetwork: selectedNetwork,
+    selectedContracts,
     ensureProtocolChainAsync,
   };
 }

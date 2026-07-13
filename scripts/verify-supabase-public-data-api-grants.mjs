@@ -56,29 +56,46 @@ function splitStatements(sql) {
     .filter(Boolean);
 }
 
+function parsePrivileges(clause) {
+  const privileges = [];
+  const privilegeRe = /\b(select|insert|update|delete|truncate|references|trigger|all(?:\s+privileges)?)\b(?:\s*\(([^)]*)\))?/gi;
+  for (const match of clause.matchAll(privilegeRe)) {
+    const privilege = match[1].toLowerCase().replace(/\s+/g, ' ');
+    const columns = String(match[2] || '')
+      .split(',')
+      .map((column) => normalizeIdent(column.trim()))
+      .filter(Boolean)
+      .sort();
+    privileges.push(columns.length ? `${privilege}(${columns.join(',')})` : privilege);
+  }
+  return privileges;
+}
+
 function collectTableGrants(migrations) {
   const grants = new Map();
+  const decisions = new Set();
 
   for (const migration of migrations) {
     for (const statement of splitStatements(migration.text)) {
       const grantMatch = statement.match(/\bgrant\s+([\s\S]+?)\s+on\s+(?:table\s+)?([\s\S]+?)\s+to\s+([\s\S]+)$/i);
-      if (!grantMatch) continue;
-      if (/^\s*(function|sequence|schema|routine)\b/i.test(grantMatch[2])) continue;
+      const revokeMatch = statement.match(/\brevoke\s+(?:grant\s+option\s+for\s+)?([\s\S]+?)\s+on\s+(?:table\s+)?([\s\S]+?)\s+from\s+([\s\S]+)$/i);
+      const accessMatch = grantMatch || revokeMatch;
+      if (!accessMatch) continue;
+      if (/^\s*(function|sequence|schema|routine)\b/i.test(accessMatch[2])) continue;
 
-      const privileges = grantMatch[1]
-        .split(',')
-        .map((entry) => entry.trim().toLowerCase())
-        .filter(Boolean);
-      const roleText = grantMatch[3].toLowerCase();
+      const privileges = parsePrivileges(accessMatch[1]);
+      if (privileges.length === 0) continue;
+      const roleText = accessMatch[3].toLowerCase();
       const roles = roleText
         .split(',')
         .map((entry) => entry.trim().replace(/\s+with\s+grant\s+option.*$/i, ''))
         .filter((role) => DATA_API_ROLES.has(role));
       if (roles.length === 0) continue;
 
-      const targetText = grantMatch[2];
+      const targetText = accessMatch[2];
       for (const target of targetText.matchAll(/\bpublic\.("?[\w]+"?)/gi)) {
         const table = normalizeIdent(target[1]);
+        decisions.add(table);
         const entry = grants.get(table) || {
           table,
           roles: {},
@@ -86,8 +103,26 @@ function collectTableGrants(migrations) {
         };
         for (const role of roles) {
           const rolePrivileges = entry.roles[role] || new Set();
-          privileges.forEach((privilege) => rolePrivileges.add(privilege));
-          entry.roles[role] = rolePrivileges;
+          if (grantMatch) {
+            privileges.forEach((privilege) => rolePrivileges.add(privilege));
+            entry.roles[role] = rolePrivileges;
+          } else if (privileges.some((privilege) => privilege === 'all' || privilege === 'all privileges')) {
+            delete entry.roles[role];
+          } else {
+            privileges.forEach((privilege) => {
+              if (privilege.includes('(')) {
+                rolePrivileges.delete(privilege);
+                return;
+              }
+              for (const existingPrivilege of [...rolePrivileges]) {
+                if (existingPrivilege === privilege || existingPrivilege.startsWith(`${privilege}(`)) {
+                  rolePrivileges.delete(existingPrivilege);
+                }
+              }
+            });
+            if (rolePrivileges.size > 0) entry.roles[role] = rolePrivileges;
+            else delete entry.roles[role];
+          }
         }
         entry.migrations.add(migration.name);
         grants.set(table, entry);
@@ -95,7 +130,7 @@ function collectTableGrants(migrations) {
     }
   }
 
-  return grants;
+  return { grants, decisions };
 }
 
 function collectPostgisRls(migrations) {
@@ -126,11 +161,11 @@ function serializeGrant(entry) {
 function main() {
   const migrations = readMigrations();
   const createdTables = collectCreatedTables(migrations);
-  const grants = collectTableGrants(migrations);
+  const { grants, decisions } = collectTableGrants(migrations);
   const missingExplicitGrant = [];
 
   for (const table of [...createdTables.values()].sort((left, right) => left.table.localeCompare(right.table))) {
-    if (!grants.has(table.table)) {
+    if (!decisions.has(table.table)) {
       missingExplicitGrant.push(table);
     }
   }
@@ -140,7 +175,10 @@ function main() {
     generatedAt: new Date().toISOString(),
     checkedMigrations: migrations.map((migration) => migration.name),
     publicTablesCreated: createdTables.size,
-    tablesWithExplicitDataApiGrant: [...grants.keys()].filter((table) => createdTables.has(table)).length,
+    tablesWithExplicitDataApiGrant: [...grants.entries()]
+      .filter(([table, entry]) => createdTables.has(table) && Object.keys(entry.roles).length > 0)
+      .length,
+    tablesWithExplicitDataApiDecision: [...decisions].filter((table) => createdTables.has(table)).length,
     missingExplicitGrant,
     postgisSpatialRefSys,
     grants: Object.fromEntries(
