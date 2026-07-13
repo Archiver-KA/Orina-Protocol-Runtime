@@ -79,13 +79,18 @@ function fail(message) {
 }
 
 function run(command, commandArgs, options = {}) {
-  const useShell = process.platform === 'win32' && command === 'npm';
-  const executable = command;
-  const result = spawnSync(executable, commandArgs, {
+  const windowsNpm = process.platform === 'win32' && command === 'npm';
+  const npmCli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  if (windowsNpm && !fs.existsSync(npmCli)) {
+    fail(`Unable to locate the npm CLI beside Node.js: ${npmCli}`);
+  }
+  const executable = windowsNpm ? process.execPath : command;
+  const executableArgs = windowsNpm ? [npmCli, ...commandArgs] : commandArgs;
+  const result = spawnSync(executable, executableArgs, {
     cwd: options.cwd || SOURCE_ROOT,
     encoding: 'utf8',
     stdio: options.quiet ? 'pipe' : 'inherit',
-    shell: useShell,
+    shell: false,
   });
 
   if (result.error && !options.allowFailure) {

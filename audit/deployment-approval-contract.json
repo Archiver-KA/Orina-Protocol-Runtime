@@ -1,17 +1,17 @@
 {
   "schema": "orina.deployment-approval-contract.v1",
-  "generatedAt": "2026-07-13T10:15:00+07:00",
-  "status": "APPROVED_FOR_CI_CD_DEPLOYMENT",
+  "generatedAt": "2026-07-13T11:05:00+07:00",
+  "status": "DEPLOYED_BY_CI_CD",
   "authorityClass": "DEPLOYMENT_AUTHORITY",
-  "deploymentTriggered": false,
-  "mutationAttempted": false,
+  "deploymentTriggered": true,
+  "mutationAttempted": true,
   "secretValuesInspected": false,
   "ownerAuthorityEvidence": "In the current 2026-07-13 session, owner Archiver-KA explicitly authorized completion of the remaining security work, commit, GitHub/Supabase production deployment, and public-mirror synchronization.",
   "repository": {
     "remote": "https://github.com/Archiver-KA/Orina-Protocol-Runtime",
     "branch": "main",
-    "codeCandidateCommitSha": "130368137562512ab5161e082bbd51305bd53fa2",
-    "approvalRecordCommitSha": "recorded-after-commit",
+    "codeCandidateCommitSha": "f556cf3d25951ae8dc007d4e39e4d1ae7f210cbb",
+    "approvalRecordCommitSha": "3fa4ec31ec2b4553176d6f2aa4015dfee2974cd5",
     "workingTreeCleanAtCodeCandidate": true
   },
   "candidateSummary": {
@@ -44,9 +44,9 @@
   "githubEnvironmentEvidence": {
     "environment": "production",
     "exists": true,
-    "protectionRulesConfigured": false,
+    "protectionRulesConfigured": true,
     "classification": "PARTIAL",
-    "currentDeploymentApproval": "Owner approval is recorded in this current session; future required-reviewer protection will be configured after this deployment to avoid self-approval ambiguity during the active maintenance window."
+    "currentDeploymentApproval": "Production and wallet-smoke are restricted to protected branches. Required-reviewer and wait-timer rules were rejected by GitHub with HTTP 422 because the private-repository billing plan does not support them."
   },
   "cdpEvidence": {
     "cdpUrl": "http://127.0.0.1:9222",
@@ -78,7 +78,7 @@
     "requiredWorkflow": "Protocol Release Gate",
     "requiredCheck": "Viewer Release Gate",
     "productionHost": "https://app.orina.io",
-    "namedSmokeException": "The immutable Cloudflare production build does not exist before push. Owner-authorized continuation requires immediate post-push smoke and rollback on any secret leak, unexpected origin, console security error, or route failure."
+    "namedSmokeException": "Post-deploy CDP verified loaded routes, no browser storage/cookie leak, no unexpected origin, no wildcard function CORS, and no wallet confirmation target. The CDP profile had no injected wallet, and strict script-src intentionally blocked dynamic Cloudflare Analytics/challenge scripts rather than allowing unsafe-inline."
   },
   "backendDeploymentPath": {
     "approved": true,
@@ -88,14 +88,29 @@
     "environment": "production",
     "requiredConfirmInput": "DEPLOY_SUPABASE_PRODUCTION"
   },
+  "deploymentResult": {
+    "completedAt": "2026-07-13T10:49:00+07:00",
+    "approvedCommitSha": "f556cf3d25951ae8dc007d4e39e4d1ae7f210cbb",
+    "protocolReleaseGateRunId": "29222411980",
+    "protocolReleaseGateConclusion": "success",
+    "supabaseProductionDeployRunId": "29222417728",
+    "supabaseProductionDeployRunUrl": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/29222417728",
+    "workflowConclusion": "success",
+    "migrationAlignedThrough": "000085",
+    "backendHealthCorsVerification": "passed; seven health routes returned 200 with exact https://app.orina.io allow-origin; denied OPTIONS returned no allow-origin",
+    "walletClaimNegativeSmoke": "passed; health, challenge, unapproved-origin denial, missing-origin denial, invalid signature, malformed/stale message, and anon projection insert denial",
+    "publicMirrorCommitSha": "227364bee0d3051e0a2c585f565d071f1690de3c",
+    "publicMirrorCi": "passed; public boundary, lint, web/contracts typecheck, 21 test files / 86 tests, and production build",
+    "secretValuesInspected": false
+  },
   "verificationEvidence": {
     "npmCi": "passed; lockfile install exited 0",
-    "tests": "passed; 26 test files, 109 tests",
+    "tests": "passed; 27 test files, 111 tests",
     "typecheck": "passed",
     "edgeTypecheck": "passed for all eight Edge entrypoints",
     "lint": "passed with zero warnings",
     "clientSecretScan": "passed; 299 browser files",
-    "trackedSecretScan": "passed; 676 tracked/unignored files",
+    "trackedSecretScan": "passed; 679 tracked/unignored files",
     "securityScan": "passed; npm audit 0 at all severities; Deno audit found no known vulnerabilities",
     "supabaseSecurityDefinerAudit": "passed live after migration; 27 audited functions; findings []",
     "supabaseDataApiGrants": "passed; 67 tables and 67 explicit grant/revoke decisions",
@@ -106,13 +121,14 @@
     "deterministicBuild": "passed; 355 files compared, differences []",
     "sbom": "passed; CycloneDX 1.5, 470 components, 471 dependencies",
     "releaseManifest": "passed; unsigned manifest, 355 artifacts",
-    "deploymentTargetShape": "passed; local project ref, DB URL identity, public URL/project and anon JWT are coherent for the canonical project"
+    "deploymentTargetShape": "passed; local project ref, DB URL identity, public URL/project and anon JWT are coherent for the canonical project",
+    "frontendProduction": "passed with named browser exceptions; Cloudflare routes/redirects resolve to 200, security headers are present, script-src has no unsafe-inline, live bundle contains the canonical project and fail-closed marker, and the legacy project ref is absent"
   },
   "candidateArtifacts": {
     "sbom": "audit/sbom.cdx.json",
-    "sbomSha256": "EB0944A2E742695047C23784668FC3409A48E078AC013DD5F17C250F5E74B5F8",
+    "sbomSha256": "6331FD7734C80C08D37D7609ED9D5BEF08006128594FB65679C42D7B893C4227",
     "unsignedReleaseManifest": "audit/release-manifest.unsigned.json",
-    "unsignedReleaseManifestSha256": "4FD1D1826B724A715A77735087614610F1DAF9314E03D2761C08EB75CD30AE66",
+    "unsignedReleaseManifestSha256": "A9453FE273C7C5A8D17542EB4E94E627720A31E32AE742A18AD3362EC475A9E2",
     "dependencyLockfile": "package-lock.json",
     "dependencyLockfileSha256": "749B2D9223E7660932938741BB3427028B037E756CBC6F668CFCAAE0C71DCE83"
   },
@@ -125,6 +141,8 @@
   "externalResiduals": [
     "Historical RapidAPI credential and ignored local PAT-like credentials require provider-side revocation/rotation by the owner; no value was read or printed.",
     "Supabase Advisor still reports one RLS issue consistent with extension-owned public.spatial_ref_sys.",
-    "Release artifacts are unsigned pending an owner-selected signing identity and custody process."
+    "Release artifacts are unsigned pending an owner-selected signing identity and custody process.",
+    "GitHub required environment reviewers and wait timers are blocked by the current private-repository billing plan; protected-branch environment policies are enabled.",
+    "Cloudflare-injected dynamic analytics/challenge scripts remain blocked by strict CSP because allowing them would require unsafe-inline or unstable per-response hashes; application scripts and routes load successfully."
   ]
 }

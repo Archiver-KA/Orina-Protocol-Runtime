@@ -5,13 +5,15 @@
 - Private deployment source: `Archiver-KA/Orina-Protocol-Runtime`, branch `main`; authenticated owner permission is `ADMIN`.
 - Public clean-room mirror: `Archiver-KA/System-Orina-Protocol`; authenticated owner permission is `ADMIN`.
 - GitHub `main` protection is enabled with strict required context `Viewer Release Gate`; force pushes and branch deletion are disabled.
-- GitHub `production` environment exists but had no platform reviewer rule at inspection time. The owner's current-session approval is recorded for this maintenance window; a required-reviewer rule remains a future-control action after rollout.
+- GitHub `production` and `wallet-smoke` environments are restricted to protected branches. Required-reviewer and wait-timer rules were rejected with HTTP 422 because the private-repository billing plan does not support them.
 - Canonical backend is Supabase `ystjugghyteyylkevbsl` (`Orina ATP v3.5 beta`). The older `vcixsdudkizgfikhmfuv` deployment references were operational drift and were corrected in current runbooks.
 - Deployment preflight now fails closed unless the canonical project ref, DB audit URL identity, public project/URL, and legacy anon JWT ref are coherent.
 - Read-only CDP on port `9222` confirmed the owner sessions without inspecting cookies, storage, tokens, or secret values.
 - Supabase migration history is aligned through `000085`; `000082`-`000084` applied the hardening cutover and `000085` removed the excess review-RPC execute grant found by the first live audit rerun.
-- Final code candidate before the approval-record commit is `130368137562512ab5161e082bbd51305bd53fa2`. The live `SECURITY DEFINER` audit passed across 27 functions with findings `[]`, so backend Edge dispatch is approved.
+- Deployed runtime candidate is `f556cf3d25951ae8dc007d4e39e4d1ae7f210cbb`. The live `SECURITY DEFINER` audit passed across 27 functions with findings `[]`.
 - The frontend Release Gate keeps the live Supabase audit advisory, while `.github/workflows/supabase-production-deploy.yml` keeps it blocking before any Edge function deploy.
+- Protocol Release Gate `29222411980` and Supabase Production Deploy `29222417728` completed successfully. All seven function health routes and production CORS checks passed.
+- Public mirror commit `227364bee0d3051e0a2c585f565d071f1690de3c` passed the public boundary and full mirror CI before push.
 
 Detailed candidate evidence and stop/rollback conditions are recorded in `audit/deployment-approval-contract.json`.
 

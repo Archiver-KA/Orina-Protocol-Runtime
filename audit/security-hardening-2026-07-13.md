@@ -35,9 +35,9 @@ All repository-local P0/P1 findings identified in this pass were remediated and 
 - `deno audit --level=high`: no known vulnerabilities.
 - `npm run typecheck` and `npm run typecheck:edge`: pass for the browser app and all eight Edge entrypoints.
 - `npm run lint:check`: pass with zero warnings.
-- `npm test`: 26 test files / 109 tests pass; the suite includes URL/SSRF, response bounds, wallet-session, scanner-policy, supplier-data, and effective-grant coverage.
+- `npm test`: 27 test files / 111 tests pass; the suite includes URL/SSRF, response bounds, wallet-session, scanner-policy, supplier-data, effective-grant, and current Supabase CLI migration-output coverage.
 - `npm run security:scan`: pass, including P0 static invariants, CORS, auth, M2M, messaging, IPFS, rate limiting, dependency, and Data API decisions.
-- SQL parser: 84 migrations / 1,423 statements parsed successfully.
+- Supabase migration executor applied and aligned all 85 migrations; the production rerun is clean through `000085`.
 - `npm run verify:assurance-invariants`, `verify:repo-tooling`, `verify:protocol-runtime-surface`, `verify:testnet-networks`, `audit:supabase:data-api-grants`, `verify:marketplace-freshness`: pass.
 - `npm run build`: pass; 238 public routes prerendered and `_headers` copied to `dist`.
 - `npm run verify:deterministic-build`: pass; 355 files in both builds with zero differences.
@@ -53,7 +53,7 @@ Gitleaks v8.30.1 was checksum-verified before use.
 
 ## Owner-authorized production preparation
 
-- Code candidate before final approval record: `130368137562512ab5161e082bbd51305bd53fa2`.
+- Deployed runtime candidate: `f556cf3d25951ae8dc007d4e39e4d1ae7f210cbb`.
 - GitHub owner access, strict `Viewer Release Gate` branch protection, workflow availability, required repository secret names, and the `production` environment were verified without exposing secret values.
 - Port `9222` showed the logged-in public-mirror GitHub page and canonical Supabase project `ystjugghyteyylkevbsl`; the inspector did not read cookies, browser storage, or tokens.
 - Supabase CLI is authenticated and linked to `ystjugghyteyylkevbsl`. Migrations `000082`-`000085` are applied and remote history is aligned through `000085`.
@@ -64,17 +64,28 @@ Gitleaks v8.30.1 was checksum-verified before use.
 The private frontend push and Supabase Edge workflow are owner-approved with immediate production smoke and
 rollback stop conditions. Alignment and live database audit conditions are satisfied.
 
+## Production outcome
+
+- GitHub Protocol Release Gate `29222411980`: success.
+- Supabase Production Deploy `29222417728`: success for all seven split functions.
+- Migrations: aligned through `000085`; live `SECURITY DEFINER` audit passed with 27 functions and findings `[]`.
+- Backend health/CORS: every split function health route returned `200` with exact production allow-origin; denied preflight returned no allow-origin.
+- Wallet claim negative smoke: all origin, missing-origin, invalid signature, malformed/stale message, and anon projection-write denials passed.
+- Cloudflare frontend: production routes load, strict headers are delivered, no legacy Supabase ref exists in live assets, and the fail-closed config marker is present.
+- Public mirror: `227364bee0d3051e0a2c585f565d071f1690de3c` passed public boundary, lint, web/contracts typechecks, 86 tests, and build before push.
+- GitHub environments `production` and `wallet-smoke` are restricted to protected branches. Required reviewers/wait timers are blocked by the current private-repository billing plan.
+
 ## Residual owner actions
 
-### P0 before production approval
+### P0 external custody and connected-smoke residuals
 
 1. Rotate or conclusively revoke the historical RapidAPI token and both local GitHub PAT-like credentials. Decide whether coordinated Git history rewriting is required; it was not performed because it is destructive and affects collaborators.
-2. Apply migrations `000082`–`000084` and deploy the relational-only Edge bundle in one approved maintenance window. Migration `000084` intentionally revokes legacy KV runtime access.
-3. Run the live `SECURITY DEFINER` audit and the updated wallet-claim, M2M, mint/B2B, messaging/RLS, receipt-sync, CORS, and order-keeper smokes against the target project. No production credential or wallet was used during this repository-only pass.
+2. Run connected positive-path M2M, mint/B2B, messaging/RLS, receipt-sync, and order-keeper smokes in an approved wallet runner. This pass intentionally did not read or use a persistent wallet private key or service-role value.
 
 ### P1/P2 governance and live controls
 
 1. Resolve extension-owned `public.spatial_ref_sys` RLS through Supabase owner/admin authority if Advisor still reports it.
-2. Confirm GitHub branch protection, production/wallet-smoke environment reviewers, Cloudflare `_headers` delivery, release-artifact signing, and secret rotation policy outside the repository.
+2. Upgrade the GitHub plan or move the deployment repository if platform-enforced environment reviewers/wait timers are required; protected-branch environment policies are already enabled.
 3. Approve the supplier media-origin policy before adding new CDN hosts to CSP, browser smoke, or `ATP2_AI_IMAGE_ALLOWED_HOSTS`.
 4. Obtain an independent human application-security review and continue periodic dependency/secret scans; local automated checks cannot prove absence of unknown vulnerabilities.
+5. Decide whether Cloudflare Web Analytics/challenge injection should be disabled. Strict CSP currently blocks its dynamic inline scripts rather than permitting `unsafe-inline`; application scripts and routes continue to load.

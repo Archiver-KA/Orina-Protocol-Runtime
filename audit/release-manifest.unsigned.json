@@ -1,6 +1,6 @@
 {
   "schema": "orina.release-manifest.unsigned.v1",
-  "generatedAt": "2026-07-13T03:11:54.264Z",
+  "generatedAt": "2026-07-13T04:03:42.020Z",
   "signed": false,
   "signing": {
     "status": "not-signed",
@@ -9,9 +9,9 @@
   "source": {
     "packageName": "@orina/protocol-app",
     "packageVersion": "0.0.1",
-    "gitCommit": "2e80973da196df3faeebec0395be07f8b4fb0a6a",
+    "gitCommit": "f556cf3d25951ae8dc007d4e39e4d1ae7f210cbb",
     "gitBranch": "main",
-    "gitStatusShort": "M .codex/skills/orina-production-deployment/references/deployment-flow.md\n M .codex/skills/orina-production-deployment/scripts/inspect-cdp-deployment-tabs.mjs\n M .env.example\n M .github/workflows/protocol-release-gate.yml\n M .github/workflows/supabase-production-deploy.yml\n M SECURITY.md\n M audit/sbom.cdx.json\n D deno.lock\n M docs/README.md\n M docs/runtime-github-supabase-cloudflare-plan.md\n M docs/spec/05-integrations-settings-and-tools.md\n M docs/spec/11-ai-m2m-runtime-enablement.md\n M docs/spec/12-ai-m2m-supabase-deploy-runtime-checklist.md\n M docs/spec/19-supabase-split-function-runbook.md\n M index.html\n M package.json\n M scripts/audit-supabase-security-definer.mjs\n M scripts/check-protocol-runtime-surface.mjs\n M scripts/orina-production-deploy.mjs\n M scripts/prerender-public-routes.mjs\n M scripts/security-scan-system.mjs\n M scripts/setup-v3-5-beta-seed-ai-wallets.mjs\n M scripts/setup-v3-5-beta-seed-seller-confirm-public-7d.mjs\n M scripts/smoke-api-key-generate.mjs\n M scripts/smoke-cdp-readonly-security.mjs\n M scripts/sync-public-mirror.mjs\n M scripts/verify-assurance-invariants.mjs\n M scripts/verify-supabase-public-data-api-grants.mjs\n M src/app/components/ai/ai-sidebar.tsx\n M src/app/components/confirm-delivery-modal.tsx\n M src/app/components/dispute-resolution-modal.tsx\n M src/app/components/image-upload.tsx\n M src/app/components/messages.tsx\n M src/app/components/profile/enhanced-profile.tsx\n M src/app/components/wallet-connect-button.tsx\n M src/contexts/WalletModalContext.tsx\n M src/hooks/useIPFSUpload.ts\n M src/hooks/useProtocolChain.ts\n M src/hooks/useUserInitialization.ts\n M src/utils/aiAgentClient.ts\n M src/utils/collectionsUtils.ts\n M src/utils/communityUtils.ts\n M src/utils/deliveryAddressUtils.ts\n M src/utils/ipfs-config.ts\n M src/utils/marketplaceCatalog.ts\n M src/utils/marketplacePersonalization.ts\n M src/utils/profileRemoteIdentity.ts\n M src/utils/profileReputationSync.ts\n M src/utils/profileUtils.ts\n M src/utils/runtimeOrders.ts\n M src/utils/sellerDirectory.ts\n M src/utils/supabaseAuthClaimBridge.ts\n M src/utils/supabaseRest.ts\n M src/utils/walletAuthSession.test.ts\n M src/utils/walletAuthSession.ts\n M supabase/audit/bridge_auth_client.cjs\n M supabase/audit/seed_community_posts_from_smoke_wallet.cjs\n M supabase/audit/smoke_ai_m2m_flow.cjs\n M supabase/audit/smoke_ai_mint_b2b_flow.cjs\n M supabase/audit/smoke_wallet_claim_security.cjs\n M supabase/audit/test_h1_claim_bridge_http.cjs\n M supabase/functions/server/agent-memory.ts\n M supabase/functions/server/ai-assist.ts\n M supabase/functions/server/ai-chat.tsx\n M supabase/functions/server/ai-m2m-wallet.ts\n M supabase/functions/server/api-keys-handler.ts\n M supabase/functions/server/b2b-api-client.ts\n M supabase/functions/server/edge-app.ts\n M supabase/functions/server/idempotency-replay.ts\n M supabase/functions/server/index.tsx\n M supabase/functions/server/ipfs-upload.tsx\n D supabase/functions/server/kv_store.tsx\n M supabase/functions/server/messages-handler-c5.ts\n M supabase/functions/server/nvidia-nim-client.ts\n M supabase/functions/server/order-autotime-keeper.ts\n M supabase/functions/server/orina-ai-engine-v2.tsx\n M supabase/functions/server/rate-limiter.ts\n M supabase/functions/server/request-auth.ts\n M supabase/functions/server/seller-ai-minting-handler.ts\n M supabase/functions/server/sync-receipt-nfts.ts\n M supabase/functions/server/tavily-client.ts\n M supabase/functions/server/wallet-auth-claim-bridge.tsx\n M utils/runtimeConfig.ts\n M utils/supabase/info.tsx\n M utils/supabase/publicConfig.test.ts\n M utils/supabase/publicConfig.ts\n?? audit/security-hardening-2026-07-13.md\n?? public/_headers\n?? scripts/check-tracked-secrets.mjs\n?? scripts/security-scan-policy.mjs\n?? scripts/security-scan-policy.test.mjs\n?? scripts/verify-supabase-public-data-api-grants.test.mjs\n?? src/utils/safeExternalUrl.test.ts\n?? src/utils/safeExternalUrl.ts\n?? src/utils/walletSensitiveStorage.ts\n?? supabase/functions/deno.json\n?? supabase/functions/deno.lock\n?? supabase/functions/package.json\n?? supabase/functions/server/b2b-api-client.test.ts\n?? supabase/functions/server/bounded-response.test.ts\n?? supabase/functions/server/bounded-response.ts\n?? supabase/functions/server/nvidia-nim-client.test.ts\n?? supabase/migrations/000082_p0_trust_projection_and_review_hardening.sql\n?? supabase/migrations/000083_m2m_atomic_relational_state.sql\n?? supabase/migrations/000084_ai_conversation_relational_cutover.sql",
+    "gitStatusShort": "M audit/sbom.cdx.json\n M scripts/sync-public-mirror.mjs",
     "remoteOrigin": "https://github.com/Archiver-KA/Orina-Protocol-Runtime"
   },
   "build": {
@@ -34,7 +34,7 @@
     },
     {
       "path": "audit/sbom.cdx.json",
-      "sha256": "eb0944a2e742695047c23784668fc3409a48e078ac013dd5f17c250f5e74b5f8",
+      "sha256": "6331fd7734c80c08d37d7609ed9d5bef08006128594fb65679c42d7b893c4227",
       "bytes": 598508
     }
   ],

@@ -2,13 +2,13 @@
 
 ## 2026-07-13 Runtime Trust-Boundary Hardening Candidate
 
-Code candidate: `130368137562512ab5161e082bbd51305bd53fa2`
+Deployed runtime candidate: `f556cf3d25951ae8dc007d4e39e4d1ae7f210cbb`
 Target branch: `main`
 Target frontend path: GitHub `main` -> Cloudflare Worker Builds -> Worker `apporinaio` -> `https://app.orina.io`
 Target backend path: Supabase project `ystjugghyteyylkevbsl` through migrations `000082`-`000084`, followed by the exact-commit `Supabase Production Deploy` workflow.
 
-Status: `APPROVED_FOR_CI_CD_DEPLOYMENT` after migration alignment through `000085` and a clean live
-`SECURITY DEFINER` audit covering 27 functions.
+Status: `DEPLOYED_BY_CI_CD`. GitHub Protocol Release Gate run `29222411980` and Supabase Production Deploy
+run `29222417728` completed successfully for the deployed candidate.
 
 This candidate closes the repository-local P0/P1 findings recorded in
 `audit/security-hardening-2026-07-13.md`: wallet challenge/session isolation, Supabase REST fail-closed behavior,
@@ -36,6 +36,17 @@ Migrations `000082`-`000084` were applied in the maintenance window. The first l
 `service_role` execute grant on `submit_profile_review_v2`; migration `000085` revoked it. Migration history now
 aligns through `000085`, and the rerun audited 27 functions with findings `[]`. The relational-only Edge workflow
 is approved for the exact final main commit containing this record.
+
+Production result:
+
+- Supabase migrations align through `000085`.
+- Live `SECURITY DEFINER` audit: 27 functions, findings `[]`.
+- All seven deployed Edge health routes: HTTP `200` with exact production allow-origin.
+- Backend helper: allowed OPTIONS `204`; denied origin returned no allow-origin.
+- Wallet-claim negative security smoke: passed all challenge/origin/signature/replay and anon-write checks.
+- Cloudflare frontend: app/settings `200`; marketplace redirect resolves to `200`; HSTS, CSP, nosniff, frame denial present.
+- Live bundle: canonical `ystjugghyteyylkevbsl` present; legacy `vcixsdudkizgfikhmfuv` absent; fail-closed configuration marker present.
+- Public clean-room mirror: commit `227364bee0d3051e0a2c585f565d071f1690de3c` after boundary, lint, typecheck, 86 tests, and build.
 
 Approval contract: `audit/deployment-approval-contract.json`.
 

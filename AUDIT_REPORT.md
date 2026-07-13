@@ -2,22 +2,26 @@
 
 ## 2026-07-13 Runtime Security Hardening and Deployment Preparation
 
-The repository-wide P0/P1 hardening candidate is commit
-`34e41fb60a9d3deefd63859ed35a902eb66bec49`. It closes the source-level findings across wallet
+The deployed repository-wide P0/P1 hardening candidate is commit
+`f556cf3d25951ae8dc007d4e39e4d1ae7f210cbb`. It closes the source-level findings across wallet
 authentication/session isolation, Supabase trust projections and verified reviews, atomic relational M2M state,
 relational AI conversations, SSRF and bounded vendor responses, authenticated Edge routes, rate limiting,
 CSP/CORS, supply-chain pinning, Deno lock/audit coverage, and tracked-source secret scanning.
 
-Release evidence is green: 26 test files / 109 tests, browser and Edge typechecks, zero-warning lint, zero npm
-audit findings, no known Deno vulnerabilities, 67/67 Data API grant decisions, 676-file tracked secret scan,
+Release evidence is green: 27 test files / 111 tests, browser and Edge typechecks, zero-warning lint, zero npm
+audit findings, no known Deno vulnerabilities, 67/67 Data API grant decisions, 679-file tracked secret scan,
 238 prerendered routes, and two deterministic 355-file builds with no differences. The current CycloneDX SBOM
 contains 470 components and the unsigned manifest contains 355 artifacts.
 
 The canonical Supabase production target is `ystjugghyteyylkevbsl`; older operational references to
-`vcixsdudkizgfikhmfuv` were corrected. Migration history is aligned through `000081`, with only
-`000082`-`000085` now applied. The deployment preflight rejects cross-project project refs, DB audit URLs,
+`vcixsdudkizgfikhmfuv` were corrected. Migration history is aligned through `000085`; the deployment preflight rejects cross-project project refs, DB audit URLs,
 public URLs/project IDs, and anon JWTs. The post-migration live `SECURITY DEFINER` audit passed across 27 functions
 with findings `[]`; `000085` removed the one excess execute grant found by the first live rerun.
+
+Protocol Release Gate `29222411980` and Supabase Production Deploy `29222417728` completed successfully. All
+seven Edge health routes return `200` with exact production CORS; wallet-claim negative security smokes pass.
+Cloudflare delivers the strict security headers and a fail-closed canonical-project bundle. The public clean-room
+mirror was verified and pushed as `227364bee0d3051e0a2c585f565d071f1690de3c`.
 
 Detailed evidence: `audit/security-hardening-2026-07-13.md` and `audit/deployment-approval-contract.json`.
 
