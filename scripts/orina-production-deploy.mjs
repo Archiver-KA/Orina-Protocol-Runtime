@@ -207,38 +207,16 @@ function validateGitState(options) {
   log('git_clean_main_aligned', true);
 }
 
-function deploymentToken() {
-  return (
-    envValue('GITHUB_ACTIONS_DEPLOY_TOKEN') ||
-    envValue('GITHUB_BRANCH_PROTECTION_TOKEN') ||
-    envValue('GITHUB_TOKEN')
-  );
-}
-
-async function githubFetch(path, options = {}) {
-  const token = deploymentToken();
-  if (!token) {
-    fail('Missing GitHub deployment token name: set GITHUB_ACTIONS_DEPLOY_TOKEN, GITHUB_BRANCH_PROTECTION_TOKEN, or GITHUB_TOKEN.');
+function gh(args) {
+  try {
+    return execFileSync('gh', args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+  } catch (error) {
+    const stderr = String(error?.stderr || '').trim();
+    fail(`GitHub CLI command failed${stderr ? `: ${stderr.slice(0, 300)}` : '.'}`);
   }
-
-  const response = await fetch(`https://api.github.com/repos/${repo}${path}`, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'orina-production-deploy',
-      ...(options.headers || {}),
-    },
-  });
-
-  return response;
-}
-
-async function jsonOrText(response) {
-  const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) return response.json();
-  return response.text();
 }
 
 async function verifyGithubSecretNames(options) {
@@ -247,22 +225,18 @@ async function verifyGithubSecretNames(options) {
     return;
   }
 
-  const seen = new Set();
-  const repoSecretsResponse = await githubFetch('/actions/secrets?per_page=100');
-  if (!repoSecretsResponse.ok) {
-    fail(`Unable to list repository Actions secret names; status ${repoSecretsResponse.status}.`);
-  }
-  const repoSecrets = await repoSecretsResponse.json();
-  for (const secret of repoSecrets.secrets || []) seen.add(secret.name);
+  const seen = new Set(
+    JSON.parse(gh(['secret', 'list', '--repo', repo, '--json', 'name']) || '[]')
+      .map((secret) => secret.name),
+  );
 
-  const environmentResponse = await githubFetch(`/environments/${productionEnvironment}/secrets?per_page=100`);
-  if (environmentResponse.ok) {
-    const environmentSecrets = await environmentResponse.json();
-    for (const secret of environmentSecrets.secrets || []) seen.add(secret.name);
-  } else if (requiredSecretNames.some((name) => !seen.has(name))) {
-    fail(
-      `Unable to prove production environment secret names; status ${environmentResponse.status}, and repository secrets are incomplete.`,
+  try {
+    const environmentSecrets = JSON.parse(
+      gh(['secret', 'list', '--repo', repo, '--env', productionEnvironment, '--json', 'name']) || '[]',
     );
+    for (const secret of environmentSecrets) seen.add(secret.name);
+  } catch (error) {
+    if (requiredSecretNames.some((name) => !seen.has(name))) throw error;
   }
 
   const missing = requiredSecretNames.filter((name) => !seen.has(name));
@@ -282,43 +256,38 @@ async function runPreflight(options) {
 
 async function dispatchWorkflow(options) {
   const approvedCommit = options.approvedCommit || currentHead();
-  const body = {
-    ref: 'main',
-    inputs: {
-      approved_commit: approvedCommit,
-      approval_record: options.approvalRecord,
-      confirm: 'DEPLOY_SUPABASE_PRODUCTION',
-    },
-  };
-
-  const response = await githubFetch(`/actions/workflows/${workflow}/dispatches`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  log('workflow_dispatch_status', response.status);
-  if (response.status !== 204) {
-    const detail = await jsonOrText(response);
-    fail(`Workflow dispatch failed: ${response.status} ${JSON.stringify(detail).slice(0, 300)}`);
-  }
+  gh([
+    'workflow', 'run', workflow,
+    '--repo', repo,
+    '--ref', 'main',
+    '-f', `approved_commit=${approvedCommit}`,
+    '-f', `approval_record=${options.approvalRecord}`,
+    '-f', 'confirm=DEPLOY_SUPABASE_PRODUCTION',
+  ]);
+  log('workflow_dispatch_status', 'accepted');
   log('approved_commit', approvedCommit);
 }
 
 async function latestWorkflowRunForHead(approvedCommit) {
-  const response = await githubFetch(
-    `/actions/workflows/${workflow}/runs?branch=main&event=workflow_dispatch&per_page=20`,
-  );
-  if (!response.ok) {
-    fail(`Unable to list workflow runs; status ${response.status}.`);
-  }
-  const payload = await response.json();
-  const matches = (payload.workflow_runs || [])
-    .filter((run) => run.head_sha === approvedCommit)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const runs = JSON.parse(gh([
+    'run', 'list',
+    '--repo', repo,
+    '--workflow', workflow,
+    '--branch', 'main',
+    '--event', 'workflow_dispatch',
+    '--limit', '20',
+    '--json', 'databaseId,headSha,status,conclusion,url,createdAt',
+  ]) || '[]');
+  const matches = runs
+    .filter((run) => run.headSha === approvedCommit)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   if (matches.length === 0) {
     fail(`No ${workflowName} workflow_dispatch run found for ${approvedCommit}.`);
   }
-  return matches[0];
+  return {
+    id: String(matches[0].databaseId),
+    html_url: matches[0].url,
+  };
 }
 
 async function pollWorkflow(options) {
@@ -333,9 +302,11 @@ async function pollWorkflow(options) {
 
   const start = Date.now();
   while (Date.now() - start <= options.waitMs) {
-    const response = await githubFetch(`/actions/runs/${runId}`);
-    if (!response.ok) fail(`Unable to fetch workflow run ${runId}; status ${response.status}.`);
-    const run = await response.json();
+    const run = JSON.parse(gh([
+      'run', 'view', runId,
+      '--repo', repo,
+      '--json', 'status,conclusion,url',
+    ]) || '{}');
     log('workflow_run_status', `${run.status}${run.conclusion ? `:${run.conclusion}` : ''}`);
     if (run.status === 'completed') {
       if (run.conclusion !== 'success') {
