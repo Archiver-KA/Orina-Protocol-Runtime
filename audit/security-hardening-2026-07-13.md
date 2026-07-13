@@ -51,6 +51,19 @@ Gitleaks v8.30.1 was checksum-verified before use.
 - Current tracked source: no confirmed embedded secret after triage; generic detections are environment names, public contract addresses, and generated chain-projection fixtures.
 - Ignored local files were not opened or printed, but the scan found secret-like material, including GitHub fine-grained PAT patterns in `.env` and `supabaseJWT.md`. These files are ignored by Git. The owner must rotate/verify those credentials and securely remove stale local copies.
 
+## Owner-authorized production preparation
+
+- Code candidate: `9b88885506ff61ff80fcb1d6b920bfa76517a88f`.
+- GitHub owner access, strict `Viewer Release Gate` branch protection, workflow availability, required repository secret names, and the `production` environment were verified without exposing secret values.
+- Port `9222` showed the logged-in public-mirror GitHub page and canonical Supabase project `ystjugghyteyylkevbsl`; the inspector did not read cookies, browser storage, or tokens.
+- Supabase CLI is authenticated and linked to `ystjugghyteyylkevbsl`. Remote migrations are aligned through `000081`; dry-run reports only `000082`-`000084` pending.
+- The local production-target preflight passed secret presence/shape and cross-project identity checks, then stopped only because the approval artifacts were intentionally still uncommitted.
+- The pre-migration live `SECURITY DEFINER` audit correctly reports the four pending reviewed functions as missing. Backend dispatch remains blocked until the migrations are applied and the audit passes live.
+- `supabase db lint` reported only PostGIS/extension function diagnostics; no repository-owned application function was identified in that output.
+
+The private frontend push is owner-approved with immediate production smoke and rollback stop conditions. The
+Supabase Edge phase is not approved until the post-migration live audit and alignment checks pass.
+
 ## Residual owner actions
 
 ### P0 before production approval

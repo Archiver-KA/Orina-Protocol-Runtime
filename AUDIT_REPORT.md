@@ -1,5 +1,26 @@
 # Repository Audit Report
 
+## 2026-07-13 Runtime Security Hardening and Deployment Preparation
+
+The repository-wide P0/P1 hardening candidate is commit
+`9b88885506ff61ff80fcb1d6b920bfa76517a88f`. It closes the source-level findings across wallet
+authentication/session isolation, Supabase trust projections and verified reviews, atomic relational M2M state,
+relational AI conversations, SSRF and bounded vendor responses, authenticated Edge routes, rate limiting,
+CSP/CORS, supply-chain pinning, Deno lock/audit coverage, and tracked-source secret scanning.
+
+Release evidence is green: 26 test files / 109 tests, browser and Edge typechecks, zero-warning lint, zero npm
+audit findings, no known Deno vulnerabilities, 67/67 Data API grant decisions, 676-file tracked secret scan,
+238 prerendered routes, and two deterministic 355-file builds with no differences. The current CycloneDX SBOM
+contains 470 components and the unsigned manifest contains 355 artifacts.
+
+The canonical Supabase production target is `ystjugghyteyylkevbsl`; older operational references to
+`vcixsdudkizgfikhmfuv` were corrected. Migration history is aligned through `000081`, with only
+`000082`-`000084` pending. The deployment preflight now rejects cross-project project refs, DB audit URLs,
+public URLs/project IDs, and anon JWTs. Backend Edge dispatch remains blocked until those migrations are applied
+and the live `SECURITY DEFINER` audit passes.
+
+Detailed evidence: `audit/security-hardening-2026-07-13.md` and `audit/deployment-approval-contract.json`.
+
 ## ATP Protocol Security Status Update
 
 Update date: 2026-06-27

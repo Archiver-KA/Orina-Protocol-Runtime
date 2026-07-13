@@ -1,34 +1,32 @@
 {
   "schema": "orina.deployment-approval-contract.v1",
-  "generatedAt": "2026-05-20T17:27:11+07:00",
-  "status": "DEPLOYED_BY_CI_CD",
+  "generatedAt": "2026-07-13T10:15:00+07:00",
+  "status": "FRONTEND_APPROVED_BACKEND_PENDING_POST_MIGRATION_AUDIT",
   "authorityClass": "DEPLOYMENT_AUTHORITY",
-  "deploymentTriggered": true,
+  "deploymentTriggered": false,
   "mutationAttempted": false,
   "secretValuesInspected": false,
-  "ownerAuthorityEvidence": "Owner explicitly approved commit, push, and deploy for the idempotency replay candidate in the current session, then confirmed GitHub branch protection/ruleset was enabled for main.",
+  "ownerAuthorityEvidence": "In the current 2026-07-13 session, owner Archiver-KA explicitly authorized completion of the remaining security work, commit, GitHub/Supabase production deployment, and public-mirror synchronization.",
   "repository": {
     "remote": "https://github.com/Archiver-KA/Orina-Protocol-Runtime",
     "branch": "main",
-    "codeCandidateCommitSha": "8ae79d39f6bca1f15add7634ad4d181e84e3426b",
+    "codeCandidateCommitSha": "9b88885506ff61ff80fcb1d6b920bfa76517a88f",
     "approvalRecordCommitSha": "recorded-after-commit",
-    "workingTreeCleanBeforeApprovalRecord": true
+    "workingTreeCleanAtCodeCandidate": true
   },
   "candidateSummary": {
-    "serverSideIdempotentReplay": "Implemented with migration-backed Edge middleware for authenticated JSON writes.",
-    "migration": "supabase/migrations/000075_edge_idempotency_replay.sql",
-    "edgeMiddleware": "supabase/functions/server/idempotency-replay.ts",
-    "clientResilience": [
-      "src/utils/resilience.ts",
-      "src/utils/apiKeysClient.ts",
-      "src/utils/aiM2MWalletClient.ts",
-      "src/utils/supabaseRest.ts"
+    "scope": "Repository-wide P0/P1 runtime security hardening across browser wallet/auth isolation, Supabase RLS and atomic RPCs, Edge request/vendor bounds, SSRF, CORS/CSP, supply-chain provenance, secret scanning, and deployment target governance.",
+    "migrations": [
+      "supabase/migrations/000082_p0_trust_projection_and_review_hardening.sql",
+      "supabase/migrations/000083_m2m_atomic_relational_state.sql",
+      "supabase/migrations/000084_ai_conversation_relational_cutover.sql"
     ],
-    "secretReplayPolicy": "One-time secret-bearing responses are marked completed_no_replay and are not persisted in replay storage."
+    "cutoverConstraint": "Migration 000084 revokes runtime Data API access to legacy KV after relational backfill, so the relational-only Edge bundle must follow in the same maintenance window.",
+    "canonicalProjectRef": "ystjugghyteyylkevbsl"
   },
   "branchProtectionEvidence": {
-    "command": "npm run verify:github-branch-protection",
-    "checkedAt": "2026-05-20T10:26:30.239Z",
+    "checkedAt": "2026-07-13T09:58:00+07:00",
+    "source": "GitHub API through authenticated gh CLI",
     "pass": true,
     "branchProtectionStatus": 200,
     "requiredStatusChecks": {
@@ -38,100 +36,98 @@
         "Viewer Release Gate"
       ]
     },
+    "forcePushesAllowed": false,
+    "deletionsAllowed": false,
     "tokenPrinted": false
   },
-  "cdpSupabaseEvidence": {
+  "githubEnvironmentEvidence": {
+    "environment": "production",
+    "exists": true,
+    "protectionRulesConfigured": false,
+    "classification": "PARTIAL",
+    "currentDeploymentApproval": "Owner approval is recorded in this current session; future required-reviewer protection will be configured after this deployment to avoid self-approval ambiguity during the active maintenance window."
+  },
+  "cdpEvidence": {
     "cdpUrl": "http://127.0.0.1:9222",
-    "projectUrl": "https://supabase.com/dashboard/project/vcixsdudkizgfikhmfuv",
-    "projectTitle": "ATP | Archiver-KA's Org | Supabase",
+    "githubRepoVisible": "https://github.com/Archiver-KA/System-Orina-Protocol",
+    "supabaseProjectUrl": "https://supabase.com/dashboard/project/ystjugghyteyylkevbsl",
+    "supabaseProjectTitle": "Orina ATP v3.5 beta",
     "dashboardEnvironment": "main PRODUCTION",
+    "advisorIssueCount": 1,
     "mutationAttempted": false,
     "secretValuesInspected": false
   },
   "migrationPlan": {
-    "preApprovalCommand": "npx supabase migration list --linked",
-    "remoteAlignedThrough": "000074",
+    "linkedProjectRef": "ystjugghyteyylkevbsl",
+    "remoteAlignedThrough": "000081",
     "localOnlyMigrations": [
-      "000075"
+      "000082",
+      "000083",
+      "000084"
     ],
-    "deploymentOrderingRequired": "Apply database migration 000075 before deploying Edge Functions that depend on edge_idempotency_records.",
-    "approvedProductionMutation": true
+    "dryRun": "passed; exactly 000082-000084 would be applied; no remote-only drift",
+    "approvedProductionMutation": true,
+    "requiredOrder": [
+      "Push the exact candidate to private GitHub main and allow frontend CI/CD handoff.",
+      "Apply migrations 000082-000084 through the authenticated linked Supabase migration path.",
+      "Require live SECURITY DEFINER audit and migration alignment to pass.",
+      "Dispatch Supabase Production Deploy for the exact final main commit.",
+      "Verify health, CORS, browser smoke, and affected authenticated routes."
+    ]
   },
   "frontendDeploymentPath": {
+    "approved": true,
     "model": "GitHub main push triggers Protocol Release Gate and Cloudflare Worker Builds for Worker apporinaio.",
     "requiredWorkflow": "Protocol Release Gate",
     "requiredCheck": "Viewer Release Gate",
-    "productionHost": "https://app.orina.io"
+    "productionHost": "https://app.orina.io",
+    "namedSmokeException": "The immutable Cloudflare production build does not exist before push. Owner-authorized continuation requires immediate post-push smoke and rollback on any secret leak, unexpected origin, console security error, or route failure."
   },
   "backendDeploymentPath": {
-    "model": "Apply pending Supabase migration through the approved migration path, then dispatch .github/workflows/supabase-production-deploy.yml for the exact approved commit.",
-    "projectRef": "vcixsdudkizgfikhmfuv",
+    "approved": false,
+    "approvalCondition": "Live migrations must align through 000084 and the blocking SECURITY DEFINER audit must pass before workflow dispatch.",
+    "projectRef": "ystjugghyteyylkevbsl",
     "workflow": ".github/workflows/supabase-production-deploy.yml",
     "environment": "production",
     "requiredConfirmInput": "DEPLOY_SUPABASE_PRODUCTION"
   },
-  "deploymentResult": {
-    "completedAt": "2026-05-20T19:14:30+07:00",
-    "approvedCommitSha": "6d6c0e3c144d015eff5b655fa7827da21acd7f90",
-    "supabaseProductionDeployRunId": "26161693412",
-    "supabaseProductionDeployRunUrl": "https://github.com/Archiver-KA/Orina-Protocol-Runtime/actions/runs/26161693412",
-    "workflowConclusion": "success",
-    "migrationAlignedThrough": "000075",
-    "securityDefinerAudit": "passed via SUPABASE_DB_AUDIT_URL; 24 audited functions; findings []",
-    "backendHealthCorsVerification": "passed; health GET 200, allowed OPTIONS 204, denied OPTIONS 204 without allow-origin",
-    "secretValuesInspected": false,
-    "notes": [
-      "SUPABASE_DB_AUDIT_URL uses the Supabase transaction pooler on port 6543 with statement_cache_capacity=0 for GitHub runner compatibility.",
-      "Earlier failed dispatch attempts stopped before Edge Function deployment."
-    ]
-  },
   "verificationEvidence": {
-    "npmCi": "passed; 584 packages installed, 585 audited; 8 moderate npm audit findings remain",
-    "tests": "passed; 14 test files, 46 tests",
+    "npmCi": "passed; lockfile install exited 0",
+    "tests": "passed; 26 test files, 109 tests",
     "typecheck": "passed",
-    "lint": "passed",
-    "clientSecretScan": "passed; no forbidden privileged-secret patterns in 281 files under src, utils",
-    "securityScan": "passed; aggregate deps:check | messaging:ok | ipfs:ok | ratelimit:ok | m2m:ok | cors:ok | data-api-grants:ok; 8 moderate dependency findings remain",
-    "supabaseSecurityDefinerAudit": "passed; linked audit, 24 audited functions, findings []",
-    "supabaseDataApiGrants": "passed; 67 public tables and 67 explicit Data API grant decisions",
-    "denoCheck": "passed for idempotency middleware, orina-ai-m2m-v2 entrypoint, and make-server-b0d68fc8 entrypoint",
+    "edgeTypecheck": "passed for all eight Edge entrypoints",
+    "lint": "passed with zero warnings",
+    "clientSecretScan": "passed; 299 browser files",
+    "trackedSecretScan": "passed; 676 tracked/unignored files",
+    "securityScan": "passed; npm audit 0 at all severities; Deno audit found no known vulnerabilities",
+    "supabaseSecurityDefinerAudit": "expected pre-migration failure: remote lacks the four SECURITY DEFINER functions introduced by pending migrations; backend dispatch remains blocked",
+    "supabaseDataApiGrants": "passed; 67 tables and 67 explicit grant/revoke decisions",
     "repoTooling": "passed",
     "marketplaceFreshness": "passed",
-    "assuranceInvariants": "passed",
-    "viewerRelease": "passed; build completed and 261 public routes prerendered",
-    "deterministicBuild": "passed; 376 files compared, differences []",
-    "sbom": "passed; CycloneDX 1.5, 577 components, 578 dependencies",
-    "releaseManifest": "passed; unsigned manifest, 376 artifacts",
-    "browserSmoke": "passed on clean local origin http://127.0.0.1:5191 after a transient marketplace warmup rerun; no leak matches, no unexpected origins, no wildcard function CORS, no wallet confirmation targets"
+    "assuranceInvariants": "passed; 35 checks",
+    "viewerRelease": "passed; 238 routes prerendered",
+    "deterministicBuild": "passed; 355 files compared, differences []",
+    "sbom": "passed; CycloneDX 1.5, 470 components, 471 dependencies",
+    "releaseManifest": "passed; unsigned manifest, 355 artifacts",
+    "deploymentTargetShape": "passed; local project ref, DB URL identity, public URL/project and anon JWT are coherent for the canonical project"
   },
   "candidateArtifacts": {
     "sbom": "audit/sbom.cdx.json",
-    "sbomSha256": "1875E54A3C3D279D538D97A8998F5E44E07660442E915AB1204B0C81E7D05CA0",
+    "sbomSha256": "EB0944A2E742695047C23784668FC3409A48E078AC013DD5F17C250F5E74B5F8",
     "unsignedReleaseManifest": "audit/release-manifest.unsigned.json",
-    "unsignedReleaseManifestSha256": "BE7AC8EFB4F35E77C730B5B5DEC8C889C9C80BBA0F4A5FEE1759A44502976673",
+    "unsignedReleaseManifestSha256": "4FD1D1826B724A715A77735087614610F1DAF9314E03D2761C08EB75CD30AE66",
     "dependencyLockfile": "package-lock.json",
-    "dependencyLockfileSha256": "CCC084C078151A1D27B4057D299F10DAFD6704BAEE59E164778FB48E76BAD695"
+    "dependencyLockfileSha256": "749B2D9223E7660932938741BB3427028B037E756CBC6F668CFCAAE0C71DCE83"
   },
   "rollbackPlan": [
-    "For frontend rollback, revert or restore the previous known-good GitHub main commit and let Cloudflare Worker Builds redeploy.",
-    "For Supabase Edge Functions, redeploy the previous known-good function bundle through the approved Supabase deployment path.",
-    "For database migration 000075, prefer forward fix; if rollback is required, remove middleware dependency before dropping public.edge_idempotency_records."
+    "Frontend: revert main to the prior known-good runtime and let Cloudflare Worker Builds redeploy; do not use local wrangler deploy without separate break-glass authority.",
+    "Edge Functions: redeploy the previous known-good split-function bundle through the approved GitHub workflow.",
+    "Database: prefer a reviewed forward fix. If the relational cutover fails before Edge recovery, restore only the minimum legacy KV service-role grant needed for rollback, record the exception, and remove it again after remediation.",
+    "Stop automated rollout immediately on migration drift, blocking audit findings, wildcard protected-route CORS, health failure, unexpected browser origin, or secret-leak signal."
   ],
-  "stopConditions": [
-    "Any required local or CI verification command fails.",
-    "GitHub push to main is rejected by branch protection.",
-    "Supabase migration history shows remote-only drift before applying 000075.",
-    "Supabase Edge Function workflow dispatch cannot target the exact approved commit.",
-    "CORS returns wildcard origins for protected runtime routes.",
-    "Browser smoke finds unapproved origins or secret leakage.",
-    "A dashboard, wallet, GitHub, or Supabase confirmation dialog appears that requires manual confirmation."
-  ],
-  "approval": {
-    "approved": true,
-    "approvedBranch": "main",
-    "approvedProjectRef": "vcixsdudkizgfikhmfuv",
-    "approvedFrontendPath": "GitHub main to Cloudflare Worker Builds",
-    "approvedBackendPath": "Supabase migration 000075 followed by Supabase Production Deploy workflow",
-    "approvedByOwnerInCurrentSession": true
-  }
+  "externalResiduals": [
+    "Historical RapidAPI credential and ignored local PAT-like credentials require provider-side revocation/rotation by the owner; no value was read or printed.",
+    "Supabase Advisor still reports one RLS issue consistent with extension-owned public.spatial_ref_sys.",
+    "Release artifacts are unsigned pending an owner-selected signing identity and custody process."
+  ]
 }

@@ -1,5 +1,43 @@
 # Release Candidate
 
+## 2026-07-13 Runtime Trust-Boundary Hardening Candidate
+
+Code candidate: `9b88885506ff61ff80fcb1d6b920bfa76517a88f`
+Target branch: `main`
+Target frontend path: GitHub `main` -> Cloudflare Worker Builds -> Worker `apporinaio` -> `https://app.orina.io`
+Target backend path: Supabase project `ystjugghyteyylkevbsl` through migrations `000082`-`000084`, followed by the exact-commit `Supabase Production Deploy` workflow.
+
+Status: `FRONTEND_APPROVED_BACKEND_PENDING_POST_MIGRATION_AUDIT`.
+
+This candidate closes the repository-local P0/P1 findings recorded in
+`audit/security-hardening-2026-07-13.md`: wallet challenge/session isolation, Supabase REST fail-closed behavior,
+trust projection and verified-review controls, atomic relational M2M state, relational-only AI conversations,
+SSRF and bounded-response defenses, API-key and receipt-sync authorization, CSP/CORS, pinned CI actions,
+tracked-secret scanning, and Deno dependency provenance.
+
+Local release evidence:
+
+- `npm ci`: passed with exit code 0.
+- `npm test`: 26 files / 109 tests passed.
+- frontend and eight Edge entrypoint typechecks: passed.
+- ESLint: passed with zero warnings.
+- npm audit: zero findings at every severity; Deno audit: no known vulnerabilities.
+- tracked/unignored secret scan: 676 files, no high-confidence finding.
+- Data API verifier: 67/67 tables have an explicit grant/revoke decision.
+- viewer release: 238 prerendered routes.
+- deterministic build: 355 files compared twice with zero differences.
+- SBOM: CycloneDX 1.5, 470 components / 471 dependencies.
+- unsigned manifest: 355 artifacts.
+- Supabase migration dry-run: only `000082`, `000083`, and `000084` are pending; no remote-only drift.
+- deployment-target validation: local project ref, DB audit URL identity, public URL/project, and anon JWT are coherent for `ystjugghyteyylkevbsl`.
+
+The live `SECURITY DEFINER` audit is expected to remain red before migration because the remote database does not
+yet contain the four reviewed functions introduced by `000082`/`000083`. Backend workflow dispatch is not approved
+until migrations align through `000084` and that blocking audit passes. Migration `000084` revokes legacy KV
+runtime access, so the relational-only Edge bundle must follow in the same maintenance window.
+
+Approval contract: `audit/deployment-approval-contract.json`.
+
 ## 2026-05-20 Server-Side Idempotency Candidate
 
 Target branch: `main`

@@ -1,5 +1,20 @@
 # Deployment Flow Analysis
 
+## 2026-07-13 Owner-Authorized Hardening Deployment Addendum
+
+- Private deployment source: `Archiver-KA/Orina-Protocol-Runtime`, branch `main`; authenticated owner permission is `ADMIN`.
+- Public clean-room mirror: `Archiver-KA/System-Orina-Protocol`; authenticated owner permission is `ADMIN`.
+- GitHub `main` protection is enabled with strict required context `Viewer Release Gate`; force pushes and branch deletion are disabled.
+- GitHub `production` environment exists but had no platform reviewer rule at inspection time. The owner's current-session approval is recorded for this maintenance window; a required-reviewer rule remains a future-control action after rollout.
+- Canonical backend is Supabase `ystjugghyteyylkevbsl` (`Orina ATP v3.5 beta`). The older `vcixsdudkizgfikhmfuv` deployment references were operational drift and were corrected in current runbooks.
+- Deployment preflight now fails closed unless the canonical project ref, DB audit URL identity, public project/URL, and legacy anon JWT ref are coherent.
+- Read-only CDP on port `9222` confirmed the owner sessions without inspecting cookies, storage, tokens, or secret values.
+- Supabase migration history is aligned through `000081`; dry-run reports exactly `000082`-`000084` pending and no remote-only drift.
+- Frontend approval targets code candidate `9b88885506ff61ff80fcb1d6b920bfa76517a88f`. Backend Edge dispatch remains blocked until migrations are applied and the live `SECURITY DEFINER` audit passes.
+- The frontend Release Gate keeps the live Supabase audit advisory, while `.github/workflows/supabase-production-deploy.yml` keeps it blocking before any Edge function deploy.
+
+Detailed candidate evidence and stop/rollback conditions are recorded in `audit/deployment-approval-contract.json`.
+
 Date: 2026-05-13
 
 Scope:
