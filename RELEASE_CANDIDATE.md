@@ -2,12 +2,13 @@
 
 ## 2026-07-13 Runtime Trust-Boundary Hardening Candidate
 
-Code candidate: `34e41fb60a9d3deefd63859ed35a902eb66bec49`
+Code candidate: `130368137562512ab5161e082bbd51305bd53fa2`
 Target branch: `main`
 Target frontend path: GitHub `main` -> Cloudflare Worker Builds -> Worker `apporinaio` -> `https://app.orina.io`
 Target backend path: Supabase project `ystjugghyteyylkevbsl` through migrations `000082`-`000084`, followed by the exact-commit `Supabase Production Deploy` workflow.
 
-Status: `FRONTEND_APPROVED_BACKEND_PENDING_POST_MIGRATION_AUDIT`.
+Status: `APPROVED_FOR_CI_CD_DEPLOYMENT` after migration alignment through `000085` and a clean live
+`SECURITY DEFINER` audit covering 27 functions.
 
 This candidate closes the repository-local P0/P1 findings recorded in
 `audit/security-hardening-2026-07-13.md`: wallet challenge/session isolation, Supabase REST fail-closed behavior,
@@ -31,10 +32,10 @@ Local release evidence:
 - Supabase migration dry-run: only `000082`, `000083`, and `000084` are pending; no remote-only drift.
 - deployment-target validation: local project ref, DB audit URL identity, public URL/project, and anon JWT are coherent for `ystjugghyteyylkevbsl`.
 
-The live `SECURITY DEFINER` audit is expected to remain red before migration because the remote database does not
-yet contain the four reviewed functions introduced by `000082`/`000083`. Backend workflow dispatch is not approved
-until migrations align through `000084` and that blocking audit passes. Migration `000084` revokes legacy KV
-runtime access, so the relational-only Edge bundle must follow in the same maintenance window.
+Migrations `000082`-`000084` were applied in the maintenance window. The first live audit found one excess
+`service_role` execute grant on `submit_profile_review_v2`; migration `000085` revoked it. Migration history now
+aligns through `000085`, and the rerun audited 27 functions with findings `[]`. The relational-only Edge workflow
+is approved for the exact final main commit containing this record.
 
 Approval contract: `audit/deployment-approval-contract.json`.
 

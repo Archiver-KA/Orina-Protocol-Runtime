@@ -1,7 +1,7 @@
 {
   "schema": "orina.deployment-approval-contract.v1",
   "generatedAt": "2026-07-13T10:15:00+07:00",
-  "status": "FRONTEND_APPROVED_BACKEND_PENDING_POST_MIGRATION_AUDIT",
+  "status": "APPROVED_FOR_CI_CD_DEPLOYMENT",
   "authorityClass": "DEPLOYMENT_AUTHORITY",
   "deploymentTriggered": false,
   "mutationAttempted": false,
@@ -10,7 +10,7 @@
   "repository": {
     "remote": "https://github.com/Archiver-KA/Orina-Protocol-Runtime",
     "branch": "main",
-    "codeCandidateCommitSha": "34e41fb60a9d3deefd63859ed35a902eb66bec49",
+    "codeCandidateCommitSha": "130368137562512ab5161e082bbd51305bd53fa2",
     "approvalRecordCommitSha": "recorded-after-commit",
     "workingTreeCleanAtCodeCandidate": true
   },
@@ -19,7 +19,8 @@
     "migrations": [
       "supabase/migrations/000082_p0_trust_projection_and_review_hardening.sql",
       "supabase/migrations/000083_m2m_atomic_relational_state.sql",
-      "supabase/migrations/000084_ai_conversation_relational_cutover.sql"
+      "supabase/migrations/000084_ai_conversation_relational_cutover.sql",
+      "supabase/migrations/000085_submit_profile_review_execute_least_privilege.sql"
     ],
     "cutoverConstraint": "Migration 000084 revokes runtime Data API access to legacy KV after relational backfill, so the relational-only Edge bundle must follow in the same maintenance window.",
     "canonicalProjectRef": "ystjugghyteyylkevbsl"
@@ -59,13 +60,9 @@
   },
   "migrationPlan": {
     "linkedProjectRef": "ystjugghyteyylkevbsl",
-    "remoteAlignedThrough": "000081",
-    "localOnlyMigrations": [
-      "000082",
-      "000083",
-      "000084"
-    ],
-    "dryRun": "passed; exactly 000082-000084 would be applied; no remote-only drift",
+    "remoteAlignedThrough": "000085",
+    "localOnlyMigrations": [],
+    "dryRun": "passed before deployment; 000082-000084 were pending with no remote-only drift; 000085 was added from the first live least-privilege audit finding",
     "approvedProductionMutation": true,
     "requiredOrder": [
       "Push the exact candidate to private GitHub main and allow frontend CI/CD handoff.",
@@ -84,8 +81,8 @@
     "namedSmokeException": "The immutable Cloudflare production build does not exist before push. Owner-authorized continuation requires immediate post-push smoke and rollback on any secret leak, unexpected origin, console security error, or route failure."
   },
   "backendDeploymentPath": {
-    "approved": false,
-    "approvalCondition": "Live migrations must align through 000084 and the blocking SECURITY DEFINER audit must pass before workflow dispatch.",
+    "approved": true,
+    "approvalCondition": "Satisfied: migrations align through 000085 and the live blocking SECURITY DEFINER audit passed with 27 audited functions and no findings.",
     "projectRef": "ystjugghyteyylkevbsl",
     "workflow": ".github/workflows/supabase-production-deploy.yml",
     "environment": "production",
@@ -100,7 +97,7 @@
     "clientSecretScan": "passed; 299 browser files",
     "trackedSecretScan": "passed; 676 tracked/unignored files",
     "securityScan": "passed; npm audit 0 at all severities; Deno audit found no known vulnerabilities",
-    "supabaseSecurityDefinerAudit": "expected pre-migration failure: remote lacks the four SECURITY DEFINER functions introduced by pending migrations; backend dispatch remains blocked",
+    "supabaseSecurityDefinerAudit": "passed live after migration; 27 audited functions; findings []",
     "supabaseDataApiGrants": "passed; 67 tables and 67 explicit grant/revoke decisions",
     "repoTooling": "passed",
     "marketplaceFreshness": "passed",

@@ -9,8 +9,8 @@
 - Canonical backend is Supabase `ystjugghyteyylkevbsl` (`Orina ATP v3.5 beta`). The older `vcixsdudkizgfikhmfuv` deployment references were operational drift and were corrected in current runbooks.
 - Deployment preflight now fails closed unless the canonical project ref, DB audit URL identity, public project/URL, and legacy anon JWT ref are coherent.
 - Read-only CDP on port `9222` confirmed the owner sessions without inspecting cookies, storage, tokens, or secret values.
-- Supabase migration history is aligned through `000081`; dry-run reports exactly `000082`-`000084` pending and no remote-only drift.
-- Frontend approval targets code candidate `34e41fb60a9d3deefd63859ed35a902eb66bec49`. Backend Edge dispatch remains blocked until migrations are applied and the live `SECURITY DEFINER` audit passes.
+- Supabase migration history is aligned through `000085`; `000082`-`000084` applied the hardening cutover and `000085` removed the excess review-RPC execute grant found by the first live audit rerun.
+- Final code candidate before the approval-record commit is `130368137562512ab5161e082bbd51305bd53fa2`. The live `SECURITY DEFINER` audit passed across 27 functions with findings `[]`, so backend Edge dispatch is approved.
 - The frontend Release Gate keeps the live Supabase audit advisory, while `.github/workflows/supabase-production-deploy.yml` keeps it blocking before any Edge function deploy.
 
 Detailed candidate evidence and stop/rollback conditions are recorded in `audit/deployment-approval-contract.json`.

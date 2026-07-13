@@ -15,9 +15,9 @@ contains 470 components and the unsigned manifest contains 355 artifacts.
 
 The canonical Supabase production target is `ystjugghyteyylkevbsl`; older operational references to
 `vcixsdudkizgfikhmfuv` were corrected. Migration history is aligned through `000081`, with only
-`000082`-`000084` pending. The deployment preflight now rejects cross-project project refs, DB audit URLs,
-public URLs/project IDs, and anon JWTs. Backend Edge dispatch remains blocked until those migrations are applied
-and the live `SECURITY DEFINER` audit passes.
+`000082`-`000085` now applied. The deployment preflight rejects cross-project project refs, DB audit URLs,
+public URLs/project IDs, and anon JWTs. The post-migration live `SECURITY DEFINER` audit passed across 27 functions
+with findings `[]`; `000085` removed the one excess execute grant found by the first live rerun.
 
 Detailed evidence: `audit/security-hardening-2026-07-13.md` and `audit/deployment-approval-contract.json`.
 
