@@ -2,7 +2,7 @@
 
 ## 2026-07-13 Runtime Trust-Boundary Hardening Candidate
 
-Code candidate: `9b88885506ff61ff80fcb1d6b920bfa76517a88f`
+Code candidate: `34e41fb60a9d3deefd63859ed35a902eb66bec49`
 Target branch: `main`
 Target frontend path: GitHub `main` -> Cloudflare Worker Builds -> Worker `apporinaio` -> `https://app.orina.io`
 Target backend path: Supabase project `ystjugghyteyylkevbsl` through migrations `000082`-`000084`, followed by the exact-commit `Supabase Production Deploy` workflow.

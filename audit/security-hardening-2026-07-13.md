@@ -53,7 +53,7 @@ Gitleaks v8.30.1 was checksum-verified before use.
 
 ## Owner-authorized production preparation
 
-- Code candidate: `9b88885506ff61ff80fcb1d6b920bfa76517a88f`.
+- Code candidate: `34e41fb60a9d3deefd63859ed35a902eb66bec49`.
 - GitHub owner access, strict `Viewer Release Gate` branch protection, workflow availability, required repository secret names, and the `production` environment were verified without exposing secret values.
 - Port `9222` showed the logged-in public-mirror GitHub page and canonical Supabase project `ystjugghyteyylkevbsl`; the inspector did not read cookies, browser storage, or tokens.
 - Supabase CLI is authenticated and linked to `ystjugghyteyylkevbsl`. Remote migrations are aligned through `000081`; dry-run reports only `000082`-`000084` pending.

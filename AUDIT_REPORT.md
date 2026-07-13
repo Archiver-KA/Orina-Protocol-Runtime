@@ -3,7 +3,7 @@
 ## 2026-07-13 Runtime Security Hardening and Deployment Preparation
 
 The repository-wide P0/P1 hardening candidate is commit
-`9b88885506ff61ff80fcb1d6b920bfa76517a88f`. It closes the source-level findings across wallet
+`34e41fb60a9d3deefd63859ed35a902eb66bec49`. It closes the source-level findings across wallet
 authentication/session isolation, Supabase trust projections and verified reviews, atomic relational M2M state,
 relational AI conversations, SSRF and bounded vendor responses, authenticated Edge routes, rate limiting,
 CSP/CORS, supply-chain pinning, Deno lock/audit coverage, and tracked-source secret scanning.
