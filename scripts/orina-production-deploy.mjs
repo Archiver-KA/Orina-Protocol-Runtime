@@ -269,25 +269,29 @@ async function dispatchWorkflow(options) {
 }
 
 async function latestWorkflowRunForHead(approvedCommit) {
-  const runs = JSON.parse(gh([
-    'run', 'list',
-    '--repo', repo,
-    '--workflow', workflow,
-    '--branch', 'main',
-    '--event', 'workflow_dispatch',
-    '--limit', '20',
-    '--json', 'databaseId,headSha,status,conclusion,url,createdAt',
-  ]) || '[]');
-  const matches = runs
-    .filter((run) => run.headSha === approvedCommit)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  if (matches.length === 0) {
-    fail(`No ${workflowName} workflow_dispatch run found for ${approvedCommit}.`);
+  const discoveryDeadline = Date.now() + 60_000;
+  while (Date.now() <= discoveryDeadline) {
+    const runs = JSON.parse(gh([
+      'run', 'list',
+      '--repo', repo,
+      '--workflow', workflow,
+      '--branch', 'main',
+      '--event', 'workflow_dispatch',
+      '--limit', '20',
+      '--json', 'databaseId,headSha,status,conclusion,url,createdAt',
+    ]) || '[]');
+    const matches = runs
+      .filter((run) => run.headSha === approvedCommit)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    if (matches.length > 0) {
+      return {
+        id: String(matches[0].databaseId),
+        html_url: matches[0].url,
+      };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
   }
-  return {
-    id: String(matches[0].databaseId),
-    html_url: matches[0].url,
-  };
+  fail(`No ${workflowName} workflow_dispatch run found for ${approvedCommit} within 60 seconds.`);
 }
 
 async function pollWorkflow(options) {

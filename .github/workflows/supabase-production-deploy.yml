@@ -78,7 +78,7 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         with:
-          version: 2.75.0
+          version: 2.109.1
 
       - name: Install dependencies
         run: npm ci
