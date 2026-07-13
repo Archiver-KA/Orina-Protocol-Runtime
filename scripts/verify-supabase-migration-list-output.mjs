@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseRows } from "./supabase-migration-list-parser.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -21,26 +22,6 @@ function localMigrationVersions() {
     .map((name) => /^(\d+)/.exec(name)?.[1])
     .filter(Boolean)
     .sort();
-}
-
-function parseRows(output) {
-  const rows = [];
-  for (const line of output.split(/\r?\n/)) {
-    if (!line.includes("|") || /Local\s*\|\s*Remote/i.test(line) || /^[-\s|]+$/.test(line)) {
-      continue;
-    }
-    const cells = line.split("|").map((cell) => cell.trim());
-    if (cells.length < 2) {
-      continue;
-    }
-    const local = cells[0] || "";
-    const remote = cells[1] || "";
-    if (!/^\d+$/.test(local) && !/^\d+$/.test(remote)) {
-      continue;
-    }
-    rows.push({ local, remote });
-  }
-  return rows;
 }
 
 function main() {
