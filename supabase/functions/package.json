@@ -1,6 +1,11 @@
 {
   "name": "@orina/edge-functions",
   "private": true,
+  "dependencies": {
+    "@supabase/supabase-js": "2.100.1",
+    "hono": "4.12.29",
+    "viem": "2.53.1"
+  },
   "overrides": {
     "ws": "8.21.0"
   }
