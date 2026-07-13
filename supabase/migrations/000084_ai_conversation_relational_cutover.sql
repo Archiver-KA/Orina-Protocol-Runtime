@@ -11,41 +11,38 @@ DECLARE
   legacy_record RECORD;
   legacy_message JSONB;
   legacy_meta JSONB;
-  message_ordinal BIGINT;
-  normalized_wallet TEXT;
-  conversation_id TEXT;
-  thread_id TEXT;
-  thread_title TEXT;
-  agent_context TEXT;
+  v_message_ordinal BIGINT;
+  v_normalized_wallet TEXT;
+  v_conversation_id TEXT;
+  v_thread_id TEXT;
+  v_thread_title TEXT;
+  v_agent_context TEXT;
 BEGIN
   FOR legacy_record IN
     SELECT
-      matches.parts[1] AS wallet_address,
-      matches.parts[2] AS conversation_id,
+      substring(source.key FROM '^conversation:(0x[0-9a-fA-F]{40}):') AS wallet_address,
+      substring(source.key FROM '^conversation:0x[0-9a-fA-F]{40}:([^:]{1,128}):messages$') AS conversation_id,
       source.value AS messages
     FROM public.kv_store_b0d68fc8 AS source
-    CROSS JOIN LATERAL regexp_match(
-      source.key,
-      '^conversation:(0x[0-9a-fA-F]{40}):([^:]{1,128}):messages$'
-    ) AS matches(parts)
-    WHERE jsonb_typeof(source.value) = 'array'
+    WHERE source.key ~ '^conversation:0x[0-9a-fA-F]{40}:[^:]{1,128}:messages$'
+      AND jsonb_typeof(source.value) = 'array'
   LOOP
-    normalized_wallet := lower(legacy_record.wallet_address);
-    conversation_id := legacy_record.conversation_id;
-    thread_id := 'ai_thread:' || normalized_wallet || ':' || conversation_id;
+    v_normalized_wallet := lower(legacy_record.wallet_address);
+    v_conversation_id := legacy_record.conversation_id;
+    v_thread_id := 'ai_thread:' || v_normalized_wallet || ':' || v_conversation_id;
 
     -- Skip threads already populated by the former dual-write path. This keeps
     -- the migration idempotent and avoids duplicating messages.
-    IF EXISTS (SELECT 1 FROM public.agent_threads AS t WHERE t.id = thread_id) THEN
+    IF EXISTS (SELECT 1 FROM public.agent_threads AS t WHERE t.id = v_thread_id) THEN
       CONTINUE;
     END IF;
 
     SELECT source.value
       INTO legacy_meta
       FROM public.kv_store_b0d68fc8 AS source
-     WHERE source.key = 'conversation:' || legacy_record.wallet_address || ':' || conversation_id;
+     WHERE source.key = 'conversation:' || legacy_record.wallet_address || ':' || v_conversation_id;
 
-    thread_title := left(coalesce(
+    v_thread_title := left(coalesce(
       nullif(legacy_meta->>'title', ''),
       (
         SELECT nullif(item->>'content', '')
@@ -57,7 +54,7 @@ BEGIN
       'AI Conversation'
     ), 80);
 
-    agent_context := CASE legacy_meta->>'agentContext'
+    v_agent_context := CASE legacy_meta->>'agentContext'
       WHEN 'buyer' THEN 'buyer'
       WHEN 'seller' THEN 'seller'
       WHEN 'arbiter' THEN 'arbiter'
@@ -74,9 +71,9 @@ BEGIN
       created_at,
       updated_at
     ) VALUES (
-      thread_id,
-      normalized_wallet,
-      thread_title,
+      v_thread_id,
+      v_normalized_wallet,
+      v_thread_title,
       'orina-ai-engine-v2',
       0,
       0,
@@ -84,7 +81,7 @@ BEGIN
       now()
     );
 
-    message_ordinal := 0;
+    v_message_ordinal := 0;
     FOR legacy_message IN
       SELECT item
       FROM jsonb_array_elements(legacy_record.messages) WITH ORDINALITY AS entries(item, ordinal)
@@ -92,7 +89,7 @@ BEGIN
         AND nullif(item->>'content', '') IS NOT NULL
       ORDER BY ordinal
     LOOP
-      message_ordinal := message_ordinal + 1;
+      v_message_ordinal := v_message_ordinal + 1;
       INSERT INTO public.agent_messages (
         thread_id,
         role,
@@ -102,7 +99,7 @@ BEGIN
         metadata,
         created_at
       ) VALUES (
-        thread_id,
+        v_thread_id,
         CASE
           WHEN coalesce(legacy_message->>'senderType', '') IN ('customer', 'seller') THEN 'user'
           ELSE 'assistant'
@@ -122,14 +119,14 @@ BEGIN
         ) || jsonb_build_object(
           'source', 'legacy-kv-cutover-000084',
           'legacy_message_id', nullif(legacy_message->>'id', ''),
-          'conversation_id', conversation_id,
-          'agent_context', agent_context
+          'conversation_id', v_conversation_id,
+          'agent_context', v_agent_context
         ),
-        now() + make_interval(secs => message_ordinal::double precision / 1000000.0)
+        now() + make_interval(secs => v_message_ordinal::double precision / 1000000.0)
       );
     END LOOP;
 
-    PERFORM public.agent_thread_sync_stats(thread_id);
+    PERFORM public.agent_thread_sync_stats(v_thread_id);
   END LOOP;
 END;
 $migration$;
