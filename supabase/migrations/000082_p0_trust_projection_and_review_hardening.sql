@@ -134,9 +134,33 @@ revoke insert, update, delete on table public.protocol_assets from authenticated
 revoke insert, update, delete on table public.protocol_orders from authenticated;
 
 -- uint256 identifiers must not be truncated to signed BIGINT/JavaScript Number.
+-- PostgreSQL will not alter a column referenced by an RLS policy, even when the
+-- policy only casts that column. Recreate the visibility policy around the type
+-- change so the migration remains transactional and preserves its exact scope.
+drop policy if exists protocol_receipts_select_public on public.protocol_receipts;
+
 alter table public.protocol_receipts
   alter column token_id type numeric(78, 0) using token_id::numeric,
   alter column order_id type numeric(78, 0) using order_id::numeric;
+
+create policy protocol_receipts_select_public
+  on public.protocol_receipts
+  for select
+  to public
+  using (
+    exists (
+      select 1
+      from public.protocol_orders o
+      where o.chain_id = protocol_receipts.chain_id
+        and o.order_uid = protocol_receipts.order_id::text
+        and public.protocol_projection_is_visible_v1(
+          'order',
+          o.chain_id,
+          o.marketplace_contract,
+          o.order_uid
+        )
+    )
+  );
 
 -- ---------------------------------------------------------------------------
 -- Reviews: quarantine legacy unverifiable rows and expose one verified RPC.
